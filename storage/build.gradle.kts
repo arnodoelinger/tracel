@@ -10,7 +10,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.exposed.core)
-    implementation(libs.exposed.jdbc)
+    api(libs.exposed.jdbc)
     implementation(libs.hikaricp)
 
     compileOnly(libs.sqlite.jdbc)
