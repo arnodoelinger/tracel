@@ -33,10 +33,10 @@ class DemoScenarioTest {
         val alice = player(1)
         val bob = player(2)
 
-        // A chest with 10 diamonds.
+        // A chest with 10 diamonds
         val original = world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
 
-        // TNT blows it up, scattering 6 diamonds to one pile and 4 to another.
+        // TNT blows it up, scattering 6 diamonds to one pile and 4 to another
         world.ledger.move(chest, entityA, diamond, Quantity(6), world.nextTxn())
         world.ledger.move(chest, entityB, diamond, Quantity(4), world.nextTxn())
         assertEquals(0L, world.ledger.totalAt(chest, diamond)?.raw ?: 0L, "chest should be empty right after the explosion")

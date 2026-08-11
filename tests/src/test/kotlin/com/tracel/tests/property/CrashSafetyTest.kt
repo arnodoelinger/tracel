@@ -32,11 +32,6 @@ import org.junit.jupiter.api.Test
 class CrashSafetyTest {
     private data class Scenario(val world: LedgerHarness, val chest: HolderId.Block, val rootLot: LotId)
 
-    /**
-     * The same scenario as `NoDupeTest`: one [com.tracel.engine.rollback.RollbackStep.Mint]
-     * (compensating what burned in lava) and one [com.tracel.engine.rollback.RollbackStep.Take],
-     * so this exercises both kinds of step, not just one.
-     */
     private fun buildScenario(): Scenario {
         val world = LedgerHarness()
         val chest = block(0, 64, 0)
