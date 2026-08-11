@@ -1,6 +1,6 @@
 package com.tracel.engine.rollback
 
-import com.tracel.engine.concurrency.SingleWriterGuard
+import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.id.RollbackJobId
 
 /** In-memory [RollbackJobRepository]. */

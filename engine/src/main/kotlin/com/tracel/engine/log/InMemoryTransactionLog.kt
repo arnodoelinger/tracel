@@ -1,6 +1,6 @@
 package com.tracel.engine.log
 
-import com.tracel.engine.concurrency.SingleWriterGuard
+import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.id.TxnId
 import com.tracel.model.transaction.Transaction
 

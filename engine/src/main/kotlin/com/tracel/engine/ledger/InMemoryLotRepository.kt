@@ -1,6 +1,6 @@
 package com.tracel.engine.ledger
 
-import com.tracel.engine.concurrency.SingleWriterGuard
+import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
