@@ -1,5 +1,6 @@
 plugins {
     id("tracel.pure-kotlin")
+    id("java-test-fixtures")
 }
 
 dependencies {
