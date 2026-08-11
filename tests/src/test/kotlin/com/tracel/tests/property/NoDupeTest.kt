@@ -44,8 +44,8 @@ class NoDupeTest {
         assertEquals(4L, mintStep.quantity.raw, "compensation must match exactly what was actually lost")
         assertEquals(SinkKind.LAVA, mintStep.reason)
 
-        JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal())
-            .execute(RollbackJobId(1), plan, restoreTo = chest, txn = world.nextTxn())
+        JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal(), world.leases)
+            .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = chest, txn = world.nextTxn())
 
         // 6 remaining in the chest, 4 newly minted to compensate for the burned ones — census is back to 10
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw)

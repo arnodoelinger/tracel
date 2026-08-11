@@ -57,8 +57,9 @@ class DemoScenarioTest {
         assertEquals(2, plan.takeCount, "material ended up in exactly two places: the other chest and Bob")
 
         val executor = RollbackExecutor(world.ledger)
-        val journalExecutor = JournalExecutor(executor, InMemoryJournal())
-        journalExecutor.execute(RollbackJobId(1), plan, restoreTo = chest, txn = world.nextTxn())
+        val journalExecutor = JournalExecutor(executor, InMemoryJournal(), world.leases)
+        val lease = world.acquireLease(RollbackJobId(1), plan)
+        journalExecutor.execute(lease, plan, restoreTo = chest, txn = world.nextTxn())
 
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw, "the original chest is whole again")
         assertEquals(0L, world.ledger.totalAt(otherChest, diamond)?.raw ?: 0L, "the transferred share was reclaimed")

@@ -3,14 +3,15 @@ package com.tracel.storage
 import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.rollback.RollbackExecutor
 import com.tracel.engine.rollback.RollbackPlan
 import com.tracel.engine.rollback.RollbackPlanner
-import com.tracel.engine.rollback.WorldQuery
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
 import com.tracel.storage.ledger.SqliteLotRepository
+import com.tracel.storage.ownership.SqliteLotLeaseRegistry
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
@@ -49,9 +50,10 @@ class PropertyEquivalenceTest {
             ledger.move(p2, p3, diamond, Quantity(2), nextTxn())
             ledger.move(p3, p1, diamond, Quantity(1), nextTxn())
 
-            val plan = RollbackPlanner(repo, WorldQuery { true }).plan(listOf(root.id))
-            JournalExecutor(RollbackExecutor(ledger), InMemoryJournal())
-                .execute(RollbackJobId(1), plan, restoreTo = chest, txn = nextTxn())
+            val plan = RollbackPlanner(repo, { true }).plan(listOf(root.id))
+            val lease = (SqliteLotLeaseRegistry(db.exposed).acquire(RollbackJobId(1), plan.touchedLots) as LeaseAcquisition.Granted).lease
+            JournalExecutor(RollbackExecutor(ledger), InMemoryJournal(), SqliteLotLeaseRegistry(db.exposed))
+                .execute(lease, plan, restoreTo = chest, txn = nextTxn())
 
             assertEquals(checkpointCensus, ledger.census(diamond))
             assertEquals(20L, ledger.totalAt(chest, diamond)?.raw)
@@ -74,7 +76,7 @@ class PropertyEquivalenceTest {
                 ledger.move(chest, p1, diamond, Quantity(6), nextTxn())
                 ledger.move(chest, p2, diamond, Quantity(4), nextTxn())
                 ledger.move(p1, p2, diamond, Quantity(2), nextTxn())
-                return RollbackPlanner(repo, WorldQuery { true }).plan(listOf(root.id))
+                return RollbackPlanner(repo, { true }).plan(listOf(root.id))
             }
         }
 

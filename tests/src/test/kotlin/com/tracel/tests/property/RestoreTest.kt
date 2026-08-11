@@ -43,8 +43,8 @@ class RestoreTest {
         world.ledger.move(p3, p1, diamond, Quantity(1), world.nextTxn())
 
         val plan = RollbackPlanner(world.repo, WorldQuery { true }).plan(listOf(root.id))
-        JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal())
-            .execute(RollbackJobId(1), plan, restoreTo = chest, txn = world.nextTxn())
+        JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal(), world.leases)
+            .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = chest, txn = world.nextTxn())
 
         assertEquals(checkpointCensus, world.ledger.census(diamond))
         assertEquals(20L, world.ledger.totalAt(chest, diamond)?.raw)

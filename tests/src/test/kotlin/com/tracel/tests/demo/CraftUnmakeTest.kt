@@ -60,8 +60,8 @@ class CraftUnmakeTest {
         assertEquals(1, plan.takeCount, "and one take, for the traced share")
 
         val executor = RollbackExecutor(world.ledger)
-        JournalExecutor(executor, InMemoryJournal())
-            .execute(RollbackJobId(1), plan, restoreTo = chest, txn = world.nextTxn())
+        JournalExecutor(executor, InMemoryJournal(), world.leases)
+            .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = chest, txn = world.nextTxn())
 
         assertEquals(4L, world.ledger.totalAt(chest, diamond)?.raw, "the 4 looted diamonds are back in the chest")
         assertEquals(5L, world.ledger.totalAt(steve, diamond)?.raw, "Steve keeps exactly his own 5 — not 9, not 0")

@@ -33,6 +33,7 @@ private val migrations = listOf(
             JournalProgressTable,
             TransactionsTable,
             FlowsTable,
+            LotLeasesTable,
         )
     },
 )

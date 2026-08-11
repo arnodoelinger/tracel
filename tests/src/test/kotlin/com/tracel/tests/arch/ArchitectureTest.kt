@@ -103,4 +103,17 @@ class ArchitectureTest {
             .withPublicOrDefaultModifier()
             .assertFalse(testName = "no mutable property type") { it.type?.isMutableType == true }
     }
+
+    @Test
+    fun `JournalExecutor and InvolutionExecutor cannot be called without a LotLease`() {
+        val gated = Konsist.scopeFromModule("engine")
+            .classes()
+            .filter { it.name == "JournalExecutor" || it.name == "InvolutionExecutor" }
+            .flatMap { it.functions() }
+            .filter { it.name == "execute" || it.name == "apply" }
+
+        gated.assertTrue(testName = "first parameter is a LotLease") {
+            it.parameters.firstOrNull()?.type?.name == "LotLease"
+        }
+    }
 }

@@ -53,20 +53,21 @@ class CrashSafetyTest {
             val plan = RollbackPlanner(world.repo, { true }).plan(listOf(rootLot))
             val journal = InMemoryJournal()
             val job = RollbackJobId(1)
+            val lease = world.acquireLease(job, plan)
 
             // First attempt must actually crash — otherwise the test proves nothing: if the crash injection silently
             // failed, the second attempt would just "do everything from scratch", and matching the expected final
             // state would prove nothing.
             val crash = runCatching {
-                JournalExecutor(RollbackExecutor(world.ledger), journal)
-                    .execute(job, plan, restoreTo = chest, txn = world.nextTxn(), crashPoint = CrashPoint.before(crashAt))
+                JournalExecutor(RollbackExecutor(world.ledger), journal, world.leases)
+                    .execute(lease, plan, restoreTo = chest, txn = world.nextTxn(), crashPoint = CrashPoint.before(crashAt))
             }.exceptionOrNull()
             assertTrue(crash is SimulatedCrash, "crash before step $crashAt should actually have fired, got $crash")
 
             // New exectutor, same journal, same job id, same plan: must resume from the crash point and reach
             // the correct final state.
-            JournalExecutor(RollbackExecutor(world.ledger), journal)
-                .execute(job, plan, restoreTo = chest, txn = world.nextTxn())
+            JournalExecutor(RollbackExecutor(world.ledger), journal, world.leases)
+                .execute(lease, plan, restoreTo = chest, txn = world.nextTxn())
 
             assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw, "crash before step $crashAt")
             assertEquals(10L, world.ledger.census(diamond), "crash before step $crashAt: no duplication, no loss")

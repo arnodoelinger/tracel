@@ -4,6 +4,7 @@ import com.tracel.engine.journal.CrashPoint
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.journal.SimulatedCrash
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.rollback.RollbackExecutor
 import com.tracel.engine.rollback.RollbackPlanner
 import com.tracel.model.holder.HolderId
@@ -13,6 +14,7 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
 import com.tracel.storage.journal.SqliteJournal
 import com.tracel.storage.ledger.SqliteLotRepository
+import com.tracel.storage.ownership.SqliteLotLeaseRegistry
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
@@ -57,21 +59,25 @@ class CrashRecoveryTest {
         val crash = TracelDatabase.open(path).use { db ->
             val repo = SqliteLotRepository(db.exposed)
             val plan = RollbackPlanner(repo, { true }).plan(listOf(root))
+            val lease = (SqliteLotLeaseRegistry(db.exposed).acquire(job, plan.touchedLots) as LeaseAcquisition.Granted).lease
             runCatching {
-                JournalExecutor(RollbackExecutor(LotLedger(repo)), SqliteJournal(db.exposed))
-                    .execute(job, plan, restoreTo = chest, txn = nextTxn(), crashPoint = CrashPoint.before(1))
+                JournalExecutor(RollbackExecutor(LotLedger(repo)), SqliteJournal(db.exposed), SqliteLotLeaseRegistry(db.exposed))
+                    .execute(lease, plan, restoreTo = chest, txn = nextTxn(), crashPoint = CrashPoint.before(1))
             }.exceptionOrNull()
         }
         assertTrue(crash is SimulatedCrash, "the crash injection must actually have fired, got $crash")
 
-        // Restart: brand-new TracelDatabase, brand-new repository / journal / executor objects, same file
+        // Restart: brand-new TracelDatabase, brand-new repository / journal / executor / lease-registry
+        // objects, same file — the lease taken before the crash must still be sitting in the database,
+        // exactly like the journal's step-completion rows are.
         TracelDatabase.open(path).use { db ->
             val repo = SqliteLotRepository(db.exposed)
             val ledger = LotLedger(repo)
             val plan = RollbackPlanner(repo, { true }).plan(listOf(root))
+            val lease = (SqliteLotLeaseRegistry(db.exposed).acquire(job, plan.touchedLots) as LeaseAcquisition.Granted).lease
 
-            JournalExecutor(RollbackExecutor(ledger), SqliteJournal(db.exposed))
-                .execute(job, plan, restoreTo = chest, txn = nextTxn())
+            JournalExecutor(RollbackExecutor(ledger), SqliteJournal(db.exposed), SqliteLotLeaseRegistry(db.exposed))
+                .execute(lease, plan, restoreTo = chest, txn = nextTxn())
 
             assertEquals(10L, ledger.totalAt(chest, diamond)?.raw)
             assertEquals(10L, ledger.census(diamond), "no duplication, no loss, across a real restart")

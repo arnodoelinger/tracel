@@ -85,6 +85,25 @@ object JournalProgressTable : Table("journal_progress") {
 }
 
 /**
+ * Which job currently holds the exclusive right to touch each lot — see
+ * [com.tracel.engine.ownership.LotLeaseRegistry]. A row surviving a crash is the entire point:
+ * a job that was mid-apply when the process died still holds its lots on restart, so nothing
+ * else can start touching them out from under a resuming job.
+ */
+object LotLeasesTable : Table("lot_leases") {
+    val lotId: Column<Long> = long("lot_id")
+    val jobId: Column<Long> = long("job_id").index()
+
+    /**
+     * Set on every [com.tracel.engine.ownership.LotLeaseRegistry.acquire] / `extend` — a job still
+     * actively renewing its lease is not abandoned, no matter how old the row itself is.
+     */
+    val acquiredAtMillis: Column<Long> = long("acquired_at_millis")
+
+    override val primaryKey: PrimaryKey = PrimaryKey(lotId)
+}
+
+/**
  * One row per [com.tracel.model.transaction.Transaction] — the append-only log
  * [com.tracel.engine.log.TransactionLog] persists. [PlacementsTable] / [LotsTable] / [LotEdgesTable]
  * are the queryable projection of what this log implies about current state; this table is

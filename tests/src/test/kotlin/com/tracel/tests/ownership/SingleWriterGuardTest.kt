@@ -1,6 +1,6 @@
-package com.tracel.tests.concurrency
+package com.tracel.tests.ownership
 
-import com.tracel.engine.concurrency.SingleWriterGuard
+import com.tracel.engine.ownership.SingleWriterGuard
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
