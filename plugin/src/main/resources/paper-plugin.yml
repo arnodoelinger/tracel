@@ -1,0 +1,9 @@
+name: Tracel
+version: '${version}'
+main: com.tracel.plugin.TracelPlugin
+description: Forensics and history engine.
+authors: [ arnodoelinger ]
+website: https://github.com/arnodoelinger/Tracel
+api-version: '26.1'
+load: POSTWORLD
+folia-supported: true
