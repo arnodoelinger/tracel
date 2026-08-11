@@ -1,0 +1,85 @@
+package com.tracel.tests.property
+
+import com.tracel.engine.journal.CrashPoint
+import com.tracel.engine.journal.InMemoryJournal
+import com.tracel.engine.journal.JournalExecutor
+import com.tracel.engine.journal.SimulatedCrash
+import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.rollback.RollbackExecutor
+import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.SinkKind
+import com.tracel.model.id.LotId
+import com.tracel.model.id.Quantity
+import com.tracel.model.id.RollbackJobId
+import com.tracel.tests.support.Fixtures.block
+import com.tracel.tests.support.Fixtures.diamond
+import com.tracel.tests.support.Fixtures.player
+import com.tracel.tests.support.LedgerHarness
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+/**
+ * Crash safety: interrupting a rollback right before any single step —
+ * a take, a mint, or the final release out of escrow — and resuming from the
+ * same journal afterward must still reach the correct final state.
+ *
+ * This is what actually proves the rollback is transactional rather than merely
+ * usually correct: every one of its steps is individually safe to die on.
+ */
+class CrashSafetyTest {
+    private data class Scenario(val world: LedgerHarness, val chest: HolderId.Block, val rootLot: LotId)
+
+    /**
+     * The same scenario as `NoDupeTest`: one [com.tracel.engine.rollback.RollbackStep.Mint]
+     * (compensating what burned in lava) and one [com.tracel.engine.rollback.RollbackStep.Take],
+     * so this exercises both kinds of step, not just one.
+     */
+    private fun buildScenario(): Scenario {
+        val world = LedgerHarness()
+        val chest = block(0, 64, 0)
+        val steve = player(1)
+        val root = world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
+        world.ledger.move(chest, steve, diamond, Quantity(10), world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        return Scenario(world, chest, root.id)
+    }
+
+    @Test
+    fun `a crash before any step still resumes to a correct final state`() = runTest {
+        val probe = buildScenario()
+        val stepCount = RollbackPlanner(probe.world.repo, { true })
+            .plan(listOf(probe.rootLot)).steps.size + 1 // +1 = final release
+
+        for (crashAt in 0 until stepCount) {
+            val (world, chest, rootLot) = buildScenario()
+            val plan = RollbackPlanner(world.repo, { true }).plan(listOf(rootLot))
+            val journal = InMemoryJournal()
+            val job = RollbackJobId(1)
+
+            // First attempt must actually crash — otherwise the test proves nothing: if the crash injection silently
+            // failed, the second attempt would just "do everything from scratch", and matching the expected final
+            // state would prove nothing.
+            val crash = runCatching {
+                JournalExecutor(RollbackExecutor(world.ledger), journal)
+                    .execute(job, plan, restoreTo = chest, txn = world.nextTxn(), crashPoint = CrashPoint.before(crashAt))
+            }.exceptionOrNull()
+            assertTrue(crash is SimulatedCrash, "crash before step $crashAt should actually have fired, got $crash")
+
+            // New exectutor, same journal, same job id, same plan: must resume from the crash point and reach
+            // the correct final state.
+            JournalExecutor(RollbackExecutor(world.ledger), journal)
+                .execute(job, plan, restoreTo = chest, txn = world.nextTxn())
+
+            assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw, "crash before step $crashAt")
+            assertEquals(10L, world.ledger.census(diamond), "crash before step $crashAt: no duplication, no loss")
+            assertNothingLeftInEscrow(world.ledger, job)
+        }
+    }
+
+    private fun assertNothingLeftInEscrow(ledger: LotLedger, job: RollbackJobId) {
+        assertEquals(null, ledger.totalAt(HolderId.Escrow(job), diamond), "escrow must be fully drained once a job completes")
+    }
+}
