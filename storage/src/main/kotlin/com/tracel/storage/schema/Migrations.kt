@@ -36,6 +36,9 @@ private val migrations = listOf(
             LotLeasesTable,
         )
     },
+    Migration(2) {
+        SchemaUtils.createMissingTablesAndColumns(CountersTable)
+    },
 )
 
 /** Brings [db]'s schema up to the latest version, applying only whatever migrations it is still missing. */

@@ -131,3 +131,17 @@ object FlowsTable : Table("flows") {
 
     override val primaryKey: PrimaryKey = PrimaryKey(txnId, idx)
 }
+
+/**
+ * Persisted id allocation — see [com.tracel.storage.counters.SqliteCounters]. Without this, a
+ * counter that starts fresh at 1 on every plugin restart collides with [TransactionsTable] rows
+ * a previous session already wrote, and [com.tracel.engine.log.TransactionLog.append]'s
+ * duplicate-id check throws for every capture attempt until the counter catches back up —
+ * caught live by actually restarting a real server with real data already in it, not by a test.
+ */
+object CountersTable : Table("id_counters") {
+    val name: Column<String> = varchar("name", 16)
+    val nextValue: Column<Long> = long("next_value")
+
+    override val primaryKey: PrimaryKey = PrimaryKey(name)
+}

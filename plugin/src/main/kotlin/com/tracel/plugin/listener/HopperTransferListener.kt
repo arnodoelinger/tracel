@@ -1,6 +1,7 @@
 package com.tracel.plugin.listener
 
-import com.tracel.model.id.Quantity
+import com.tracel.annotations.CauseKind
+import com.tracel.engine.balance.InventoryDelta
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toHolderId
 import com.tracel.plugin.convert.toItemKey
@@ -30,12 +31,14 @@ class HopperTransferListener(private val services: TracelServices) : Listener {
         val source = event.source.toHolderId() ?: return
         val destination = event.destination.toHolderId() ?: return
         val itemKey = event.item.toItemKey()
-        val quantity = Quantity(event.item.amount.toLong())
+        val quantity = event.item.amount.toLong()
+        val deltas = listOf(InventoryDelta(source, itemKey, -quantity), InventoryDelta(destination, itemKey, quantity))
+        val epochMillis = System.currentTimeMillis()
 
         services.scope.launch {
             try {
                 withContext(services.schedulers.storage) {
-                    services.ledger.move(source, destination, itemKey, quantity, services.nextTxn())
+                    services.capture.record(deltas, epochMillis, CauseKind.HOPPER, causedBy = null)
                 }
             } catch (e: IllegalStateException) {
                 logger.log(Level.FINE, "untracked material moved $source -> $destination, not recorded", e)
