@@ -3,11 +3,36 @@ package com.tracel.storage.schema
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.Table
 
+/**
+ * Interned [com.tracel.model.item.ItemKey]s. The main source of storage savings once real
+ * capture traffic starts: a million `minecraft:diamond` rows collapse to one row and a
+ * varint foreign key everywhere else, instead of repeating "minecraft:diamond" as text on
+ * every lot and every placement.
+ */
+object ItemKeysTable : Table("item_keys") {
+    val id: Column<Long> = long("id").autoIncrement()
+    val material: Column<String> = varchar("material", 255).index()
+    val decoration: Column<String?> = varchar("decoration", 64).nullable()
+
+    override val primaryKey: PrimaryKey = PrimaryKey(id)
+}
+
+/**
+ * Interned [com.tracel.storage.holder.HolderCodec]-encoded [com.tracel.model.holder.HolderId]s.
+ * A hopper sitting in one spot generates thousands of placements referencing the exact same
+ * holder — interning it once is the other half of the savings [ItemKeysTable] gives.
+ */
+object HoldersTable : Table("holders") {
+    val id: Column<Long> = long("id").autoIncrement()
+    val encoded: Column<String> = text("encoded").index()
+
+    override val primaryKey: PrimaryKey = PrimaryKey(id)
+}
+
 /** One row per [com.tracel.model.lot.Lot]. Lots are immutable, so nothing here is ever updated after insert. */
 object LotsTable : Table("lots") {
     val id: Column<Long> = long("id").autoIncrement()
-    val material: Column<String> = varchar("material", 255)
-    val decoration: Column<String?> = varchar("decoration", 64).nullable()
+    val itemKeyId: Column<Long> = long("item_key_id").index()
     val quantity: Column<Long> = long("quantity")
     val createdBy: Column<Long> = long("created_by")
 
@@ -29,8 +54,8 @@ object LotEdgesTable : Table("lot_edges") {
     /** Set only when [kind] is `TRANSFORM`. */
     val craftedBy: Column<Long?> = long("crafted_by").nullable()
 
-    /** Set only when [kind] is `TRANSFORM` — the holder-encoded text a [com.tracel.storage.holder.HolderCodec] produces. */
-    val producedAt: Column<String?> = text("produced_at").nullable()
+    /** Set only when [kind] is `TRANSFORM` — the interned holder the craft's output landed at. */
+    val producedAtHolderId: Column<Long?> = long("produced_at_holder_id").nullable()
 
     /** Set only when [kind] is `COMPENSATE`. */
     val rollbackJob: Column<Long?> = long("rollback_job").nullable()
@@ -44,7 +69,7 @@ object LotEdgesTable : Table("lot_edges") {
  */
 object PlacementsTable : Table("placements") {
     val id: Column<Long> = long("id").autoIncrement()
-    val holder: Column<String> = text("holder").index()
+    val holderId: Column<Long> = long("holder_id").index()
     val lotId: Column<Long> = long("lot_id").index()
     val remaining: Column<Long> = long("remaining")
 
@@ -57,4 +82,33 @@ object JournalProgressTable : Table("journal_progress") {
     val stepIndex: Column<Int> = integer("step_index")
 
     override val primaryKey: PrimaryKey = PrimaryKey(jobId, stepIndex)
+}
+
+/**
+ * One row per [com.tracel.model.transaction.Transaction] — the append-only log
+ * [com.tracel.engine.log.TransactionLog] persists. [PlacementsTable] / [LotsTable] / [LotEdgesTable]
+ * are the queryable projection of what this log implies about current state; this table is
+ * what actually happened, in order.
+ */
+object TransactionsTable : Table("transactions") {
+    val id: Column<Long> = long("id")
+    val seq: Column<Long> = long("seq").index()
+    val epochMillis: Column<Long> = long("epoch_millis")
+    val cause: Column<String> = varchar("cause", 32)
+    val causedByHolderId: Column<Long?> = long("caused_by_holder_id").nullable()
+
+    override val primaryKey: PrimaryKey = PrimaryKey(id)
+}
+
+/** One row per [com.tracel.model.flow.Flow] belonging to a [TransactionsTable] row. */
+object FlowsTable : Table("flows") {
+    val txnId: Column<Long> = long("txn_id").index()
+    val idx: Column<Int> = integer("idx")
+    val itemKeyId: Column<Long> = long("item_key_id")
+    val quantity: Column<Long> = long("quantity")
+    val sourceHolderId: Column<Long> = long("source_holder_id")
+    val destinationHolderId: Column<Long> = long("destination_holder_id")
+    val kind: Column<String> = varchar("kind", 16)
+
+    override val primaryKey: PrimaryKey = PrimaryKey(txnId, idx)
 }

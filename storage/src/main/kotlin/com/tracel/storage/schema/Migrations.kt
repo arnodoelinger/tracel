@@ -24,7 +24,16 @@ private class Migration(val version: Int, val apply: () -> Unit)
 /** All migrations, in order of increasing version. */
 private val migrations = listOf(
     Migration(1) {
-        SchemaUtils.createMissingTablesAndColumns(LotsTable, LotEdgesTable, PlacementsTable, JournalProgressTable)
+        SchemaUtils.createMissingTablesAndColumns(
+            ItemKeysTable,
+            HoldersTable,
+            LotsTable,
+            LotEdgesTable,
+            PlacementsTable,
+            JournalProgressTable,
+            TransactionsTable,
+            FlowsTable,
+        )
     },
 )
 

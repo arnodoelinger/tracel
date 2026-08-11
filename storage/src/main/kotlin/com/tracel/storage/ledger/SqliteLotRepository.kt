@@ -8,12 +8,11 @@ import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
-import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.AccountLot
 import com.tracel.model.lot.Lot
 import com.tracel.model.lot.LotEdge
-import com.tracel.storage.holder.HolderCodec
+import com.tracel.storage.intern.Interning
 import com.tracel.storage.schema.LotEdgesTable
 import com.tracel.storage.schema.LotsTable
 import com.tracel.storage.schema.PlacementsTable
@@ -36,18 +35,21 @@ import org.jetbrains.exposed.v1.jdbc.update
  * [com.tracel.engine.journal.JournalExecutor]'s resumable stepping was built to tolerate for
  * rollback jobs specifically.
  *
+ * Item keys and holders are interned via [Interning] rather than stored as repeated text —
+ * see [com.tracel.storage.schema.ItemKeysTable]/[com.tracel.storage.schema.HoldersTable].
+ *
  * See [SingleWriterGuard] for the other half of the crash-safety story: only one thread may
  * ever be mid-write here at a time.
  */
-class SqliteLotRepository(private val db: Database) : LotRepository {
+public class SqliteLotRepository(private val db: Database) : LotRepository {
     private val writer = SingleWriterGuard()
 
     override fun createLot(itemKey: ItemKey, quantity: Quantity, createdBy: TxnId): Lot {
         writer.checkIn()
         return transaction(db) {
+            val itemKeyId = Interning.internItemKey(itemKey)
             val id = LotsTable.insert {
-                it[material] = itemKey.material
-                it[decoration] = itemKey.decoration?.hex
+                it[LotsTable.itemKeyId] = itemKeyId
                 it[LotsTable.quantity] = quantity.raw
                 it[LotsTable.createdBy] = createdBy.raw
             } get LotsTable.id
@@ -71,7 +73,7 @@ class SqliteLotRepository(private val db: Database) : LotRepository {
                     is LotEdge.Transform -> {
                         statement[kind] = "TRANSFORM"
                         statement[craftedBy] = edge.craftedBy.raw
-                        statement[producedAt] = HolderCodec.encode(edge.producedAt)
+                        statement[producedAtHolderId] = Interning.internHolder(edge.producedAt)
                     }
                     is LotEdge.Compensate -> {
                         statement[kind] = "COMPENSATE"
@@ -91,30 +93,29 @@ class SqliteLotRepository(private val db: Database) : LotRepository {
     }
 
     override fun accountQueue(holder: HolderId, itemKey: ItemKey): List<AccountLot> = transaction(db) {
+        val holderId = Interning.findHolderId(holder) ?: return@transaction emptyList()
+        val itemKeyId = Interning.findItemKeyId(itemKey) ?: return@transaction emptyList()
+
         PlacementsTable.innerJoinOn(LotsTable, { lotId }, { id })
             .selectAll()
-            .where {
-                (PlacementsTable.holder eq HolderCodec.encode(holder)) and
-                    (LotsTable.material eq itemKey.material) and
-                    (LotsTable.decoration eq itemKey.decoration?.hex)
-            }
+            .where { (PlacementsTable.holderId eq holderId) and (LotsTable.itemKeyId eq itemKeyId) }
             .orderBy(PlacementsTable.id)
             .map { it.toAccountLot(holder) }
     }
 
     override fun allPlacements(itemKey: ItemKey): List<AccountLot> = transaction(db) {
+        val itemKeyId = Interning.findItemKeyId(itemKey) ?: return@transaction emptyList()
+
         PlacementsTable.innerJoinOn(LotsTable, { lotId }, { id })
             .selectAll()
-            .where {
-                (LotsTable.material eq itemKey.material) and (LotsTable.decoration eq itemKey.decoration?.hex)
-            }
-            .map { row -> row.toAccountLot(HolderCodec.decode(row[PlacementsTable.holder])) }
+            .where { LotsTable.itemKeyId eq itemKeyId }
+            .map { row -> row.toAccountLot(Interning.resolveHolder(row[PlacementsTable.holderId])) }
     }
 
     override fun currentHolderOf(lotId: LotId): HolderId? = transaction(db) {
         PlacementsTable.selectAll().where { PlacementsTable.lotId eq lotId.raw }
             .singleOrNull()
-            ?.let { HolderCodec.decode(it[PlacementsTable.holder]) }
+            ?.let { Interning.resolveHolder(it[PlacementsTable.holderId]) }
     }
 
     override fun place(holder: HolderId, lotId: LotId, quantity: Quantity): AccountLot {
@@ -122,7 +123,7 @@ class SqliteLotRepository(private val db: Database) : LotRepository {
         return transaction(db) {
             val lot = LotsTable.selectAll().where { LotsTable.id eq lotId.raw }.single().toLot()
             val seq = PlacementsTable.insert {
-                it[PlacementsTable.holder] = HolderCodec.encode(holder)
+                it[holderId] = Interning.internHolder(holder)
                 it[PlacementsTable.lotId] = lotId.raw
                 it[remaining] = quantity.raw
             } get PlacementsTable.id
@@ -133,17 +134,18 @@ class SqliteLotRepository(private val db: Database) : LotRepository {
     override fun remove(holder: HolderId, lotId: LotId) {
         writer.checkIn()
         transaction(db) {
-            PlacementsTable.deleteWhere {
-                (PlacementsTable.holder eq HolderCodec.encode(holder)) and (PlacementsTable.lotId eq lotId.raw)
-            }
+            val holderId = Interning.findHolderId(holder) ?: return@transaction
+            PlacementsTable.deleteWhere { (PlacementsTable.holderId eq holderId) and (PlacementsTable.lotId eq lotId.raw) }
         }
     }
 
     override fun replace(holder: HolderId, retiredLotId: LotId, newLotId: LotId, remaining: Quantity) {
         writer.checkIn()
         transaction(db) {
+            val holderId = Interning.findHolderId(holder)
+                ?: error("no placement of $retiredLotId at $holder")
             val updated = PlacementsTable.update({
-                (PlacementsTable.holder eq HolderCodec.encode(holder)) and (PlacementsTable.lotId eq retiredLotId.raw)
+                (PlacementsTable.holderId eq holderId) and (PlacementsTable.lotId eq retiredLotId.raw)
             }) {
                 it[PlacementsTable.lotId] = newLotId.raw
                 it[PlacementsTable.remaining] = remaining.raw
@@ -154,7 +156,7 @@ class SqliteLotRepository(private val db: Database) : LotRepository {
 
     private fun ResultRow.toLot(): Lot = Lot(
         LotId(this[LotsTable.id]),
-        ItemKey(this[LotsTable.material], this[LotsTable.decoration]?.let(::ContentHash)),
+        Interning.resolveItemKey(this[LotsTable.itemKeyId]),
         Quantity(this[LotsTable.quantity]),
         TxnId(this[LotsTable.createdBy]),
     )
@@ -177,7 +179,9 @@ class SqliteLotRepository(private val db: Database) : LotRepository {
                 parent,
                 quantity,
                 TxnId(this[LotEdgesTable.craftedBy] ?: error("TRANSFORM edge $child<-$parent missing crafted_by")),
-                HolderCodec.decode(this[LotEdgesTable.producedAt] ?: error("TRANSFORM edge $child<-$parent missing produced_at")),
+                Interning.resolveHolder(
+                    this[LotEdgesTable.producedAtHolderId] ?: error("TRANSFORM edge $child<-$parent missing produced_at")
+                ),
             )
             "COMPENSATE" -> LotEdge.Compensate(
                 child,
