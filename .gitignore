@@ -23,6 +23,9 @@ bin/
 # macOS
 *.DS_Store
 
+# Plugin
+plugin/run
+
 # Java / Kotlin
 hs_err_*.log
 replay_*.log

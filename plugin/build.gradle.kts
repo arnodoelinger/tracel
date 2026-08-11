@@ -24,7 +24,6 @@ tasks {
 
         relocate("com.zaxxer.hikari", "com.tracel.shaded.hikari")
         relocate("org.jetbrains.exposed", "com.tracel.shaded.exposed")
-        relocate("org.sqlite", "com.tracel.shaded.sqlite")
         mergeServiceFiles()
     }
 
