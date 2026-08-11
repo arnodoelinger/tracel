@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":platform"))
     implementation(project(":storage"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.sqlite.jdbc)
 
     compileOnly(libs.paper.api)
     testImplementation(libs.paper.api)
@@ -23,6 +24,7 @@ tasks {
 
         relocate("com.zaxxer.hikari", "com.tracel.shaded.hikari")
         relocate("org.jetbrains.exposed", "com.tracel.shaded.exposed")
+        relocate("org.sqlite", "com.tracel.shaded.sqlite")
         mergeServiceFiles()
     }
 
