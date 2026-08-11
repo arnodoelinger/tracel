@@ -9,7 +9,7 @@ import java.nio.file.Path
 /**
  * One `SQLite` file, opened through a single-connection pool: `SQLite` allows only one writer at
  * a time, so a bigger pool would just be connections queueing behind each other for nothing.
- * Pairs with [com.tracel.engine.concurrency.SingleWriterGuard], which enforces the same
+ * Pairs with [com.tracel.engine.ownership.SingleWriterGuard], which enforces the same
  * constraint at the call site rather than the connection pool.
  *
  * WAL mode trades a second file on disk (`-wal`) for meaningfully better crash behavior than

@@ -1,7 +1,7 @@
 package com.tracel.storage.ownership
 
-import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.engine.ownership.LotLeaseRegistry
+import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.storage.schema.LotLeasesTable

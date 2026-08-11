@@ -1,7 +1,7 @@
 package com.tracel.storage.ledger
 
-import com.tracel.engine.concurrency.SingleWriterGuard
 import com.tracel.engine.ledger.LotRepository
+import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
@@ -41,7 +41,7 @@ import org.jetbrains.exposed.v1.jdbc.update
  * See [SingleWriterGuard] for the other half of the crash-safety story: only one thread may
  * ever be mid-write here at a time.
  */
-public class SqliteLotRepository(private val db: Database) : LotRepository {
+class SqliteLotRepository(private val db: Database) : LotRepository {
     private val writer = SingleWriterGuard()
 
     override fun createLot(itemKey: ItemKey, quantity: Quantity, createdBy: TxnId): Lot {

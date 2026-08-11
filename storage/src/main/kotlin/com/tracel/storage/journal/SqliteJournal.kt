@@ -1,7 +1,7 @@
 package com.tracel.storage.journal
 
-import com.tracel.engine.concurrency.SingleWriterGuard
 import com.tracel.engine.journal.Journal
+import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.id.RollbackJobId
 import com.tracel.storage.schema.JournalProgressTable
 import org.jetbrains.exposed.v1.core.and
@@ -15,7 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
  * `SQLite`-backed [Journal] — surviving the process dying is the entire reason this exists,
  * so unlike [com.tracel.engine.journal.InMemoryJournal] it actually has something to prove.
  */
-public class SqliteJournal(private val db: Database) : Journal {
+class SqliteJournal(private val db: Database) : Journal {
     private val writer = SingleWriterGuard()
 
     /**

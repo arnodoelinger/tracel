@@ -1,8 +1,8 @@
 package com.tracel.storage.log
 
 import com.tracel.annotations.CauseKind
-import com.tracel.engine.concurrency.SingleWriterGuard
 import com.tracel.engine.log.TransactionLog
+import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.id.Quantity
