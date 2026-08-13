@@ -2,6 +2,7 @@ plugins {
     id("tracel.kotlin-conventions")
     alias(libs.plugins.shadow)
     alias(libs.plugins.run.paper)
+    alias(libs.plugins.ksp)
 }
 
 dependencies {
@@ -11,6 +12,7 @@ dependencies {
     implementation(project(":storage"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.sqlite.jdbc)
+    ksp(project(":codegen"))
 
     compileOnly(libs.paper.api)
     testImplementation(libs.paper.api)

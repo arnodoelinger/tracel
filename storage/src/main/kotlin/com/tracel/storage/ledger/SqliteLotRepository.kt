@@ -36,7 +36,7 @@ import org.jetbrains.exposed.v1.jdbc.update
  * rollback jobs specifically.
  *
  * Item keys and holders are interned via [Interning] rather than stored as repeated text —
- * see [com.tracel.storage.schema.ItemKeysTable]/[com.tracel.storage.schema.HoldersTable].
+ * see [com.tracel.storage.schema.ItemKeysTable] / [com.tracel.storage.schema.HoldersTable].
  *
  * See [SingleWriterGuard] for the other half of the crash-safety story: only one thread may
  * ever be mid-write here at a time.
@@ -110,6 +110,15 @@ class SqliteLotRepository(private val db: Database) : LotRepository {
             .selectAll()
             .where { LotsTable.itemKeyId eq itemKeyId }
             .map { row -> row.toAccountLot(Interning.resolveHolder(row[PlacementsTable.holderId])) }
+    }
+
+    override fun placementsAt(holder: HolderId): List<AccountLot> = transaction(db) {
+        val holderId = Interning.findHolderId(holder) ?: return@transaction emptyList()
+
+        PlacementsTable.innerJoinOn(LotsTable, { lotId }, { id })
+            .selectAll()
+            .where { PlacementsTable.holderId eq holderId }
+            .map { it.toAccountLot(holder) }
     }
 
     override fun currentHolderOf(lotId: LotId): HolderId? = transaction(db) {

@@ -16,6 +16,7 @@ import java.util.UUID
  */
 public sealed interface HolderId {
     public data class Block(val world: WorldId, val x: Int, val y: Int, val z: Int) : HolderId
+    public data class PlacedBlock(val world: WorldId, val x: Int, val y: Int, val z: Int) : HolderId
     public data class Player(val uuid: UUID) : HolderId
     public data class Entity(val uuid: UUID) : HolderId
     public data class ItemEntity(val uuid: UUID) : HolderId

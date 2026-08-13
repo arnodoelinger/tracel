@@ -2,6 +2,7 @@ package com.tracel.plugin.listener
 
 import com.tracel.annotations.CauseKind
 import com.tracel.model.holder.HolderId
+import com.tracel.model.item.ItemKey
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toHolderId
 import com.tracel.plugin.convert.toItemTotals
@@ -14,6 +15,9 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.event.inventory.InventoryCreativeEvent
+import org.bukkit.event.inventory.InventoryType
+import org.bukkit.inventory.CraftingInventory
 import org.bukkit.inventory.Inventory
 import org.bukkit.plugin.Plugin
 import java.util.logging.Level
@@ -35,6 +39,27 @@ class InventoryClickCaptureListener(
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onClick(event: InventoryClickEvent) {
+        // Excludes only crafting-matrix / result-slot clicks, left to CraftCaptureListener instead.
+        // A player's own inventory screen always has the personal 2 x 2 grid on top, so a naive check
+        // for "view has a CraftingInventory" would blind this to every ordinary click a player makes.
+        if (event.slotType == InventoryType.SlotType.CRAFTING || event.slotType == InventoryType.SlotType.RESULT) return
+        // InventoryCreativeEvent extends InventoryClickEvent and would otherwise reach this handler
+        // too, double-diffing the same click alongside onCreative below.
+        if (event is InventoryCreativeEvent) return
+
+        val player = event.whoClicked as? Player ?: return
+        val view = event.view
+        val inventories = listOfNotNull(view.topInventory, view.bottomInventory).distinct()
+
+        Bukkit.getRegionScheduler().runDelayed(plugin, player.location, { captureAll(inventories, player) }, 1L)
+    }
+
+    /**
+     * A creative-mode grab / drop is invisible to the ledger otherwise. Reuses the same
+     * diff-based capture as an ordinary click — it's still just "the player's inventory changed."
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    fun onCreative(event: InventoryCreativeEvent) {
         val player = event.whoClicked as? Player ?: return
         val view = event.view
         val inventories = listOfNotNull(view.topInventory, view.bottomInventory).distinct()
@@ -49,24 +74,37 @@ class InventoryClickCaptureListener(
     private fun captureAll(inventories: List<Inventory>, player: Player) {
         val causedBy = HolderId.Player(player.uniqueId)
 
-        // Every inventory this click could have touched is diffed and combined into one delta
-        // list before it ever reaches TransactionBalancer — a chest losing 4 and the player
-        // gaining 4 in the same click have to be balanced against each other as one "MOVE", not
-        // recorded as two disconnected, unmatched "MINT" / "BURN" pairs.
-        val deltas = inventories.flatMap { inventory ->
-            val holder = inventory.toHolderId() ?: return@flatMap emptyList()
-            var totals = inventory.toItemTotals()
+        // Grouped by resolved holder, not by Inventory object identity. A player's own inventory
+        // screen has the personal 2 x 2 crafting grid as topInventory alongside the real inventory
+        // as bottomInventory, and both resolve to the same HolderId.Player.
+        //
+        // Diffing them as two separate calls against the same per-holder snapshot corrupts it:
+        // whichever runs second sees the other's just-written totals as its "before" state and
+        // reports the entire real inventory as vanishing. Summing totals first and diffing once
+        // per holder avoids that.
+        val totalsByHolder = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
+        for (inventory in inventories) {
+            val holder = inventory.toHolderId() ?: continue
+            // A CraftingInventory's .contents includes its result slot — a preview of what a valid
+            // recipe would produce, materializing the instant the grid is filled, not something the
+            // player actually holds yet. Counted here it reads as a phantom gain, poisoning the
+            // snapshot so the real CraftItemEvent right after sees zero net gain. matrix.toItemTotals()
+            // exists for exactly this reason — CraftCaptureListener already uses it.
+            var totals = (inventory as? CraftingInventory)?.matrix?.toItemTotals() ?: inventory.toItemTotals()
             if (holder == causedBy) {
-                // The cursor stack lives outside any Inventory Bukkit exposes — it's what a
-                // player is physically holding mid-click. Left uncounted, picking an item up
-                // (onto the cursor) and putting it down later — even in the very same click —
-                // reads as an unmatched loss followed by an unmatched gain, when nothing
-                // actually left the player at all. Folding it into their own totals is what
-                // makes that invisible, the way it should be.
+                // The cursor stack lives outside any Inventory Bukkit exposes — it's what a player
+                // is physically holding mid-click. Left uncounted, picking an item up and putting it
+                // down later reads as an unmatched loss followed by an unmatched gain.
                 totals = totals.withCursor(player)
             }
-            services.differ.diff(holder, totals)
+            val merged = totalsByHolder.getOrPut(holder) { mutableMapOf() }
+            for ((key, qty) in totals) merged.merge(key, qty, Long::plus)
         }
+
+        // Every inventory this click could have touched is diffed and combined into one delta list
+        // before it reaches TransactionBalancer — a chest losing 4 and the player gaining 4 in the
+        // same click have to be balanced as one "MOVE".
+        val deltas = totalsByHolder.flatMap { (holder, totals) -> services.differ.diff(holder, totals) }
         if (deltas.isEmpty()) return
 
         val epochMillis = System.currentTimeMillis()
@@ -76,10 +114,9 @@ class InventoryClickCaptureListener(
                     services.capture.record(deltas, epochMillis, CauseKind.PLAYER_ACTION, causedBy)
                 }
             } catch (e: IllegalStateException) {
-                // Same untracked-material gap HopperTransferListener has: a burn / withdraw
-                // that touches material the ledger never saw enter (pre-existing inventory
-                // contents, most commonly) throws instead of corrupting state. Until there is
-                // a mint-on-first-sight story, this is expected, not a bug to crash a thread over.
+                // Same untracked-material gap HopperTransferListener has: a burn / withdraw that
+                // touches material the ledger never saw enter throws instead of corrupting state.
+                // Expected until there's a mint-on-first-sight story, not a bug to crash a thread over.
                 logger.log(Level.FINE, "untracked material in click by $causedBy, not recorded", e)
             }
         }

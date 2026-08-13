@@ -11,6 +11,9 @@ import com.tracel.model.transaction.Transaction
  * follows for undoing a rollback.
  */
 public interface TransactionLog {
+    /** Appends a new [transaction] to the log. Throws if a transaction with the same id already exists. */
     public fun append(transaction: Transaction)
+
+    /** Finds a transaction by its [id], or returns `null` if it does not exist. */
     public fun find(id: TxnId): Transaction?
 }

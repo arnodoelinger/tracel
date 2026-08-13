@@ -16,6 +16,7 @@ object HolderCodec {
     /** Encode a [HolderId] into a canonical, parseable text representation. */
     fun encode(holder: HolderId): String = when (holder) {
         is HolderId.Block -> "BLOCK:${holder.world.uuid}:${holder.x}:${holder.y}:${holder.z}"
+        is HolderId.PlacedBlock -> "PLACED_BLOCK:${holder.world.uuid}:${holder.x}:${holder.y}:${holder.z}"
         is HolderId.Player -> "PLAYER:${holder.uuid}"
         is HolderId.Entity -> "ENTITY:${holder.uuid}"
         is HolderId.ItemEntity -> "ITEM_ENTITY:${holder.uuid}"
@@ -29,6 +30,7 @@ object HolderCodec {
         val parts = text.split(":")
         return when (parts[0]) {
             "BLOCK" -> HolderId.Block(WorldId(UUID.fromString(parts[1])), parts[2].toInt(), parts[3].toInt(), parts[4].toInt())
+            "PLACED_BLOCK" -> HolderId.PlacedBlock(WorldId(UUID.fromString(parts[1])), parts[2].toInt(), parts[3].toInt(), parts[4].toInt())
             "PLAYER" -> HolderId.Player(UUID.fromString(parts[1]))
             "ENTITY" -> HolderId.Entity(UUID.fromString(parts[1]))
             "ITEM_ENTITY" -> HolderId.ItemEntity(UUID.fromString(parts[1]))

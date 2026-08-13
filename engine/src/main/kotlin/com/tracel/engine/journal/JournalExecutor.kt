@@ -9,29 +9,17 @@ import com.tracel.model.id.TxnId
 
 /**
  * Runs a [RollbackPlan] step by step, recording progress in a [Journal] as it goes.
- *
- * Takes a [LotLease], not a bare [com.tracel.model.id.RollbackJobId]: applying a plan without
- * having reserved every lot it touches is exactly the race two admins running overlapping
- * `/tracel rollback apply` commands could hit, and [LotLeaseRegistry.acquire]
- * is the only way to obtain one — see there for why that makes it impossible to call this
- * having skipped the reservation, not merely discouraged.
- *
- * [leases] is released automatically once a run finishes successfully — a completed job has
- * let go of its material, there is nothing left to protect. It is deliberately not released
- * when [crashPoint] (or a real crash) interrupts a run partway through: the lease has to
- * survive exactly as long as the job might still resume, which is why [LotLeaseRegistry] itself
- * is durable rather than an in-process lock.
  */
 public class JournalExecutor(
     private val executor: RollbackExecutor,
     private val journal: Journal,
     private val leases: LotLeaseRegistry,
+    private val nextTxnId: () -> TxnId,
 ) {
     public suspend fun execute(
         lease: LotLease,
         plan: RollbackPlan,
         restoreTo: HolderId,
-        txn: TxnId,
         crashPoint: CrashPoint = CrashPoint.None,
     ) {
         require(lease.lotIds.containsAll(plan.touchedLots)) {
@@ -42,14 +30,14 @@ public class JournalExecutor(
         for (index in plan.steps.indices) {
             if (journal.isCompleted(job, index)) continue
             crashPoint.checkBefore(index)
-            executor.apply(job, plan.steps[index], txn)
+            executor.apply(job, plan.steps[index], nextTxnId())
             journal.markCompleted(job, index)
         }
 
         val releaseIndex = plan.steps.size
         if (!journal.isCompleted(job, releaseIndex)) {
             crashPoint.checkBefore(releaseIndex)
-            executor.release(job, restoreTo, executor.escrowItemKeys(plan), txn)
+            executor.release(job, restoreTo, executor.escrowItemKeys(plan), nextTxnId())
             journal.markCompleted(job, releaseIndex)
         }
 

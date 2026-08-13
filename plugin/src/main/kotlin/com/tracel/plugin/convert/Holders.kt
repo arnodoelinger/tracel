@@ -2,6 +2,7 @@ package com.tracel.plugin.convert
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
+import org.bukkit.block.Block
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
@@ -22,3 +23,7 @@ fun Inventory.toHolderId(): HolderId? {
         }
     }
 }
+
+fun Block.toHolderId(): HolderId.Block = HolderId.Block(WorldId(world.uid), x, y, z)
+
+fun Block.toPlacedBlockId(): HolderId.PlacedBlock = HolderId.PlacedBlock(WorldId(world.uid), x, y, z)

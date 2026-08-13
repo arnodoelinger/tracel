@@ -4,6 +4,7 @@ import com.tracel.engine.journal.CrashPoint
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.journal.SimulatedCrash
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.log.InMemoryTransactionLog
 import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.rollback.RollbackExecutor
 import com.tracel.engine.rollback.RollbackPlanner
@@ -11,6 +12,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
+import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.storage.journal.SqliteJournal
 import com.tracel.storage.ledger.SqliteLotRepository
@@ -43,6 +45,9 @@ class CrashRecoveryTest {
         val steve = player(1)
         var nextTxnRaw = 1L
         fun nextTxn() = TxnId(nextTxnRaw++)
+        var nextSeqRaw = 1L
+        fun nextSeq() = Seq(nextSeqRaw++)
+        val log = InMemoryTransactionLog()
 
         val root = TracelDatabase.open(path).use { db ->
             val ledger = LotLedger(SqliteLotRepository(db.exposed))
@@ -61,8 +66,8 @@ class CrashRecoveryTest {
             val plan = RollbackPlanner(repo, { true }).plan(listOf(root))
             val lease = (SqliteLotLeaseRegistry(db.exposed).acquire(job, plan.touchedLots) as LeaseAcquisition.Granted).lease
             runCatching {
-                JournalExecutor(RollbackExecutor(LotLedger(repo)), SqliteJournal(db.exposed), SqliteLotLeaseRegistry(db.exposed))
-                    .execute(lease, plan, restoreTo = chest, txn = nextTxn(), crashPoint = CrashPoint.before(1))
+                JournalExecutor(RollbackExecutor(LotLedger(repo), log, ::nextSeq), SqliteJournal(db.exposed), SqliteLotLeaseRegistry(db.exposed), ::nextTxn)
+                    .execute(lease, plan, restoreTo = chest, crashPoint = CrashPoint.before(1))
             }.exceptionOrNull()
         }
         assertTrue(crash is SimulatedCrash, "the crash injection must actually have fired, got $crash")
@@ -76,8 +81,8 @@ class CrashRecoveryTest {
             val plan = RollbackPlanner(repo, { true }).plan(listOf(root))
             val lease = (SqliteLotLeaseRegistry(db.exposed).acquire(job, plan.touchedLots) as LeaseAcquisition.Granted).lease
 
-            JournalExecutor(RollbackExecutor(ledger), SqliteJournal(db.exposed), SqliteLotLeaseRegistry(db.exposed))
-                .execute(lease, plan, restoreTo = chest, txn = nextTxn())
+            JournalExecutor(RollbackExecutor(ledger, log, ::nextSeq), SqliteJournal(db.exposed), SqliteLotLeaseRegistry(db.exposed), ::nextTxn)
+                .execute(lease, plan, restoreTo = chest)
 
             assertEquals(10L, ledger.totalAt(chest, diamond)?.raw)
             assertEquals(10L, ledger.census(diamond), "no duplication, no loss, across a real restart")

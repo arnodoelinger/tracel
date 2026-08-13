@@ -1,11 +1,15 @@
 package com.tracel.storage.counters
 
 import com.tracel.engine.ownership.SingleWriterGuard
+import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.storage.schema.CountersTable
+import com.tracel.storage.schema.JournalProgressTable
 import com.tracel.storage.schema.LotEdgesTable
+import com.tracel.storage.schema.LotLeasesTable
 import com.tracel.storage.schema.LotsTable
+import com.tracel.storage.schema.RollbackJobsTable
 import com.tracel.storage.schema.TransactionsTable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -33,6 +37,9 @@ class SqliteCounters(private val db: Database) {
 
     /** Allocates a new [Seq] that has never been used before. */
     fun nextSeq(): Seq = Seq(next("seq") { bootstrapSeq() })
+
+    /** Allocates a new [RollbackJobId] that has never been used before. */
+    fun nextRollbackJobId(): RollbackJobId = RollbackJobId(next("rollback_job") { bootstrapRollbackJobId() })
 
     /** Allocates a new id for a counter with the given [name] that has never been used before. */
     private fun next(name: String, bootstrap: () -> Long): Long {
@@ -63,4 +70,12 @@ class SqliteCounters(private val db: Database) {
     /** Bootstraps the next [Seq] from the highest id already in use anywhere that id could have ended up. */
     private fun bootstrapSeq(): Long =
         (TransactionsTable.selectAll().mapNotNull { it[TransactionsTable.seq] }.maxOrNull() ?: 0L) + 1
+
+    /** Bootstraps the next [RollbackJobId] from the highest id already in use anywhere that id could have ended up. */
+    private fun bootstrapRollbackJobId(): Long {
+        val maxLease = LotLeasesTable.selectAll().mapNotNull { it[LotLeasesTable.jobId] }.maxOrNull() ?: 0L
+        val maxJournal = JournalProgressTable.selectAll().mapNotNull { it[JournalProgressTable.jobId] }.maxOrNull() ?: 0L
+        val maxJob = RollbackJobsTable.selectAll().mapNotNull { it[RollbackJobsTable.jobId] }.maxOrNull() ?: 0L
+        return maxOf(maxLease, maxJournal, maxJob) + 1
+    }
 }

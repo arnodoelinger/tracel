@@ -28,4 +28,5 @@ include(
     "annotations",
     "storage",
     "plugin",
+    "codegen",
 )

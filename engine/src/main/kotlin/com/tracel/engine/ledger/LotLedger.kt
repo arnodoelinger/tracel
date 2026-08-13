@@ -23,7 +23,9 @@ import com.tracel.model.lot.LotEdge
  * That's the same rule a warehouse uses for stock with no serial
  * numbers — not because it's the only possible answer, but because it's a
  * consistent, deterministic one, which is what makes "where did this item
- * come from" a question with a reproducible answer at all.
+ * come from" a question with a reproducible answer at all. Thank God I'm in
+ * an economic university, otherwise I would look at this and
+ * be amazed at what the hell is going on here.
  *
  * A lot's identity survives it moving between holders: relocating an entire
  * placement keeps the same lot id. Only a partial withdrawal — taking less
@@ -48,24 +50,38 @@ public class LotLedger(private val repo: LotRepository) {
      * hold enough — callers are expected to check first, since a shortfall
      * here means the caller's own bookkeeping is wrong, not that this is a
      * normal, recoverable outcome.
+     *
+     * The shortfall check happens before anything is mutated. Deliberately. It used to run
+     * at the end, after the loop had already retired every lot it managed to reach: a withdrawal
+     * of 10 from an account holding 4 removed those 4 from the account, then threw — and since
+     * every caller catches that throw as the ordinary "untracked material" case and moves on,
+     * the 4 units were silently destroyed, with no [com.tracel.model.transaction.Transaction]
+     * ever logged to say so at all. Checking first makes a failed withdrawal a true no-op, which
+     * is what every caller already assumed it was.
      */
     public fun withdraw(holder: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): List<LotPortion> {
+        val queue = repo.accountQueue(holder, itemKey)
+        val available = queue.sumOf { it.remaining.raw }
+        check(available >= quantity.raw) {
+            "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have $available"
+        }
+
         var stillNeeded = quantity.raw
         val taken = mutableListOf<LotPortion>()
 
-        for ((_, lot, remaining) in repo.accountQueue(holder, itemKey)) {
+        for ((_, lot, remaining) in queue) {
             if (stillNeeded <= 0) break
-            val available = remaining.raw
+            val inThisLot = remaining.raw
 
-            if (available <= stillNeeded) {
+            if (inThisLot <= stillNeeded) {
                 // This lot is entirely consumed, so it is retired from the account and added to the withdrawal
                 repo.remove(holder, lot.id)
                 taken += LotPortion(lot.id, remaining)
-                stillNeeded -= available
+                stillNeeded -= inThisLot
             } else {
                 // Two new lots are created: one for the portion taken, one for the portion kept
                 val takenQty = Quantity(stillNeeded)
-                val keptQty = Quantity(available - stillNeeded)
+                val keptQty = Quantity(inThisLot - stillNeeded)
                 val takenLot = repo.createLot(itemKey, takenQty, txn)
                 val keptLot = repo.createLot(itemKey, keptQty, txn)
                 repo.recordEdge(LotEdge.Split(takenLot.id, lot.id, takenQty))
@@ -79,6 +95,8 @@ public class LotLedger(private val repo: LotRepository) {
             }
         }
 
+        // Unreachable given the pre-check above — kept as an invariant assertion, since the two
+        // disagreeing would mean the queue's own remainders don't sum to what it just reported.
         check(stillNeeded <= 0) {
             "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, short by $stillNeeded"
         }
@@ -188,6 +206,16 @@ public class LotLedger(private val repo: LotRepository) {
     /** Sum of everything currently placed at [holder] for [itemKey], or `null` if there is none. */
     public fun totalAt(holder: HolderId, itemKey: ItemKey): Quantity? =
         repo.accountQueue(holder, itemKey).sumOf { it.remaining.raw }.takeIf { it > 0 }?.let(::Quantity)
+
+    /**
+     * Everything [holder] is currently believed to hold, summed by item key.
+     * Lots with zero remaining are omitted.
+     */
+    public fun totalsAt(holder: HolderId): Map<ItemKey, Quantity> =
+        repo.placementsAt(holder)
+            .groupBy { it.lot.itemKey }
+            .mapValues { (_, lots) -> Quantity(lots.sumOf { it.remaining.raw }) }
+            .filterValues { it.raw > 0 }
 
     /**
      * How many units of [itemKey] exist in the game world right now — real

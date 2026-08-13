@@ -14,6 +14,8 @@ import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -44,11 +46,38 @@ class NoDupeTest {
         assertEquals(4L, mintStep.quantity.raw, "compensation must match exactly what was actually lost")
         assertEquals(SinkKind.LAVA, mintStep.reason)
 
-        JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal(), world.leases)
-            .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = chest, txn = world.nextTxn())
+        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+            .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = chest)
 
         // 6 remaining in the chest, 4 newly minted to compensate for the burned ones — census is back to 10
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw)
         assertEquals(10L, world.ledger.census(diamond), "I4: mints and burns are always accounted for in the census, never silently lost or duplicated")
+    }
+
+    @Test
+    fun `rolling back an already-compensated lot again is refused, not re-minted`() = runTest {
+        // Found live: /tracel rollback apply on the same lot, repeated, minted a fresh
+        // replacement every single time — compensate() never moves the original lot's own
+        // placement (it stays at the Sink it was burned to), so nothing stopped the planner
+        // from seeing "still burned" forever and compensating it again, unboundedly.
+        val world = LedgerHarness()
+        val steve = player(1)
+
+        val root = world.ledger.mint(steve, diamond, Quantity(4), world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+
+        val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+            .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = steve)
+        assertEquals(4L, world.ledger.totalAt(steve, diamond)?.raw, "the first rollback correctly compensates the burned material")
+
+        val error = assertThrows(IllegalStateException::class.java) {
+            RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        }
+        assertTrue(
+            error.message!!.contains("already compensated"),
+            "must refuse with a clear reason, not silently mint another replacement: ${error.message}",
+        )
+        assertEquals(4L, world.ledger.census(diamond), "still exactly one compensation — the refused replan minted nothing")
     }
 }

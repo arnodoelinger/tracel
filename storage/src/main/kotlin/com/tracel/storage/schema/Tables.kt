@@ -133,12 +133,81 @@ object FlowsTable : Table("flows") {
 }
 
 /**
- * Persisted id allocation — see [com.tracel.storage.counters.SqliteCounters]. Without this, a
- * counter that starts fresh at 1 on every plugin restart collides with [TransactionsTable] rows
- * a previous session already wrote, and [com.tracel.engine.log.TransactionLog.append]'s
- * duplicate-id check throws for every capture attempt until the counter catches back up —
- * caught live by actually restarting a real server with real data already in it, not by a test.
+ * One row per [com.tracel.engine.rollback.RollbackJobRecord] — what
+ * [com.tracel.engine.rollback.InvolutionPlanner] needs to reverse an already-applied job.
  */
+object RollbackJobsTable : Table("rollback_jobs") {
+    val jobId: Column<Long> = long("job_id")
+    val restoreToHolderId: Column<Long> = long("restore_to_holder_id")
+
+    override val primaryKey: PrimaryKey = PrimaryKey(jobId)
+}
+
+/** One row per [com.tracel.engine.rollback.RollbackStep] belonging to a [RollbackJobsTable] row. */
+object RollbackStepsTable : Table("rollback_steps") {
+    val jobId: Column<Long> = long("job_id").index()
+    val idx: Column<Int> = integer("idx")
+    val kind: Column<String> = varchar("kind", 16)
+
+    /** [com.tracel.engine.rollback.RollbackStep.Take]/`Mint`/`Debt`'s traced lot. */
+    val lotId: Column<Long?> = long("lot_id").nullable()
+
+    /** [com.tracel.engine.rollback.RollbackStep.Take]/`Mint`/`Debt`'s quantity. */
+    val quantity: Column<Long?> = long("quantity").nullable()
+
+    /** [com.tracel.engine.rollback.RollbackStep.Take.holder] or [com.tracel.engine.rollback.RollbackStep.Unmake.holder]. */
+    val holderId: Column<Long?> = long("holder_id").nullable()
+
+    /** Set only when [kind] is `MINT` — [com.tracel.engine.rollback.RollbackStep.Mint.reason]. */
+    val reason: Column<String?> = varchar("reason", 16).nullable()
+
+    /** Set only when [kind] is `DEBT` — [com.tracel.engine.rollback.RollbackStep.Debt.player]. */
+    val playerUuid: Column<String?> = varchar("player_uuid", 36).nullable()
+
+    /** Set only when [kind] is `UNMAKE` — [com.tracel.engine.rollback.RollbackStep.Unmake.outputLot]. */
+    val outputLot: Column<Long?> = long("output_lot").nullable()
+
+    /** Set only when [kind] is `UNMAKE` — [com.tracel.engine.rollback.RollbackStep.Unmake.craftedBy]. */
+    val craftedBy: Column<Long?> = long("crafted_by").nullable()
+
+    override val primaryKey: PrimaryKey = PrimaryKey(jobId, idx)
+}
+
+/** One row per [com.tracel.engine.rollback.LotContribution] belonging to a [RollbackStepsTable] `UNMAKE` row. */
+object RollbackStepInputsTable : Table("rollback_step_inputs") {
+    val jobId: Column<Long> = long("job_id")
+    val stepIdx: Column<Int> = integer("step_idx")
+    val inputIdx: Column<Int> = integer("input_idx")
+    val lotId: Column<Long> = long("lot_id")
+    val quantity: Column<Long> = long("quantity")
+
+    override val primaryKey: PrimaryKey = PrimaryKey(jobId, stepIdx, inputIdx)
+}
+
+/**
+ * Which steps of which job undos have already run — the involution-side twin of
+ * [JournalProgressTable].
+ */
+object InvolutionProgressTable : Table("involution_progress") {
+    val jobId: Column<Long> = long("job_id")
+    val stepIndex: Column<Int> = integer("step_index")
+
+    override val primaryKey: PrimaryKey = PrimaryKey(jobId, stepIndex)
+}
+
+/** Material owed to a specific offline player. */
+object PendingDeliveriesTable : Table("pending_deliveries") {
+    val id: Column<Long> = long("id").autoIncrement()
+    val playerUuid: Column<String> = varchar("player_uuid", 36).index()
+    val itemKeyId: Column<Long> = long("item_key_id")
+    val delta: Column<Long> = long("delta")
+    val jobId: Column<Long> = long("job_id")
+    val createdMillis: Column<Long> = long("created_millis")
+
+    override val primaryKey: PrimaryKey = PrimaryKey(id)
+}
+
+/** Persisted id allocation. */
 object CountersTable : Table("id_counters") {
     val name: Column<String> = varchar("name", 16)
     val nextValue: Column<Long> = long("next_value")

@@ -53,6 +53,9 @@ public class InMemoryLotRepository : LotRepository {
     override fun allPlacements(itemKey: ItemKey): List<AccountLot> =
         queues.filterKeys { it.itemKey == itemKey }.values.flatten()
 
+    override fun placementsAt(holder: HolderId): List<AccountLot> =
+        queues.filterKeys { it.holder == holder }.values.flatten()
+
     override fun currentHolderOf(lotId: LotId): HolderId? = holderOf[lotId]
 
     override fun place(holder: HolderId, lotId: LotId, quantity: Quantity): AccountLot {

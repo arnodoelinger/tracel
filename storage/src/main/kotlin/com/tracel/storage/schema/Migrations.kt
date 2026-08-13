@@ -23,7 +23,7 @@ private class Migration(val version: Int, val apply: () -> Unit)
 
 /** All migrations, in order of increasing version. */
 private val migrations = listOf(
-    Migration(1) {
+    Migration(1) { // TODO: remove all migrations in future
         SchemaUtils.createMissingTablesAndColumns(
             ItemKeysTable,
             HoldersTable,
@@ -38,6 +38,17 @@ private val migrations = listOf(
     },
     Migration(2) {
         SchemaUtils.createMissingTablesAndColumns(CountersTable)
+    },
+    Migration(3) {
+        SchemaUtils.createMissingTablesAndColumns(
+            RollbackJobsTable,
+            RollbackStepsTable,
+            RollbackStepInputsTable,
+            InvolutionProgressTable,
+        )
+    },
+    Migration(4) {
+        SchemaUtils.createMissingTablesAndColumns(PendingDeliveriesTable)
     },
 )
 

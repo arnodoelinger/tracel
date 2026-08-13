@@ -16,4 +16,7 @@ public class InMemoryTransactionLog : TransactionLog {
     }
 
     override fun find(id: TxnId): Transaction? = transactions[id]
+
+    /** Everything appended so far — a test-only convenience, not part of [TransactionLog] itself. */
+    public fun all(): Collection<Transaction> = transactions.values
 }

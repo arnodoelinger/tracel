@@ -31,13 +31,18 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal(), world.leases),
+            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            world.jobs,
         )
 
-        val outcome = coordinator.run(RollbackJobId(1), listOf(root.id), restoreTo = chest, txn = world.nextTxn())
+        val outcome = coordinator.run(RollbackJobId(1), listOf(root.id), restoreTo = chest)
 
         assertInstanceOf(RollbackOutcome.Applied::class.java, outcome)
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw)
+
+        val plan = (outcome as RollbackOutcome.Applied).plan
+        assertEquals(plan.steps.size + 1, world.log.all().size, "every step plus the final release must each log its own transaction")
+        assertEquals(world.log.all().size, world.log.all().map { it.id }.toSet().size, "every logged transaction must have gotten a distinct TxnId")
     }
 
     @Test
@@ -55,9 +60,10 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal(), world.leases),
+            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            world.jobs,
         )
-        val outcome = coordinator.run(RollbackJobId(1), listOf(root.id), restoreTo = chest, txn = world.nextTxn())
+        val outcome = coordinator.run(RollbackJobId(1), listOf(root.id), restoreTo = chest)
 
         assertInstanceOf(RollbackOutcome.Blocked::class.java, outcome)
         assertEquals(mapOf(root.id to RollbackJobId(99)), (outcome as RollbackOutcome.Blocked).conflicts)
@@ -87,9 +93,10 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal(), world.leases),
+            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            world.jobs,
         )
-        val outcome = coordinator.run(RollbackJobId(2), listOf(rootB.id), restoreTo = chestB, txn = world.nextTxn())
+        val outcome = coordinator.run(RollbackJobId(2), listOf(rootB.id), restoreTo = chestB)
 
         assertInstanceOf(RollbackOutcome.Applied::class.java, outcome)
         assertEquals(5L, world.ledger.totalAt(chestB, diamond)?.raw, "B's non-overlapping territory rolled back fine while A is still active")

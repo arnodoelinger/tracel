@@ -4,9 +4,16 @@ import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.balance.TransactionBalancer
 import com.tracel.engine.balance.apply
+import com.tracel.engine.balance.checkAllWithdrawalsSatisfiable
+import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.ledger.Product
 import com.tracel.engine.log.TransactionLog
+import com.tracel.model.flow.Flow
+import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.SinkKind
+import com.tracel.model.holder.SourceKind
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.model.transaction.Transaction
@@ -14,12 +21,6 @@ import com.tracel.model.transaction.Transaction
 /**
  * The full capture pipeline in one call: raw deltas -> balanced [com.tracel.model.flow.Flow]s ->
  * applied to the ledger -> appended to the log as one [Transaction].
- *
- * [nextTxnId] and [nextSeq] are injected rather than read from a counter this class owns, for
- * the same reason [epochMillis] is a parameter rather than `System.currentTimeMillis()` read
- * internally: a capture pipeline that assigns its own ids can't be driven deterministically in
- * a test, and this is exactly the code [com.tracel.tests.property.DeterminismTest]-style
- * scenarios need to exercise without a live clock or a live counter getting in the way.
  */
 public class CaptureCoordinator(
     private val ledger: LotLedger,
@@ -36,6 +37,45 @@ public class CaptureCoordinator(
         val flows = TransactionBalancer().balance(deltas)
         if (flows.isEmpty()) return null
 
+        // All or nothing: if any withdrawal is impossible, the whole transaction is invalid and must be rejected
+        // I'm not schizophrenic enough to try to apply a partial transaction and then roll it back if one flow fails
+        ledger.checkAllWithdrawalsSatisfiable(flows)
+
+        val txn = nextTxnId()
+        for (flow in flows) ledger.apply(flow, txn)
+
+        val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, flows)
+        log.append(transaction)
+        return transaction
+    }
+
+    /**
+     * Records a craft directly through [LotLedger.craft] rather than [record]. Ingredients and
+     * product are already fully resolved by the caller, there is nothing left for
+     * [TransactionBalancer] to balance.
+     */
+    public fun recordCraft(ingredients: List<Ingredient>, product: Product, epochMillis: Long, causedBy: HolderId?): Transaction {
+        val txn = nextTxnId()
+        ledger.craft(ingredients, product, txn)
+
+        val flows = craftFlows(ingredients, product)
+
+        val transaction = Transaction(txn, nextSeq(), epochMillis, CauseKind.CRAFT, causedBy, flows)
+        log.append(transaction)
+        return transaction
+    }
+
+    /**
+     * Applies a caller-resolved [flows] directly, skipping [TransactionBalancer] entirely.
+     *
+     * For cases where the caller already knows exactly what happened and [TransactionBalancer]'s
+     * defaults would be wrong.
+     */
+    public fun recordDirect(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
+        if (flows.isEmpty()) return null
+
+        ledger.checkAllWithdrawalsSatisfiable(flows)
+
         val txn = nextTxnId()
         for (flow in flows) ledger.apply(flow, txn)
 
@@ -44,3 +84,14 @@ public class CaptureCoordinator(
         return transaction
     }
 }
+
+/**
+ * Converts a craft's ingredients and product into the [Flow]s that would be recorded for it.
+ * This is the same as what [TransactionBalancer] would produce, but the caller already knows
+ * exactly what happened and [TransactionBalancer]'s defaults would be wrong, so it can skip
+ * the balancing step and just call this to get the right flows.
+ */
+public fun craftFlows(ingredients: List<Ingredient>, product: Product): List<Flow> =
+    ingredients.map {
+        Flow(it.itemKey, it.quantity, it.holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)
+    } + Flow(product.itemKey, product.quantity, HolderId.Source(SourceKind.CRAFT), product.holder, FlowKind.TRANSFORM_OUT)

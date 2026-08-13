@@ -13,6 +13,7 @@ object Fixtures {
     private val world = WorldId(UUID(0L, 1L))
 
     fun block(x: Int, y: Int, z: Int): HolderId.Block = HolderId.Block(world, x, y, z)
+    fun placedBlock(x: Int, y: Int, z: Int): HolderId.PlacedBlock = HolderId.PlacedBlock(world, x, y, z)
     fun player(seed: Long): HolderId.Player = HolderId.Player(UUID(0L, seed))
     fun itemEntity(seed: Long): HolderId.ItemEntity = HolderId.ItemEntity(UUID(0L, seed))
 }

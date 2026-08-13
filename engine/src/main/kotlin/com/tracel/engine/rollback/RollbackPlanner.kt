@@ -63,6 +63,15 @@ public class RollbackPlanner(
     private fun resolve(lotId: LotId, depth: Int): ResolvedLocation = resolved.getOrPut(lotId) {
         val edges = repo.edgesFrom(lotId)
 
+        // Once a lot has been compensated, its story is over
+        val compensate = edges.filterIsInstance<LotEdge.Compensate>().firstOrNull()
+        if (compensate != null) {
+            error(
+                "lot $lotId was already compensated by rollback job ${compensate.rollbackJob.raw} " +
+                    "(replacement lot ${compensate.child.raw}) — refusing to compensate it again"
+            )
+        }
+
         val transform = edges.filterIsInstance<LotEdge.Transform>().firstOrNull()
         if (transform != null) {
             check(depth < maxTransformDepth) {

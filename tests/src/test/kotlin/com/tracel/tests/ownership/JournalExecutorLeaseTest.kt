@@ -36,8 +36,8 @@ class JournalExecutorLeaseTest {
 
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
-        JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal(), world.leases)
-            .execute(lease, plan, restoreTo = chest, txn = world.nextTxn())
+        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+            .execute(lease, plan, restoreTo = chest)
 
         assertInstanceOf(LeaseAcquisition.Granted::class.java, world.leases.acquire(RollbackJobId(2), plan.touchedLots))
     }
@@ -56,8 +56,8 @@ class JournalExecutorLeaseTest {
         val lease = world.acquireLease(job, plan)
 
         val crash = runCatching {
-            JournalExecutor(RollbackExecutor(world.ledger), InMemoryJournal(), world.leases)
-                .execute(lease, plan, restoreTo = chest, txn = world.nextTxn(), crashPoint = CrashPoint.before(0))
+            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+                .execute(lease, plan, restoreTo = chest, crashPoint = CrashPoint.before(0))
         }.exceptionOrNull()
         assertTrue(crash is SimulatedCrash)
 

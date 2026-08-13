@@ -47,6 +47,9 @@ public interface LotRepository {
      */
     public fun allPlacements(itemKey: ItemKey): List<AccountLot>
 
+    /** Every current placement at [holder], across every item key it holds. */
+    public fun placementsAt(holder: HolderId): List<AccountLot>
+
     /** Where [lotId] currently sits, or `null` if nothing places it anywhere right now. */
     public fun currentHolderOf(lotId: LotId): HolderId?
 

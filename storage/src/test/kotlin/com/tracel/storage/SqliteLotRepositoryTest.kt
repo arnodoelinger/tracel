@@ -9,6 +9,7 @@ import com.tracel.storage.ledger.SqliteLotRepository
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
+import com.tracel.tests.support.Fixtures.placedBlock
 import com.tracel.tests.support.Fixtures.player
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -98,6 +99,26 @@ class SqliteLotRepositoryTest {
     }
 
     @Test
+    fun `placementsAt returns every item key at a holder, not just one`(@TempDir dir: Path) {
+        TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
+            val repo = SqliteLotRepository(db.exposed)
+            val chest = block(0, 64, 0)
+            val steve = player(1)
+            val diamondLot = repo.createLot(diamond, Quantity(4), TxnId(1))
+            val blockLot = repo.createLot(diamondBlock, Quantity(1), TxnId(1))
+            val elsewhere = repo.createLot(diamond, Quantity(7), TxnId(1))
+            repo.place(chest, diamondLot.id, Quantity(4))
+            repo.place(chest, blockLot.id, Quantity(1))
+            repo.place(steve, elsewhere.id, Quantity(7))
+
+            assertEquals(
+                setOf(diamondLot.id, blockLot.id),
+                repo.placementsAt(chest).map { it.lot.id }.toSet(),
+            )
+        }
+    }
+
+    @Test
     fun `every LotEdge variant round-trips its own fields exactly`(@TempDir dir: Path) {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
             val repo = SqliteLotRepository(db.exposed)
@@ -113,6 +134,30 @@ class SqliteLotRepositoryTest {
             repo.recordEdge(compensate)
 
             assertEquals(setOf(split, transform, compensate), repo.edgesFrom(parent).toSet())
+        }
+    }
+
+    @Test
+    fun `a PlacedBlock holder round-trips through the codec, distinct from a Block holder`(@TempDir dir: Path) {
+        val path = dir.resolve("db.sqlite")
+        val placedBlockHolder = placedBlock(0, 64, 0)
+        val chest = block(0, 64, 0)
+        val placedLotId: LotId
+
+        TracelDatabase.open(path).use { db ->
+            val repo = SqliteLotRepository(db.exposed)
+            val chestLot = repo.createLot(diamond, Quantity(1), TxnId(1))
+            repo.place(chest, chestLot.id, Quantity(1))
+            val placedLot = repo.createLot(diamondBlock, Quantity(1), TxnId(1))
+            repo.place(placedBlockHolder, placedLot.id, Quantity(1))
+            placedLotId = placedLot.id
+        }
+
+        TracelDatabase.open(path).use { db ->
+            val repo = SqliteLotRepository(db.exposed)
+            assertEquals(placedBlockHolder, repo.currentHolderOf(placedLotId))
+            assertEquals(1L, repo.accountQueue(placedBlockHolder, diamondBlock).single().remaining.raw)
+            assertEquals(emptyList<Any>(), repo.accountQueue(chest, diamondBlock))
         }
     }
 

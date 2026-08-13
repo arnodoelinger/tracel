@@ -8,7 +8,6 @@ import com.tracel.engine.ownership.LotLeaseRegistry
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.TxnId
 
 /**
  * The safe way to run a rollback end to end: plan -> acquire -> verify -> apply — never
@@ -26,12 +25,12 @@ public class RollbackJobCoordinator(
     private val worldQuery: WorldQuery,
     private val leases: LotLeaseRegistry,
     private val journalExecutor: JournalExecutor,
+    private val jobs: RollbackJobRepository,
 ) {
     public suspend fun run(
         job: RollbackJobId,
         rootLots: List<LotId>,
         restoreTo: HolderId,
-        txn: TxnId,
         crashPoint: CrashPoint = CrashPoint.None,
     ): RollbackOutcome {
         val planner = RollbackPlanner(repo, worldQuery)
@@ -48,7 +47,12 @@ public class RollbackJobCoordinator(
             return RollbackOutcome.Stale(verified)
         }
 
-        journalExecutor.execute(lease, plan, restoreTo, txn, crashPoint)
+        journalExecutor.execute(lease, plan, restoreTo, crashPoint)
+
+        // Recorded only once the job has actually run to completion — undoing an in-flight or
+        // never-attempted job makes no sense, and JournalExecutor's own resumability already
+        // covers a crash mid-execute without needing this record.
+        jobs.save(RollbackJobRecord(job, plan, restoreTo))
         return RollbackOutcome.Applied(plan)
     }
 }

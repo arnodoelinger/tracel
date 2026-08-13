@@ -3,12 +3,14 @@ package com.tracel.storage
 import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.log.InMemoryTransactionLog
 import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.rollback.RollbackExecutor
 import com.tracel.engine.rollback.RollbackPlan
 import com.tracel.engine.rollback.RollbackPlanner
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
+import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.storage.ledger.SqliteLotRepository
 import com.tracel.storage.ownership.SqliteLotLeaseRegistry
@@ -40,6 +42,9 @@ class PropertyEquivalenceTest {
             val p3 = player(3)
             var nextTxnRaw = 1L
             fun nextTxn() = TxnId(nextTxnRaw++)
+            var nextSeqRaw = 1L
+            fun nextSeq() = Seq(nextSeqRaw++)
+            val log = InMemoryTransactionLog()
 
             val root = ledger.mint(chest, diamond, Quantity(20), nextTxn())
             val checkpointCensus = ledger.census(diamond)
@@ -52,8 +57,8 @@ class PropertyEquivalenceTest {
 
             val plan = RollbackPlanner(repo, { true }).plan(listOf(root.id))
             val lease = (SqliteLotLeaseRegistry(db.exposed).acquire(RollbackJobId(1), plan.touchedLots) as LeaseAcquisition.Granted).lease
-            JournalExecutor(RollbackExecutor(ledger), InMemoryJournal(), SqliteLotLeaseRegistry(db.exposed))
-                .execute(lease, plan, restoreTo = chest, txn = nextTxn())
+            JournalExecutor(RollbackExecutor(ledger, log, ::nextSeq), InMemoryJournal(), SqliteLotLeaseRegistry(db.exposed), ::nextTxn)
+                .execute(lease, plan, restoreTo = chest)
 
             assertEquals(checkpointCensus, ledger.census(diamond))
             assertEquals(20L, ledger.totalAt(chest, diamond)?.raw)

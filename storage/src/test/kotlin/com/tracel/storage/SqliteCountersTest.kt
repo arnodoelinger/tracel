@@ -3,12 +3,15 @@ package com.tracel.storage
 import com.tracel.annotations.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
+import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
+import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.model.transaction.Transaction
 import com.tracel.storage.counters.SqliteCounters
 import com.tracel.storage.log.SqliteTransactionLog
+import com.tracel.storage.ownership.SqliteLotLeaseRegistry
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -80,6 +83,46 @@ class SqliteCountersTest {
             // must not collide with the pre-existing row.
             val log = SqliteTransactionLog(db.exposed)
             log.append(Transaction(next, counters.nextSeq(), 2L, CauseKind.UNKNOWN, null, emptyList()))
+        }
+    }
+
+    @Test
+    fun `a fresh RollbackJobId counter on an empty database starts at 1`(@TempDir dir: Path) {
+        TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
+            val counters = SqliteCounters(db.exposed)
+            assertEquals(RollbackJobId(1), counters.nextRollbackJobId())
+            assertEquals(RollbackJobId(2), counters.nextRollbackJobId())
+        }
+    }
+
+    @Test
+    fun `the RollbackJobId counter never repeats a value across reopens`(@TempDir dir: Path) {
+        val path = dir.resolve("db.sqlite")
+
+        val last = TracelDatabase.open(path).use { db ->
+            val counters = SqliteCounters(db.exposed)
+            repeat(5) { counters.nextRollbackJobId() }
+            counters.nextRollbackJobId()
+        }
+
+        TracelDatabase.open(path).use { db ->
+            val next = SqliteCounters(db.exposed).nextRollbackJobId()
+            assertTrue(next.raw > last.raw, "reopening must never hand out a job id already used: got $next after $last")
+        }
+    }
+
+    @Test
+    fun `a RollbackJobId counter added to a database with an existing lease bootstraps past it`(@TempDir dir: Path) {
+        val path = dir.resolve("db.sqlite")
+
+        // Simulate a database from before this counter existed: a real lease row, no id_counters row yet
+        TracelDatabase.open(path).use { db ->
+            SqliteLotLeaseRegistry(db.exposed).acquire(RollbackJobId(42), setOf(LotId(1)))
+        }
+
+        TracelDatabase.open(path).use { db ->
+            val next = SqliteCounters(db.exposed).nextRollbackJobId()
+            assertTrue(next.raw > 42L, "must bootstrap past the highest job id already in use, got $next")
         }
     }
 }
