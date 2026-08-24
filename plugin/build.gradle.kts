@@ -11,7 +11,6 @@ dependencies {
     implementation(project(":platform"))
     implementation(project(":storage"))
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.sqlite.jdbc)
     implementation(libs.caffeine)
     ksp(project(":codegen"))
 
@@ -25,8 +24,6 @@ tasks {
         archiveBaseName.set("Tracel")
         archiveClassifier.set("")
 
-        relocate("com.zaxxer.hikari", "com.tracel.shaded.hikari")
-        relocate("org.jetbrains.exposed", "com.tracel.shaded.exposed")
         relocate("com.github.benmanes.caffeine", "com.tracel.shaded.caffeine")
         mergeServiceFiles()
     }
