@@ -1,5 +1,6 @@
 package com.tracel.storage.schema
 
+import com.tracel.storage.intern.Interning
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -28,4 +29,7 @@ fun purgeAll(db: Database) {
     transaction(db) {
         for (table in ALL_TABLES) table.deleteAll()
     }
+
+    // Clear cache
+    Interning.forget(db)
 }

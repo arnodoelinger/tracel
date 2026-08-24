@@ -12,6 +12,7 @@ dependencies {
     implementation(libs.exposed.core)
     api(libs.exposed.jdbc)
     implementation(libs.hikaricp)
+    implementation(libs.caffeine)
 
     compileOnly(libs.sqlite.jdbc)
     testImplementation(libs.sqlite.jdbc)

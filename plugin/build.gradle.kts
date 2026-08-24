@@ -12,6 +12,7 @@ dependencies {
     implementation(project(":storage"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.sqlite.jdbc)
+    implementation(libs.caffeine)
     ksp(project(":codegen"))
 
     compileOnly(libs.paper.api)
@@ -26,6 +27,7 @@ tasks {
 
         relocate("com.zaxxer.hikari", "com.tracel.shaded.hikari")
         relocate("org.jetbrains.exposed", "com.tracel.shaded.exposed")
+        relocate("com.github.benmanes.caffeine", "com.tracel.shaded.caffeine")
         mergeServiceFiles()
     }
 

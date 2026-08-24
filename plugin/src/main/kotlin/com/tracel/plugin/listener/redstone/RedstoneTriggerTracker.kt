@@ -1,11 +1,13 @@
 package com.tracel.plugin.listener.redstone
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.model.holder.HolderId
 import org.bukkit.Location
 import org.bukkit.World
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 
 /**
  * Remembers, briefly, who last pressed a button / lever / pressure plate at a given block, who
@@ -14,44 +16,36 @@ import java.util.concurrent.CopyOnWriteArrayList
  * attributes an otherwise-unattributed explosion to.
  */
 class RedstoneTriggerTracker {
-    private data class Press(val causedBy: HolderId, val atMillis: Long)
     private data class Detonation(val world: UUID, val x: Double, val y: Double, val z: Double, val causedBy: HolderId, val atMillis: Long)
 
-    private val presses = ConcurrentHashMap<BlockKey, Press>()
-    private val creeperIgnitions = ConcurrentHashMap<UUID, Press>()
+    private val presses: Cache<BlockKey, HolderId> = Caffeine.newBuilder()
+        .expireAfterWrite(TRIGGER_WINDOW_MILLIS, TimeUnit.MILLISECONDS)
+        .maximumSize(1_000)
+        .build()
+    private val creeperIgnitions: Cache<UUID, HolderId> = Caffeine.newBuilder()
+        .expireAfterWrite(IGNITION_WINDOW_MILLIS, TimeUnit.MILLISECONDS)
+        .maximumSize(1_000)
+        .build()
     private val detonations = CopyOnWriteArrayList<Detonation>()
 
     fun recordPress(world: World, x: Int, y: Int, z: Int, causedBy: HolderId) {
-        val now = System.currentTimeMillis()
-        presses[BlockKey(world.uid, x, y, z)] = Press(causedBy, now)
-        if (presses.size > PRUNE_THRESHOLD) {
-            presses.entries.removeIf { now - it.value.atMillis > TRIGGER_WINDOW_MILLIS }
-        }
+        presses.put(BlockKey(world.uid, x, y, z), causedBy)
     }
 
     fun recordCreeperIgnition(creeper: UUID, causedBy: HolderId) {
-        val now = System.currentTimeMillis()
-        creeperIgnitions[creeper] = Press(causedBy, now)
-        if (creeperIgnitions.size > PRUNE_THRESHOLD) {
-            creeperIgnitions.entries.removeIf { now - it.value.atMillis > IGNITION_WINDOW_MILLIS }
-        }
+        creeperIgnitions.put(creeper, causedBy)
     }
 
     /**
      * A recent flint-and-steel ignition for this exact creeper, if any — a non-destructive read,
      * not consumed on lookup.
      */
-    fun creeperIgnitedBy(creeper: UUID): HolderId? {
-        val press = creeperIgnitions[creeper] ?: return null
-        return press.takeIf { System.currentTimeMillis() - it.atMillis <= IGNITION_WINDOW_MILLIS }?.causedBy
-    }
+    fun creeperIgnitedBy(creeper: UUID): HolderId? = creeperIgnitions.getIfPresent(creeper)
 
     /** Who pressed a button / lever / plate directly touching this block within the trigger window, if any. */
     fun recentPressNear(world: World, x: Int, y: Int, z: Int): HolderId? {
-        val now = System.currentTimeMillis()
         for ((dx, dy, dz) in NEIGHBOR_OFFSETS) {
-            val press = presses[BlockKey(world.uid, x + dx, y + dy, z + dz)] ?: continue
-            if (now - press.atMillis <= TRIGGER_WINDOW_MILLIS) return press.causedBy
+            presses.getIfPresent(BlockKey(world.uid, x + dx, y + dy, z + dz))?.let { return it }
         }
         return null
     }
@@ -94,7 +88,6 @@ class RedstoneTriggerTracker {
         const val IGNITION_WINDOW_MILLIS = 30_000L
         const val EXPLOSION_CHAIN_WINDOW_MILLIS = 3_000L
         const val EXPLOSION_CHAIN_RADIUS = 6.0
-        const val PRUNE_THRESHOLD = 256
         val NEIGHBOR_OFFSETS = listOf(
             Triple(0, 0, 0),
             Triple(1, 0, 0), Triple(-1, 0, 0),
