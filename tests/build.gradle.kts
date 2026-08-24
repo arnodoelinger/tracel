@@ -9,4 +9,5 @@ dependencies {
     api(project(":platform"))
     api(libs.kotlinx.coroutines.test)
     api(libs.konsist)
+    api(libs.hdrhistogram)
 }
