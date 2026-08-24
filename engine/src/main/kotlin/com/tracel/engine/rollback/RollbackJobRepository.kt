@@ -7,7 +7,7 @@ import com.tracel.model.id.RollbackJobId
  * needs to reverse a job.
  */
 public interface RollbackJobRepository {
-    public fun save(record: RollbackJobRecord)
+    public suspend fun save(record: RollbackJobRecord)
 
-    public fun find(id: RollbackJobId): RollbackJobRecord?
+    public suspend fun find(id: RollbackJobId): RollbackJobRecord?
 }

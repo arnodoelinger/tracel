@@ -9,6 +9,7 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import org.junit.jupiter.api.Assertions.assertEquals
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 /**
@@ -20,8 +21,8 @@ import org.junit.jupiter.api.Test
  */
 class DeterminismTest {
     @Test
-    fun `identical operation sequences produce identical rollback plans`() {
-        fun runScenario(): RollbackPlan {
+    fun `identical operation sequences produce identical rollback plans`() = runTest {
+        suspend fun runScenario(): RollbackPlan {
             val world = LedgerHarness()
             val chest = block(0, 64, 0)
             val p1 = player(1)

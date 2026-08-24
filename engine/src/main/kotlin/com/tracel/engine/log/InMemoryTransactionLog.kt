@@ -9,15 +9,15 @@ public class InMemoryTransactionLog : TransactionLog {
     private val writer = SingleWriterGuard()
     private val transactions = mutableMapOf<TxnId, Transaction>()
 
-    override fun append(transaction: Transaction) {
+    override suspend fun append(transaction: Transaction) {
         writer.checkIn()
         check(transaction.id !in transactions) { "transaction ${transaction.id} already appended — the log is append-only" }
         transactions[transaction.id] = transaction
     }
 
-    override fun find(id: TxnId): Transaction? = transactions[id]
+    override suspend fun find(id: TxnId): Transaction? = transactions[id]
 
-    override fun query(filter: LookupFilter): List<Transaction> = transactions.values
+    override suspend fun query(filter: LookupFilter): List<Transaction> = transactions.values
         .asSequence()
         .filter { it.matches(filter) }
         .sortedByDescending { it.seq.raw }

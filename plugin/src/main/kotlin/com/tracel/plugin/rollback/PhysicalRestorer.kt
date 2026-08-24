@@ -10,6 +10,9 @@ import com.tracel.model.item.ItemKey
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toItemTotals
 import com.tracel.plugin.convert.withCursor
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -69,14 +72,20 @@ class PhysicalRestorer(private val services: TracelServices) {
     suspend fun undoPreflight(steps: List<InvolutionStep>): PreflightResult =
         preflight(physicalDeltasForUndo(steps))
 
-    /** Checks every holder [deltas] touches is physically reachable right now. */
-    private suspend fun preflight(deltas: Map<HolderId, Map<ItemKey, Long>>): PreflightResult {
-        for ((holder, itemDeltas) in deltas) {
-            if (itemDeltas.values.all { it == 0L }) continue
-            val reason = unreachableReason(holder)
-            if (reason != null) return PreflightResult.Unreachable(holder, reason)
-        }
-        return PreflightResult.Ok
+    /**
+     * Checks every holder [deltas] touches is physically reachable right now.
+     *
+     * Every holder is checked at once rather than one after another. Each check is a hop onto
+     * whichever region or entity thread owns that holder, those threads tick genuinely in parallel
+     * under `Folia`, and a rollback spanning fifty containers has no reason to visit them in single
+     * file. The answer still reports the first unreachable holder in [deltas] order, so what the
+     * admin sees does not depend on which region happened to answer first.
+     */
+    private suspend fun preflight(deltas: Map<HolderId, Map<ItemKey, Long>>): PreflightResult = coroutineScope {
+        val touched = deltas.filterValues { itemDeltas -> itemDeltas.values.any { it != 0L } }.keys.toList()
+        val reasons = touched.map { holder -> async { holder to unreachableReason(holder) } }.awaitAll()
+        reasons.firstNotNullOfOrNull { (holder, reason) -> reason?.let { PreflightResult.Unreachable(holder, it) } }
+            ?: PreflightResult.Ok
     }
 
     /** Returns a reason [holder] is unreachable, or null if reachable. */
@@ -109,33 +118,43 @@ class PhysicalRestorer(private val services: TracelServices) {
     suspend fun undoRestore(steps: List<InvolutionStep>, job: RollbackJobId): RestorationReport =
         restore(physicalDeltasForUndo(steps), job)
 
-    /** Physically applies [deltas] — call only after the ledger already applied it. */
-    private suspend fun restore(deltas: Map<HolderId, Map<ItemKey, Long>>, job: RollbackJobId): RestorationReport {
-        val failures = mutableMapOf<HolderId, String>()
-        val queued = mutableMapOf<HolderId, String>()
+    /**
+     * Physically applies [deltas] — call only after the ledger already applied it.
+     *
+     * Fanned out per holder like [preflight], and for the same reason: the ledger has already
+     * decided what each holder owes, no holder's outcome depends on any other's, and doing them one
+     * region round trip at a time is how a large rollback turned into a visible stall. The report is
+     * still assembled in [deltas] order.
+     */
+    private suspend fun restore(deltas: Map<HolderId, Map<ItemKey, Long>>, job: RollbackJobId): RestorationReport =
+        coroutineScope {
+            val outcomes = deltas
+                .mapValues { (_, itemDeltas) -> itemDeltas.filterValues { it != 0L } }
+                .filterValues { it.isNotEmpty() }
+                .map { (holder, nonZero) -> async { holder to applyTo(holder, nonZero, job) } }
+                .awaitAll()
 
-        for ((holder, itemDeltas) in deltas) {
-            val nonZero = itemDeltas.filterValues { it != 0L }
-            if (nonZero.isEmpty()) continue
-
-            val result = when (holder) {
-                is HolderId.Player -> applyToPlayer(holder, nonZero, job)
-                is HolderId.Block -> applyToContainer(holder, nonZero)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
-                is HolderId.ItemEntity -> applyToItemEntity(holder, nonZero)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
-                else -> ApplyResult.Failed("holder type not physically restorable: $holder")
-            }
-
-            when (result) {
-                is ApplyResult.Failed -> {
-                    logger.log(Level.WARNING, "physical restoration incomplete for $holder: ${result.reason}")
-                    failures[holder] = result.reason
+            val failures = mutableMapOf<HolderId, String>()
+            val queued = mutableMapOf<HolderId, String>()
+            for ((holder, result) in outcomes) {
+                when (result) {
+                    is ApplyResult.Failed -> {
+                        logger.log(Level.WARNING, "physical restoration incomplete for $holder: ${result.reason}")
+                        failures[holder] = result.reason
+                    }
+                    is ApplyResult.Queued -> queued[holder] = result.note
+                    ApplyResult.Ok -> {}
                 }
-                is ApplyResult.Queued -> queued[holder] = result.note
-                ApplyResult.Ok -> {}
             }
+
+            RestorationReport(failures, queued)
         }
 
-        return RestorationReport(failures, queued)
+    private suspend fun applyTo(holder: HolderId, deltas: Map<ItemKey, Long>, job: RollbackJobId): ApplyResult = when (holder) {
+        is HolderId.Player -> applyToPlayer(holder, deltas, job)
+        is HolderId.Block -> applyToContainer(holder, deltas)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+        is HolderId.ItemEntity -> applyToItemEntity(holder, deltas)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+        else -> ApplyResult.Failed("holder type not physically restorable: $holder")
     }
 
     /** Applies [deltas] to [holder] if online, or queues them for delivery if offline. */
@@ -143,7 +162,7 @@ class PhysicalRestorer(private val services: TracelServices) {
         withContext(services.schedulers.entity(holder.uuid)) {
             val player = Bukkit.getPlayer(holder.uuid)
             if (player == null) {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     services.pendingDeliveries.enqueueAll(holder.uuid, deltas, job, System.currentTimeMillis())
                 }
                 return@withContext ApplyResult.Queued("player is offline - ${deltas.size} item key(s) queued for delivery on next login")
@@ -159,7 +178,7 @@ class PhysicalRestorer(private val services: TracelServices) {
      * join. Claims (reads and deletes, atomically) before ever touching the real inventory.
      */
     suspend fun deliverPending(player: Player): RestorationReport {
-        val claimed = withContext(services.schedulers.storage) { services.pendingDeliveries.claimFor(player.uniqueId) }
+        val claimed = services.atomically { services.pendingDeliveries.claimFor(player.uniqueId) }
         if (claimed.isEmpty()) return RestorationReport(emptyMap())
 
         return withContext(services.schedulers.entity(player.uniqueId)) {

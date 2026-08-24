@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
  * never interpreting which click, drag, or hotbar swap produced them.
  */
 public class SnapshotDiffer(
-    private val baseline: (HolderId) -> Map<ItemKey, Long> = { emptyMap() },
+    private val baseline: suspend (HolderId) -> Map<ItemKey, Long> = { emptyMap() },
 ) {
     /**
      * [totals] is the holder's contents when [seeded], and a running total of [adjust]ments
@@ -31,7 +31,7 @@ public class SnapshotDiffer(
      * "Last time" is [baseline] plus any pending [adjust]ments the first time this runs for a
      * holder.
      */
-    public fun diff(holder: HolderId, current: Map<ItemKey, Long>): List<InventoryDelta> {
+    public suspend fun diff(holder: HolderId, current: Map<ItemKey, Long>): List<InventoryDelta> {
         val snapshot = snapshots.put(holder, Snapshot(current, seeded = true))
         val fromGap = snapshot?.seeded != true
         val previous = when {

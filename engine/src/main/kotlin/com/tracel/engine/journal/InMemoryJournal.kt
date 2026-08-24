@@ -10,11 +10,11 @@ public class InMemoryJournal : Journal {
     private val writer = SingleWriterGuard()
     private val completed = mutableMapOf<RollbackJobId, MutableSet<Int>>()
 
-    override fun markCompleted(job: RollbackJobId, stepIndex: Int) {
+    override suspend fun markCompleted(job: RollbackJobId, stepIndex: Int) {
         writer.checkIn()
         completed.getOrPut(job) { mutableSetOf() }.add(stepIndex)
     }
 
-    override fun isCompleted(job: RollbackJobId, stepIndex: Int): Boolean =
+    override suspend fun isCompleted(job: RollbackJobId, stepIndex: Int): Boolean =
         completed[job]?.contains(stepIndex) == true
 }

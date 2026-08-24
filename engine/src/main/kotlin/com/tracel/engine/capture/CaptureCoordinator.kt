@@ -23,15 +23,15 @@ import com.tracel.model.transaction.Transaction
 public class CaptureCoordinator(
     private val ledger: LotLedger,
     private val log: TransactionLog,
-    private val nextTxnId: () -> TxnId,
-    private val nextSeq: () -> Seq,
+    private val nextTxnId: suspend () -> TxnId,
+    private val nextSeq: suspend () -> Seq,
 ) {
     /**
      * Balances [deltas] and, if anything actually changed, applies the result to the ledger and
      * appends it to the log. Returns `null` for an empty diff — a capture pass that saw nothing
      * move is not a transaction, and recording one anyway would just be log noise.
      */
-    public fun record(deltas: List<InventoryDelta>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
+    public suspend fun record(deltas: List<InventoryDelta>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
         val flows = TransactionBalancer().balance(deltas)
         if (flows.isEmpty()) return null
         return applyAndLog(flows, epochMillis, cause, causedBy)
@@ -42,16 +42,17 @@ public class CaptureCoordinator(
      * product are already fully resolved by the caller, there is nothing left for
      * [TransactionBalancer] to balance.
      */
-    public fun recordCraft(ingredients: List<Ingredient>, product: Product, epochMillis: Long, causedBy: HolderId?): Transaction {
-        val txn = nextTxnId()
-        ledger.craft(ingredients, product, txn)
+    public suspend fun recordCraft(ingredients: List<Ingredient>, product: Product, epochMillis: Long, causedBy: HolderId?): Transaction =
+        ledger.atomically {
+            val txn = nextTxnId()
+            ledger.craft(ingredients, product, txn)
 
-        val flows = craftFlows(ingredients, product)
+            val flows = craftFlows(ingredients, product)
 
-        val transaction = Transaction(txn, nextSeq(), epochMillis, CauseKind.CRAFT, causedBy, flows)
-        log.append(transaction)
-        return transaction
-    }
+            val transaction = Transaction(txn, nextSeq(), epochMillis, CauseKind.CRAFT, causedBy, flows)
+            log.append(transaction)
+            transaction
+        }
 
     /**
      * Applies a caller-resolved [flows] directly, skipping [TransactionBalancer] entirely.
@@ -59,7 +60,7 @@ public class CaptureCoordinator(
      * For cases where the caller already knows exactly what happened and [TransactionBalancer]'s
      * defaults would be wrong.
      */
-    public fun recordDirect(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
+    public suspend fun recordDirect(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
         if (flows.isEmpty()) return null
         return applyAndLog(flows, epochMillis, cause, causedBy)
     }
@@ -71,16 +72,17 @@ public class CaptureCoordinator(
      * We're not schizophrenic enough to try to apply a partial transaction and then roll it
      * back if one flow fails, right?
      */
-    private fun applyAndLog(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction {
-        ledger.checkAllWithdrawalsSatisfiable(flows)
+    private suspend fun applyAndLog(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction =
+        ledger.atomically {
+            ledger.checkAllWithdrawalsSatisfiable(flows)
 
-        val txn = nextTxnId()
-        for (flow in flows) ledger.apply(flow, txn)
+            val txn = nextTxnId()
+            for (flow in flows) ledger.apply(flow, txn)
 
-        val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, flows)
-        log.append(transaction)
-        return transaction
-    }
+            val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, flows)
+            log.append(transaction)
+            transaction
+        }
 }
 
 /**

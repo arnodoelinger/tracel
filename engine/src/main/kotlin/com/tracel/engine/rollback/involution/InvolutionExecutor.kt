@@ -12,6 +12,7 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.model.transaction.Transaction
+import com.tracel.platform.storage.UnitOfWork
 
 /**
  * Physically applies one [InvolutionStep] against the ledger.
@@ -23,9 +24,9 @@ import com.tracel.model.transaction.Transaction
 public class InvolutionExecutor(
     private val ledger: LotLedger,
     private val log: TransactionLog,
-    private val nextSeq: () -> Seq,
-) {
-    public fun apply(lease: LotLease, step: InvolutionStep, txn: TxnId) {
+    private val nextSeq: suspend () -> Seq,
+) : UnitOfWork by ledger {
+    public suspend fun apply(lease: LotLease, step: InvolutionStep, txn: TxnId): Unit = atomically {
         val flows = when (step) {
             is InvolutionStep.Return -> {
                 ledger.move(step.from, step.to, step.itemKey, step.quantity, txn)

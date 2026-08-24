@@ -6,6 +6,7 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.storage.ownership.SqliteLotLeaseRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
@@ -18,12 +19,12 @@ import java.nio.file.Path
  */
 class SqliteLotLeaseRegistryTest {
     @Test
-    fun `a lease survives closing and reopening the same file`(@TempDir dir: Path) {
+    fun `a lease survives closing and reopening the same file`(@TempDir dir: Path) = runTest {
         val path = dir.resolve("db.sqlite")
         val job = RollbackJobId(1)
 
         TracelDatabase.open(path).use { db ->
-            val granted = SqliteLotLeaseRegistry(db.exposed).acquire(job, setOf(LotId(1), LotId(2)))
+            val granted = SqliteLotLeaseRegistry(db.storage).acquire(job, setOf(LotId(1), LotId(2)))
             assertInstanceOf(LeaseAcquisition.Granted::class.java, granted)
         }
 
@@ -31,7 +32,7 @@ class SqliteLotLeaseRegistryTest {
         // denied the lots job 1 took before the "crash" — the reservation is not process-local
         TracelDatabase.open(path).use { db ->
             val other = RollbackJobId(2)
-            val denied = SqliteLotLeaseRegistry(db.exposed).acquire(other, setOf(LotId(1)))
+            val denied = SqliteLotLeaseRegistry(db.storage).acquire(other, setOf(LotId(1)))
             assertInstanceOf(LeaseAcquisition.Denied::class.java, denied)
             assertEquals(mapOf(LotId(1) to job), (denied as LeaseAcquisition.Denied).conflicts)
 
@@ -39,41 +40,41 @@ class SqliteLotLeaseRegistryTest {
             // exactly what a resuming JournalExecutor needs to be able to do
             assertInstanceOf(
                 LeaseAcquisition.Granted::class.java,
-                SqliteLotLeaseRegistry(db.exposed).acquire(job, setOf(LotId(1), LotId(2))),
+                SqliteLotLeaseRegistry(db.storage).acquire(job, setOf(LotId(1), LotId(2))),
             )
         }
     }
 
     @Test
-    fun `release persists - a freed lot stays free after reopening`(@TempDir dir: Path) {
+    fun `release persists - a freed lot stays free after reopening`(@TempDir dir: Path) = runTest {
         val path = dir.resolve("db.sqlite")
         val job = RollbackJobId(1)
 
         TracelDatabase.open(path).use { db ->
-            SqliteLotLeaseRegistry(db.exposed).acquire(job, setOf(LotId(1)))
-            SqliteLotLeaseRegistry(db.exposed).release(job)
+            SqliteLotLeaseRegistry(db.storage).acquire(job, setOf(LotId(1)))
+            SqliteLotLeaseRegistry(db.storage).release(job)
         }
 
         TracelDatabase.open(path).use { db ->
             val other = RollbackJobId(2)
-            assertInstanceOf(LeaseAcquisition.Granted::class.java, SqliteLotLeaseRegistry(db.exposed).acquire(other, setOf(LotId(1))))
+            assertInstanceOf(LeaseAcquisition.Granted::class.java, SqliteLotLeaseRegistry(db.storage).acquire(other, setOf(LotId(1))))
         }
     }
 
     @Test
-    fun `transfer persists - the new holder survives reopening, the old one does not`(@TempDir dir: Path) {
+    fun `transfer persists - the new holder survives reopening, the old one does not`(@TempDir dir: Path) = runTest {
         val path = dir.resolve("db.sqlite")
         val from = RollbackJobId(1)
         val to = RollbackJobId(2)
 
         TracelDatabase.open(path).use { db ->
-            SqliteLotLeaseRegistry(db.exposed).acquire(from, setOf(LotId(1)))
-            val transferred = SqliteLotLeaseRegistry(db.exposed).transfer(from, to)
+            SqliteLotLeaseRegistry(db.storage).acquire(from, setOf(LotId(1)))
+            val transferred = SqliteLotLeaseRegistry(db.storage).transfer(from, to)
             assertEquals(setOf(LotId(1)), transferred)
         }
 
         TracelDatabase.open(path).use { db ->
-            val registry = SqliteLotLeaseRegistry(db.exposed)
+            val registry = SqliteLotLeaseRegistry(db.storage)
 
             // "to" survived the reopen holding what it was transferred; "from" holds nothing anymore
             assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(to, setOf(LotId(1))))
@@ -82,20 +83,20 @@ class SqliteLotLeaseRegistryTest {
     }
 
     @Test
-    fun `reapAbandoned persists - a stale lease reaped in one session stays gone after reopening`(@TempDir dir: Path) {
+    fun `reapAbandoned persists - a stale lease reaped in one session stays gone after reopening`(@TempDir dir: Path) = runTest {
         val path = dir.resolve("db.sqlite")
         val stale = RollbackJobId(1)
 
         TracelDatabase.open(path).use { db ->
-            SqliteLotLeaseRegistry(db.exposed).acquire(stale, setOf(LotId(1)))
+            SqliteLotLeaseRegistry(db.storage).acquire(stale, setOf(LotId(1)))
             val now = System.currentTimeMillis()
-            val reaped = SqliteLotLeaseRegistry(db.exposed).reapAbandoned(nowMillis = now + 10_000, maxAgeMillis = 5_000)
+            val reaped = SqliteLotLeaseRegistry(db.storage).reapAbandoned(nowMillis = now + 10_000, maxAgeMillis = 5_000)
             assertEquals(setOf(stale), reaped)
         }
 
         TracelDatabase.open(path).use { db ->
             val other = RollbackJobId(2)
-            assertInstanceOf(LeaseAcquisition.Granted::class.java, SqliteLotLeaseRegistry(db.exposed).acquire(other, setOf(LotId(1))))
+            assertInstanceOf(LeaseAcquisition.Granted::class.java, SqliteLotLeaseRegistry(db.storage).acquire(other, setOf(LotId(1))))
         }
     }
 }

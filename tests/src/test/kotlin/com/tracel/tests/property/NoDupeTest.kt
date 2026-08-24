@@ -12,9 +12,9 @@ import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
+import com.tracel.tests.support.assertFails
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -71,7 +71,7 @@ class NoDupeTest {
             .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = steve)
         assertEquals(4L, world.ledger.totalAt(steve, diamond)?.raw, "the first rollback correctly compensates the burned material")
 
-        val error = assertThrows(IllegalStateException::class.java) {
+        val error = assertFails<IllegalStateException> {
             RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         }
         assertTrue(

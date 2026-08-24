@@ -6,6 +6,7 @@ import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 /**
@@ -17,14 +18,14 @@ import org.junit.jupiter.api.Test
  */
 class LotLeaseRegistryTest {
     @Test
-    fun `a job can acquire lots nothing else holds`() {
+    fun `a job can acquire lots nothing else holds`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val granted = registry.acquire(RollbackJobId(1), setOf(LotId(1), LotId(2)))
         assertInstanceOf(LeaseAcquisition.Granted::class.java, granted)
     }
 
     @Test
-    fun `a second job is denied overlapping lots, and told who holds them`() {
+    fun `a second job is denied overlapping lots, and told who holds them`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val jobA = RollbackJobId(1)
         val jobB = RollbackJobId(2)
@@ -37,7 +38,7 @@ class LotLeaseRegistryTest {
     }
 
     @Test
-    fun `denial reserves nothing - not even the non-conflicting lots`() {
+    fun `denial reserves nothing - not even the non-conflicting lots`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val jobA = RollbackJobId(1)
         val jobB = RollbackJobId(2)
@@ -52,7 +53,7 @@ class LotLeaseRegistryTest {
     }
 
     @Test
-    fun `a job re-acquiring its own lots succeeds, not a conflict with itself`() {
+    fun `a job re-acquiring its own lots succeeds, not a conflict with itself`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val job = RollbackJobId(1)
         registry.acquire(job, setOf(LotId(1), LotId(2)))
@@ -61,7 +62,7 @@ class LotLeaseRegistryTest {
     }
 
     @Test
-    fun `releasing a job frees its lots for someone else`() {
+    fun `releasing a job frees its lots for someone else`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val jobA = RollbackJobId(1)
         val jobB = RollbackJobId(2)
@@ -73,14 +74,14 @@ class LotLeaseRegistryTest {
     }
 
     @Test
-    fun `disjoint lot sets never conflict`() {
+    fun `disjoint lot sets never conflict`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         registry.acquire(RollbackJobId(1), setOf(LotId(1)))
         assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(RollbackJobId(2), setOf(LotId(2))))
     }
 
     @Test
-    fun `extend grows a lease to cover a lot discovered mid-flight`() {
+    fun `extend grows a lease to cover a lot discovered mid-flight`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val job = RollbackJobId(1)
         val lease = (registry.acquire(job, setOf(LotId(1))) as LeaseAcquisition.Granted).lease
@@ -92,7 +93,7 @@ class LotLeaseRegistryTest {
     }
 
     @Test
-    fun `extending into a lot someone else holds is denied, and the original lease is untouched`() {
+    fun `extending into a lot someone else holds is denied, and the original lease is untouched`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val jobA = RollbackJobId(1)
         val jobB = RollbackJobId(2)
@@ -107,7 +108,7 @@ class LotLeaseRegistryTest {
     }
 
     @Test
-    fun `transfer hands every held lot to another job atomically`() {
+    fun `transfer hands every held lot to another job atomically`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val from = RollbackJobId(1)
         val to = RollbackJobId(2)
@@ -124,7 +125,7 @@ class LotLeaseRegistryTest {
     }
 
     @Test
-    fun `reapAbandoned frees leases older than the given age, and nothing else`() {
+    fun `reapAbandoned frees leases older than the given age, and nothing else`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val stale = RollbackJobId(1)
         val fresh = RollbackJobId(2)
@@ -138,7 +139,7 @@ class LotLeaseRegistryTest {
     }
 
     @Test
-    fun `renewing a lease via acquire resets its abandonment clock`() {
+    fun `renewing a lease via acquire resets its abandonment clock`() = runTest {
         val registry = InMemoryLotLeaseRegistry()
         val job = RollbackJobId(1)
         registry.acquire(job, setOf(LotId(1)))

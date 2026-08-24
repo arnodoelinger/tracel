@@ -17,5 +17,6 @@ dependencies {
     compileOnly(libs.sqlite.jdbc)
     testImplementation(libs.sqlite.jdbc)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.hdrhistogram)
     testImplementation(testFixtures(project(":tests")))
 }

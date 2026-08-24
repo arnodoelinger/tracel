@@ -14,7 +14,6 @@ import com.tracel.plugin.lookup.suggestLookupToken
 import io.papermc.paper.command.brigadier.BasicCommand
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.command.CommandSender
@@ -81,7 +80,7 @@ class LookupCommand(private val services: TracelServices) : BasicCommand {
 
     private fun runPage(sender: CommandSender, filter: LookupFilter, parsed: ParsedLookupArgs, center: Location?) {
         services.scope.launch {
-            val results = withContext(services.schedulers.storage) { services.log.query(filter) }
+            val results = services.atomically { services.log.query(filter) }
             val scope = parsed.scope
             val spatial = if (scope != null) {
                 results.filter { matchesScope(it, scope, center, parsed.horizontalOnly) }

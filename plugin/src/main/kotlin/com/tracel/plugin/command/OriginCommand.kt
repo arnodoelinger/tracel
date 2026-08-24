@@ -6,7 +6,6 @@ import com.tracel.plugin.lookup.renderOrigin
 import io.papermc.paper.command.brigadier.BasicCommand
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * `/tracel origin hand [player]` / `/tracel origin block <x> <y> <z> <material> [world]`.
@@ -23,11 +22,11 @@ class OriginCommand(private val services: TracelServices) : BasicCommand {
             }
             val (holder, itemKey) = target
 
-            withContext(services.schedulers.storage) {
+            services.atomically {
                 val lots = services.repo.accountQueue(holder, itemKey)
                 if (lots.isEmpty()) {
                     sender.sendMessage("Nothing tracked for ${itemKey.material} there.")
-                    return@withContext
+                    return@atomically
                 }
                 val graph = FlowGraph(services.repo)
                 for ((_, lot) in lots) {

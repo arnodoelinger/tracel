@@ -3,13 +3,13 @@ package com.tracel.storage.log
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.TransactionLog
-import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.model.transaction.Transaction
+import com.tracel.storage.Storage
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.schema.FlowsTable
 import com.tracel.storage.schema.ItemKeysTable
@@ -24,11 +24,9 @@ import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.notInList
 import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction as sqlTransaction
 
 /**
  * `SQLite`-backed [TransactionLog]. Unlike [com.tracel.storage.ledger.SqliteLotRepository], a
@@ -36,12 +34,9 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction as sqlTransaction
  * meaningful, so there is no crash-safety reason to split them across separate write calls the
  * way a rollback job's steps are.
  */
-class SqliteTransactionLog(private val db: Database) : TransactionLog {
-    private val writer = SingleWriterGuard()
-
-    override fun append(transaction: Transaction) {
-        writer.checkIn()
-        sqlTransaction(db) {
+class SqliteTransactionLog(private val storage: Storage) : TransactionLog {
+    override suspend fun append(transaction: Transaction) {
+        storage.write {
             check(
                 TransactionsTable.selectAll().where { TransactionsTable.id eq transaction.id.raw }.none()
             ) { "transaction ${transaction.id} already appended — the log is append-only" }
@@ -68,23 +63,23 @@ class SqliteTransactionLog(private val db: Database) : TransactionLog {
         }
     }
 
-    override fun find(id: TxnId): Transaction? = sqlTransaction(db) {
-        val row = TransactionsTable.selectAll().where { TransactionsTable.id eq id.raw }.singleOrNull() ?: return@sqlTransaction null
+    override suspend fun find(id: TxnId): Transaction? = storage.read {
+        val row = TransactionsTable.selectAll().where { TransactionsTable.id eq id.raw }.singleOrNull() ?: return@read null
         val flows = FlowsTable.selectAll().where { FlowsTable.txnId eq id.raw }
             .orderBy(FlowsTable.idx)
             .map { it.toFlow() }
         row.toTransaction(flows)
     }
 
-    override fun query(filter: LookupFilter): List<Transaction> = sqlTransaction(db) {
+    override suspend fun query(filter: LookupFilter): List<Transaction> = storage.read {
         val holderIds = filter.holders.mapNotNull(Interning::findHolderId)
-        if (filter.holders.isNotEmpty() && holderIds.isEmpty()) return@sqlTransaction emptyList()
+        if (filter.holders.isNotEmpty() && holderIds.isEmpty()) return@read emptyList()
         val excludedIds = filter.excludedHolders.mapNotNull(Interning::findHolderId)
 
         val materialItemKeyIds = filter.material?.let { material ->
             ItemKeysTable.select(ItemKeysTable.id).where { ItemKeysTable.material eq material }.map { it[ItemKeysTable.id] }
         }
-        if (materialItemKeyIds != null && materialItemKeyIds.isEmpty()) return@sqlTransaction emptyList()
+        if (materialItemKeyIds != null && materialItemKeyIds.isEmpty()) return@read emptyList()
 
         val holderMatchedTxnIds = holderIds.takeIf { it.isNotEmpty() }?.let { touchingTxnIds(it) }
         val materialMatchedTxnIds = materialItemKeyIds?.let { ids ->
@@ -94,7 +89,7 @@ class SqliteTransactionLog(private val db: Database) : TransactionLog {
 
         var candidateIds: Set<Long>? = holderMatchedTxnIds
         candidateIds = materialMatchedTxnIds?.let { candidateIds?.intersect(it) ?: it } ?: candidateIds
-        if (candidateIds != null && candidateIds.isEmpty()) return@sqlTransaction emptyList()
+        if (candidateIds != null && candidateIds.isEmpty()) return@read emptyList()
 
         val conditions = mutableListOf<Op<Boolean>>()
         candidateIds?.let { conditions += TransactionsTable.id inList it }

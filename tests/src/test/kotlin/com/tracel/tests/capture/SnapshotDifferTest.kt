@@ -6,6 +6,7 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 /**
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test
  */
 class SnapshotDifferTest {
     @Test
-    fun `the first snapshot of a holder produces gains, not deltas from nothing`() {
+    fun `the first snapshot of a holder produces gains, not deltas from nothing`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
 
@@ -27,7 +28,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `an unchanged inventory produces no deltas at all`() {
+    fun `an unchanged inventory produces no deltas at all`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
         differ.diff(chest, mapOf(diamond to 10L))
@@ -38,7 +39,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `a partial withdrawal produces exactly one negative delta`() {
+    fun `a partial withdrawal produces exactly one negative delta`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
         differ.diff(chest, mapOf(diamond to 10L))
@@ -50,7 +51,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `an item key disappearing entirely still produces its delta`() {
+    fun `an item key disappearing entirely still produces its delta`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
         differ.diff(chest, mapOf(diamond to 10L))
@@ -63,7 +64,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `multiple item keys changing at once each produce their own delta`() {
+    fun `multiple item keys changing at once each produce their own delta`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
         differ.diff(chest, mapOf(diamond to 10L, diamondBlock to 2L))
@@ -75,7 +76,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `different holders never see each other's deltas`() {
+    fun `different holders never see each other's deltas`() = runTest {
         val differ = SnapshotDiffer()
         val chestA = block(0, 64, 0)
         val chestB = block(10, 64, 0)
@@ -87,7 +88,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `forgetting a holder resets it to a fresh baseline`() {
+    fun `forgetting a holder resets it to a fresh baseline`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
         differ.diff(chest, mapOf(diamond to 10L))
@@ -99,7 +100,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `adjust keeps a later diff from seeing a change the adjuster already accounted for`() {
+    fun `adjust keeps a later diff from seeing a change the adjuster already accounted for`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
         differ.diff(chest, mapOf(diamond to 10L))
@@ -110,7 +111,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `adjust accumulates across multiple calls before the next diff`() {
+    fun `adjust accumulates across multiple calls before the next diff`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
         differ.diff(chest, mapOf(diamond to 10L))
@@ -123,7 +124,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `adjust down to exactly zero drops the item key instead of leaving a zero entry`() {
+    fun `adjust down to exactly zero drops the item key instead of leaving a zero entry`() = runTest {
         val differ = SnapshotDiffer()
         val chest = block(0, 64, 0)
         differ.diff(chest, mapOf(diamond to 10L))
@@ -135,7 +136,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `adjust on a holder with no prior snapshot still works, starting from empty`() {
+    fun `adjust on a holder with no prior snapshot still works, starting from empty`() = runTest {
         val differ = SnapshotDiffer()
         val groundItem = block(0, 64, 0)
 
@@ -146,7 +147,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `the first sight of a holder is measured against the ledger, not against nothing`() {
+    fun `the first sight of a holder is measured against the ledger, not against nothing`() = runTest {
         val chest = block(0, 64, 0)
         val differ = SnapshotDiffer { mapOf(diamond to 2L) }
 
@@ -158,7 +159,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `a first sight reports both directions of the gap in one diff`() {
+    fun `a first sight reports both directions of the gap in one diff`() = runTest {
         val chest = block(0, 64, 0)
         val differ = SnapshotDiffer { mapOf(diamond to 2L) }
 
@@ -170,7 +171,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `the ledger is consulted once, not on every diff`() {
+    fun `the ledger is consulted once, not on every diff`() = runTest {
         val chest = block(0, 64, 0)
         var reads = 0
         val differ = SnapshotDiffer { reads++; mapOf(diamond to 2L) }
@@ -184,7 +185,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `an adjust booked before the first diff is folded into the ledger baseline`() {
+    fun `an adjust booked before the first diff is folded into the ledger baseline`() = runTest {
         val player = block(0, 64, 0)
         val differ = SnapshotDiffer { mapOf(diamond to 10L) }
 
@@ -195,7 +196,7 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `rebaseline adopts the contents silently, without consulting the ledger`() {
+    fun `rebaseline adopts the contents silently, without consulting the ledger`() = runTest {
         val chest = block(0, 64, 0)
         var reads = 0
         val differ = SnapshotDiffer { reads++; mapOf(diamond to 2L) }

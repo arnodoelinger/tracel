@@ -15,14 +15,15 @@ import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
+import com.tracel.tests.support.assertFails
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertThrows
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class InMemoryTransactionLogTest {
     @Test
-    fun `an appended transaction round-trips exactly`() {
+    fun `an appended transaction round-trips exactly`() = runTest {
         val log = InMemoryTransactionLog()
         val chest = block(0, 64, 0)
         val steve = player(1)
@@ -41,21 +42,21 @@ class InMemoryTransactionLogTest {
     }
 
     @Test
-    fun `an unknown transaction id is not found`() {
+    fun `an unknown transaction id is not found`() = runTest {
         assertNull(InMemoryTransactionLog().find(TxnId(1)))
     }
 
     @Test
-    fun `the log refuses to append the same transaction id twice`() {
+    fun `the log refuses to append the same transaction id twice`() = runTest {
         val log = InMemoryTransactionLog()
         val txn = Transaction(TxnId(1), Seq(1), 0L, CauseKind.UNKNOWN, null, emptyList())
         log.append(txn)
 
-        assertThrows(IllegalStateException::class.java) { log.append(txn) }
+        assertFails<IllegalStateException> { log.append(txn) }
     }
 
     @Test
-    fun `query filters by holder, material, cause and time, newest first`() {
+    fun `query filters by holder, material, cause and time, newest first`() = runTest {
         val log = InMemoryTransactionLog()
         val chest = block(0, 64, 0)
         val steve = player(1)
@@ -73,7 +74,7 @@ class InMemoryTransactionLogTest {
             TxnId(3), Seq(3), epochMillis = 3_000L, cause = CauseKind.HOPPER, causedBy = null,
             flows = listOf(Flow(diamond, Quantity(2), chest, chest, FlowKind.MOVE)),
         )
-        listOf(txn1, txn2, txn3).forEach(log::append)
+        listOf(txn1, txn2, txn3).forEach { log.append(it) }
 
         assertEquals(listOf(txn2, txn1), log.query(LookupFilter(holders = setOf(steve, griefer))))
         assertEquals(listOf(txn1), log.query(LookupFilter(holders = setOf(steve, griefer), excludedHolders = setOf(griefer))))
@@ -84,14 +85,14 @@ class InMemoryTransactionLogTest {
     }
 
     @Test
-    fun `offset pages through newest-first results without skipping or repeating`() {
+    fun `offset pages through newest-first results without skipping or repeating`() = runTest {
         val log = InMemoryTransactionLog()
         val chest = block(0, 64, 0)
         val steve = player(1)
         val txns = (1..5).map { i ->
             Transaction(TxnId(i.toLong()), Seq(i.toLong()), i * 1_000L, CauseKind.HOPPER, null, listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE)))
         }
-        txns.forEach(log::append)
+        txns.forEach { log.append(it) }
 
         val page1 = log.query(LookupFilter(limit = 2, offset = 0))
         val page2 = log.query(LookupFilter(limit = 2, offset = 2))

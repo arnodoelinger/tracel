@@ -13,11 +13,11 @@ import com.tracel.model.transaction.Transaction
  */
 public interface TransactionLog {
     /** Appends a new [transaction] to the log. Throws if a transaction with the same id already exists. */
-    public fun append(transaction: Transaction)
+    public suspend fun append(transaction: Transaction)
 
     /** Finds a transaction by its [id], or returns `null` if it does not exist. */
-    public fun find(id: TxnId): Transaction?
+    public suspend fun find(id: TxnId): Transaction?
 
     /** Transactions matching [filter], newest first. */
-    public fun query(filter: LookupFilter): List<Transaction>
+    public suspend fun query(filter: LookupFilter): List<Transaction>
 }

@@ -8,7 +8,6 @@ import com.tracel.plugin.convert.toPlacedBlockId
 import com.tracel.plugin.lookup.describeHolder
 import com.tracel.plugin.lookup.renderLookupResult
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bukkit.block.Container
 import org.bukkit.entity.Player
 import org.bukkit.event.Event
@@ -40,7 +39,7 @@ class InspectListener(private val services: TracelServices) : Listener {
 
     private fun showHistory(player: Player, holder: HolderId) {
         services.scope.launch {
-            val results = withContext(services.schedulers.storage) {
+            val results = services.atomically {
                 services.log.query(LookupFilter(holders = setOf(holder), limit = PAGE_SIZE))
             }
 

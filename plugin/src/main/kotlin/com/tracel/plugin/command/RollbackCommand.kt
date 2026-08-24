@@ -33,15 +33,15 @@ class RollbackCommand(private val services: TracelServices) : BasicCommand {
         when (args.getOrNull(1)) {
             "preview" -> {
                 val lotId = args.getOrNull(2)?.toLongOrNull() ?: return usage(source)
-                onStorage { preview(source, lotId) }
+                inBackground { preview(source, lotId) }
             }
             "apply" -> {
                 val lotId = args.getOrNull(2)?.toLongOrNull() ?: return usage(source)
-                onStorage { apply(source, lotId, args.getOrNull(3)) }
+                inBackground { apply(source, lotId, args.getOrNull(3)) }
             }
             "undo" -> {
                 val jobId = args.getOrNull(2)?.toLongOrNull() ?: return usage(source)
-                onStorage { undo(source, jobId) }
+                inBackground { undo(source, jobId) }
             }
             else -> usage(source)
         }
@@ -56,8 +56,9 @@ class RollbackCommand(private val services: TracelServices) : BasicCommand {
 
     private fun usage(source: CommandSourceStack) = usage.forEach(source.sender::sendMessage)
 
-    private fun onStorage(block: suspend () -> Unit) {
-        services.scope.launch { withContext(services.schedulers.storage) { block() } }
+    // Must not be one unit of work
+    private fun inBackground(block: suspend () -> Unit) {
+        services.scope.launch { block() }
     }
 
     private suspend fun preview(source: CommandSourceStack, lotId: Long) {

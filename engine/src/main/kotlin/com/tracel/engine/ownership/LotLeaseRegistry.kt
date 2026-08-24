@@ -23,7 +23,7 @@ public abstract class LotLeaseRegistry {
      * already held, which is what [reapAbandoned] uses to tell a job that is still actively
      * working from one that has gone silent.
      */
-    public fun acquire(job: RollbackJobId, lotIds: Set<LotId>): LeaseAcquisition {
+    public suspend fun acquire(job: RollbackJobId, lotIds: Set<LotId>): LeaseAcquisition {
         val conflicts = tryReserve(job, lotIds)
         return if (conflicts.isEmpty()) {
             LeaseAcquisition.Granted(LotLease.mint(job, lotIds))
@@ -38,11 +38,11 @@ public abstract class LotLeaseRegistry {
      * [acquire]: on [LeaseAcquisition.Denied], [lease] itself is untouched and still valid for
      * whatever it already covered.
      */
-    public fun extend(lease: LotLease, additionalLotIds: Set<LotId>): LeaseAcquisition =
+    public suspend fun extend(lease: LotLease, additionalLotIds: Set<LotId>): LeaseAcquisition =
         acquire(lease.job, lease.lotIds + additionalLotIds)
 
     /** Releases every lot [job] holds. Idempotent — releasing a job that holds nothing is a no-op. */
-    public abstract fun release(job: RollbackJobId)
+    public abstract suspend fun release(job: RollbackJobId)
 
     /**
      * Atomically reassigns every lot [from] currently holds to [to] — no window where the lots
@@ -50,7 +50,7 @@ public abstract class LotLeaseRegistry {
      *
      * @return the lots that were transferred.
      */
-    public abstract fun transfer(from: RollbackJobId, to: RollbackJobId): Set<LotId>
+    public abstract suspend fun transfer(from: RollbackJobId, to: RollbackJobId): Set<LotId>
 
     /**
      * Releases every lease whose most recent [acquire] / [extend] is older than [maxAgeMillis]
@@ -62,7 +62,7 @@ public abstract class LotLeaseRegistry {
      *
      * @return the jobs that were reaped.
      */
-    public abstract fun reapAbandoned(nowMillis: Long, maxAgeMillis: Long): Set<RollbackJobId>
+    public abstract suspend fun reapAbandoned(nowMillis: Long, maxAgeMillis: Long): Set<RollbackJobId>
 
     /**
      * Reserves [lotIds] for [job] if and only if none of them are already held by a
@@ -72,5 +72,5 @@ public abstract class LotLeaseRegistry {
      * @return the lots that were already held by someone else, mapped to who holds them.
      * Empty means the reservation succeeded and every lot in [lotIds] is now held by [job].
      */
-    protected abstract fun tryReserve(job: RollbackJobId, lotIds: Set<LotId>): Map<LotId, RollbackJobId>
+    protected abstract suspend fun tryReserve(job: RollbackJobId, lotIds: Set<LotId>): Map<LotId, RollbackJobId>
 }

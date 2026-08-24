@@ -14,10 +14,11 @@ import com.tracel.model.holder.HolderId
  * give-backs and burns first and re-craft last.
  */
 public class InvolutionPlanner(private val repo: LotRepository) {
-    public fun plan(job: RollbackJobRecord): List<InvolutionStep> =
+    public suspend fun plan(job: RollbackJobRecord): List<InvolutionStep> = repo.atomically {
         job.plan.steps.asReversed().map { stepFor(it, job.restoreTo) }
+    }
 
-    private fun stepFor(step: RollbackStep, restoreTo: HolderId): InvolutionStep = when (step) {
+    private suspend fun stepFor(step: RollbackStep, restoreTo: HolderId): InvolutionStep = when (step) {
         is RollbackStep.Take ->
             InvolutionStep.Return(repo.lot(step.lotId).itemKey, step.quantity, restoreTo, step.holder)
 

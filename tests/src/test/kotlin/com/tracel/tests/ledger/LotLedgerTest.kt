@@ -5,13 +5,14 @@ import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.LedgerHarness
+import com.tracel.tests.support.assertFails
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class LotLedgerTest {
     @Test
-    fun `totalsAt sums every item key currently placed at a holder`() {
+    fun `totalsAt sums every item key currently placed at a holder`() = runTest {
         val harness = LedgerHarness()
         val chest = block(0, 64, 0)
 
@@ -23,7 +24,7 @@ class LotLedgerTest {
     }
 
     @Test
-    fun `totalsAt drops an item key once it is withdrawn to zero`() {
+    fun `totalsAt drops an item key once it is withdrawn to zero`() = runTest {
         val harness = LedgerHarness()
         val chest = block(0, 64, 0)
 
@@ -34,7 +35,7 @@ class LotLedgerTest {
     }
 
     @Test
-    fun `totalsAt only reports the requested holder`() {
+    fun `totalsAt only reports the requested holder`() = runTest {
         val harness = LedgerHarness()
         val chest = block(0, 64, 0)
         val other = block(1, 64, 0)
@@ -46,7 +47,7 @@ class LotLedgerTest {
     }
 
     @Test
-    fun `a withdrawal larger than the account holds destroys nothing`() {
+    fun `a withdrawal larger than the account holds destroys nothing`() = runTest {
         // The shortfall check used to run (!) after the loop that retires lots, so a withdrawal of
         // more than an account held removed everything it could reach and only then threw — and
         // since every caller treats that throw as the ordinary "untracked material" case and
@@ -55,7 +56,7 @@ class LotLedgerTest {
         val chest = block(0, 64, 0)
         harness.ledger.mint(chest, diamond, Quantity(4), harness.nextTxn())
 
-        assertThrows(IllegalStateException::class.java) {
+        assertFails<IllegalStateException> {
             harness.ledger.withdraw(chest, diamond, Quantity(10), harness.nextTxn())
         }
 
@@ -64,7 +65,7 @@ class LotLedgerTest {
     }
 
     @Test
-    fun `a failed withdrawal spanning several lots leaves every one of them in place`() {
+    fun `a failed withdrawal spanning several lots leaves every one of them in place`() = runTest {
         // The multi-lot case is the one that actually lost material: the loop retired lot after
         // lot on its way to a total it could never reach.
         val harness = LedgerHarness()
@@ -72,7 +73,7 @@ class LotLedgerTest {
         harness.ledger.mint(chest, diamond, Quantity(3), harness.nextTxn())
         harness.ledger.mint(chest, diamond, Quantity(3), harness.nextTxn())
 
-        assertThrows(IllegalStateException::class.java) {
+        assertFails<IllegalStateException> {
             harness.ledger.withdraw(chest, diamond, Quantity(7), harness.nextTxn())
         }
 

@@ -6,6 +6,7 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
@@ -13,9 +14,9 @@ import java.util.UUID
 
 class SqlitePendingDeliveryRepositoryTest {
     @Test
-    fun `claiming returns everything queued for that player, signed deltas intact`(@TempDir dir: Path) {
+    fun `claiming returns everything queued for that player, signed deltas intact`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val repo = SqlitePendingDeliveryRepository(db.exposed)
+            val repo = SqlitePendingDeliveryRepository(db.storage)
             val player = UUID(0L, 1)
 
             repo.enqueueAll(player, mapOf(diamond to 64L, diamondBlock to -1L), RollbackJobId(1), nowMillis = 1000L)
@@ -26,12 +27,12 @@ class SqlitePendingDeliveryRepositoryTest {
     }
 
     @Test
-    fun `claiming removes the entries - a second claim for the same player finds nothing`(@TempDir dir: Path) {
+    fun `claiming removes the entries - a second claim for the same player finds nothing`(@TempDir dir: Path) = runTest {
         // This is the exact property that prevents the duplication bug found live for
         // rollback undo from recurring here: physical delivery must never be able to
         // re-read (and re-apply) the same queued entries twice.
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val repo = SqlitePendingDeliveryRepository(db.exposed)
+            val repo = SqlitePendingDeliveryRepository(db.storage)
             val player = UUID(0L, 1)
 
             repo.enqueueAll(player, mapOf(diamond to 64L), RollbackJobId(1), nowMillis = 1000L)
@@ -42,9 +43,9 @@ class SqlitePendingDeliveryRepositoryTest {
     }
 
     @Test
-    fun `claiming one player never touches another player's queue`(@TempDir dir: Path) {
+    fun `claiming one player never touches another player's queue`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val repo = SqlitePendingDeliveryRepository(db.exposed)
+            val repo = SqlitePendingDeliveryRepository(db.storage)
             val alice = UUID(0L, 1)
             val bob = UUID(0L, 2)
 
@@ -62,16 +63,16 @@ class SqlitePendingDeliveryRepositoryTest {
     }
 
     @Test
-    fun `a queued delivery survives reopening the database`(@TempDir dir: Path) {
+    fun `a queued delivery survives reopening the database`(@TempDir dir: Path) = runTest {
         val path = dir.resolve("db.sqlite")
         val player = UUID(0L, 1)
 
         TracelDatabase.open(path).use { db ->
-            SqlitePendingDeliveryRepository(db.exposed).enqueueAll(player, mapOf(diamond to 64L), RollbackJobId(1), nowMillis = 1000L)
+            SqlitePendingDeliveryRepository(db.storage).enqueueAll(player, mapOf(diamond to 64L), RollbackJobId(1), nowMillis = 1000L)
         }
 
         TracelDatabase.open(path).use { db ->
-            val claimed = SqlitePendingDeliveryRepository(db.exposed).claimFor(player)
+            val claimed = SqlitePendingDeliveryRepository(db.storage).claimFor(player)
             assertEquals(1, claimed.size)
             assertEquals(diamond, claimed.single().itemKey)
             assertEquals(64L, claimed.single().delta)

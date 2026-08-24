@@ -19,16 +19,17 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.itemEntity
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
+import com.tracel.tests.support.assertFails
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 /** The full pipeline: raw deltas -> balanced flows -> applied to the ledger -> logged. */
 class CaptureCoordinatorTest {
     @Test
-    fun `a matched move updates the ledger and logs one transaction`() {
+    fun `a matched move updates the ledger and logs one transaction`() = runTest {
         val world = LedgerHarness()
         val log = InMemoryTransactionLog()
         val chest = block(0, 64, 0)
@@ -52,7 +53,7 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `an unmatched gain mints, and the mint is what gets logged`() {
+    fun `an unmatched gain mints, and the mint is what gets logged`() = runTest {
         val world = LedgerHarness()
         val log = InMemoryTransactionLog()
         val steve = player(1)
@@ -72,7 +73,7 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `recordCraft consumes ingredients and produces the output as one transaction`() {
+    fun `recordCraft consumes ingredients and produces the output as one transaction`() = runTest {
         val world = LedgerHarness()
         val log = InMemoryTransactionLog()
         val steve = player(1)
@@ -107,7 +108,7 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `recordDirect bypasses the balancer, using exactly the sink kind the caller chose`() {
+    fun `recordDirect bypasses the balancer, using exactly the sink kind the caller chose`() = runTest {
         val world = LedgerHarness()
         val log = InMemoryTransactionLog()
         val ground = itemEntity(1)
@@ -127,7 +128,7 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `recordDirect with no flows records nothing`() {
+    fun `recordDirect with no flows records nothing`() = runTest {
         val world = LedgerHarness()
         val log = InMemoryTransactionLog()
         var nextSeqRaw = 1L
@@ -139,7 +140,7 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `an empty diff records nothing - no transaction, no log entry`() {
+    fun `an empty diff records nothing - no transaction, no log entry`() = runTest {
         val world = LedgerHarness()
         val log = InMemoryTransactionLog()
         var nextSeqRaw = 1L
@@ -151,7 +152,7 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `a capture that cannot fully apply applies none of it, and logs nothing`() {
+    fun `a capture that cannot fully apply applies none of it, and logs nothing`() = runTest {
         val world = LedgerHarness()
         val log = InMemoryTransactionLog()
         val chest = block(0, 64, 0)
@@ -164,7 +165,7 @@ class CaptureCoordinatorTest {
         val stone = ItemKey("minecraft:stone")
         val deltas = listOf(InventoryDelta(steve, stone, 3L), InventoryDelta(chest, diamond, -5L))
 
-        assertThrows(IllegalStateException::class.java) {
+        assertFails<IllegalStateException> {
             coordinator.record(deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
         }
 
@@ -174,7 +175,7 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `recordDirect refuses a flow set it cannot fully apply, leaving the ledger untouched`() {
+    fun `recordDirect refuses a flow set it cannot fully apply, leaving the ledger untouched`() = runTest {
         val world = LedgerHarness()
         val log = InMemoryTransactionLog()
         val ground = itemEntity(7)
@@ -190,7 +191,7 @@ class CaptureCoordinatorTest {
             Flow(diamond, Quantity(1), ground, HolderId.Sink(SinkKind.DESPAWN), FlowKind.BURN),
         )
 
-        assertThrows(IllegalStateException::class.java) {
+        assertFails<IllegalStateException> {
             coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
         }
 
@@ -200,7 +201,7 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `a flow drawing on what an earlier flow in the same capture deposited is allowed`() {
+    fun `a flow drawing on what an earlier flow in the same capture deposited is allowed`() = runTest {
         // The check simulates the flows in order rather than only summing per source, so a
         // legitimate hand-off inside one transaction is not mistaken for an overdraw.
         val world = LedgerHarness()

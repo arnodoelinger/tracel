@@ -11,7 +11,7 @@ import com.tracel.model.item.ItemKey
 /**
  * Applies [flow] to this ledger — the mechanical half of what [TransactionBalancer] produces.
  */
-public fun LotLedger.apply(flow: Flow, txn: TxnId) {
+public suspend fun LotLedger.apply(flow: Flow, txn: TxnId) {
     when (flow.kind) {
         FlowKind.MOVE -> move(flow.source, flow.destination, flow.itemKey, flow.quantity, txn)
         FlowKind.MINT -> mint(flow.destination, flow.itemKey, flow.quantity, txn)
@@ -28,21 +28,26 @@ public fun LotLedger.apply(flow: Flow, txn: TxnId) {
  * Simulates the flows in order rather than summing per source, so a flow drawing on material an
  * earlier flow in the same transaction deposited is judged on the balance it would actually see.
  */
-public fun LotLedger.checkAllWithdrawalsSatisfiable(flows: List<Flow>) {
-    val simulated = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
-    fun balanceOf(holder: HolderId, itemKey: ItemKey): Long =
-        simulated.getOrPut(holder to itemKey) { totalAt(holder, itemKey)?.raw ?: 0L }
+public suspend fun LotLedger.checkAllWithdrawalsSatisfiable(flows: List<Flow>): Unit = atomically {
+    val pending = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
+    val known = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
 
-    fun credit(holder: HolderId, itemKey: ItemKey, amount: Long) {
-        simulated[holder to itemKey] = balanceOf(holder, itemKey) + amount
+    suspend fun balanceOf(holder: HolderId, itemKey: ItemKey): Long {
+        val account = holder to itemKey
+        val actual = known[account] ?: (totalAt(holder, itemKey)?.raw ?: 0L).also { known[account] = it }
+        return actual + pending.getOrDefault(account, 0L)
     }
 
-    fun debit(holder: HolderId, itemKey: ItemKey, amount: Long) {
+    fun credit(holder: HolderId, itemKey: ItemKey, amount: Long) {
+        pending.merge(holder to itemKey, amount, Long::plus)
+    }
+
+    suspend fun debit(holder: HolderId, itemKey: ItemKey, amount: Long) {
         val available = balanceOf(holder, itemKey)
         check(available >= amount) {
             "insufficient balance at $holder for $itemKey: needed $amount, have $available"
         }
-        simulated[holder to itemKey] = available - amount
+        pending.merge(holder to itemKey, -amount, Long::plus)
     }
 
     for ((itemKey, quantity, source, destination, kind) in flows) {

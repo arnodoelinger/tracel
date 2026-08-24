@@ -45,21 +45,23 @@ class TracelPlugin : JavaPlugin() {
     override fun onEnable() {
         ItemKeyStabilityCanary.check(this, logger)
 
-        val schedulers = PaperTracelSchedulers(this)
-
         dataFolder.mkdirs()
         database = TracelDatabase.open(dataFolder.resolve("tracel.db").toPath())
+        val storage = database.storage
 
-        val repo = SqliteLotRepository(database.exposed)
+        // The database's own writer thread is the storage thread — see PaperTracelSchedulers
+        val schedulers = PaperTracelSchedulers(this, database.dispatcher)
+
+        val repo = SqliteLotRepository(storage)
         val ledger = LotLedger(repo)
-        val log = SqliteTransactionLog(database.exposed)
-        val counters = SqliteCounters(database.exposed)
-        val leases = SqliteLotLeaseRegistry(database.exposed)
-        val jobs = SqliteRollbackJobRepository(database.exposed)
-        val pendingDeliveries = SqlitePendingDeliveryRepository(database.exposed)
+        val log = SqliteTransactionLog(storage)
+        val counters = SqliteCounters(storage)
+        val leases = SqliteLotLeaseRegistry(storage)
+        val jobs = SqliteRollbackJobRepository(storage)
+        val pendingDeliveries = SqlitePendingDeliveryRepository(storage)
         val journalExecutor = JournalExecutor(
             RollbackExecutor(ledger, log, counters::nextSeq),
-            SqliteJournal(database.exposed),
+            SqliteJournal(storage),
             leases,
             counters::nextTxnId,
         )
@@ -68,7 +70,7 @@ class TracelPlugin : JavaPlugin() {
             repo,
             leases,
             InvolutionExecutor(ledger, log, counters::nextSeq),
-            SqliteInvolutionJournal(database.exposed),
+            SqliteInvolutionJournal(storage),
             counters::nextTxnId,
         )
 
@@ -83,7 +85,7 @@ class TracelPlugin : JavaPlugin() {
             jobs = jobs,
             undo = involutionCoordinator,
             pendingDeliveries = pendingDeliveries,
-            db = database.exposed,
+            storage = storage,
         )
 
         server.pluginManager.registerEvents(HopperTransferListener(services), this)

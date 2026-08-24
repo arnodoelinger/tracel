@@ -9,7 +9,6 @@ import com.tracel.plugin.convert.toHolderId
 import com.tracel.plugin.convert.toPlacedBlockId
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bukkit.block.Block
 import org.bukkit.block.Container
 import org.bukkit.entity.Creeper
@@ -86,7 +85,7 @@ class ExplosionCaptureListener(private val services: TracelServices) : Listener 
             // Tracks which holders actually got registered, so a throw mid-loop doesn't leak them
             val resolved = mutableListOf<HolderId>()
             try {
-                val believedByHolder = withContext(services.schedulers.storage) {
+                val believedByHolder = services.atomically {
                     releaseTargets.associate { (holder, block) ->
                         val believed: Map<ItemKey, Long> = services.ledger.totalsAt(holder).mapValues { it.value.raw }
                         services.explosionDrops.resolve(holder, block.world, block.x, block.y, block.z, believed)
@@ -106,7 +105,7 @@ class ExplosionCaptureListener(private val services: TracelServices) : Listener 
                         result.claimed.map { InventoryDelta(it.entity, it.itemKey, it.quantity) }
                 }
                 if (deltas.isNotEmpty()) {
-                    withContext(services.schedulers.storage) {
+                    services.atomically {
                         services.capture.record(deltas, epochMillis, CauseKind.EXPLOSION, causedBy)
                     }
                 }

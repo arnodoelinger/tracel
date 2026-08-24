@@ -41,7 +41,7 @@ class BlockPlacementCaptureListener(internal val services: TracelServices) : Lis
 
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     services.capture.record(deltas, epochMillis, CauseKind.PLAYER_ACTION, playerHolder)
                 }
             } catch (e: IllegalStateException) {
@@ -87,13 +87,13 @@ class BlockPlacementCaptureListener(internal val services: TracelServices) : Lis
 
         services.scope.launch {
             try {
-                val believed = withContext(services.schedulers.storage) { services.ledger.totalsAt(placedHolder) }
+                val believed = services.atomically { services.ledger.totalsAt(placedHolder) }
                 if (believed.isNotEmpty()) {
                     val spawned = withContext(services.schedulers.region(HolderId.Block(placedHolder.world, placedHolder.x, placedHolder.y, placedHolder.z))) {
                         believed.flatMap { (itemKey, qty) -> services.spawnAsRelease(itemKey, qty.raw, world, dropLocation) }
                     }
                     val deltas = believed.map { (itemKey, qty) -> InventoryDelta(placedHolder, itemKey, -qty.raw) } + spawned
-                    withContext(services.schedulers.storage) {
+                    services.atomically {
                         services.capture.record(deltas, epochMillis, CauseKind.BLOCK_BREAK, causedBy)
                     }
                 }
@@ -106,9 +106,9 @@ class BlockPlacementCaptureListener(internal val services: TracelServices) : Lis
     internal fun onBreakFallback(event: BlockBreakEvent, placedHolder: HolderId.PlacedBlock, causedBy: HolderId.Player, epochMillis: Long) {
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     val deltas = services.ledger.releaseDeltas(placedHolder)
-                    if (deltas.isEmpty()) return@withContext
+                    if (deltas.isEmpty()) return@atomically
                     services.capture.record(deltas, epochMillis, CauseKind.BLOCK_BREAK, causedBy)
                 }
             } catch (e: IllegalStateException) {

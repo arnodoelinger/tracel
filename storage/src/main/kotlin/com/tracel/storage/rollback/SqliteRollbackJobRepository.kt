@@ -1,6 +1,5 @@
 package com.tracel.storage.rollback
 
-import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.engine.rollback.LotContribution
 import com.tracel.engine.rollback.RollbackJobRecord
 import com.tracel.engine.rollback.RollbackJobRepository
@@ -11,6 +10,7 @@ import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
+import com.tracel.storage.Storage
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.schema.RollbackJobsTable
 import com.tracel.storage.schema.RollbackStepInputsTable
@@ -18,10 +18,8 @@ import com.tracel.storage.schema.RollbackStepsTable
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
@@ -30,12 +28,9 @@ import java.util.UUID
  * Every [RollbackStep] variant is spread across [RollbackStepsTable]'s nullable, variant-specific
  * columns rather than a serialized blob.
  */
-class SqliteRollbackJobRepository(private val db: Database) : RollbackJobRepository {
-    private val writer = SingleWriterGuard()
-
-    override fun save(record: RollbackJobRecord) {
-        writer.checkIn()
-        transaction(db) {
+class SqliteRollbackJobRepository(private val storage: Storage) : RollbackJobRepository {
+    override suspend fun save(record: RollbackJobRecord) {
+        storage.write {
             RollbackJobsTable.insert {
                 it[jobId] = record.id.raw
                 it[restoreToHolderId] = Interning.internHolder(record.restoreTo)
@@ -91,9 +86,9 @@ class SqliteRollbackJobRepository(private val db: Database) : RollbackJobReposit
         }
     }
 
-    override fun find(id: RollbackJobId): RollbackJobRecord? = transaction(db) {
+    override suspend fun find(id: RollbackJobId): RollbackJobRecord? = storage.read {
         val jobRow = RollbackJobsTable.selectAll().where { RollbackJobsTable.jobId eq id.raw }.singleOrNull()
-            ?: return@transaction null
+            ?: return@read null
         val restoreTo = Interning.resolveHolder(jobRow[RollbackJobsTable.restoreToHolderId])
 
         val steps = RollbackStepsTable.selectAll()

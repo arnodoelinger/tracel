@@ -10,7 +10,7 @@ public class InMemoryLotLeaseRegistry : LotLeaseRegistry() {
     private val writer = SingleWriterGuard()
     private val holders = mutableMapOf<LotId, Entry>()
 
-    override fun tryReserve(job: RollbackJobId, lotIds: Set<LotId>): Map<LotId, RollbackJobId> {
+    override suspend fun tryReserve(job: RollbackJobId, lotIds: Set<LotId>): Map<LotId, RollbackJobId> {
         writer.checkIn()
         val conflicts = lotIds.mapNotNull { lotId -> holders[lotId]?.takeIf { it.job != job }?.let { lotId to it.job } }.toMap()
         if (conflicts.isNotEmpty()) return conflicts
@@ -20,12 +20,12 @@ public class InMemoryLotLeaseRegistry : LotLeaseRegistry() {
         return emptyMap()
     }
 
-    override fun release(job: RollbackJobId) {
+    override suspend fun release(job: RollbackJobId) {
         writer.checkIn()
         holders.entries.removeAll { it.value.job == job }
     }
 
-    override fun transfer(from: RollbackJobId, to: RollbackJobId): Set<LotId> {
+    override suspend fun transfer(from: RollbackJobId, to: RollbackJobId): Set<LotId> {
         writer.checkIn()
         val now = System.currentTimeMillis()
         val toTransfer = holders.filterValues { it.job == from }.keys.toSet()
@@ -33,7 +33,7 @@ public class InMemoryLotLeaseRegistry : LotLeaseRegistry() {
         return toTransfer
     }
 
-    override fun reapAbandoned(nowMillis: Long, maxAgeMillis: Long): Set<RollbackJobId> {
+    override suspend fun reapAbandoned(nowMillis: Long, maxAgeMillis: Long): Set<RollbackJobId> {
         writer.checkIn()
         val abandoned = holders.values.filter { nowMillis - it.acquiredAtMillis > maxAgeMillis }.mapTo(mutableSetOf()) { it.job }
         holders.entries.removeAll { it.value.job in abandoned }

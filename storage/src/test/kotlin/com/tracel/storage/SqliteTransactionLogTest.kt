@@ -15,18 +15,19 @@ import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
+import com.tracel.tests.support.assertFails
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertThrows
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 
 class SqliteTransactionLogTest {
     @Test
-    fun `an appended transaction round-trips exactly, including its flows`(@TempDir dir: Path) {
+    fun `an appended transaction round-trips exactly, including its flows`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val log = SqliteTransactionLog(db.exposed)
+            val log = SqliteTransactionLog(db.storage)
             val chest = block(0, 64, 0)
             val steve = player(1)
             val txn = Transaction(
@@ -48,40 +49,40 @@ class SqliteTransactionLogTest {
     }
 
     @Test
-    fun `an unknown transaction id is not found`(@TempDir dir: Path) {
+    fun `an unknown transaction id is not found`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            assertNull(SqliteTransactionLog(db.exposed).find(TxnId(1)))
+            assertNull(SqliteTransactionLog(db.storage).find(TxnId(1)))
         }
     }
 
     @Test
-    fun `the log refuses to append the same transaction id twice`(@TempDir dir: Path) {
+    fun `the log refuses to append the same transaction id twice`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val log = SqliteTransactionLog(db.exposed)
+            val log = SqliteTransactionLog(db.storage)
             val txn = Transaction(TxnId(1), Seq(1), 0L, CauseKind.UNKNOWN, null, emptyList())
             log.append(txn)
 
-            assertThrows(IllegalStateException::class.java) { log.append(txn) }
+            assertFails<IllegalStateException> { log.append(txn) }
         }
     }
 
     @Test
-    fun `a transaction survives closing and reopening the same file`(@TempDir dir: Path) {
+    fun `a transaction survives closing and reopening the same file`(@TempDir dir: Path) = runTest {
         val path = dir.resolve("db.sqlite")
         val chest = block(0, 64, 0)
         val txn = Transaction(TxnId(1), Seq(1), 42L, CauseKind.HOPPER, null, listOf(Flow(diamond, Quantity(1), chest, chest, FlowKind.MOVE)))
 
-        TracelDatabase.open(path).use { db -> SqliteTransactionLog(db.exposed).append(txn) }
+        TracelDatabase.open(path).use { db -> SqliteTransactionLog(db.storage).append(txn) }
 
         TracelDatabase.open(path).use { db ->
-            assertEquals(txn, SqliteTransactionLog(db.exposed).find(txn.id))
+            assertEquals(txn, SqliteTransactionLog(db.storage).find(txn.id))
         }
     }
 
     @Test
-    fun `query filters by holder, material, cause and time, newest first`(@TempDir dir: Path) {
+    fun `query filters by holder, material, cause and time, newest first`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val log = SqliteTransactionLog(db.exposed)
+            val log = SqliteTransactionLog(db.storage)
             val chest = block(0, 64, 0)
             val steve = player(1)
             val griefer = player(2)
@@ -98,7 +99,7 @@ class SqliteTransactionLogTest {
                 TxnId(3), Seq(3), epochMillis = 3_000L, cause = CauseKind.HOPPER, causedBy = null,
                 flows = listOf(Flow(diamond, Quantity(2), chest, chest, FlowKind.MOVE)),
             )
-            listOf(txn1, txn2, txn3).forEach(log::append)
+            listOf(txn1, txn2, txn3).forEach { log.append(it) }
 
             assertEquals(listOf(txn2, txn1), log.query(LookupFilter(holders = setOf(steve, griefer))))
             assertEquals(listOf(txn1), log.query(LookupFilter(holders = setOf(steve, griefer), excludedHolders = setOf(griefer))))
@@ -110,9 +111,9 @@ class SqliteTransactionLogTest {
     }
 
     @Test
-    fun `an unknown holder or material matches nothing instead of everything`(@TempDir dir: Path) {
+    fun `an unknown holder or material matches nothing instead of everything`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val log = SqliteTransactionLog(db.exposed)
+            val log = SqliteTransactionLog(db.storage)
             log.append(Transaction(TxnId(1), Seq(1), 0L, CauseKind.UNKNOWN, null, emptyList()))
 
             assertEquals(emptyList<Transaction>(), log.query(LookupFilter(holders = setOf(player(99)))))
@@ -121,15 +122,15 @@ class SqliteTransactionLogTest {
     }
 
     @Test
-    fun `offset pages through newest-first results without skipping or repeating`(@TempDir dir: Path) {
+    fun `offset pages through newest-first results without skipping or repeating`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val log = SqliteTransactionLog(db.exposed)
+            val log = SqliteTransactionLog(db.storage)
             val chest = block(0, 64, 0)
             val steve = player(1)
             val txns = (1..5).map { i ->
                 Transaction(TxnId(i.toLong()), Seq(i.toLong()), i * 1_000L, CauseKind.HOPPER, null, listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE)))
             }
-            txns.forEach(log::append)
+            txns.forEach { log.append(it) }
 
             val page1 = log.query(LookupFilter(limit = 2, offset = 0))
             val page2 = log.query(LookupFilter(limit = 2, offset = 2))

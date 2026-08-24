@@ -14,11 +14,12 @@ import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import org.junit.jupiter.api.Assertions.assertEquals
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class PhysicalDeltasTest {
     @Test
-    fun `a Take nets a negative delta at the source and a positive one at restoreTo`() {
+    fun `a Take nets a negative delta at the source and a positive one at restoreTo`() = runTest {
         val world = LedgerHarness()
         val chest = block(0, 64, 0)
         val steve = player(1)
@@ -33,7 +34,7 @@ class PhysicalDeltasTest {
     }
 
     @Test
-    fun `Mint and Debt steps only credit restoreTo, no physical source`() {
+    fun `Mint and Debt steps only credit restoreTo, no physical source`() = runTest {
         val world = LedgerHarness()
         val chest = block(0, 64, 0)
         val steve = player(1)
@@ -51,7 +52,7 @@ class PhysicalDeltasTest {
     }
 
     @Test
-    fun `an Unmake step nets entirely at its own holder, not restoreTo`() {
+    fun `an Unmake step nets entirely at its own holder, not restoreTo`() = runTest {
         val world = LedgerHarness()
         val steve = player(1)
         val bob = player(2)
@@ -73,7 +74,7 @@ class PhysicalDeltasTest {
     }
 
     @Test
-    fun `rolling back to yourself nets to zero, not a spurious self-move`() {
+    fun `rolling back to yourself nets to zero, not a spurious self-move`() = runTest {
         val world = LedgerHarness()
         val steve = player(1)
         val lot = world.ledger.mint(steve, diamond, Quantity(2), world.nextTxn())

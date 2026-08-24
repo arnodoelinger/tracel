@@ -14,7 +14,7 @@ public class JournalExecutor(
     private val executor: RollbackExecutor,
     private val journal: Journal,
     private val leases: LotLeaseRegistry,
-    private val nextTxnId: () -> TxnId,
+    private val nextTxnId: suspend () -> TxnId,
 ) {
     public suspend fun execute(
         lease: LotLease,
@@ -30,15 +30,19 @@ public class JournalExecutor(
         for (index in plan.steps.indices) {
             if (journal.isCompleted(job, index)) continue
             crashPoint.checkBefore(index)
-            executor.apply(job, plan.steps[index], nextTxnId())
-            journal.markCompleted(job, index)
+            executor.atomically {
+                executor.apply(job, plan.steps[index], nextTxnId())
+                journal.markCompleted(job, index)
+            }
         }
 
         val releaseIndex = plan.steps.size
         if (!journal.isCompleted(job, releaseIndex)) {
             crashPoint.checkBefore(releaseIndex)
-            executor.release(job, restoreTo, executor.escrowItemKeys(plan), nextTxnId())
-            journal.markCompleted(job, releaseIndex)
+            executor.atomically {
+                executor.release(job, restoreTo, executor.escrowItemKeys(plan), nextTxnId())
+                journal.markCompleted(job, releaseIndex)
+            }
         }
 
         leases.release(job)

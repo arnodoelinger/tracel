@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test
 class CrashSafetyTest {
     private data class Scenario(val world: LedgerHarness, val chest: HolderId.Block, val rootLot: LotId)
 
-    private fun buildScenario(): Scenario {
+    private suspend fun buildScenario(): Scenario {
         val world = LedgerHarness()
         val chest = block(0, 64, 0)
         val steve = player(1)
@@ -75,7 +75,7 @@ class CrashSafetyTest {
         }
     }
 
-    private fun assertNothingLeftInEscrow(ledger: LotLedger, job: RollbackJobId) {
+    private suspend fun assertNothingLeftInEscrow(ledger: LotLedger, job: RollbackJobId) {
         assertEquals(null, ledger.totalAt(HolderId.Escrow(job), diamond), "escrow must be fully drained once a job completes")
     }
 }

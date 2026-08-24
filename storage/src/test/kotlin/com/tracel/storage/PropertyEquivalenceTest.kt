@@ -34,7 +34,7 @@ class PropertyEquivalenceTest {
     @Test
     fun `restore - census after rollback matches the census at the traced checkpoint`(@TempDir dir: Path) = runTest {
         TracelDatabase.open(dir.resolve("db.sqlite")).use { db ->
-            val repo = SqliteLotRepository(db.exposed)
+            val repo = SqliteLotRepository(db.storage)
             val ledger = LotLedger(repo)
             val chest = block(0, 64, 0)
             val p1 = player(1)
@@ -56,8 +56,8 @@ class PropertyEquivalenceTest {
             ledger.move(p3, p1, diamond, Quantity(1), nextTxn())
 
             val plan = RollbackPlanner(repo, { true }).plan(listOf(root.id))
-            val lease = (SqliteLotLeaseRegistry(db.exposed).acquire(RollbackJobId(1), plan.touchedLots) as LeaseAcquisition.Granted).lease
-            JournalExecutor(RollbackExecutor(ledger, log, ::nextSeq), InMemoryJournal(), SqliteLotLeaseRegistry(db.exposed), ::nextTxn)
+            val lease = (SqliteLotLeaseRegistry(db.storage).acquire(RollbackJobId(1), plan.touchedLots) as LeaseAcquisition.Granted).lease
+            JournalExecutor(RollbackExecutor(ledger, log, ::nextSeq), InMemoryJournal(), SqliteLotLeaseRegistry(db.storage), ::nextTxn)
                 .execute(lease, plan, restoreTo = chest)
 
             assertEquals(checkpointCensus, ledger.census(diamond))
@@ -66,10 +66,10 @@ class PropertyEquivalenceTest {
     }
 
     @Test
-    fun `determinism - identical operation sequences produce identical rollback plans on fresh databases`(@TempDir dir: Path) {
-        fun runScenario(path: Path): RollbackPlan {
+    fun `determinism - identical operation sequences produce identical rollback plans on fresh databases`(@TempDir dir: Path) = runTest {
+        suspend fun runScenario(path: Path): RollbackPlan {
             TracelDatabase.open(path).use { db ->
-                val repo = SqliteLotRepository(db.exposed)
+                val repo = SqliteLotRepository(db.storage)
                 val ledger = LotLedger(repo)
                 val chest = block(0, 64, 0)
                 val p1 = player(1)

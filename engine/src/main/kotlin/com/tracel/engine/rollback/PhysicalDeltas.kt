@@ -13,32 +13,33 @@ import com.tracel.model.item.ItemKey
  * A holder that is both a source and [restoreTo] (rolling back to yourself) nets to zero via the
  * merge, no special-casing needed.
  */
-public fun physicalDeltas(plan: RollbackPlan, restoreTo: HolderId, ledger: LotLedger): Map<HolderId, Map<ItemKey, Long>> {
-    val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
-    fun add(holder: HolderId, itemKey: ItemKey, amount: Long) {
-        deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
-    }
+public suspend fun physicalDeltas(plan: RollbackPlan, restoreTo: HolderId, ledger: LotLedger): Map<HolderId, Map<ItemKey, Long>> =
+    ledger.atomically {
+        val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
+        fun add(holder: HolderId, itemKey: ItemKey, amount: Long) {
+            deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
+        }
 
-    for (step in plan.steps) {
-        when (step) {
-            is RollbackStep.Take -> {
-                val key = ledger.itemKeyOf(step.lotId)
-                add(step.holder, key, -step.quantity.raw)
-                add(restoreTo, key, step.quantity.raw)
-            }
+        for (step in plan.steps) {
+            when (step) {
+                is RollbackStep.Take -> {
+                    val key = ledger.itemKeyOf(step.lotId)
+                    add(step.holder, key, -step.quantity.raw)
+                    add(restoreTo, key, step.quantity.raw)
+                }
 
-            is RollbackStep.Mint -> add(restoreTo, ledger.itemKeyOf(step.lotId), step.quantity.raw)
-            is RollbackStep.Debt -> add(restoreTo, ledger.itemKeyOf(step.lotId), step.quantity.raw)
+                is RollbackStep.Mint -> add(restoreTo, ledger.itemKeyOf(step.lotId), step.quantity.raw)
+                is RollbackStep.Debt -> add(restoreTo, ledger.itemKeyOf(step.lotId), step.quantity.raw)
 
-            is RollbackStep.Unmake -> {
-                add(step.holder, ledger.itemKeyOf(step.outputLot), -ledger.quantityOf(step.outputLot).raw)
-                for (input in step.inputs) add(step.holder, ledger.itemKeyOf(input.lotId), input.quantity.raw)
+                is RollbackStep.Unmake -> {
+                    add(step.holder, ledger.itemKeyOf(step.outputLot), -ledger.quantityOf(step.outputLot).raw)
+                    for (input in step.inputs) add(step.holder, ledger.itemKeyOf(input.lotId), input.quantity.raw)
+                }
             }
         }
-    }
 
-    return deltas
-}
+        deltas
+    }
 
 /**
  * Net physical change per real holder undoing [steps] implies — the involution-side mirror of

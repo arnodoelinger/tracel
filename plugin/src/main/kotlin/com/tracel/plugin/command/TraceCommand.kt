@@ -6,7 +6,6 @@ import com.tracel.plugin.lookup.renderFate
 import io.papermc.paper.command.brigadier.BasicCommand
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * `/tracel trace hand [player]` / `/tracel trace block <x> <y> <z> <material> [world]` is like an
@@ -27,11 +26,11 @@ class TraceCommand(private val services: TracelServices) : BasicCommand {
             }
             val (holder, itemKey) = target
 
-            withContext(services.schedulers.storage) {
+            services.atomically {
                 val lots = services.repo.accountQueue(holder, itemKey)
                 if (lots.isEmpty()) {
                     sender.sendMessage("Nothing tracked for ${itemKey.material} there.")
-                    return@withContext
+                    return@atomically
                 }
                 val graph = FlowGraph(services.repo)
                 for ((_, lot) in lots) {

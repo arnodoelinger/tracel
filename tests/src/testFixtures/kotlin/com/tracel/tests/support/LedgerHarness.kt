@@ -30,7 +30,7 @@ class LedgerHarness {
     fun nextSeq(): Seq = Seq(nextSeqRaw++)
 
     /** Acquires a lease over everything [plan] touches, failing the test loudly if it is denied. */
-    fun acquireLease(job: RollbackJobId, plan: RollbackPlan): LotLease =
+    suspend fun acquireLease(job: RollbackJobId, plan: RollbackPlan): LotLease =
         when (val acquisition = leases.acquire(job, plan.touchedLots)) {
             is LeaseAcquisition.Granted -> acquisition.lease
             is LeaseAcquisition.Denied -> error("lease denied for job $job: ${acquisition.conflicts}")

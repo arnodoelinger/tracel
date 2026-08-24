@@ -74,6 +74,10 @@ object PlacementsTable : Table("placements") {
     val remaining: Column<Long> = long("remaining")
 
     override val primaryKey: PrimaryKey = PrimaryKey(id)
+
+    init {
+        index("placements_holder_lot", isUnique = false, holderId, lotId)
+    }
 }
 
 /** Which steps of which rollback jobs have already run — see [com.tracel.engine.journal.Journal]. */

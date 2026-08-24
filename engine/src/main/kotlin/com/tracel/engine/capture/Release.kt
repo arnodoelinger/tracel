@@ -9,5 +9,5 @@ import com.tracel.model.holder.HolderId
  * shared by every listener that has to say "this holder stopped existing" (a broken container,
  * a broken placed block, an exploded block) without knowing exactly where the contents went.
  */
-public fun LotLedger.releaseDeltas(holder: HolderId): List<InventoryDelta> =
+public suspend fun LotLedger.releaseDeltas(holder: HolderId): List<InventoryDelta> =
     totalsAt(holder).map { (itemKey, qty) -> InventoryDelta(holder, itemKey, -qty.raw) }

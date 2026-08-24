@@ -1,9 +1,8 @@
 package com.tracel.storage.schema
 
+import com.tracel.storage.Storage
 import com.tracel.storage.intern.Interning
-import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 /** Every table `Tracel` owns. */
 private val ALL_TABLES = listOf(
@@ -25,11 +24,11 @@ private val ALL_TABLES = listOf(
 )
 
 /** Deletes every row `Tracel` has ever written. */
-fun purgeAll(db: Database) {
-    transaction(db) {
+suspend fun purgeAll(storage: Storage) {
+    storage.write {
         for (table in ALL_TABLES) table.deleteAll()
     }
 
     // Clear cache
-    Interning.forget(db)
+    Interning.forget(storage.exposed)
 }

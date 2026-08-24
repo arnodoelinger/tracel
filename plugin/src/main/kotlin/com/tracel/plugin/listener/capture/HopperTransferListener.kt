@@ -6,7 +6,6 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toHolderId
 import com.tracel.plugin.convert.toItemKey
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
@@ -37,7 +36,7 @@ class HopperTransferListener(private val services: TracelServices) : Listener {
 
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     services.capture.record(deltas, epochMillis, CauseKind.HOPPER, causedBy = null)
                 }
             } catch (e: IllegalStateException) {

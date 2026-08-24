@@ -49,7 +49,7 @@ class AuditCommand(private val services: TracelServices) : BasicCommand {
                 val live = withContext(services.schedulers.entity(player.uniqueId)) {
                     player.inventory.toItemTotals().withCursor(player)
                 }
-                val believed = withContext(services.schedulers.storage) { services.ledger.totalsAt(holder) }
+                val believed = services.atomically { services.ledger.totalsAt(holder) }
                 report(source.sender, "Player ${player.name}.", diffTotals(live, believed))
             }
         }
@@ -80,7 +80,7 @@ class AuditCommand(private val services: TracelServices) : BasicCommand {
                 return@launch
             }
 
-            val believed = withContext(services.schedulers.storage) { services.ledger.totalsAt(holder) }
+            val believed = services.atomically { services.ledger.totalsAt(holder) }
             report(source.sender, "block $x $y $z", diffTotals(live, believed))
         }
     }

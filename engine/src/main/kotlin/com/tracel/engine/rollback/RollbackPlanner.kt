@@ -34,7 +34,7 @@ public class RollbackPlanner(
     private val unmakeSteps = linkedMapOf<TxnId, RollbackStep.Unmake>()
     private val resolved = mutableMapOf<LotId, ResolvedLocation>()
 
-    public fun plan(rootLots: List<LotId>): RollbackPlan {
+    public suspend fun plan(rootLots: List<LotId>): RollbackPlan = repo.atomically {
         unmakeSteps.clear()
         resolved.clear()
 
@@ -51,7 +51,7 @@ public class RollbackPlanner(
             }
         }
 
-        return RollbackPlan(unmakeSteps.values.toList() + leafSteps)
+        RollbackPlan(unmakeSteps.values.toList() + leafSteps)
     }
 
     /**
@@ -60,7 +60,7 @@ public class RollbackPlanner(
      * crafted output is reached once per sibling ingredient whenever a craft
      * used more than one traced lot at a time.
      */
-    private fun resolve(lotId: LotId, depth: Int): ResolvedLocation = resolved.getOrPut(lotId) {
+    private suspend fun resolve(lotId: LotId, depth: Int): ResolvedLocation = resolved.getOrPut(lotId) {
         val edges = repo.edgesFrom(lotId)
 
         // Once a lot has been compensated, its story is over
@@ -100,7 +100,7 @@ public class RollbackPlanner(
         ResolvedLocation.Holder(lotId, holder, lot.quantity)
     }
 
-    private fun registerUnmake(transform: LotEdge.Transform) {
+    private suspend fun registerUnmake(transform: LotEdge.Transform) {
         unmakeSteps.getOrPut(transform.craftedBy) {
             val inputs = repo.edgesInto(transform.child)
                 .filterIsInstance<LotEdge.Transform>()

@@ -56,7 +56,7 @@ class ContainerBreakListener(internal val services: TracelServices) : Listener {
 
         services.scope.launch {
             try {
-                val believed = withContext(services.schedulers.storage) { services.ledger.totalsAt(holder) }
+                val believed = services.atomically { services.ledger.totalsAt(holder) }
                 if (believed.isNotEmpty()) {
                     val spawned = withContext(services.schedulers.region(holder)) {
                         val world = Bukkit.getWorld(holder.world.uuid)
@@ -68,7 +68,7 @@ class ContainerBreakListener(internal val services: TracelServices) : Listener {
                     }
 
                     val deltas = believed.map { (itemKey, qty) -> InventoryDelta(holder, itemKey, -qty.raw) } + spawned
-                    withContext(services.schedulers.storage) {
+                    services.atomically {
                         services.capture.record(deltas, epochMillis, CauseKind.BLOCK_BREAK, causedBy)
                     }
                 }
@@ -83,9 +83,9 @@ class ContainerBreakListener(internal val services: TracelServices) : Listener {
     internal fun onBreakFallback(event: BlockBreakEvent, holder: HolderId.Block, causedBy: HolderId.Player, epochMillis: Long) {
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     val deltas = services.ledger.releaseDeltas(holder)
-                    if (deltas.isEmpty()) return@withContext
+                    if (deltas.isEmpty()) return@atomically
                     services.capture.record(deltas, epochMillis, CauseKind.BLOCK_BREAK, causedBy)
                 }
             } catch (e: IllegalStateException) {

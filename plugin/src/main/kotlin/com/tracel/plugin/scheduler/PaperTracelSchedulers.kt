@@ -3,13 +3,10 @@ package com.tracel.plugin.scheduler
 import com.tracel.model.holder.HolderId
 import com.tracel.platform.scheduler.TracelSchedulers
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.asCoroutineDispatcher
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.plugin.Plugin
 import java.util.UUID
-import java.util.concurrent.Executors
-import java.util.concurrent.ThreadFactory
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -19,7 +16,10 @@ import kotlin.coroutines.CoroutineContext
  * whatever coroutine called `withContext(...)` — and never blocks the thread it dispatches
  * onto waiting for that resumption to finish.
  */
-class PaperTracelSchedulers(private val plugin: Plugin) : TracelSchedulers {
+class PaperTracelSchedulers(
+    private val plugin: Plugin,
+    override val storage: CoroutineDispatcher,
+) : TracelSchedulers {
     override fun region(location: HolderId.Block): CoroutineDispatcher = RegionDispatcher(plugin, location)
 
     override fun entity(entity: UUID): CoroutineDispatcher = EntityDispatcher(plugin, entity)
@@ -27,9 +27,6 @@ class PaperTracelSchedulers(private val plugin: Plugin) : TracelSchedulers {
     override val global: CoroutineDispatcher = GlobalDispatcher(plugin)
 
     override val async: CoroutineDispatcher = AsyncDispatcher(plugin)
-
-    override val storage: CoroutineDispatcher =
-        Executors.newSingleThreadExecutor(NamedThreadFactory("Tracel-Storage")).asCoroutineDispatcher()
 }
 
 private class RegionDispatcher(private val plugin: Plugin, private val holder: HolderId.Block) : CoroutineDispatcher() {
@@ -80,8 +77,4 @@ private class AsyncDispatcher(private val plugin: Plugin) : CoroutineDispatcher(
     override fun dispatch(context: CoroutineContext, block: Runnable) {
         Bukkit.getAsyncScheduler().runNow(plugin) { block.run() }
     }
-}
-
-private class NamedThreadFactory(private val name: String) : ThreadFactory {
-    override fun newThread(runnable: Runnable): Thread = Thread(runnable, name)
 }

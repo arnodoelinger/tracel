@@ -8,6 +8,6 @@ import com.tracel.model.id.RollbackJobId
  * already happened instead of re-running it — and duplicating the result.
  */
 public interface Journal {
-    public fun markCompleted(job: RollbackJobId, stepIndex: Int)
-    public fun isCompleted(job: RollbackJobId, stepIndex: Int): Boolean
+    public suspend fun markCompleted(job: RollbackJobId, stepIndex: Int)
+    public suspend fun isCompleted(job: RollbackJobId, stepIndex: Int): Boolean
 }

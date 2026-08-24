@@ -8,7 +8,6 @@ import com.tracel.plugin.convert.toHolderId
 import com.tracel.plugin.convert.toItemTotals
 import com.tracel.plugin.convert.withCursor
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -119,11 +118,11 @@ class InventoryClickCaptureListener(
         val epochMillis = System.currentTimeMillis()
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     // Combined into one delta list before it reaches transaction balancer. A chest
                     // losing 4 and the player gaining 4 in the same click have to balance as one "MOVE".
                     val deltas = totalsByHolder.flatMap { (holder, totals) -> services.differ.diff(holder, totals) }
-                    if (deltas.isEmpty()) return@withContext
+                    if (deltas.isEmpty()) return@atomically
                     services.capture.record(deltas, epochMillis, CauseKind.PLAYER_ACTION, causedBy)
                 }
             } catch (e: IllegalStateException) {

@@ -13,6 +13,7 @@ import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction
+import com.tracel.platform.storage.UnitOfWork
 
 /**
  * Physically applies one [RollbackStep] against the ledger.
@@ -20,9 +21,9 @@ import com.tracel.model.transaction.Transaction
 public class RollbackExecutor(
     private val ledger: LotLedger,
     private val log: TransactionLog,
-    private val nextSeq: () -> Seq,
-) {
-    public fun apply(job: RollbackJobId, step: RollbackStep, txn: TxnId) {
+    private val nextSeq: suspend () -> Seq,
+) : UnitOfWork by ledger {
+    public suspend fun apply(job: RollbackJobId, step: RollbackStep, txn: TxnId): Unit = atomically {
         val escrow = HolderId.Escrow(job)
         val flows = when (step) {
             is RollbackStep.Take -> {
@@ -60,7 +61,7 @@ public class RollbackExecutor(
     }
 
     /** Moves everything the job collected in escrow to its final destination — the barrier between take and restore. */
-    public fun release(job: RollbackJobId, restoreTo: HolderId, itemKeys: Set<ItemKey>, txn: TxnId) {
+    public suspend fun release(job: RollbackJobId, restoreTo: HolderId, itemKeys: Set<ItemKey>, txn: TxnId): Unit = atomically {
         val escrow = HolderId.Escrow(job)
         val flows = mutableListOf<Flow>()
         for (itemKey in itemKeys) {
@@ -68,14 +69,15 @@ public class RollbackExecutor(
             ledger.deposit(restoreTo, ledger.withdraw(escrow, itemKey, total, txn))
             flows += Flow(itemKey, total, escrow, restoreTo, FlowKind.MOVE)
         }
-        if (flows.isEmpty()) return
-
-        log.append(Transaction(txn, nextSeq(), System.currentTimeMillis(), CauseKind.ROLLBACK, causedBy = null, flows))
+        if (flows.isNotEmpty()) {
+            log.append(Transaction(txn, nextSeq(), System.currentTimeMillis(), CauseKind.ROLLBACK, causedBy = null, flows))
+        }
     }
 
     /** Every item key a [release] for this plan will need to look for in escrow. */
-    public fun escrowItemKeys(plan: RollbackPlan): Set<ItemKey> =
+    public suspend fun escrowItemKeys(plan: RollbackPlan): Set<ItemKey> = atomically {
         plan.steps.filterIsInstance<RollbackStep.Take>().mapTo(mutableSetOf()) { ledger.itemKeyOf(it.lotId) } +
             plan.steps.filterIsInstance<RollbackStep.Mint>().mapTo(mutableSetOf()) { ledger.itemKeyOf(it.lotId) } +
             plan.steps.filterIsInstance<RollbackStep.Debt>().mapTo(mutableSetOf()) { ledger.itemKeyOf(it.lotId) }
+    }
 }

@@ -9,7 +9,6 @@ import com.tracel.plugin.convert.lostRelativeTo
 import com.tracel.plugin.convert.toItemTotals
 import com.tracel.plugin.convert.withCursor
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -49,11 +48,11 @@ class CraftCaptureListener(
 
             services.scope.launch {
                 try {
-                    withContext(services.schedulers.storage) {
+                    services.atomically {
                         val gains = services.differ.diff(playerHolder, totals).filter { it.delta > 0 }
                         if (gains.size != 1) {
                             logger.log(Level.FINE, "craft by $playerHolder produced more than one distinct item key, not recorded")
-                            return@withContext
+                            return@atomically
                         }
                         val product = Product(playerHolder, gains.single().itemKey, Quantity(gains.single().delta))
                         services.capture.recordCraft(ingredients, product, epochMillis, playerHolder)

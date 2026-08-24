@@ -26,9 +26,9 @@ public class InvolutionJobCoordinator(
     private val leases: LotLeaseRegistry,
     private val executor: InvolutionExecutor,
     private val journal: Journal,
-    private val nextTxnId: () -> TxnId,
+    private val nextTxnId: suspend () -> TxnId,
 ) {
-    public fun undo(job: RollbackJobId, crashPoint: CrashPoint = CrashPoint.None): InvolutionOutcome {
+    public suspend fun undo(job: RollbackJobId, crashPoint: CrashPoint = CrashPoint.None): InvolutionOutcome {
         val record = jobs.find(job) ?: return InvolutionOutcome.NotFound
 
         val lease = when (val acquisition = leases.acquire(job, record.plan.touchedLots)) {
@@ -46,8 +46,10 @@ public class InvolutionJobCoordinator(
         for (index in steps.indices) {
             if (journal.isCompleted(job, index)) continue
             crashPoint.checkBefore(index)
-            executor.apply(lease, steps[index], nextTxnId())
-            journal.markCompleted(job, index)
+            executor.atomically {
+                executor.apply(lease, steps[index], nextTxnId())
+                journal.markCompleted(job, index)
+            }
         }
 
         leases.release(job)

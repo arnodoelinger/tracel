@@ -10,7 +10,6 @@ import com.tracel.model.item.ItemKey
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toItemKey
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.entity.Item
 import org.bukkit.entity.Player
@@ -97,7 +96,7 @@ class ItemEntityCaptureListener(
     private fun recordSpawn(deltas: List<InventoryDelta>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?) {
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     services.capture.record(deltas, epochMillis, cause, causedBy)
                 }
             } catch (e: IllegalStateException) {
@@ -123,7 +122,7 @@ class ItemEntityCaptureListener(
 
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     services.capture.record(deltas, epochMillis, CauseKind.PLAYER_ACTION, playerHolder)
                 }
             } catch (e: IllegalStateException) {
@@ -139,9 +138,9 @@ class ItemEntityCaptureListener(
 
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     val believed = services.ledger.totalsAt(groundHolder)
-                    if (believed.isEmpty()) return@withContext
+                    if (believed.isEmpty()) return@atomically
                     val flows = believed.map { (itemKey, qty) ->
                         Flow(itemKey, qty, groundHolder, HolderId.Sink(SinkKind.DESPAWN), FlowKind.BURN)
                     }
@@ -161,9 +160,9 @@ class ItemEntityCaptureListener(
 
         services.scope.launch {
             try {
-                withContext(services.schedulers.storage) {
+                services.atomically {
                     val believed = services.ledger.totalsAt(losingHolder)
-                    if (believed.isEmpty()) return@withContext
+                    if (believed.isEmpty()) return@atomically
                     val flows = believed.map { (itemKey, qty) ->
                         Flow(itemKey, qty, losingHolder, survivingHolder, FlowKind.MOVE)
                     }

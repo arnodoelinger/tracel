@@ -1,9 +1,9 @@
 package com.tracel.storage.counters
 
-import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
+import com.tracel.storage.Storage
 import com.tracel.storage.schema.CountersTable
 import com.tracel.storage.schema.JournalProgressTable
 import com.tracel.storage.schema.LotEdgesTable
@@ -11,11 +11,11 @@ import com.tracel.storage.schema.LotLeasesTable
 import com.tracel.storage.schema.LotsTable
 import com.tracel.storage.schema.RollbackJobsTable
 import com.tracel.storage.schema.TransactionsTable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 
 /**
@@ -29,35 +29,48 @@ import org.jetbrains.exposed.v1.jdbc.update
  * already in use anywhere that id could have ended up — not just 1 — so this is safe to add to
  * a database that already has real data in it.
  */
-class SqliteCounters(private val db: Database) {
-    private val writer = SingleWriterGuard()
+class SqliteCounters(private val storage: Storage, private val blockSize: Long = DEFAULT_BLOCK_SIZE) {
+    private class Reservation(var next: Long, var exhaustedAt: Long)
+
+    private val lock = Mutex()
+    private val reserved = mutableMapOf<String, Reservation>()
 
     /** Allocates a new [TxnId] that has never been used before. */
-    fun nextTxnId(): TxnId = TxnId(next("txn") { bootstrapTxn() })
+    suspend fun nextTxnId(): TxnId = TxnId(next("txn") { bootstrapTxn() })
 
     /** Allocates a new [Seq] that has never been used before. */
-    fun nextSeq(): Seq = Seq(next("seq") { bootstrapSeq() })
+    suspend fun nextSeq(): Seq = Seq(next("seq") { bootstrapSeq() })
 
     /** Allocates a new [RollbackJobId] that has never been used before. */
-    fun nextRollbackJobId(): RollbackJobId = RollbackJobId(next("rollback_job") { bootstrapRollbackJobId() })
+    suspend fun nextRollbackJobId(): RollbackJobId = RollbackJobId(next("rollback_job") { bootstrapRollbackJobId() })
 
     /** Allocates a new id for a counter with the given [name] that has never been used before. */
-    private fun next(name: String, bootstrap: () -> Long): Long {
-        writer.checkIn()
-        return transaction(db) {
+    private suspend fun next(name: String, bootstrap: () -> Long): Long = lock.withLock {
+        val reservation = reserved[name]
+        if (reservation != null && reservation.next < reservation.exhaustedAt) {
+            return@withLock reservation.next++
+        }
+
+        val start = reserve(name, bootstrap)
+        reserved[name] = Reservation(start + 1, start + blockSize)
+        start
+    }
+
+    /** Moves [name]'s persisted counter forward by a whole block, and returns the first id in it. */
+    private suspend fun reserve(name: String, bootstrap: () -> Long): Long =
+        storage.write {
             val existing = CountersTable.selectAll().where { CountersTable.name eq name }.singleOrNull()
             val value = existing?.get(CountersTable.nextValue) ?: bootstrap()
             if (existing == null) {
                 CountersTable.insert {
                     it[CountersTable.name] = name
-                    it[nextValue] = value + 1
+                    it[nextValue] = value + blockSize
                 }
             } else {
-                CountersTable.update({ CountersTable.name eq name }) { it[nextValue] = value + 1 }
+                CountersTable.update({ CountersTable.name eq name }) { it[nextValue] = value + blockSize }
             }
             value
         }
-    }
 
     /** Bootstraps the next [TxnId] from the highest id already in use anywhere that id could have ended up. */
     private fun bootstrapTxn(): Long {
@@ -77,5 +90,9 @@ class SqliteCounters(private val db: Database) {
         val maxJournal = JournalProgressTable.selectAll().mapNotNull { it[JournalProgressTable.jobId] }.maxOrNull() ?: 0L
         val maxJob = RollbackJobsTable.selectAll().mapNotNull { it[RollbackJobsTable.jobId] }.maxOrNull() ?: 0L
         return maxOf(maxLease, maxJournal, maxJob) + 1
+    }
+
+    private companion object {
+        const val DEFAULT_BLOCK_SIZE = 256L
     }
 }

@@ -5,7 +5,6 @@ import com.tracel.storage.schema.purgeAll
 import io.papermc.paper.command.brigadier.BasicCommand
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * `/tracel purge confirm` wipes every table `Tracel` owns.
@@ -18,10 +17,9 @@ class PurgeCommand(private val services: TracelServices) : BasicCommand {
         }
 
         services.scope.launch {
-            withContext(services.schedulers.storage) {
-                purgeAll(services.db)
-                services.differ.forgetAll()
-            }
+            purgeAll(services.storage)
+            services.repo.forget()
+            services.differ.forgetAll()
             source.sender.sendMessage(
                 "Tracel database purged — every lot, transaction, and rollback job is gone. " +
                     "Live world contents are untouched; run /tracel audit players to see the fresh baseline."

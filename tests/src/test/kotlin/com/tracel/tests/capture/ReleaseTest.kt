@@ -8,11 +8,12 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.LedgerHarness
 import org.junit.jupiter.api.Assertions.assertEquals
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class ReleaseTest {
     @Test
-    fun `releaseDeltas is one negative delta per item key currently believed at the holder`() {
+    fun `releaseDeltas is one negative delta per item key currently believed at the holder`() = runTest {
         val harness = LedgerHarness()
         val chest = block(0, 64, 0)
 
@@ -26,7 +27,7 @@ class ReleaseTest {
     }
 
     @Test
-    fun `releaseDeltas is empty for a holder with nothing believed there`() {
+    fun `releaseDeltas is empty for a holder with nothing believed there`() = runTest {
         val harness = LedgerHarness()
         val chest = block(0, 64, 0)
 
