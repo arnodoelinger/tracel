@@ -112,9 +112,9 @@ object LotLeasesTable : Table("lot_leases") {
 object TransactionsTable : Table("transactions") {
     val id: Column<Long> = long("id")
     val seq: Column<Long> = long("seq").index()
-    val epochMillis: Column<Long> = long("epoch_millis")
+    val epochMillis: Column<Long> = long("epoch_millis").index()
     val cause: Column<String> = varchar("cause", 32)
-    val causedByHolderId: Column<Long?> = long("caused_by_holder_id").nullable()
+    val causedByHolderId: Column<Long?> = long("caused_by_holder_id").nullable().index()
 
     override val primaryKey: PrimaryKey = PrimaryKey(id)
 }
@@ -123,10 +123,10 @@ object TransactionsTable : Table("transactions") {
 object FlowsTable : Table("flows") {
     val txnId: Column<Long> = long("txn_id").index()
     val idx: Column<Int> = integer("idx")
-    val itemKeyId: Column<Long> = long("item_key_id")
+    val itemKeyId: Column<Long> = long("item_key_id").index()
     val quantity: Column<Long> = long("quantity")
-    val sourceHolderId: Column<Long> = long("source_holder_id")
-    val destinationHolderId: Column<Long> = long("destination_holder_id")
+    val sourceHolderId: Column<Long> = long("source_holder_id").index()
+    val destinationHolderId: Column<Long> = long("destination_holder_id").index()
     val kind: Column<String> = varchar("kind", 16)
 
     override val primaryKey: PrimaryKey = PrimaryKey(txnId, idx)
@@ -134,7 +134,7 @@ object FlowsTable : Table("flows") {
 
 /**
  * One row per [com.tracel.engine.rollback.RollbackJobRecord] — what
- * [com.tracel.engine.rollback.InvolutionPlanner] needs to reverse an already-applied job.
+ * [com.tracel.engine.rollback.involution.InvolutionPlanner] needs to reverse an already-applied job.
  */
 object RollbackJobsTable : Table("rollback_jobs") {
     val jobId: Column<Long> = long("job_id")

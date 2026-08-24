@@ -8,5 +8,6 @@ public enum class SourceKind {
     COMMAND,
     WORLDGEN,
     ROLLBACK_MINT,
+    UNTRACKED_GAP,
     UNATTRIBUTED,
 }

@@ -33,27 +33,29 @@ public class TransactionBalancer {
 
     private fun balanceOneItem(itemKey: ItemKey, deltas: List<InventoryDelta>): List<Flow> {
         val gains = deltas.filter { it.delta > 0 }.sortedBy { it.holder.stableSortKey() }
-            .mapTo(ArrayDeque()) { it.holder to it.delta }
+            .mapTo(ArrayDeque()) { Unpaired(it.holder, it.delta, it.fromGap) }
         val losses = deltas.filter { it.delta < 0 }.sortedBy { it.holder.stableSortKey() }
-            .mapTo(ArrayDeque()) { it.holder to -it.delta }
+            .mapTo(ArrayDeque()) { Unpaired(it.holder, -it.delta, it.fromGap) }
         val flows = mutableListOf<Flow>()
 
         while (gains.isNotEmpty() && losses.isNotEmpty()) {
-            val (dst, gainAmt) = gains.removeFirst()
-            val (src, lossAmt) = losses.removeFirst()
-            val matched = minOf(gainAmt, lossAmt)
-            flows += Flow(itemKey, Quantity(matched), src, dst, FlowKind.MOVE)
-            if (gainAmt > matched) gains.addFirst(dst to (gainAmt - matched))
-            if (lossAmt > matched) losses.addFirst(src to (lossAmt - matched))
+            val gain = gains.removeFirst()
+            val loss = losses.removeFirst()
+            val matched = minOf(gain.amount, loss.amount)
+            flows += Flow(itemKey, Quantity(matched), loss.holder, gain.holder, FlowKind.MOVE)
+            if (gain.amount > matched) gains.addFirst(gain.copy(amount = gain.amount - matched))
+            if (loss.amount > matched) losses.addFirst(loss.copy(amount = loss.amount - matched))
         }
 
         // What could not be paired is a signal: items appeared or disappeared without a visible source / receiver in
         // this set of deltas. Each such case becomes an explicit typed "MINT" / "BURN", rather than silently lost.
-        for ((holder, amt) in gains) {
-            flows += Flow(itemKey, Quantity(amt), HolderId.Source(SourceKind.UNATTRIBUTED), holder, FlowKind.MINT)
+        for ((holder, amt, fromGap) in gains) {
+            val source = SourceKind.UNTRACKED_GAP.takeIf { fromGap } ?: SourceKind.UNATTRIBUTED
+            flows += Flow(itemKey, Quantity(amt), HolderId.Source(source), holder, FlowKind.MINT)
         }
-        for ((holder, amt) in losses) {
-            flows += Flow(itemKey, Quantity(amt), holder, HolderId.Sink(SinkKind.UNATTRIBUTED), FlowKind.BURN)
+        for ((holder, amt, fromGap) in losses) {
+            val sink = SinkKind.UNTRACKED_GAP.takeIf { fromGap } ?: SinkKind.UNATTRIBUTED
+            flows += Flow(itemKey, Quantity(amt), holder, HolderId.Sink(sink), FlowKind.BURN)
         }
         return flows
     }

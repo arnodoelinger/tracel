@@ -8,5 +8,6 @@ public enum class SinkKind {
     CRAFT_CONSUME,
     COMMAND,
     ROLLBACK_BURN,
+    UNTRACKED_GAP,
     UNATTRIBUTED,
 }

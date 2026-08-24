@@ -17,6 +17,26 @@ public class InMemoryTransactionLog : TransactionLog {
 
     override fun find(id: TxnId): Transaction? = transactions[id]
 
-    /** Everything appended so far — a test-only convenience, not part of [TransactionLog] itself. */
+    override fun query(filter: LookupFilter): List<Transaction> = transactions.values
+        .asSequence()
+        .filter { it.matches(filter) }
+        .sortedByDescending { it.seq.raw }
+        .drop(filter.offset)
+        .take(filter.limit)
+        .toList()
+
+    private fun Transaction.matches(filter: LookupFilter): Boolean {
+        if (filter.since != null && epochMillis < filter.since) return false
+        if (filter.until != null && epochMillis > filter.until) return false
+        if (filter.causes.isNotEmpty() && cause !in filter.causes) return false
+
+        val touched = flows.flatMap { listOf(it.source, it.destination) } + listOfNotNull(causedBy)
+        if (filter.holders.isNotEmpty() && touched.none { it in filter.holders }) return false
+        if (filter.excludedHolders.isNotEmpty() && touched.any { it in filter.excludedHolders }) return false
+        if (filter.material != null && flows.none { it.itemKey.material == filter.material }) return false
+
+        return true
+    }
+
     public fun all(): Collection<Transaction> = transactions.values
 }

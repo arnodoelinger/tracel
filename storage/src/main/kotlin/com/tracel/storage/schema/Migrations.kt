@@ -50,6 +50,9 @@ private val migrations = listOf(
     Migration(4) {
         SchemaUtils.createMissingTablesAndColumns(PendingDeliveriesTable)
     },
+    Migration(5) {
+        SchemaUtils.createMissingTablesAndColumns(TransactionsTable, FlowsTable)
+    },
 )
 
 /** Brings [db]'s schema up to the latest version, applying only whatever migrations it is still missing. */
