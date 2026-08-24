@@ -1,7 +1,7 @@
 package com.tracel.plugin.rollback
 
-import com.tracel.engine.rollback.InvolutionStep
 import com.tracel.engine.rollback.RollbackPlan
+import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.engine.rollback.physicalDeltas
 import com.tracel.engine.rollback.physicalDeltasForUndo
 import com.tracel.model.holder.HolderId
@@ -150,7 +150,7 @@ class PhysicalRestorer(private val services: TracelServices) {
             }
             val leftovers = mutableListOf<String>()
             for ((itemKey, delta) in deltas) applyDelta(itemKey, delta, leftovers, add = { player.inventory.addItem(it) }, remove = { player.inventory.removeItemAnySlot(it) })
-            services.differ.diff(holder, player.inventory.toItemTotals().withCursor(player))
+            services.differ.rebaseline(holder, player.inventory.toItemTotals().withCursor(player))
             leftovers.takeIf { it.isNotEmpty() }?.let { ApplyResult.Failed(it.joinToString("; ")) } ?: ApplyResult.Ok
         }
 
@@ -167,7 +167,7 @@ class PhysicalRestorer(private val services: TracelServices) {
             for ((_, itemKey, delta) in claimed) {
                 applyDelta(itemKey, delta, leftovers, add = { player.inventory.addItem(it) }, remove = { player.inventory.removeItemAnySlot(it) })
             }
-            services.differ.diff(HolderId.Player(player.uniqueId), player.inventory.toItemTotals().withCursor(player))
+            services.differ.rebaseline(HolderId.Player(player.uniqueId), player.inventory.toItemTotals().withCursor(player))
 
             val holder = HolderId.Player(player.uniqueId)
             if (leftovers.isEmpty()) {
@@ -189,7 +189,7 @@ class PhysicalRestorer(private val services: TracelServices) {
 
             val leftovers = mutableListOf<String>()
             for ((itemKey, delta) in deltas) applyDelta(itemKey, delta, leftovers, add = { state.inventory.addItem(it) }, remove = { state.inventory.removeItem(it) })
-            services.differ.diff(holder, state.inventory.toItemTotals())
+            services.differ.rebaseline(holder, state.inventory.toItemTotals())
             leftovers.takeIf { it.isNotEmpty() }?.joinToString("; ")
         }
 

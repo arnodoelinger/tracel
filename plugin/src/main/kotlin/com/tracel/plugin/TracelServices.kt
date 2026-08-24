@@ -1,23 +1,25 @@
 package com.tracel.plugin
 
 import com.tracel.engine.capture.CaptureCoordinator
-import com.tracel.engine.capture.ShadowDiffer
+import com.tracel.engine.capture.SnapshotDiffer
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.log.TransactionLog
-import com.tracel.engine.rollback.InvolutionJobCoordinator
 import com.tracel.engine.rollback.RollbackJobCoordinator
 import com.tracel.engine.rollback.RollbackJobRepository
+import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.model.id.TxnId
 import com.tracel.platform.scheduler.TracelSchedulers
-import com.tracel.plugin.listener.ExplosionDropCorrelator
-import com.tracel.plugin.listener.RedstoneTriggerTracker
-import com.tracel.plugin.listener.SelfManagedSpawnGuard
-import com.tracel.plugin.listener.VanillaAssumptionGuard
+import com.tracel.plugin.inspect.InspectorState
+import com.tracel.plugin.listener.capture.SelfManagedSpawnGuard
+import com.tracel.plugin.listener.capture.VanillaAssumptionGuard
+import com.tracel.plugin.listener.explosion.ExplosionDropCorrelator
+import com.tracel.plugin.listener.redstone.RedstoneTriggerTracker
 import com.tracel.plugin.rollback.PhysicalRestorer
 import com.tracel.storage.counters.SqliteCounters
 import com.tracel.storage.ledger.SqliteLotRepository
 import com.tracel.storage.pending.SqlitePendingDeliveryRepository
 import kotlinx.coroutines.CoroutineScope
+import org.jetbrains.exposed.v1.jdbc.Database
 
 /** Everything a listener or command needs to touch the ledger, wired once in [TracelPlugin.onEnable]. */
 class TracelServices(
@@ -31,8 +33,9 @@ class TracelServices(
     val jobs: RollbackJobRepository,
     val undo: InvolutionJobCoordinator,
     val pendingDeliveries: SqlitePendingDeliveryRepository,
+    val db: Database,
 ) {
-    val differ: ShadowDiffer = ShadowDiffer()
+    val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }
 
     fun nextTxn(): TxnId = counters.nextTxnId()
 
@@ -42,4 +45,5 @@ class TracelServices(
     val selfManagedSpawns: SelfManagedSpawnGuard = SelfManagedSpawnGuard()
     val explosionDrops: ExplosionDropCorrelator = ExplosionDropCorrelator()
     val vanillaAssumptions: VanillaAssumptionGuard = VanillaAssumptionGuard()
+    val inspectors: InspectorState = InspectorState()
 }

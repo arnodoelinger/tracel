@@ -2,21 +2,22 @@ package com.tracel.plugin
 
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
-import com.tracel.engine.rollback.InvolutionExecutor
-import com.tracel.engine.rollback.InvolutionJobCoordinator
 import com.tracel.engine.rollback.RollbackExecutor
 import com.tracel.engine.rollback.RollbackJobCoordinator
 import com.tracel.engine.rollback.WorldQuery
+import com.tracel.engine.rollback.involution.InvolutionExecutor
+import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.plugin.command.TracelCommand
-import com.tracel.plugin.listener.BlockPlacementCaptureListener
-import com.tracel.plugin.listener.ContainerBreakListener
-import com.tracel.plugin.listener.CraftCaptureListener
-import com.tracel.plugin.listener.ExplosionCaptureListener
-import com.tracel.plugin.listener.HopperTransferListener
-import com.tracel.plugin.listener.InventoryClickCaptureListener
-import com.tracel.plugin.listener.ItemEntityCaptureListener
-import com.tracel.plugin.listener.PendingDeliveryListener
-import com.tracel.plugin.listener.RedstoneTriggerListener
+import com.tracel.plugin.listener.capture.BlockPlacementCaptureListener
+import com.tracel.plugin.listener.capture.ContainerBreakListener
+import com.tracel.plugin.listener.capture.CraftCaptureListener
+import com.tracel.plugin.listener.capture.HopperTransferListener
+import com.tracel.plugin.listener.capture.InventoryClickCaptureListener
+import com.tracel.plugin.listener.capture.ItemEntityCaptureListener
+import com.tracel.plugin.listener.delivery.PendingDeliveryListener
+import com.tracel.plugin.listener.explosion.ExplosionCaptureListener
+import com.tracel.plugin.listener.inspect.InspectListener
+import com.tracel.plugin.listener.redstone.RedstoneTriggerListener
 import com.tracel.plugin.scheduler.PaperTracelSchedulers
 import com.tracel.storage.TracelDatabase
 import com.tracel.storage.counters.SqliteCounters
@@ -79,6 +80,7 @@ class TracelPlugin : JavaPlugin() {
             jobs = jobs,
             undo = involutionCoordinator,
             pendingDeliveries = pendingDeliveries,
+            db = database.exposed,
         )
 
         server.pluginManager.registerEvents(HopperTransferListener(services), this)
@@ -90,6 +92,7 @@ class TracelPlugin : JavaPlugin() {
         server.pluginManager.registerEvents(BlockPlacementCaptureListener(services), this)
         server.pluginManager.registerEvents(ExplosionCaptureListener(services), this)
         server.pluginManager.registerEvents(RedstoneTriggerListener(services), this)
+        server.pluginManager.registerEvents(InspectListener(services), this)
         registerCommand("tracel", "Tracel's forensics and rollback commands.", TracelCommand(services))
 
         logger.info("Tracel ${pluginMeta.version} enabled.")
