@@ -1,10 +1,10 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.capture
 
 import com.tracel.annotations.Assumption
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Fallback
 import com.tracel.engine.balance.InventoryDelta
-import com.tracel.engine.balance.releaseDeltas
+import com.tracel.engine.capture.releaseDeltas
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toItemKey
@@ -36,6 +36,8 @@ class BlockPlacementCaptureListener(internal val services: TracelServices) : Lis
         val placedHolder = event.blockPlaced.toPlacedBlockId()
         val epochMillis = System.currentTimeMillis()
         val deltas = listOf(InventoryDelta(playerHolder, itemKey, -1L), InventoryDelta(placedHolder, itemKey, 1L))
+
+        services.differ.adjust(playerHolder, itemKey, -1L)
 
         services.scope.launch {
             try {
@@ -72,7 +74,7 @@ class BlockPlacementCaptureListener(internal val services: TracelServices) : Lis
             return
         }
 
-        onBreakRiskyGuarded(event, placedHolder, causedBy, epochMillis)
+        onBreakGuarded(event, placedHolder, causedBy, epochMillis)
     }
 
     @Assumption
@@ -81,7 +83,7 @@ class BlockPlacementCaptureListener(internal val services: TracelServices) : Lis
         val world = event.block.world
         val dropLocation = event.block.location.add(0.5, 0.5, 0.5)
         event.isDropItems = false
-        services.vanillaAssumptions.watch(BlockPlacementCaptureListener_onBreakRiskyAssumptionId, placedHolder.world.uuid, placedHolder.x, placedHolder.y, placedHolder.z)
+        services.vanillaAssumptions.watch(BlockPlacementCaptureListener_onBreakAssumptionId, placedHolder.world.uuid, placedHolder.x, placedHolder.y, placedHolder.z)
 
         services.scope.launch {
             try {

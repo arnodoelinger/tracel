@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.redstone
 
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
@@ -14,7 +14,8 @@ import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.player.PlayerInteractEvent
 
 /**
- * Feeds [RedstoneTriggerTracker] the two direct explosion triggers [ExplosionCaptureListener]
+ * Feeds [RedstoneTriggerTracker] the two direct explosion triggers
+ * [ExplosionCaptureListener][com.tracel.plugin.listener.explosion.ExplosionCaptureListener]
  * attributes: a button / lever / pressure-plate press (by a player or a mob — [HolderId.Entity]
  * exists precisely for "not a player, still a specific actor"), and a creeper lit by hand with
  * flint and steel.

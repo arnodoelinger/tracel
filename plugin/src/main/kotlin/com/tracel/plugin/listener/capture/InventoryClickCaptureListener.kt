@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.capture
 
 import com.tracel.annotations.CauseKind
 import com.tracel.model.holder.HolderId
@@ -15,6 +15,7 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryCreativeEvent
 import org.bukkit.event.inventory.InventoryType
 import org.bukkit.inventory.CraftingInventory
@@ -68,6 +69,19 @@ class InventoryClickCaptureListener(
     }
 
     /**
+     * A safety net for whatever a click event alone doesn't cover — most notably, empirically,
+     * a creative player dragging a cursor stack out of an open inventory into the void to delete
+     * it.
+     *
+     * That produces no diffable click through [onClick] / [onCreative] at all.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    fun onClose(event: InventoryCloseEvent) {
+        val player = event.player as? Player ?: return
+        Bukkit.getRegionScheduler().runDelayed(plugin, player.location, { captureAll(listOf(player.inventory), player) }, 1L)
+    }
+
+    /**
      * Diff every inventory touched by this click, combine the results into one delta list, and
      * record it as a single capture.
      */
@@ -101,16 +115,15 @@ class InventoryClickCaptureListener(
             for ((key, qty) in totals) merged.merge(key, qty, Long::plus)
         }
 
-        // Every inventory this click could have touched is diffed and combined into one delta list
-        // before it reaches TransactionBalancer — a chest losing 4 and the player gaining 4 in the
-        // same click have to be balanced as one "MOVE".
-        val deltas = totalsByHolder.flatMap { (holder, totals) -> services.differ.diff(holder, totals) }
-        if (deltas.isEmpty()) return
-
+        // Reading the live inventories had to happen here, on the region thread that owns them
         val epochMillis = System.currentTimeMillis()
         services.scope.launch {
             try {
                 withContext(services.schedulers.storage) {
+                    // Combined into one delta list before it reaches transaction balancer. A chest
+                    // losing 4 and the player gaining 4 in the same click have to balance as one "MOVE".
+                    val deltas = totalsByHolder.flatMap { (holder, totals) -> services.differ.diff(holder, totals) }
+                    if (deltas.isEmpty()) return@withContext
                     services.capture.record(deltas, epochMillis, CauseKind.PLAYER_ACTION, causedBy)
                 }
             } catch (e: IllegalStateException) {

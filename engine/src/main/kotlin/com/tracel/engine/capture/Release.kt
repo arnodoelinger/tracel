@@ -1,5 +1,6 @@
-package com.tracel.engine.balance
+package com.tracel.engine.capture
 
+import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.model.holder.HolderId
 

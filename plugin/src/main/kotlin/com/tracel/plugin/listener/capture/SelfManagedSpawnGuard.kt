@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.capture
 
 /**
  * A release that takes manual control of its own drops needs [ItemEntityCaptureListener] to stay

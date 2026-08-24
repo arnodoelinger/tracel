@@ -3,8 +3,6 @@ package com.tracel.engine.capture
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.balance.TransactionBalancer
-import com.tracel.engine.balance.apply
-import com.tracel.engine.balance.checkAllWithdrawalsSatisfiable
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.ledger.Product
@@ -36,17 +34,7 @@ public class CaptureCoordinator(
     public fun record(deltas: List<InventoryDelta>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
         val flows = TransactionBalancer().balance(deltas)
         if (flows.isEmpty()) return null
-
-        // All or nothing: if any withdrawal is impossible, the whole transaction is invalid and must be rejected
-        // I'm not schizophrenic enough to try to apply a partial transaction and then roll it back if one flow fails
-        ledger.checkAllWithdrawalsSatisfiable(flows)
-
-        val txn = nextTxnId()
-        for (flow in flows) ledger.apply(flow, txn)
-
-        val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, flows)
-        log.append(transaction)
-        return transaction
+        return applyAndLog(flows, epochMillis, cause, causedBy)
     }
 
     /**
@@ -73,7 +61,17 @@ public class CaptureCoordinator(
      */
     public fun recordDirect(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
         if (flows.isEmpty()) return null
+        return applyAndLog(flows, epochMillis, cause, causedBy)
+    }
 
+    /**
+     * All or nothing: if any withdrawal is impossible, the whole transaction is invalid and must be
+     * rejected.
+     *
+     * We're not schizophrenic enough to try to apply a partial transaction and then roll it
+     * back if one flow fails, right?
+     */
+    private fun applyAndLog(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction {
         ledger.checkAllWithdrawalsSatisfiable(flows)
 
         val txn = nextTxnId()
@@ -87,6 +85,7 @@ public class CaptureCoordinator(
 
 /**
  * Converts a craft's ingredients and product into the [Flow]s that would be recorded for it.
+ *
  * This is the same as what [TransactionBalancer] would produce, but the caller already knows
  * exactly what happened and [TransactionBalancer]'s defaults would be wrong, so it can skip
  * the balancing step and just call this to get the right flows.

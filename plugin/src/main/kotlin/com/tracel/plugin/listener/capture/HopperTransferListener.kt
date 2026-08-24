@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.capture
 
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta

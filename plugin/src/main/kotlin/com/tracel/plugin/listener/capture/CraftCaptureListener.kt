@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.capture
 
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
@@ -43,20 +43,19 @@ class CraftCaptureListener(
             val consumed = before.lostRelativeTo(event.inventory.matrix.toItemTotals())
             if (consumed.isEmpty()) return@runDelayed
 
-            val gains = services.differ.diff(playerHolder, player.inventory.toItemTotals().withCursor(player))
-                .filter { it.delta > 0 }
-            if (gains.size != 1) {
-                logger.log(Level.FINE, "craft by $playerHolder produced more than one distinct item key, not recorded")
-                return@runDelayed
-            }
-
-            val product = Product(playerHolder, gains.single().itemKey, Quantity(gains.single().delta))
+            val totals = player.inventory.toItemTotals().withCursor(player)
             val ingredients = consumed.map { (key, qty) -> Ingredient(playerHolder, key, Quantity(qty)) }
             val epochMillis = System.currentTimeMillis()
 
             services.scope.launch {
                 try {
                     withContext(services.schedulers.storage) {
+                        val gains = services.differ.diff(playerHolder, totals).filter { it.delta > 0 }
+                        if (gains.size != 1) {
+                            logger.log(Level.FINE, "craft by $playerHolder produced more than one distinct item key, not recorded")
+                            return@withContext
+                        }
+                        val product = Product(playerHolder, gains.single().itemKey, Quantity(gains.single().delta))
                         services.capture.recordCraft(ingredients, product, epochMillis, playerHolder)
                     }
                 } catch (e: IllegalStateException) {

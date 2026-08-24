@@ -16,7 +16,10 @@ import com.tracel.model.id.LotId
  * correct history should ever actually hit.
  */
 public class FlowGraph(private val repo: LotRepository, private val maxDepth: Int = 64) {
-    /** "Where did this item come from?" — walks parents back to the lots that had none, i.e. the original mints. */
+    /**
+     * "Where did this item come from?" — walks parents back to the lots that had none,
+     * i.e. the original mints.
+     */
     public fun originOf(lotId: LotId): ProvenanceNode = buildOrigin(lotId, depth = 0)
 
     /** "What happened to this item?" — walks children forward to whatever is still live, or a sink. */

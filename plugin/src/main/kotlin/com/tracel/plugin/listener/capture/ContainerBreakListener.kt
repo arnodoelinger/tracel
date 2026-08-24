@@ -1,10 +1,10 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.capture
 
 import com.tracel.annotations.Assumption
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Fallback
 import com.tracel.engine.balance.InventoryDelta
-import com.tracel.engine.balance.releaseDeltas
+import com.tracel.engine.capture.releaseDeltas
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toHolderId
@@ -40,7 +40,7 @@ class ContainerBreakListener(internal val services: TracelServices) : Listener {
         val causedBy = HolderId.Player(event.player.uniqueId)
         val epochMillis = System.currentTimeMillis()
 
-        onBreakRiskyGuarded(event, holder, causedBy, epochMillis)
+        onBreakGuarded(event, holder, causedBy, epochMillis)
     }
 
     @Assumption
@@ -52,7 +52,7 @@ class ContainerBreakListener(internal val services: TracelServices) : Listener {
         // Nothing vanilla drops for the contents from here on — see the class doc for why this
         // has to happen now, synchronously, rather than after the async ledger read below.
         state.inventory.clear()
-        services.vanillaAssumptions.watch(ContainerBreakListener_onBreakRiskyAssumptionId, holder.world.uuid, holder.x, holder.y, holder.z)
+        services.vanillaAssumptions.watch(ContainerBreakListener_onBreakAssumptionId, holder.world.uuid, holder.x, holder.y, holder.z)
 
         services.scope.launch {
             try {

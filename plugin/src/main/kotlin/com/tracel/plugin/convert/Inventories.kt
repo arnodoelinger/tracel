@@ -7,7 +7,7 @@ import org.bukkit.inventory.Inventory
 /**
  * Aggregates by item key, not by slot — matches the ledger's own granularity. Rearranging
  * items within one inventory (sorting a chest, moving a stack between hotbar slots) changes
- * nothing here at all, which is exactly the point: [com.tracel.engine.capture.ShadowDiffer]
+ * nothing here at all, which is exactly the point: [com.tracel.engine.capture.SnapshotDiffer]
  * only ever sees a real gain or loss, never a slot shuffle dressed up as one.
  */
 fun Inventory.toItemTotals(): Map<ItemKey, Long> {

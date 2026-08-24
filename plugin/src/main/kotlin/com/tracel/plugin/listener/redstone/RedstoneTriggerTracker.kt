@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.redstone
 
 import com.tracel.model.holder.HolderId
 import org.bukkit.Location
@@ -10,8 +10,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * Remembers, briefly, who last pressed a button / lever / pressure plate at a given block, who
  * last lit a specific creeper with flint and steel, and where the most recent attributed
- * explosions went off — the direct triggers [ExplosionCaptureListener] attributes an
- * otherwise-unattributed explosion to.
+ * explosions went off — the direct triggers [ExplosionCaptureListener][com.tracel.plugin.listener.explosion.ExplosionCaptureListener]
+ * attributes an otherwise-unattributed explosion to.
  */
 class RedstoneTriggerTracker {
     private data class Press(val causedBy: HolderId, val atMillis: Long)

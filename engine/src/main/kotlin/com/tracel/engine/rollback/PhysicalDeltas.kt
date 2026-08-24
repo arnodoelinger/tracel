@@ -1,6 +1,7 @@
 package com.tracel.engine.rollback
 
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 

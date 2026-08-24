@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.explosion
 
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
@@ -61,7 +61,7 @@ class ExplosionCaptureListener(private val services: TracelServices) : Listener 
      * Walks `TNTPrimed.source` back to whoever's actually responsible. `Bukkit` sets it to the
      * lighting player or the previous TNT in a chain; leaves it null for redstone and for TNT
      * caught in someone else's blast, so those two get resolved by hand against
-     * [RedstoneTriggerTracker] instead.
+     * [com.tracel.plugin.listener.redstone.RedstoneTriggerTracker] instead.
      */
     private fun igniterOf(tnt: TNTPrimed, depth: Int = 0): HolderId? {
         if (depth >= MAX_IGNITION_CHAIN_DEPTH) return null

@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.capture
 
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
@@ -60,7 +60,12 @@ class ItemEntityCaptureListener(
         }
 
         val deltas = if (thrower != null) {
-            listOf(InventoryDelta(HolderId.Player(thrower), itemKey, -qty), InventoryDelta(groundHolder, itemKey, qty))
+            val playerHolder = HolderId.Player(thrower)
+            // Keeps cached snapshot for the player honest. This capture bypasses diff()
+            // entirely, so without this a later click / close diff for the same holder would
+            // compare live state against a stale pre-drop snapshot.
+            services.differ.adjust(playerHolder, itemKey, -qty)
+            listOf(InventoryDelta(playerHolder, itemKey, -qty), InventoryDelta(groundHolder, itemKey, qty))
         } else {
             listOf(InventoryDelta(groundHolder, itemKey, qty))
         }
@@ -113,6 +118,8 @@ class ItemEntityCaptureListener(
         val playerHolder = HolderId.Player(player.uniqueId)
         val epochMillis = System.currentTimeMillis()
         val deltas = listOf(InventoryDelta(groundHolder, itemKey, -pickedUp), InventoryDelta(playerHolder, itemKey, pickedUp))
+
+        services.differ.adjust(playerHolder, itemKey, pickedUp)
 
         services.scope.launch {
             try {

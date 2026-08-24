@@ -4,12 +4,12 @@ import com.tracel.engine.journal.CrashPoint
 import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.journal.SimulatedCrash
-import com.tracel.engine.rollback.InvolutionExecutor
-import com.tracel.engine.rollback.InvolutionJobCoordinator
-import com.tracel.engine.rollback.InvolutionOutcome
 import com.tracel.engine.rollback.RollbackExecutor
 import com.tracel.engine.rollback.RollbackJobRecord
 import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.engine.rollback.involution.InvolutionExecutor
+import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
+import com.tracel.engine.rollback.involution.InvolutionOutcome
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
@@ -25,10 +25,13 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
- * [InvolutionJobCoordinator] end to end — [InvolutionTest][com.tracel.tests.property.InvolutionTest]
- * already proves the ledger-level involution mechanism is correct by driving [InvolutionExecutor]
- * by hand; this proves the coordinator's acquire → plan → apply → release loop does the same
- * thing a real `/tracel rollback undo` command would.
+ * [InvolutionJobCoordinator] end to end.
+ *
+ * [InvolutionTest][com.tracel.tests.property.InvolutionTest] already proves the ledger-level
+ * involution mechanism is correct by driving [InvolutionExecutor] by hand.
+ *
+ * This proves the coordinator's acquire -> plan -> apply -> release loop does the same
+ * thing a real in-game command would.
  */
 class InvolutionJobCoordinatorTest {
     @Test

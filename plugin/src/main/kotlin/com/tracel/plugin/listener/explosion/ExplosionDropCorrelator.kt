@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener
+package com.tracel.plugin.listener.explosion
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey

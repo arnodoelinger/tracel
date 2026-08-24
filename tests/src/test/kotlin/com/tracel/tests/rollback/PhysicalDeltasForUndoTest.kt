@@ -2,7 +2,7 @@ package com.tracel.tests.rollback
 
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
-import com.tracel.engine.rollback.InvolutionStep
+import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.engine.rollback.physicalDeltasForUndo
 import com.tracel.model.id.Quantity
 import com.tracel.tests.support.Fixtures.block

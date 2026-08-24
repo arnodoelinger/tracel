@@ -1,5 +1,6 @@
-package com.tracel.engine.balance
+package com.tracel.engine.capture
 
+import com.tracel.engine.balance.TransactionBalancer
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind

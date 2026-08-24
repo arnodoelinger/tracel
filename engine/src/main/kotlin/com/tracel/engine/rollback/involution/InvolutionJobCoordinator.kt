@@ -1,10 +1,13 @@
-package com.tracel.engine.rollback
+package com.tracel.engine.rollback.involution
 
 import com.tracel.engine.journal.CrashPoint
 import com.tracel.engine.journal.Journal
 import com.tracel.engine.ledger.LotRepository
 import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.ownership.LotLeaseRegistry
+import com.tracel.engine.rollback.RollbackJobCoordinator
+import com.tracel.engine.rollback.RollbackJobRecord
+import com.tracel.engine.rollback.RollbackJobRepository
 import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId

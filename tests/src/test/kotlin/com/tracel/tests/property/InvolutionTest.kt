@@ -7,11 +7,11 @@ import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
 import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.rollback.InMemoryRollbackJobRepository
-import com.tracel.engine.rollback.InvolutionExecutor
-import com.tracel.engine.rollback.InvolutionPlanner
 import com.tracel.engine.rollback.RollbackExecutor
 import com.tracel.engine.rollback.RollbackJobRecord
 import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.engine.rollback.involution.InvolutionExecutor
+import com.tracel.engine.rollback.involution.InvolutionPlanner
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity

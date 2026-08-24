@@ -1,7 +1,7 @@
-package com.tracel.tests.balance
+package com.tracel.tests.capture
 
 import com.tracel.engine.balance.InventoryDelta
-import com.tracel.engine.balance.releaseDeltas
+import com.tracel.engine.capture.releaseDeltas
 import com.tracel.model.id.Quantity
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
