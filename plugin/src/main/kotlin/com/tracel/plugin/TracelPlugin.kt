@@ -19,6 +19,7 @@ import com.tracel.plugin.listener.explosion.ExplosionCaptureListener
 import com.tracel.plugin.listener.inspect.InspectListener
 import com.tracel.plugin.listener.redstone.RedstoneTriggerListener
 import com.tracel.plugin.scheduler.PaperTracelSchedulers
+import com.tracel.plugin.startup.ItemKeyStabilityCanary
 import com.tracel.storage.TracelDatabase
 import com.tracel.storage.counters.SqliteCounters
 import com.tracel.storage.journal.SqliteInvolutionJournal
@@ -42,6 +43,8 @@ class TracelPlugin : JavaPlugin() {
     private lateinit var services: TracelServices
 
     override fun onEnable() {
+        ItemKeyStabilityCanary.check(this, logger)
+
         val schedulers = PaperTracelSchedulers(this)
 
         dataFolder.mkdirs()
