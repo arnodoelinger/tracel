@@ -1,7 +1,7 @@
 package com.tracel.plugin.command
 
 import com.tracel.plugin.TracelServices
-import com.tracel.storage.schema.purgeAll
+import com.tracel.storage.ports.purgeAll
 import io.papermc.paper.command.brigadier.BasicCommand
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import kotlinx.coroutines.launch
@@ -17,7 +17,7 @@ class PurgeCommand(private val services: TracelServices) : BasicCommand {
         }
 
         services.scope.launch {
-            purgeAll(services.storage)
+            purgeAll(services.storage, services.counters)
             services.repo.forget()
             services.differ.forgetAll()
             source.sender.sendMessage(

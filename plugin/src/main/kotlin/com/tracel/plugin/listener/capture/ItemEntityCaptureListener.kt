@@ -1,15 +1,11 @@
 package com.tracel.plugin.listener.capture
 
 import com.tracel.annotations.CauseKind
-import com.tracel.engine.balance.InventoryDelta
-import com.tracel.model.flow.Flow
-import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toItemKey
-import kotlinx.coroutines.launch
 import org.bukkit.Bukkit
 import org.bukkit.entity.Item
 import org.bukkit.entity.Player
@@ -21,8 +17,6 @@ import org.bukkit.event.entity.ItemDespawnEvent
 import org.bukkit.event.entity.ItemMergeEvent
 import org.bukkit.event.entity.ItemSpawnEvent
 import org.bukkit.plugin.Plugin
-import java.util.logging.Level
-import java.util.logging.Logger
 
 /**
  * Captures ground items — a `Bukkit` `Item` entity is the one holder in this codebase whose
@@ -32,8 +26,6 @@ class ItemEntityCaptureListener(
     private val services: TracelServices,
     private val plugin: Plugin,
 ) : Listener {
-    private val logger = Logger.getLogger(ItemEntityCaptureListener::class.java.name)
-
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onSpawn(event: ItemSpawnEvent) {
         if (services.selfManagedSpawns.isSelfManagedSpawn) return
@@ -58,19 +50,16 @@ class ItemEntityCaptureListener(
             return
         }
 
-        val deltas = if (thrower != null) {
+        if (thrower != null) {
             val playerHolder = HolderId.Player(thrower)
             // Keeps cached snapshot for the player honest. This capture bypasses diff()
             // entirely, so without this a later click / close diff for the same holder would
             // compare live state against a stale pre-drop snapshot.
             services.differ.adjust(playerHolder, itemKey, -qty)
-            listOf(InventoryDelta(playerHolder, itemKey, -qty), InventoryDelta(groundHolder, itemKey, qty))
+            services.gate.move(CauseKind.PLAYER_ACTION, playerHolder, epochMillis, itemKey, playerHolder, groundHolder, qty)
         } else {
-            listOf(InventoryDelta(groundHolder, itemKey, qty))
+            services.gate.single(CauseKind.WORLD, null, epochMillis, itemKey, groundHolder, qty)
         }
-        val cause = if (thrower != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
-        val causedBy = thrower?.let(HolderId::Player)
-        recordSpawn(deltas, epochMillis, cause, causedBy)
     }
 
     /**
@@ -88,21 +77,9 @@ class ItemEntityCaptureListener(
             val claimed = services.explosionDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, qty, groundHolder)
             val unclaimed = qty - claimed
             if (unclaimed > 0) {
-                recordSpawn(listOf(InventoryDelta(groundHolder, itemKey, unclaimed)), epochMillis, CauseKind.WORLD, null)
+                services.gate.single(CauseKind.WORLD, null, epochMillis, itemKey, groundHolder, unclaimed)
             }
         }, EXPLOSION_CLAIM_DELAY_TICKS)
-    }
-
-    private fun recordSpawn(deltas: List<InventoryDelta>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?) {
-        services.scope.launch {
-            try {
-                services.atomically {
-                    services.capture.record(deltas, epochMillis, cause, causedBy)
-                }
-            } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked material dropped by $causedBy, not recorded", e)
-            }
-        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -115,63 +92,44 @@ class ItemEntityCaptureListener(
 
         val groundHolder = HolderId.ItemEntity(item.uniqueId)
         val playerHolder = HolderId.Player(player.uniqueId)
-        val epochMillis = System.currentTimeMillis()
-        val deltas = listOf(InventoryDelta(groundHolder, itemKey, -pickedUp), InventoryDelta(playerHolder, itemKey, pickedUp))
 
         services.differ.adjust(playerHolder, itemKey, pickedUp)
-
-        services.scope.launch {
-            try {
-                services.atomically {
-                    services.capture.record(deltas, epochMillis, CauseKind.PLAYER_ACTION, playerHolder)
-                }
-            } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked ground item picked up by $playerHolder, not recorded", e)
-            }
-        }
+        services.gate.move(
+            CauseKind.PLAYER_ACTION,
+            playerHolder,
+            System.currentTimeMillis(),
+            itemKey,
+            groundHolder,
+            playerHolder,
+            pickedUp,
+        )
     }
 
+    /**
+     * A despawn and a merge are the same shape: this holder is gone, everything it had is now
+     * somewhere else. Naming the pair is all a region thread can honestly do — what the entity
+     * held is a ledger read, resolved on the storage thread when the ring is drained.
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onDespawn(event: ItemDespawnEvent) {
-        val groundHolder = HolderId.ItemEntity(event.entity.uniqueId)
-        val epochMillis = System.currentTimeMillis()
-
-        services.scope.launch {
-            try {
-                services.atomically {
-                    val believed = services.ledger.totalsAt(groundHolder)
-                    if (believed.isEmpty()) return@atomically
-                    val flows = believed.map { (itemKey, qty) ->
-                        Flow(itemKey, qty, groundHolder, HolderId.Sink(SinkKind.DESPAWN), FlowKind.BURN)
-                    }
-                    services.capture.recordDirect(flows, epochMillis, CauseKind.WORLD, causedBy = null)
-                }
-            } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked ground item despawned at $groundHolder, not recorded", e)
-            }
-        }
+        services.gate.release(
+            CauseKind.WORLD,
+            causedBy = null,
+            epochMillis = System.currentTimeMillis(),
+            from = HolderId.ItemEntity(event.entity.uniqueId),
+            to = HolderId.Sink(SinkKind.DESPAWN),
+        )
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onMerge(event: ItemMergeEvent) {
-        val losingHolder = HolderId.ItemEntity(event.entity.uniqueId)
-        val survivingHolder = HolderId.ItemEntity(event.target.uniqueId)
-        val epochMillis = System.currentTimeMillis()
-
-        services.scope.launch {
-            try {
-                services.atomically {
-                    val believed = services.ledger.totalsAt(losingHolder)
-                    if (believed.isEmpty()) return@atomically
-                    val flows = believed.map { (itemKey, qty) ->
-                        Flow(itemKey, qty, losingHolder, survivingHolder, FlowKind.MOVE)
-                    }
-                    services.capture.recordDirect(flows, epochMillis, CauseKind.WORLD, causedBy = null)
-                }
-            } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked ground item merged from $losingHolder, not recorded", e)
-            }
-        }
+        services.gate.release(
+            CauseKind.WORLD,
+            causedBy = null,
+            epochMillis = System.currentTimeMillis(),
+            from = HolderId.ItemEntity(event.entity.uniqueId),
+            to = HolderId.ItemEntity(event.target.uniqueId),
+        )
     }
 
     private companion object {

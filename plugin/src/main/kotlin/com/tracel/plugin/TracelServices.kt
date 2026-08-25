@@ -16,31 +16,38 @@ import com.tracel.plugin.listener.capture.VanillaAssumptionGuard
 import com.tracel.plugin.listener.explosion.ExplosionDropCorrelator
 import com.tracel.plugin.listener.redstone.RedstoneTriggerTracker
 import com.tracel.plugin.rollback.PhysicalRestorer
-import com.tracel.storage.Storage
-import com.tracel.storage.counters.SqliteCounters
-import com.tracel.storage.ledger.SqliteLotRepository
-import com.tracel.storage.pending.SqlitePendingDeliveryRepository
+import com.tracel.storage.TracelStorage
+import com.tracel.storage.capture.CaptureGate
+import com.tracel.storage.ports.Counters
+import com.tracel.storage.ports.LotRepository
+import com.tracel.storage.ports.PendingDeliveryRepository
 import kotlinx.coroutines.CoroutineScope
 
 /**
  * Everything a listener or command needs to touch the ledger, wired once in [TracelPlugin.onEnable].
  *
- * Delegates [UnitOfWork] to [storage], so a listener that has several ledger calls to make writes
- * `services.atomically { ... }` and gets one hop onto the storage thread and one commit for the
- * lot of them, instead of one of each per call.
+ * Two doors, and which one a caller uses is the whole design:
+ *
+ * [gate] is the region-thread door. It interns two IDs, writes 24 bytes into an off-heap ring
+ * and returns.
+ *
+ * [atomically] is the storage-thread door, for commands, rollbacks, and the handful of captures
+ * that genuinely have to read the ledger before they know what happened. It delegates to
+ * [storage], so several ledger calls become one hop and one commit instead of one of each.
  */
 class TracelServices(
-    val repo: SqliteLotRepository,
+    val repo: LotRepository,
     val ledger: LotLedger,
     val log: TransactionLog,
-    val counters: SqliteCounters,
+    val counters: Counters,
     val schedulers: TracelSchedulers,
     val scope: CoroutineScope,
     val rollback: RollbackJobCoordinator,
     val jobs: RollbackJobRepository,
     val undo: InvolutionJobCoordinator,
-    val pendingDeliveries: SqlitePendingDeliveryRepository,
-    val storage: Storage,
+    val pendingDeliveries: PendingDeliveryRepository,
+    val storage: TracelStorage,
+    val gate: CaptureGate,
 ) : UnitOfWork by storage {
     val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }
 

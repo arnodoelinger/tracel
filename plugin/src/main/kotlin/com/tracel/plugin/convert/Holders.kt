@@ -10,7 +10,7 @@ import org.bukkit.inventory.Inventory
 /**
  * `null` when the inventory is neither entity / player-backed nor placed anywhere in the world —
  * a virtual / crafting-result inventory, for instance. There is nothing meaningful to attribute
- * a flow to in that case, so the caller is expected to skip it rather than guess.
+ * a flow to in that case, so the caller is expected to skip it.
  */
 fun Inventory.toHolderId(): HolderId? {
     return when (val owner = holder) {

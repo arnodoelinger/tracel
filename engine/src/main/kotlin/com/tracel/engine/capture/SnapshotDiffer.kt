@@ -40,6 +40,28 @@ public class SnapshotDiffer(
             else -> baseline(holder).merge(snapshot.totals)
         }
 
+        return deltasBetween(holder, previous, current, fromGap)
+    }
+
+    /**
+     * [diff] for a holder that already has a snapshot. Safe to call from a region thread.
+     *
+     * @return `null` when the holder has never been diffed, which is the one case that genuinely
+     * needs a ledger read. A caller takes the slow path only then, and only once per holder.
+     */
+    public fun diffIfSeeded(holder: HolderId, current: Map<ItemKey, Long>): List<InventoryDelta>? {
+        val snapshot = snapshots[holder]
+        if (snapshot?.seeded != true) return null
+        if (!snapshots.replace(holder, snapshot, Snapshot(current, seeded = true))) return null
+        return deltasBetween(holder, snapshot.totals, current, fromGap = false)
+    }
+
+    private fun deltasBetween(
+        holder: HolderId,
+        previous: Map<ItemKey, Long>,
+        current: Map<ItemKey, Long>,
+        fromGap: Boolean,
+    ): List<InventoryDelta> {
         val touched = previous.keys + current.keys
         return touched.mapNotNull { key ->
             val delta = current.getOrDefault(key, 0L) - previous.getOrDefault(key, 0L)

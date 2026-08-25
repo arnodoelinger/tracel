@@ -75,11 +75,7 @@ class PhysicalRestorer(private val services: TracelServices) {
     /**
      * Checks every holder [deltas] touches is physically reachable right now.
      *
-     * Every holder is checked at once rather than one after another. Each check is a hop onto
-     * whichever region or entity thread owns that holder, those threads tick genuinely in parallel
-     * under `Folia`, and a rollback spanning fifty containers has no reason to visit them in single
-     * file. The answer still reports the first unreachable holder in [deltas] order, so what the
-     * admin sees does not depend on which region happened to answer first.
+     * Every holder is checked at once.
      */
     private suspend fun preflight(deltas: Map<HolderId, Map<ItemKey, Long>>): PreflightResult = coroutineScope {
         val touched = deltas.filterValues { itemDeltas -> itemDeltas.values.any { it != 0L } }.keys.toList()

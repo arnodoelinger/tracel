@@ -38,9 +38,9 @@ public class CaptureCoordinator(
     }
 
     /**
-     * Records a craft directly through [LotLedger.craft] rather than [record]. Ingredients and
-     * product are already fully resolved by the caller, there is nothing left for
-     * [TransactionBalancer] to balance.
+     * Records a craft directly through [LotLedger.craft]. Ingredients and product are
+     * already fully resolved by the caller, there is nothing left for [TransactionBalancer]
+     * to balance.
      */
     public suspend fun recordCraft(ingredients: List<Ingredient>, product: Product, epochMillis: Long, causedBy: HolderId?): Transaction =
         ledger.atomically {

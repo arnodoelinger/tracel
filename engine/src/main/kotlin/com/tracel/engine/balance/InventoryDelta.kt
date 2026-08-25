@@ -9,7 +9,7 @@ import com.tracel.model.item.ItemKey
  * set of these into balanced flows.
  *
  * [fromGap] marks a delta measured against a baseline that had to be reconstructed from the
- * ledger rather than observed live.
+ * ledger.
  */
 public data class InventoryDelta(
     public val holder: HolderId,

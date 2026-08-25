@@ -1,6 +1,5 @@
 plugins {
     id("tracel.kotlin-conventions")
-    id("tracel.serialization")
 }
 
 dependencies {
@@ -8,14 +7,8 @@ dependencies {
     implementation(project(":engine"))
     implementation(project(":platform"))
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlinx.serialization.json)
-    implementation(libs.exposed.core)
-    api(libs.exposed.jdbc)
-    implementation(libs.hikaricp)
     implementation(libs.caffeine)
 
-    compileOnly(libs.sqlite.jdbc)
-    testImplementation(libs.sqlite.jdbc)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.hdrhistogram)
     testImplementation(testFixtures(project(":tests")))

@@ -19,8 +19,7 @@ import java.util.concurrent.atomic.AtomicLong
  * run thousands of scenarios in milliseconds.
  *
  * Its [UnitOfWork] is [DirectUnitOfWork]: a map has nothing to commit, so batching is a no-op
- * here rather than a lie about atomicity — a crash mid-operation takes the whole process with it
- * either way.
+ * here — a crash mid-operation takes the whole process with it either way.
  */
 public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWork {
     private val writer = SingleWriterGuard()
