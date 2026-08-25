@@ -1,0 +1,97 @@
+package com.tracel.storage.capture
+
+import com.tracel.annotations.CauseKind
+import com.tracel.engine.balance.InventoryDelta
+import com.tracel.model.holder.HolderId
+import com.tracel.model.item.ItemKey
+
+/**
+ * What a listener actually calls. Wraps [CaptureRing] in the four shapes real capture code has,
+ * so no listener has to think about claims, slots, or publication order.
+ *
+ * Every one of these returns `false` when the event was dropped, which happens when the ring is
+ * full or interning is saturated. A caller that wants to know can look; a caller that does not
+ * is correct to ignore it, because [CaptureRing.dropped] is counting either way.
+ */
+class CaptureGate(private val ring: CaptureRing) {
+    val dropped: Long get() = ring.dropped
+
+    /** A quantity of one item key moving between two holders. The whole hot path, in one call. */
+    fun move(
+        cause: CauseKind,
+        causedBy: HolderId?,
+        epochMillis: Long,
+        itemKey: ItemKey,
+        from: HolderId,
+        to: HolderId,
+        quantity: Long,
+    ): Boolean {
+        val itemKeyId = ring.itemKeyId(itemKey)
+        val fromId = ring.holderId(from)
+        val toId = ring.holderId(to)
+        val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (itemKeyId == 0 || fromId == 0 || toId == 0) return false
+
+        val claim = ring.begin(cause, causedById, epochMillis, 2)
+        if (claim == CaptureRing.REJECTED) return false
+        ring.delta(claim, 0, fromId, itemKeyId, -quantity)
+        ring.delta(claim, 1, toId, itemKeyId, quantity)
+        ring.commit(claim, 2)
+        return true
+    }
+
+    /** One unbalanced delta — a mint or a burn the balancer will pair against a source or a sink. */
+    fun single(
+        cause: CauseKind,
+        causedBy: HolderId?,
+        epochMillis: Long,
+        itemKey: ItemKey,
+        holder: HolderId,
+        delta: Long,
+    ): Boolean {
+        val itemKeyId = ring.itemKeyId(itemKey)
+        val holderId = ring.holderId(holder)
+        val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (itemKeyId == 0 || holderId == 0) return false
+
+        val claim = ring.begin(cause, causedById, epochMillis, 1)
+        if (claim == CaptureRing.REJECTED) return false
+        ring.delta(claim, 0, holderId, itemKeyId, delta)
+        ring.commit(claim, 1)
+        return true
+    }
+
+    /** A diff's worth of deltas. The list is the caller's; nothing here keeps a reference to it. */
+    fun many(cause: CauseKind, causedBy: HolderId?, epochMillis: Long, deltas: List<InventoryDelta>): Boolean {
+        if (deltas.isEmpty()) return true
+        if (deltas.size > CaptureRing.MAX_DELTAS) return false
+
+        val causedById = causedBy?.let(ring::holderId) ?: 0
+        val claim = ring.begin(cause, causedById, epochMillis, deltas.size)
+        if (claim == CaptureRing.REJECTED) return false
+        for (i in deltas.indices) {
+            val delta = deltas[i]
+            val holderId = ring.holderId(delta.holder)
+            val itemKeyId = ring.itemKeyId(delta.itemKey)
+            if (holderId == 0 || itemKeyId == 0) {
+                // Publish it anyway: an event with an unresolvable id is dropped on the drain
+                // side, and abandoning a claim would leave a hole the consumer would wait on
+                // forever.
+                ring.delta(claim, i, 0, 0, 0)
+            } else {
+                ring.delta(claim, i, holderId, itemKeyId, delta.delta)
+            }
+        }
+        ring.commit(claim, deltas.size)
+        return true
+    }
+
+    /** Everything [from] held went to [to] — see [CaptureRing.release]. */
+    fun release(cause: CauseKind, causedBy: HolderId?, epochMillis: Long, from: HolderId, to: HolderId): Boolean {
+        val fromId = ring.holderId(from)
+        val toId = ring.holderId(to)
+        val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (fromId == 0 || toId == 0) return false
+        return ring.release(cause, causedById, epochMillis, fromId, toId)
+    }
+}

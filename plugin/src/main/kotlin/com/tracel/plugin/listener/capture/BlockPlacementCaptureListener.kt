@@ -4,8 +4,8 @@ import com.tracel.annotations.Assumption
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Fallback
 import com.tracel.engine.balance.InventoryDelta
-import com.tracel.engine.capture.releaseDeltas
 import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.SinkKind
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toItemKey
 import com.tracel.plugin.convert.toPlacedBlockId
@@ -34,20 +34,17 @@ class BlockPlacementCaptureListener(internal val services: TracelServices) : Lis
         val itemKey = event.itemInHand.toItemKey()
         val playerHolder = HolderId.Player(event.player.uniqueId)
         val placedHolder = event.blockPlaced.toPlacedBlockId()
-        val epochMillis = System.currentTimeMillis()
-        val deltas = listOf(InventoryDelta(playerHolder, itemKey, -1L), InventoryDelta(placedHolder, itemKey, 1L))
 
         services.differ.adjust(playerHolder, itemKey, -1L)
-
-        services.scope.launch {
-            try {
-                services.atomically {
-                    services.capture.record(deltas, epochMillis, CauseKind.PLAYER_ACTION, playerHolder)
-                }
-            } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked material placed by $playerHolder, not recorded.", e)
-            }
-        }
+        services.gate.move(
+            cause = CauseKind.PLAYER_ACTION,
+            causedBy = playerHolder,
+            epochMillis = System.currentTimeMillis(),
+            itemKey = itemKey,
+            from = playerHolder,
+            to = placedHolder,
+            quantity = 1L,
+        )
     }
 
     /**
@@ -103,17 +100,19 @@ class BlockPlacementCaptureListener(internal val services: TracelServices) : Lis
         }
     }
 
+    /**
+     * Whatever the ledger believed this block was, it is not there now.
+     *
+     * A release names the two holders and nothing else — working out what the block held is a
+     * ledger read, and this runs on a region thread, which does not read the ledger, of course.
+     */
     internal fun onBreakFallback(event: BlockBreakEvent, placedHolder: HolderId.PlacedBlock, causedBy: HolderId.Player, epochMillis: Long) {
-        services.scope.launch {
-            try {
-                services.atomically {
-                    val deltas = services.ledger.releaseDeltas(placedHolder)
-                    if (deltas.isEmpty()) return@atomically
-                    services.capture.record(deltas, epochMillis, CauseKind.BLOCK_BREAK, causedBy)
-                }
-            } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked placed block broken at $placedHolder, not recorded", e)
-            }
-        }
+        services.gate.release(
+            cause = CauseKind.BLOCK_BREAK,
+            causedBy = causedBy,
+            epochMillis = epochMillis,
+            from = placedHolder,
+            to = HolderId.Sink(SinkKind.UNATTRIBUTED),
+        )
     }
 }

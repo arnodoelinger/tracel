@@ -25,9 +25,6 @@ import org.junit.jupiter.api.Test
  * Crash safety: interrupting a rollback right before any single step —
  * a take, a mint, or the final release out of escrow — and resuming from the
  * same journal afterward must still reach the correct final state.
- *
- * This is what actually proves the rollback is transactional rather than merely
- * usually correct: every one of its steps is individually safe to die on.
  */
 class CrashSafetyTest {
     private data class Scenario(val world: LedgerHarness, val chest: HolderId.Block, val rootLot: LotId)

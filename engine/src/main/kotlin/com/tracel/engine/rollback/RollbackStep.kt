@@ -7,11 +7,7 @@ import com.tracel.model.id.Quantity
 import com.tracel.model.id.TxnId
 import java.util.UUID
 
-/**
- * One action the causal closure found necessary to reclaim traced material.
- * A sealed interface rather than a "kind" enum with optional fields, so every
- * step only ever carries the data it actually needs.
- */
+/** One action the causal closure found necessary to reclaim traced material. */
 public sealed interface RollbackStep {
     /** Take [quantity] of [lotId], currently sitting at [holder]. */
     public data class Take(public val lotId: LotId, public val quantity: Quantity, public val holder: HolderId) : RollbackStep

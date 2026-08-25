@@ -8,9 +8,9 @@ import java.util.UUID
  * Bridges [com.tracel.annotations.RunsOn]'s named thread contexts to real
  * [CoroutineDispatcher]s.
  *
- * [region] and [entity] are factories rather than plain properties because which thread
- * they mean depends on which region or entity — unlike [global], [async] and [storage],
- * which are always the same one thread (or thread pool) for the life of the plugin.
+ * [region] and [entity] are factories because which thread they mean depends on which
+ * region or entity — unlike [global], [async] and [storage], which are always the same
+ * one thread (or thread pool) for the life of the plugin.
  */
 public interface TracelSchedulers {
     /** The region thread that currently owns [location]. */
@@ -25,6 +25,6 @@ public interface TracelSchedulers {
     /** Off any region thread entirely: queries, planning, compaction, retention. */
     public val async: CoroutineDispatcher
 
-    /** The single dedicated `SQLite`-writer thread — see `com.tracel.storage.TracelDatabase`. */
+    /** The single dedicated storage-writer thread. */
     public val storage: CoroutineDispatcher
 }

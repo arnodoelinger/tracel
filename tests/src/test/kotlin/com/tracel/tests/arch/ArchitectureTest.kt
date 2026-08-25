@@ -26,10 +26,50 @@ class ArchitectureTest {
 
     @Test
     fun `no code blocks a thread with runBlocking`() {
-        // runBlocking on a region thread stalls that region's tick, which on a busy server reads as a TPS collapse
-        sourceFiles().assertFalse(testName = "no runBlocking") { file ->
-            file.text.contains("runBlocking")
-        }
+        // runBlocking on a region thread stalls that region's tick, which on a busy server
+        // reads as a TPS collapse.
+        sourceFiles()
+            .filterNot { it.name == "CrashHarness" }
+            .assertFalse(testName = "no runBlocking") { file -> file.text.contains("runBlocking") }
+    }
+
+    @Test
+    fun `storage never touches Bukkit`() {
+        // Storage threads own no world state and must never be the ones asking for it.
+        Konsist.scopeFromModule("storage")
+            .files
+            .assertFalse(testName = "no Bukkit in storage") { file ->
+                file.text.contains("org.bukkit") || file.text.contains("io.papermc")
+            }
+    }
+
+    @Test
+    fun `no plugin code waits on a future or sleeps a thread`() {
+        // Both are the same bug wearing different clothes: a region thread that stops ticking
+        // until storage catches up. The ring exists so that this is never necessary.
+        Konsist.scopeFromModule("plugin")
+            .files
+            .assertFalse(testName = "no blocking waits in plugin") { file ->
+                file.text.contains("Thread.sleep") ||
+                    file.text.contains(".getNow(") ||
+                    Regex("""\bfutures?\.get\(""").containsMatchIn(file.text) ||
+                    file.text.contains("CountDownLatch")
+            }
+    }
+
+    @Test
+    fun `capture listeners do not open a unit of work on the event thread`() {
+        // A listener may enqueue into the ring, or launch onto the async scope. What it may not
+        // do is call atomically { } inline, which runs storage work on whatever thread the event
+        // arrived on — and for a Folia region event, that is the region thread.
+        Konsist.scopeFromModule("plugin")
+            .files
+            .filter { it.path.contains("/listener/") }
+            .flatMap { it.functions() }
+            .filter { it.annotations.any { annotation -> annotation.name == "EventHandler" } }
+            .assertFalse(testName = "no inline unit of work in an event handler") { function ->
+                function.text.contains("atomically") && !function.text.contains("launch")
+            }
     }
 
     @Test

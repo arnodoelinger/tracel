@@ -1,0 +1,209 @@
+package com.tracel.storage
+
+import com.tracel.annotations.CauseKind
+import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.LookupRegion
+import com.tracel.model.flow.Flow
+import com.tracel.model.flow.FlowKind
+import com.tracel.model.holder.HolderId
+import com.tracel.model.id.Quantity
+import com.tracel.model.id.Seq
+import com.tracel.model.id.TxnId
+import com.tracel.model.id.WorldId
+import com.tracel.model.item.ContentHash
+import com.tracel.model.item.ItemKey
+import com.tracel.model.transaction.Transaction
+import com.tracel.storage.support.Stack
+import com.tracel.tests.support.Fixtures.block
+import com.tracel.tests.support.Fixtures.diamond
+import com.tracel.tests.support.Fixtures.player
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
+import java.util.UUID
+
+class TransactionLogTest {
+    private val world = WorldId(UUID(0L, 1L))
+
+    private fun move(seq: Long, from: HolderId, to: HolderId, at: Long, cause: CauseKind = CauseKind.HOPPER) = Transaction(
+        TxnId(seq),
+        Seq(seq),
+        at,
+        cause,
+        from,
+        listOf(Flow(diamond, Quantity(1), from, to, FlowKind.MOVE)),
+    )
+
+    @Test
+    fun `a transaction round-trips every field`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val txn = Transaction(
+                TxnId(7),
+                Seq(7),
+                1_700_000_000_000L,
+                CauseKind.EXPLOSION,
+                player(9),
+                listOf(
+                    Flow(diamond, Quantity(3), block(1, 2, 3), player(1), FlowKind.MOVE),
+                    Flow(
+                        ItemKey("minecraft:diamond_sword", ContentHash("deadbeef")),
+                        Quantity(1),
+                        HolderId.Source(com.tracel.model.holder.SourceKind.CRAFT),
+                        player(1),
+                        FlowKind.TRANSFORM_OUT,
+                    ),
+                ),
+            )
+            stack.log.append(txn)
+            assertEquals(txn, stack.log.find(TxnId(7)))
+        }
+    }
+
+    @Test
+    fun `appending the same id twice is refused`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            stack.log.append(move(1, block(0, 64, 0), player(1), 100))
+            val again = runCatching { stack.log.append(move(1, block(0, 64, 0), player(1), 100)) }.exceptionOrNull()
+            assertTrue(again is IllegalStateException, "the log is append-only, got $again")
+        }
+    }
+
+    @Test
+    fun `an unfiltered query comes back newest first`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            for (i in 1L..20L) stack.log.append(move(i, block(0, 64, 0), player(1), 1000 + i))
+            val result = stack.log.query(LookupFilter(limit = 5))
+            assertEquals(listOf(20L, 19L, 18L, 17L, 16L), result.map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `a holder filter finds only transactions touching that holder`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val chest = block(0, 64, 0)
+            val steve = player(1)
+            val alex = player(2)
+            for (i in 1L..10L) stack.log.append(move(i, chest, if (i % 2 == 0L) steve else alex, 1000 + i))
+
+            val steveOnly = stack.log.query(LookupFilter(holders = setOf(steve)))
+            assertEquals(listOf(10L, 8L, 6L, 4L, 2L), steveOnly.map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `an excluded holder removes its transactions`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val chest = block(0, 64, 0)
+            val steve = player(1)
+            val alex = player(2)
+            for (i in 1L..10L) stack.log.append(move(i, chest, if (i % 2 == 0L) steve else alex, 1000 + i))
+
+            val withoutSteve = stack.log.query(LookupFilter(excludedHolders = setOf(steve)))
+            assertEquals(listOf(9L, 7L, 5L, 3L, 1L), withoutSteve.map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `a time range stops at its own boundaries`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            for (i in 1L..20L) stack.log.append(move(i, block(0, 64, 0), player(1), i * 100))
+            val window = stack.log.query(LookupFilter(since = 500, until = 900))
+            assertEquals(listOf(9L, 8L, 7L, 6L, 5L), window.map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `a cause filter narrows to that cause`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            for (i in 1L..10L) {
+                val cause = if (i % 3 == 0L) CauseKind.EXPLOSION else CauseKind.HOPPER
+                stack.log.append(move(i, block(0, 64, 0), player(1), 1000 + i, cause))
+            }
+            val explosions = stack.log.query(LookupFilter(causes = setOf(CauseKind.EXPLOSION)))
+            assertEquals(listOf(9L, 6L, 3L), explosions.map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `a material filter matches decorated variants of the same material`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val plain = ItemKey("minecraft:diamond_sword")
+            val enchanted = ItemKey("minecraft:diamond_sword", ContentHash("cafe"))
+            val steve = player(1)
+            stack.log.append(
+                Transaction(TxnId(1), Seq(1), 100, CauseKind.HOPPER, null, listOf(Flow(plain, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))),
+            )
+            stack.log.append(
+                Transaction(TxnId(2), Seq(2), 200, CauseKind.HOPPER, null, listOf(Flow(enchanted, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))),
+            )
+            stack.log.append(
+                Transaction(TxnId(3), Seq(3), 300, CauseKind.HOPPER, null, listOf(Flow(diamond, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))),
+            )
+
+            val swords = stack.log.query(LookupFilter(material = "minecraft:diamond_sword"))
+            assertEquals(listOf(2L, 1L), swords.map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `offset pages through the result`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            for (i in 1L..20L) stack.log.append(move(i, block(0, 64, 0), player(1), 1000 + i))
+            assertEquals(listOf(15L, 14L), stack.log.query(LookupFilter(limit = 2, offset = 5)).map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `a chunk region only returns transactions inside it`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            // Chunk (0,0) is blocks 0..15; chunk (100,100) is a long way from it
+            stack.log.append(move(1, block(3, 64, 5), player(1), 100))
+            stack.log.append(move(2, block(1608, 64, 1608), player(1), 200))
+            stack.log.append(move(3, block(9, 64, 9), player(1), 300))
+
+            val here = stack.log.query(LookupFilter(region = LookupRegion(world, 0, 0, 0, 0)))
+            assertEquals(listOf(3L, 1L), here.map { it.seq.raw })
+
+            val there = stack.log.query(LookupFilter(region = LookupRegion(world, 100, 100, 100, 100)))
+            assertEquals(listOf(2L), there.map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `a region query still honours limit, unlike filtering a global page afterwards`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            // One transaction in the chunk we care about, then a thousand somewhere else. A
+            // post-filter over the newest hundred would return nothing at all.
+            stack.log.append(move(1, block(3, 64, 5), player(1), 100))
+            for (i in 2L..1001L) stack.log.append(move(i, block(5000, 64, 5000), player(1), 100 + i))
+
+            val here = stack.log.query(LookupFilter(region = LookupRegion(world, 0, 0, 0, 0), limit = 100))
+            assertEquals(listOf(1L), here.map { it.seq.raw })
+        }
+    }
+
+    @Test
+    fun `a filter no transaction can match returns nothing rather than everything`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            stack.log.append(move(1, block(0, 64, 0), player(1), 100))
+            assertTrue(stack.log.query(LookupFilter(holders = setOf(player(99)))).isEmpty())
+            assertTrue(stack.log.query(LookupFilter(material = "minecraft:netherite_hoe")).isEmpty())
+            assertNull(stack.log.find(TxnId(404)))
+        }
+    }
+
+    @Test
+    fun `the log survives a reopen`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            for (i in 1L..50L) stack.log.append(move(i, block(0, 64, 0), player(1), 1000 + i))
+        }
+        Stack(dir).use { stack ->
+            assertEquals(50, stack.log.query(LookupFilter(limit = 1000)).size)
+            assertEquals(move(7, block(0, 64, 0), player(1), 1007), stack.log.find(TxnId(7)))
+        }
+    }
+}

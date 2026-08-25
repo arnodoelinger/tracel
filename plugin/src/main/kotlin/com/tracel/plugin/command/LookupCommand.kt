@@ -2,7 +2,9 @@ package com.tracel.plugin.command
 
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.LookupRegion
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.WorldId
 import com.tracel.model.transaction.Transaction
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.lookup.LookupScope
@@ -53,6 +55,13 @@ class LookupCommand(private val services: TracelServices) : BasicCommand {
             return
         }
 
+        val scopeForPlan = parsed.scope
+        val centerForPlan = if (scopeForPlan != null && scopeForPlan !is LookupScope.World) {
+            (sender as? Player)?.location
+        } else {
+            null
+        }
+
         val filter = LookupFilter(
             holders = users.map(HolderId::Player).toSet(),
             excludedHolders = excludedUsers.map(HolderId::Player).toSet(),
@@ -60,6 +69,7 @@ class LookupCommand(private val services: TracelServices) : BasicCommand {
             causes = causes.toSet(),
             since = parsed.since,
             until = parsed.until,
+            region = regionOf(scopeForPlan, centerForPlan),
             limit = parsed.limit ?: 100,
             offset = parsed.offset,
         )
@@ -69,7 +79,7 @@ class LookupCommand(private val services: TracelServices) : BasicCommand {
             sender.sendMessage("Unknown world: ${scope.name}")
             return
         }
-        val center = if (scope != null && scope !is LookupScope.World) (sender as? Player)?.location else null
+        val center = centerForPlan
         if (scope != null && scope !is LookupScope.World && center == null) {
             sender.sendMessage("scope:${describeScope(scope)} needs a player location — run this as a player, or use scope:<world> for a whole-world search.")
             return
@@ -123,6 +133,27 @@ class LookupCommand(private val services: TracelServices) : BasicCommand {
             append(filters.joinToString(" · "))
             append(')')
         }
+    }
+
+    private fun regionOf(scope: LookupScope?, center: Location?): LookupRegion? {
+        if (scope == null || center == null) return null
+        val world = center.world?.uid?.let(::WorldId) ?: return null
+        val centerChunkX = center.blockX shr 4
+        val centerChunkZ = center.blockZ shr 4
+        val chunkRadius = when (scope) {
+            is LookupScope.Blocks -> (scope.radius shr 4) + 1
+            is LookupScope.Chunks -> scope.radius
+            LookupScope.CurrentChunk -> 0
+            is LookupScope.World -> return null
+        }
+        if (chunkRadius > MAX_SCANNED_CHUNK_RADIUS) return null
+        return LookupRegion(
+            world,
+            centerChunkX - chunkRadius,
+            centerChunkX + chunkRadius,
+            centerChunkZ - chunkRadius,
+            centerChunkZ + chunkRadius,
+        )
     }
 
     private fun resolvePlayer(name: String): java.util.UUID? =
@@ -183,6 +214,8 @@ class LookupCommand(private val services: TracelServices) : BasicCommand {
     override fun permission(): String = "tracel.lookup"
 
     private companion object {
+        const val MAX_SCANNED_CHUNK_RADIUS = 32
+
         const val USAGE = "Usage: /tracel lookup user:<name> item:<material> action:<cause> " +
             "time:<2h|today|yesterday|2026-08-20|from..to> scope:<n|Nc|chunk|world> -user:<name> " +
             "#count #count-only [limit:<n>] [offset:<n>]"

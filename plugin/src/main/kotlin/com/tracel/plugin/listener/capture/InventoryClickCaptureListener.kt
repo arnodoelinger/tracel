@@ -116,6 +116,15 @@ class InventoryClickCaptureListener(
 
         // Reading the live inventories had to happen here, on the region thread that owns them
         val epochMillis = System.currentTimeMillis()
+
+        val fast = totalsByHolder.entries.map { (holder, totals) -> services.differ.diffIfSeeded(holder, totals) }
+        if (fast.none { it == null }) {
+            val deltas = fast.flatMap { it.orEmpty() }
+            if (deltas.isEmpty()) return
+            services.gate.many(CauseKind.PLAYER_ACTION, causedBy, epochMillis, deltas)
+            return
+        }
+
         services.scope.launch {
             try {
                 services.atomically {

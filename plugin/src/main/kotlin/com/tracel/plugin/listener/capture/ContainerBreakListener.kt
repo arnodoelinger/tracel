@@ -4,8 +4,8 @@ import com.tracel.annotations.Assumption
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Fallback
 import com.tracel.engine.balance.InventoryDelta
-import com.tracel.engine.capture.releaseDeltas
 import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.SinkKind
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.convert.toHolderId
 import kotlinx.coroutines.launch
@@ -81,17 +81,13 @@ class ContainerBreakListener(internal val services: TracelServices) : Listener {
 
     /** The always-safe fallback: an ordinary unmatched-loss release, no suppression, no manual respawn. */
     internal fun onBreakFallback(event: BlockBreakEvent, holder: HolderId.Block, causedBy: HolderId.Player, epochMillis: Long) {
-        services.scope.launch {
-            try {
-                services.atomically {
-                    val deltas = services.ledger.releaseDeltas(holder)
-                    if (deltas.isEmpty()) return@atomically
-                    services.capture.record(deltas, epochMillis, CauseKind.BLOCK_BREAK, causedBy)
-                }
-            } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked material in container broken by $causedBy, not recorded", e)
-            }
-            services.differ.forget(holder)
-        }
+        services.gate.release(
+            cause = CauseKind.BLOCK_BREAK,
+            causedBy = causedBy,
+            epochMillis = epochMillis,
+            from = holder,
+            to = HolderId.Sink(SinkKind.UNATTRIBUTED),
+        )
+        services.differ.forget(holder)
     }
 }
