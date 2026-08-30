@@ -51,7 +51,14 @@ public class InvolutionJobCoordinator(
         return leases.holdingFor(job) {
             val steps = InvolutionPlanner(repo).plan(record, vanished)
             val n = steps.size
-            if (n == 0) return@holdingFor InvolutionOutcome.Undone(steps)
+            if (n == 0) {
+                val prior = journal.completed(job, 1)
+                return@holdingFor if (prior.isNotEmpty()) {
+                    InvolutionOutcome.AlreadyUndone(steps)
+                } else {
+                    InvolutionOutcome.Undone(steps)
+                }
+            }
 
             val done = journal.completed(job, n)
             // Checked before touching anything: the ledger step loop below is idempotent via the

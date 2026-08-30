@@ -9,6 +9,8 @@ import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackStep
 import com.tracel.engine.rollback.plan.destinationFor
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.Quantity
+import com.tracel.model.item.ItemKey
 
 /**
  * Builds the [InvolutionStep]s that reverse an already-applied [RollbackJobRecord], in the
@@ -39,22 +41,38 @@ public class InvolutionPlanner(private val repo: LotRepository) {
         }
     }
 
-    private suspend fun stepFor(step: RollbackStep, restoreTo: HolderId): InvolutionStep = when (step) {
-        is RollbackStep.Take ->
-            InvolutionStep.Return(repo.lot(step.lotId).itemKey, step.quantity, restoreTo, step.holder)
+    /**
+     * Only reverse what is still sitting at [restoreTo]. A dest that has since been emptied
+     * (hopper, vanished drop credited to a PlacedBlock, entity gone) is not a reason to abort
+     * the whole undo — take what is there, skip the rest.
+     */
+    private suspend fun stepFor(step: RollbackStep, restoreTo: HolderId): InvolutionStep? = when (step) {
+        is RollbackStep.Take -> payable(restoreTo, repo.lot(step.lotId).itemKey, step.quantity)?.let { qty ->
+            InvolutionStep.Return(repo.lot(step.lotId).itemKey, qty, restoreTo, step.holder)
+        }
 
-        is RollbackStep.Mint ->
-            InvolutionStep.Retract(repo.lot(step.lotId).itemKey, step.quantity, restoreTo, step.lotId)
+        is RollbackStep.Mint -> payable(restoreTo, repo.lot(step.lotId).itemKey, step.quantity)?.let { qty ->
+            InvolutionStep.Retract(repo.lot(step.lotId).itemKey, qty, restoreTo, step.lotId)
+        }
 
-        is RollbackStep.Debt ->
-            InvolutionStep.Retract(repo.lot(step.lotId).itemKey, step.quantity, restoreTo, step.lotId)
+        is RollbackStep.Debt -> payable(restoreTo, repo.lot(step.lotId).itemKey, step.quantity)?.let { qty ->
+            InvolutionStep.Retract(repo.lot(step.lotId).itemKey, qty, restoreTo, step.lotId)
+        }
 
         is RollbackStep.Unmake -> {
             val output = repo.lot(step.outputLot)
-            InvolutionStep.Remake(
-                ingredients = step.inputs.map { Ingredient(step.holder, repo.lot(it.lotId).itemKey, it.quantity) },
-                product = Product(step.holder, output.itemKey, output.quantity),
-            )
+            val ingredients = step.inputs.map { Ingredient(step.holder, repo.lot(it.lotId).itemKey, it.quantity) }
+            if (ingredients.any { repo.totalOf(it.holder, it.itemKey) < it.quantity.raw }) {
+                null
+            } else {
+                InvolutionStep.Remake(ingredients, Product(step.holder, output.itemKey, output.quantity))
+            }
         }
+    }
+
+    private suspend fun payable(holder: HolderId, itemKey: ItemKey, wanted: Quantity): Quantity? {
+        val have = repo.totalOf(holder, itemKey)
+        if (have <= 0L) return null
+        return if (have >= wanted.raw) wanted else Quantity(have)
     }
 }
