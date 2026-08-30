@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm
 
+import com.tracel.storage.ffm.Bytes.i8
 import com.tracel.storage.ffm.SegmentCompare
 import com.tracel.storage.spi.EngineCursor
 import java.lang.foreign.MemorySegment
@@ -83,37 +84,86 @@ internal class MemTableRun(private val table: MemTable) : Run() {
 
 internal class SegmentRun(private val reader: SegmentReader) : Run() {
     private val end = reader.end()
+    private val data = reader.segment
     private var at = 0L
-    private var header = 0L
+    private var headerBytes = 0
+    private var unshared = 0
+    private var valueLength = 0
+    private var valueAt = 0L
+    private var key = ByteArray(64)
+    private var keyMem = MemorySegment.ofArray(key)
 
     override fun seek(internalKey: ByteArray, length: Int) {
-        at = reader.seek(internalKey, length)
-        refresh()
+        at = reader.restartAt(internalKey, length)
+        keyLength = 0
+        while (at < end) {
+            decode()
+            if (SegmentCompare.compare(keyMem, 0, keyLength, internalKey, length) >= 0) {
+                valid = true
+                return
+            }
+            at = nextAt()
+        }
+        valid = false
     }
 
     override fun next() {
-        at = reader.advance(at, header)
-        refresh()
-    }
-
-    override fun sequence(): Long = reader.sequenceOf(at)
-    override fun isDeletion(): Boolean = reader.isDeletionOf(header)
-    override fun value(): MemorySegment? = reader.valueOf(at, header)
-    override fun userKeyBytes(): ByteArray = reader.userKeyBytes(at)
-
-    private fun refresh() {
-        val cursor = at
-        if (cursor >= end) {
+        at = nextAt()
+        if (at >= end) {
             valid = false
             return
         }
-        val head = reader.header(cursor)
-        header = head
+        decode()
         valid = true
-        keySegment = reader.segment
-        keyOffset = cursor + 8
-        keyLength = head.toInt()
-        userKeyLength = keyLength - InternalKey.TRAILER_BYTES
+    }
+
+    override fun sequence(): Long = InternalKey.sequenceOf(BE_LONG.get(key, userKeyLength) as Long)
+
+    override fun isDeletion(): Boolean = valueLength < 0
+
+    override fun value(): MemorySegment? {
+        if (valueLength < 0) return null
+        return data.asSlice(valueAt, valueLength.toLong())
+    }
+
+    override fun userKeyBytes(): ByteArray = key.copyOf(userKeyLength)
+
+    private fun decode() {
+        var cursor = at
+        val sharedPacked = Varints.read(data, cursor)
+        cursor += Varints.sizeOf(sharedPacked)
+        val unsharedPacked = Varints.read(data, cursor)
+        cursor += Varints.sizeOf(unsharedPacked)
+        val valuePacked = Varints.read(data, cursor)
+        cursor += Varints.sizeOf(valuePacked)
+        val shared = Varints.valueOf(sharedPacked)
+        unshared = Varints.valueOf(unsharedPacked)
+        valueLength = Varints.valueOf(valuePacked) - 1
+        headerBytes = (cursor - at).toInt()
+        val total = shared + unshared
+        if (key.size < total) {
+            val grown = ByteArray(total + 32)
+            System.arraycopy(key, 0, grown, 0, keyLength)
+            key = grown
+            keyMem = MemorySegment.ofArray(key)
+        }
+        var i = 0
+        while (i < unshared) {
+            key[shared + i] = data.i8(cursor + i)
+            i++
+        }
+        keyLength = total
+        userKeyLength = total - InternalKey.TRAILER_BYTES
+        keySegment = keyMem
+        keyOffset = 0
+        valueAt = cursor + unshared
+    }
+
+    private fun nextAt(): Long = at + headerBytes + unshared + (if (valueLength > 0) valueLength else 0)
+
+    private companion object {
+        val BE_LONG: VarHandle =
+            MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.BIG_ENDIAN)
     }
 }
 

@@ -616,19 +616,15 @@ private class LsmSnapshot(
 
         for (segment in engine.segmentsFor(pinned)) {
             if (!segment.mightContain(key)) continue
-            var cursor = segment.seek(target)
-            val end = segment.end()
-
-            while (cursor < end) {
-                if (segment.userKeyLength(cursor) != key.size ||
-                    SegmentCompare.compare(segment.segment, segment.keyOffset(cursor), key.size, key) != 0
-                ) {
-                    break
+            val run = SegmentRun(segment)
+            run.seek(target, target.size)
+            while (run.valid && run.userKeyLength == key.size &&
+                SegmentCompare.compare(run.keySegment, run.keyOffset, key.size, key) == 0
+            ) {
+                if (run.sequence() <= at) {
+                    return if (run.isDeletion()) null else run.value()
                 }
-                if (segment.sequenceOf(cursor) <= at) {
-                    return if (segment.isDeletion(cursor)) null else segment.valueOf(cursor)
-                }
-                cursor = segment.advance(cursor)
+                run.next()
             }
         }
         return null

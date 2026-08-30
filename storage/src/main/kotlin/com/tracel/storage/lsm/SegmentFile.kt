@@ -2,7 +2,7 @@ package com.tracel.storage.lsm
 
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
-import com.tracel.storage.ffm.Bytes.readBytes
+import com.tracel.storage.ffm.Bytes.i8
 import com.tracel.storage.ffm.MappedFile
 import com.tracel.storage.ffm.SegmentCompare
 import java.io.BufferedOutputStream
@@ -19,18 +19,21 @@ import java.nio.file.Path
  * An immutable sorted run.
  *
  * ```
- * data      [u32 keyLen][i32 valueLen, -1 = deletion][internal key][value]    ... ascending
- * index     [u32 keyLen][internal key][u64 dataOffset]                        ... one per INDEX_STRIDE of data
- * bloom     [u32 bitCount][u32 hashCount][bits]                               ... over user keys
- * footer    40 bytes, at EOF
+ * data ->
+ * [varint shared][varint unshared][varint valueLen+1][unshared key][value]
+ * // valueLen+1 is 0 for a tombstone, 1 for an empty value, n+1 for n payload bytes
+ *
+ * index  -> [u32 keyLen][internal key][u64 dataOffset] ... restart every INDEX_STRIDE of data
+ * bloom  -> [u32 bitCount][u32 hashCount][bits]        ... over user keys
+ * footer -> 40 bytes, at EOF
  * ```
  *
  * Written once, `fsync`ed, then never touched again.
  */
 object SegmentFile {
     const val MAGIC = 0x54524C53
-    const val VERSION = 2
-    const val OLDEST_READABLE_VERSION = 1 // TODO: remove this
+    const val VERSION = 4
+    const val OLDEST_READABLE_VERSION = 4
     const val FOOTER_BYTES = 40
 
     // Don't change this
@@ -50,35 +53,42 @@ object SegmentFile {
         private var index = ByteArray(1 shl 14)
         private var indexUsed = 0
 
-        // Record headers used to go out as eight separate one-byte writes through the buffered
-        // stream — eight virtual calls and eight bounds checks for eight bytes.
-        private val header = ByteArray(8)
+        private val header = ByteArray(16)
 
         private var dataBytes = 0L
         private var sinceIndex = 0L
         private var count = 0
         private var firstKey: ByteArray? = null
-        private var lastKey: ByteArray? = null
+        private var lastKey: ByteArray = ByteArray(0)
+        private var lastKeyLength = 0
 
         fun add(internalKey: ByteArray, value: ByteArray?) {
-            if (sinceIndex == 0L || sinceIndex >= INDEX_STRIDE) {
+            require(internalKey.size <= 0xFFFF) { "internal key ${internalKey.size} does not fit a u16 length" }
+            val restart = sinceIndex == 0L || sinceIndex >= INDEX_STRIDE
+            if (restart) {
                 stageIndex(internalKey, dataBytes)
                 sinceIndex = 0
             }
+            val shared = if (restart) 0 else sharedPrefix(lastKey, lastKeyLength, internalKey)
+            val unshared = internalKey.size - shared
             val valueLength = value?.size ?: -1
-            LE_INT.set(header, 0, internalKey.size)
-            LE_INT.set(header, 4, valueLength)
-            out.write(header, 0, 8)
-            out.write(internalKey)
+            var headerAt = 0
+            headerAt = Varints.write(header, headerAt, shared)
+            headerAt = Varints.write(header, headerAt, unshared)
+            headerAt = Varints.write(header, headerAt, valueLength + 1)
+            out.write(header, 0, headerAt)
+            out.write(internalKey, shared, unshared)
             if (value != null) out.write(value)
 
-            val entryBytes = 8L + internalKey.size + (value?.size ?: 0)
+            val entryBytes = headerAt.toLong() + unshared + (value?.size ?: 0)
             dataBytes += entryBytes
             sinceIndex += entryBytes
             count++
             bloom.add(internalKey, internalKey.size - InternalKey.TRAILER_BYTES)
             if (firstKey == null) firstKey = internalKey
-            lastKey = internalKey
+            if (lastKey.size < internalKey.size) lastKey = internalKey.copyOf()
+            else System.arraycopy(internalKey, 0, lastKey, 0, internalKey.size)
+            lastKeyLength = internalKey.size
         }
 
         fun finish(id: Long, level: Int): SegmentMeta {
@@ -102,12 +112,19 @@ object SegmentFile {
             file.fd.sync()
             file.close()
 
-            return SegmentMeta(id, level, count, Files.size(path), firstKey ?: ByteArray(0), lastKey ?: ByteArray(0))
+            return SegmentMeta(id, level, count, Files.size(path), firstKey ?: ByteArray(0), lastKey.copyOf(lastKeyLength))
         }
 
         override fun close() {
             runCatching { out.close() }
             runCatching { file.close() }
+        }
+
+        private fun sharedPrefix(previous: ByteArray, previousLength: Int, next: ByteArray): Int {
+            val n = minOf(previousLength, next.size)
+            var i = 0
+            while (i < n && previous[i] == next[i]) i++
+            return i
         }
 
         private fun stageIndex(key: ByteArray, offset: Long) {
@@ -199,23 +216,16 @@ class SegmentReader internal constructor(
     val segment: MemorySegment get() = mapped.segment
     val path: Path get() = mapped.path
 
-    fun seek(internalKey: ByteArray): Long = seek(internalKey, internalKey.size)
-
     /**
-     * The first entry at or after [internalKey], or [end] if there is none.
+     * Data offset of the restart whose index key is the greatest one that is still `<=` the
+     * target, or `0` when the target is before every index key.
      *
      * The binary search runs entirely over [search] — an eight-byte big-endian prefix of every
      * index key, sitting in one flat contiguous array — and never dereferences an index record
-     * at all unless two prefixes tie. Unsigned comparison of those two longs *is* lexicographic
-     * comparison of the first eight bytes, so a differing prefix settles the probe outright.
-     *
-     * What that replaces: a probe that read the index record's length out of the mapping, then
-     * compared the key byte-run inside the mapping. Fifteen probes into a variable-length record
-     * region scattered across megabytes of `mmap`, where this is fifteen probes into a few
-     * hundred kilobytes of contiguous array — and the top levels of that array stay in cache
-     * across every seek of every scan.
+     * at all unless two prefixes tie. Walking the prefix-encoded run from that restart is the
+     * cursor's job: an offset in the data stream is not enough to reconstruct a key.
      */
-    fun seek(internalKey: ByteArray, length: Int): Long {
+    fun restartAt(internalKey: ByteArray, length: Int): Long {
         val target = SegmentCompare.prefixOf(internalKey, length)
         val table = search
         var low = 0
@@ -238,53 +248,12 @@ class SegmentReader internal constructor(
                 high = mid - 1
             }
         }
-
-        val data = segment
-        val end = dataEnd
-        var at = block
-        while (at < end) {
-            val header = data.i64(at)
-            val keyLength = header.toInt()
-            if (SegmentCompare.compare(data, at + 8, keyLength, internalKey, length) >= 0) return at
-            val valueLength = (header ushr 32).toInt()
-            at += 8L + keyLength + (if (valueLength > 0) valueLength else 0)
-        }
-        return end
+        return block
     }
 
     fun mightContain(userKey: ByteArray): Boolean = bloom?.mightContain(userKey) ?: true
 
     fun end(): Long = dataEnd
-
-    fun header(at: Long): Long = segment.i64(at)
-
-    fun keyOffset(at: Long): Long = at + 8
-    fun keyLength(at: Long): Int = segment.i32(at)
-    fun userKeyLength(at: Long): Int = segment.i32(at) - InternalKey.TRAILER_BYTES
-    fun isDeletion(at: Long): Boolean = segment.i32(at + 4) == -1
-    fun isDeletionOf(header: Long): Boolean = (header ushr 32).toInt() == -1
-
-    fun valueOf(at: Long): MemorySegment? = valueOf(at, segment.i64(at))
-
-    fun valueOf(at: Long, header: Long): MemorySegment? {
-        val length = (header ushr 32).toInt()
-        if (length < 0) return null
-        return segment.asSlice(at + 8 + header.toInt(), length.toLong())
-    }
-
-    fun userKeyBytes(at: Long): ByteArray = segment.readBytes(at + 8, segment.i32(at) - InternalKey.TRAILER_BYTES)
-
-    fun sequenceOf(at: Long): Long {
-        val userLength = (segment.i32(at) - InternalKey.TRAILER_BYTES).toLong()
-        return InternalKey.sequenceOf(java.lang.Long.reverseBytes(segment.i64(at + 8 + userLength)))
-    }
-
-    fun advance(at: Long): Long = advance(at, segment.i64(at))
-
-    fun advance(at: Long, header: Long): Long {
-        val valueLength = (header ushr 32).toInt()
-        return at + 8L + header.toInt() + (if (valueLength > 0) valueLength else 0)
-    }
 
     override fun close() {
         mapped.close()
@@ -408,4 +377,38 @@ class Bloom internal constructor(
 
         private fun le32(key: ByteArray, at: Int): Long = (LE_INT.get(key, at) as Int).toLong() and 0xFFFFFFFFL
     }
+}
+
+/** Unsigned LEB128. Record headers are three of these: `shared`, `unshared`, `valueLen+1`. */
+internal object Varints {
+    fun write(dst: ByteArray, at: Int, value: Int): Int {
+        require(value >= 0) { "varint is unsigned, got $value" }
+        var v = value
+        var i = at
+        while (v >= 0x80) {
+            dst[i++] = ((v and 0x7F) or 0x80).toByte()
+            v = v ushr 7
+        }
+        dst[i++] = v.toByte()
+        return i
+    }
+
+    fun read(data: MemorySegment, offset: Long): Long {
+        var result = 0
+        var shift = 0
+        var at = offset
+        while (true) {
+            val b = data.i8(at).toInt() and 0xFF
+            at++
+            result = result or ((b and 0x7F) shl shift)
+            if (b and 0x80 == 0) break
+            shift += 7
+            check(shift <= 28) { "varint too long at $offset" }
+        }
+        return ((at - offset) shl 32) or (result.toLong() and 0xFFFFFFFFL)
+    }
+
+    fun valueOf(packed: Long): Int = packed.toInt()
+
+    fun sizeOf(packed: Long): Int = (packed ushr 32).toInt()
 }
