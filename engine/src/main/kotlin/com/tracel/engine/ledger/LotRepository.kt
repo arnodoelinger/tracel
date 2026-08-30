@@ -1,8 +1,10 @@
 package com.tracel.engine.ledger
 
+import com.tracel.annotations.Consume
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
+import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.AccountLot
@@ -15,7 +17,7 @@ import com.tracel.platform.storage.UnitOfWork
  *
  * A lot's identity and its placement (which holder, how much remains, its
  * queue position) are tracked separately on purpose — see
- * [LotLedger][com.tracel.engine.ledger.LotLedger] for why a lot can move
+ * [LotLedger] for why a lot can move
  * between holders without ever becoming a "new" lot.
  */
 public interface LotRepository : UnitOfWork {
@@ -28,11 +30,67 @@ public interface LotRepository : UnitOfWork {
     /** Records that [edge] happened, linking a parent lot to a child lot. */
     public suspend fun recordEdge(edge: LotEdge)
 
+    /** Forgets the edge from [parent] to [child]. */
+    public suspend fun removeEdge(parent: LotId, child: LotId)
+
     /** Edges where [lotId] is the parent - how its life continued after creation. */
     public suspend fun edgesFrom(lotId: LotId): List<LotEdge>
 
+    /**
+     * The compensation [job] recorded for [originalLotId], if any — a point get, not a scan of
+     * every outgoing edge.
+     */
+    public suspend fun findCompensateEdge(originalLotId: LotId, job: RollbackJobId): LotEdge.Compensate? {
+        val edges = edgesFrom(originalLotId)
+        var i = 0
+        val n = edges.size
+        while (i < n) {
+            val edge = edges[i]
+            if (edge is LotEdge.Compensate && edge.rollbackJob == job) return edge
+            i++
+        }
+        return null
+    }
+
+    /**
+     * [edgesFrom] for many lots in one snapshot. A rollback of a few thousand roots was opening
+     * a prefix scan per lot in single file; the scans share nothing and run together.
+     *
+     * Every ID is present in the result, including lots with no outgoing edges.
+     */
+    public suspend fun edgesFromAll(ids: Collection<LotId>): Map<LotId, List<LotEdge>> {
+        if (ids.isEmpty()) return emptyMap()
+        val out = HashMap<LotId, List<LotEdge>>(ids.size)
+        for (id in ids) out[id] = edgesFrom(id)
+        return out
+    }
+
     /** Edges where [lotId] is the child - how it came to exist. */
     public suspend fun edgesInto(lotId: LotId): List<LotEdge>
+
+    /** [edgesInto] for many lots in one snapshot. Same reason as [edgesFromAll]. */
+    public suspend fun edgesIntoAll(ids: Collection<LotId>): Map<LotId, List<LotEdge>> {
+        if (ids.isEmpty()) return emptyMap()
+        val out = HashMap<LotId, List<LotEdge>>(ids.size)
+        for (id in ids) out[id] = edgesInto(id)
+        return out
+    }
+
+    /** [lot] for many ids in one snapshot. */
+    public suspend fun lotsOfAll(ids: Collection<LotId>): Map<LotId, Lot> {
+        if (ids.isEmpty()) return emptyMap()
+        val out = HashMap<LotId, Lot>(ids.size)
+        for (id in ids) out[id] = lot(id)
+        return out
+    }
+
+    /** [currentHolderOf] for many lots in one snapshot. Missing ids are absent from the map. */
+    public suspend fun currentHoldersOf(ids: Collection<LotId>): Map<LotId, HolderId> {
+        if (ids.isEmpty()) return emptyMap()
+        val out = HashMap<LotId, HolderId>(ids.size)
+        for (id in ids) currentHolderOf(id)?.let { out[id] = it }
+        return out
+    }
 
     /**
      * [holder]'s queue for [itemKey], oldest first, at most [limit] entries.
@@ -45,13 +103,27 @@ public interface LotRepository : UnitOfWork {
      */
     public suspend fun accountQueue(holder: HolderId, itemKey: ItemKey, limit: Int = Int.MAX_VALUE): List<AccountLot>
 
+    /** FIFO-consume [quantity] from the live queue, oldest first, splitting the last lot. */
+    @Consume
+    public suspend fun takeFifo(
+        holder: HolderId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId,
+    ): List<LotPortion>
+
     /**
-     * What [holder] holds of [itemKey] in total, without reading the queue that says so.
-     *
-     * The difference matters: summing a queue in `Kotlin` means materializing every placement in
-     * it, and the accounts that get asked about most often — a busy player, a hopper's chest — are
-     * exactly the ones with the longest queues.
+     * Same FIFO consume as [takeFifo], handed to several destinations in [owed] order, one pass.
      */
+    @Consume
+    public suspend fun drainFifo(
+        holder: HolderId,
+        itemKey: ItemKey,
+        owed: List<Pair<HolderId, Long>>,
+        txn: TxnId,
+    ): List<Pair<HolderId, List<LotPortion>>>
+
+    /** What [holder] holds of [itemKey] in total, without reading the queue that says so. */
     public suspend fun totalOf(holder: HolderId, itemKey: ItemKey): Long
 
     /** Everything [holder] holds, summed per item key. The whole-account form of [totalOf]. */
@@ -71,6 +143,23 @@ public interface LotRepository : UnitOfWork {
      */
     public suspend fun allPlacements(itemKey: ItemKey): List<AccountLot>
 
+    /** Units of [itemKey] sitting on real holders and escrow, not `Source` / `Sink`. */
+    public suspend fun census(itemKey: ItemKey): Long {
+        var total = 0L
+        val placements = allPlacements(itemKey)
+        var i = 0
+        val n = placements.size
+        while (i < n) {
+            val at = placements[i]
+            when (at.holder) {
+                is HolderId.Source, is HolderId.Sink -> {}
+                else -> total += at.remaining.raw
+            }
+            i++
+        }
+        return total
+    }
+
     /** Every current placement at [holder], across every item key it holds. */
     public suspend fun placementsAt(holder: HolderId): List<AccountLot>
 
@@ -82,6 +171,12 @@ public interface LotRepository : UnitOfWork {
 
     /** Retires [lotId]'s placement at [holder] entirely. */
     public suspend fun remove(holder: HolderId, lotId: LotId)
+
+    /** Moves one lot from [from] to [to] in place. */
+    public suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId)
+
+    /** Moves every placement at [from] over to [to], lots, quantities and queue positions intact. */
+    public suspend fun relocate(from: HolderId, to: HolderId)
 
     /**
      * Swaps which lot occupies an existing queue slot, keeping its FIFO

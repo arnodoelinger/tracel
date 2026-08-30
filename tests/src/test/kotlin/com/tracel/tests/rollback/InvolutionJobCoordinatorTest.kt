@@ -4,9 +4,10 @@ import com.tracel.engine.journal.CrashPoint
 import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.journal.SimulatedCrash
-import com.tracel.engine.rollback.RollbackExecutor
-import com.tracel.engine.rollback.RollbackJobRecord
-import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.plan.RollbackPlanner
+import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.involution.InvolutionExecutor
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.involution.InvolutionOutcome
@@ -16,6 +17,7 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
+import com.tracel.tests.property.InvolutionTest
 import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -24,15 +26,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/**
- * [InvolutionJobCoordinator] end to end.
- *
- * [InvolutionTest][com.tracel.tests.property.InvolutionTest] already proves the ledger-level
- * involution mechanism is correct by driving [InvolutionExecutor] by hand.
- *
- * This proves the coordinator's acquire -> plan -> apply -> release loop does the same
- * thing a real in-game command would.
- */
 class InvolutionJobCoordinatorTest {
     @Test
     fun `undoing an unknown job is reported as not found`() = runTest {
@@ -65,8 +58,8 @@ class InvolutionJobCoordinatorTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
         JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(lease, plan, restoreTo = chest)
-        world.jobs.save(RollbackJobRecord(job, plan, chest))
+            .execute(lease, plan, target = RollbackTarget.Uniform(chest))
+        world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw, "sanity: rollback did apply")
 
@@ -105,8 +98,8 @@ class InvolutionJobCoordinatorTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
         JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(lease, plan, restoreTo = chest)
-        world.jobs.save(RollbackJobRecord(job, plan, chest))
+            .execute(lease, plan, target = RollbackTarget.Uniform(chest))
+        world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
         val undoJournal = InMemoryJournal()
         val coordinator = InvolutionJobCoordinator(
@@ -143,8 +136,8 @@ class InvolutionJobCoordinatorTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
         JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(lease, plan, restoreTo = chest)
-        world.jobs.save(RollbackJobRecord(job, plan, chest))
+            .execute(lease, plan, target = RollbackTarget.Uniform(chest))
+        world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
         // A second, unrelated job grabs the same lots before anyone gets around to undoing job 1.
         world.leases.acquire(RollbackJobId(2), plan.touchedLots)
@@ -177,8 +170,8 @@ class InvolutionJobCoordinatorTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
         JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(lease, plan, restoreTo = chest)
-        world.jobs.save(RollbackJobRecord(job, plan, chest))
+            .execute(lease, plan, target = RollbackTarget.Uniform(chest))
+        world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
         val stepCount = world.jobs.find(job)!!.plan.steps.size
 
@@ -194,8 +187,8 @@ class InvolutionJobCoordinatorTest {
             val iterationPlan = RollbackPlanner(iterationWorld.repo, { true }).plan(listOf(iterationRoot.id))
             val iterationLease = iterationWorld.acquireLease(job, iterationPlan)
             JournalExecutor(RollbackExecutor(iterationWorld.ledger, iterationWorld.log, iterationWorld::nextSeq), InMemoryJournal(), iterationWorld.leases, iterationWorld::nextTxn)
-                .execute(iterationLease, iterationPlan, restoreTo = iterationChest)
-            iterationWorld.jobs.save(RollbackJobRecord(job, iterationPlan, iterationChest))
+                .execute(iterationLease, iterationPlan, target = RollbackTarget.Uniform(iterationChest))
+            iterationWorld.jobs.save(RollbackJobRecord(job, iterationPlan, RollbackTarget.Uniform(iterationChest)))
 
             val undoJournal = InMemoryJournal()
             val coordinator = InvolutionJobCoordinator(

@@ -10,4 +10,5 @@ public enum class SinkKind {
     ROLLBACK_BURN,
     UNTRACKED_GAP,
     UNATTRIBUTED,
+    CREATIVE,
 }

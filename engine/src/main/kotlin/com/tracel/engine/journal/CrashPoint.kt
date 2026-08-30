@@ -3,7 +3,7 @@ package com.tracel.engine.journal
 /**
  * Thrown by [CrashPoint] to simulate the process dying mid-step.
  */
-public class SimulatedCrash(public val stepIndex: Int) : Exception("simulated crash before step $stepIndex")
+public class SimulatedCrash(stepIndex: Int) : Exception("simulated crash before step $stepIndex")
 
 /**
  * A testing hook: makes [JournalExecutor] throw [SimulatedCrash] right before

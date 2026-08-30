@@ -3,6 +3,8 @@ package com.tracel.tests.log
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.log.InMemoryTransactionLog
 import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.LookupRegion
+import com.tracel.model.id.WorldId
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import java.util.UUID
 
 class InMemoryTransactionLogTest {
     @Test
@@ -82,6 +85,27 @@ class InMemoryTransactionLogTest {
         assertEquals(listOf(txn2), log.query(LookupFilter(causes = setOf(CauseKind.EXPLOSION))))
         assertEquals(listOf(txn3, txn2), log.query(LookupFilter(since = 2_000L)))
         assertEquals(listOf(txn2), log.query(LookupFilter(limit = 1, since = 1_500L, until = 2_500L)))
+        assertEquals(
+            listOf(txn3, txn1),
+            log.query(LookupFilter(excludedCauses = setOf(CauseKind.EXPLOSION))),
+        )
+    }
+
+    @Test
+    fun `a region filter keeps transactions whose chests sit inside it`() = runTest {
+        val log = InMemoryTransactionLog()
+        val world = WorldId(UUID(0L, 1L))
+        val here = block(3, 64, 5)
+        val there = block(1608, 64, 1608)
+        val steve = player(1)
+        log.append(Transaction(TxnId(1), Seq(1), 100, CauseKind.PLAYER_ACTION, steve, listOf(Flow(diamond, Quantity(1), here, steve, FlowKind.MOVE))))
+        log.append(Transaction(TxnId(2), Seq(2), 200, CauseKind.PLAYER_ACTION, steve, listOf(Flow(diamond, Quantity(1), there, steve, FlowKind.MOVE))))
+
+        val nearby = LookupRegion(world, 0, 0, 0, 0)
+        assertEquals(
+            listOf(Seq(1)),
+            log.query(LookupFilter(holders = setOf(steve), region = nearby)).map { it.seq },
+        )
     }
 
     @Test
@@ -101,5 +125,19 @@ class InMemoryTransactionLogTest {
         assertEquals(listOf(txns[4], txns[3]), page1)
         assertEquals(listOf(txns[2], txns[1]), page2)
         assertEquals(listOf(txns[0]), page3)
+    }
+
+    @Test
+    fun `bookkeeping is findable by id but invisible to lookup`() = runTest {
+        val log = InMemoryTransactionLog()
+        val chest = block(0, 64, 0)
+        val steve = player(1)
+        val original = Transaction(TxnId(1), Seq(1), 100, CauseKind.PLAYER_ACTION, steve, listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE)))
+        val rollback = Transaction(TxnId(2), Seq(2), 200, CauseKind.ROLLBACK, null, listOf(Flow(diamond, Quantity(1), steve, chest, FlowKind.MOVE)))
+        val undo = Transaction(TxnId(3), Seq(3), 300, CauseKind.INVOLUTION, null, listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE)))
+        listOf(original, rollback, undo).forEach { log.append(it) }
+
+        assertEquals(rollback, log.find(TxnId(2)))
+        assertEquals(listOf(original), log.query(LookupFilter(limit = Int.MAX_VALUE)))
     }
 }

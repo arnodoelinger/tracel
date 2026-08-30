@@ -9,11 +9,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
-/**
- * The mechanism the whole capture design leans on: what moved is derived from what an
- * inventory contains now versus what it contained last time, never from interpreting the
- * `Bukkit` event that caused it.
- */
 class SnapshotDifferTest {
     @Test
     fun `the first snapshot of a holder produces gains, not deltas from nothing`() = runTest {

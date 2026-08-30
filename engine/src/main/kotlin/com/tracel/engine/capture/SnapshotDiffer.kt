@@ -1,13 +1,14 @@
 package com.tracel.engine.capture
 
 import com.tracel.engine.balance.InventoryDelta
+import com.tracel.engine.balance.TransactionBalancer
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Tracks the last known contents of each holder `Tracel` watches, and turns "here's what it
- * looks like now" into the raw deltas [com.tracel.engine.balance.TransactionBalancer] needs.
+ * looks like now" into the raw deltas [TransactionBalancer] needs.
  *
  * This is the mechanism the whole capture design leans on: diffing an inventory's contents,
  * never interpreting which click, drag, or hotbar swap produced them.
@@ -15,13 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
 public class SnapshotDiffer(
     private val baseline: suspend (HolderId) -> Map<ItemKey, Long> = { emptyMap() },
 ) {
-    /**
-     * [totals] is the holder's contents when [seeded], and a running total of [adjust]ments
-     * still owed to a not-yet-fetched baseline when it isn't.
-     */
     private data class Snapshot(val totals: Map<ItemKey, Long>, val seeded: Boolean)
-
-    /** Snapshots. */
     private val snapshots = ConcurrentHashMap<HolderId, Snapshot>()
 
     /**

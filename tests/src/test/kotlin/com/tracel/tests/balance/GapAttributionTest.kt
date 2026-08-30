@@ -12,11 +12,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
-/**
- * Measures how much of the ledger is unattributed, and it is only worth measuring if
- * "we watched this happen and cannot explain it" stays separable from "we were not
- * running at the time".
- */
 class GapAttributionTest {
     private val chest = block(0, 64, 0)
 

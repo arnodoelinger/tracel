@@ -2,10 +2,10 @@ package com.tracel.tests.rollback
 
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
-import com.tracel.engine.rollback.LotContribution
-import com.tracel.engine.rollback.RollbackPlan
-import com.tracel.engine.rollback.RollbackStep
-import com.tracel.engine.rollback.physicalDeltas
+import com.tracel.engine.rollback.plan.LotContribution
+import com.tracel.engine.rollback.plan.RollbackPlan
+import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.physicalDeltas
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
 import com.tracel.tests.support.Fixtures.block
@@ -57,14 +57,14 @@ class PhysicalDeltasTest {
         val steve = player(1)
         val bob = player(2)
         val ingredientLot = world.ledger.mint(steve, diamond, Quantity(9), world.nextTxn())
-        val outputLot = world.ledger.craft(
+        val crafted = world.ledger.craft(
             listOf(Ingredient(steve, diamond, Quantity(9))),
             Product(steve, diamondBlock, Quantity(1)),
             world.nextTxn(),
         )
 
         val plan = RollbackPlan(
-            listOf(RollbackStep.Unmake(outputLot.id, listOf(LotContribution(ingredientLot.id, Quantity(9))), world.nextTxn(), steve))
+            listOf(RollbackStep.Unmake(crafted.output.id, listOf(LotContribution(ingredientLot.id, Quantity(9))), world.nextTxn(), steve))
         )
 
         assertEquals(

@@ -1,8 +1,9 @@
-package com.tracel.engine.rollback
+package com.tracel.engine.rollback.plan
 
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
 
 /**
@@ -11,25 +12,31 @@ import com.tracel.model.item.ItemKey
  * [restoreTo] already carries everything needed.
  *
  * A holder that is both a source and [restoreTo] (rolling back to yourself) nets to zero via the
- * merge, no special-casing needed.
+ * merge.
  */
 public suspend fun physicalDeltas(plan: RollbackPlan, restoreTo: HolderId, ledger: LotLedger): Map<HolderId, Map<ItemKey, Long>> =
-    ledger.atomically {
+    physicalDeltas(plan, RollbackTarget.Uniform(restoreTo), ledger)
+
+/** The same, for a rollback whose reclaimed material does not all go to one place. */
+public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, ledger: LotLedger): Map<HolderId, Map<ItemKey, Long>> =
+    ledger.reading {
         val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
         fun add(holder: HolderId, itemKey: ItemKey, amount: Long) {
             deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
         }
+
+        fun destinationFor(lotId: LotId): HolderId = target.destinationFor(plan, lotId)
 
         for (step in plan.steps) {
             when (step) {
                 is RollbackStep.Take -> {
                     val key = ledger.itemKeyOf(step.lotId)
                     add(step.holder, key, -step.quantity.raw)
-                    add(restoreTo, key, step.quantity.raw)
+                    add(destinationFor(step.lotId), key, step.quantity.raw)
                 }
 
-                is RollbackStep.Mint -> add(restoreTo, ledger.itemKeyOf(step.lotId), step.quantity.raw)
-                is RollbackStep.Debt -> add(restoreTo, ledger.itemKeyOf(step.lotId), step.quantity.raw)
+                is RollbackStep.Mint -> add(destinationFor(step.lotId), ledger.itemKeyOf(step.lotId), step.quantity.raw)
+                is RollbackStep.Debt -> add(destinationFor(step.lotId), ledger.itemKeyOf(step.lotId), step.quantity.raw)
 
                 is RollbackStep.Unmake -> {
                     add(step.holder, ledger.itemKeyOf(step.outputLot), -ledger.quantityOf(step.outputLot).raw)
@@ -43,9 +50,7 @@ public suspend fun physicalDeltas(plan: RollbackPlan, restoreTo: HolderId, ledge
 
 /**
  * Net physical change per real holder undoing [steps] implies — the involution-side mirror of
- * [physicalDeltas]. Needs no [LotLedger] lookup, unlike the forward direction: [InvolutionStep]
- * already carries its own item key and quantity directly, since it is deliberately expressed in
- * those terms rather than lot ids.
+ * [physicalDeltas].
  */
 public fun physicalDeltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map<ItemKey, Long>> {
     val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()

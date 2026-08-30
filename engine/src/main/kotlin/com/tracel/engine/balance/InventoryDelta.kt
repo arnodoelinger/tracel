@@ -4,12 +4,9 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 
 /**
- * A raw observation from capture: [holder]'s stock of [itemKey] changed by
- * [delta] (positive = gained, negative = lost). [TransactionBalancer] turns a
- * set of these into balanced flows.
+ * Capture saw [holder]'s stock of [itemKey] change by [delta] (gained / lost).
  *
- * [fromGap] marks a delta measured against a baseline that had to be reconstructed from the
- * ledger.
+ * [fromGap] means the baseline was rebuilt from the ledger and (!) not observed.
  */
 public data class InventoryDelta(
     public val holder: HolderId,

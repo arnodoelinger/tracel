@@ -2,8 +2,9 @@ package com.tracel.tests.demo
 
 import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.rollback.RollbackExecutor
-import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.plan.RollbackPlanner
+import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.tests.support.Fixtures.block
@@ -15,13 +16,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
-/**
- * A chest gets blown up, its contents scatter to two players through two
- * separate drop piles, one player moves their share to another chest, and
- * rolling back the explosion has to make the original chest whole again
- * without duplicating or losing a single diamond — no matter how many hops
- * the material took to get where it is.
- */
 class DemoScenarioTest {
     @Test
     fun `chest survives TNT, two pickups, a transfer, and a rollback with zero drift`() = runTest {
@@ -59,7 +53,7 @@ class DemoScenarioTest {
         val executor = RollbackExecutor(world.ledger, world.log, world::nextSeq)
         val journalExecutor = JournalExecutor(executor, InMemoryJournal(), world.leases, world::nextTxn)
         val lease = world.acquireLease(RollbackJobId(1), plan)
-        journalExecutor.execute(lease, plan, restoreTo = chest)
+        journalExecutor.execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw, "the original chest is whole again")
         assertEquals(0L, world.ledger.totalAt(otherChest, diamond)?.raw ?: 0L, "the transferred share was reclaimed")

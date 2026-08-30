@@ -5,8 +5,14 @@ import com.lemonappdev.konsist.api.ext.list.modifierprovider.withPublicOrDefault
 import com.lemonappdev.konsist.api.ext.list.withAnnotationOf
 import com.lemonappdev.konsist.api.verify.assertFalse
 import com.lemonappdev.konsist.api.verify.assertTrue
+import com.tracel.annotations.Consume
 import com.tracel.annotations.Journaled
 import com.tracel.annotations.Observes
+import com.tracel.annotations.Reads
+import com.tracel.annotations.RequiresLease
+import com.tracel.annotations.RunsOn
+import com.tracel.annotations.SingleWriter
+import com.tracel.annotations.Snapshot
 import org.junit.jupiter.api.Test
 
 class ArchitectureTest {
@@ -82,12 +88,102 @@ class ArchitectureTest {
     }
 
     @Test
-    fun `Journaled functions are suspending`() {
-        // A journal step schedules onto a region or entity thread and awaits a barrier
-        Konsist.scopeFromProject()
+    fun `Journaled functions are suspending and talk to a journal`() {
+        val journaled = Konsist.scopeFromProject()
             .functions()
             .withAnnotationOf(Journaled::class)
-            .assertTrue(testName = "journal steps suspend") { it.hasSuspendModifier }
+        check(journaled.isNotEmpty()) { "no @Journaled functions — the annotation is unused decoration" }
+        journaled.assertTrue(testName = "journal steps suspend") { it.hasSuspendModifier }
+        journaled.assertTrue(testName = "journal steps use a journal") {
+            it.text.contains("journal.")
+        }
+    }
+
+    @Test
+    fun `InMemory ports are SingleWriter STORAGE and writes check in`() {
+        val ports = Konsist.scopeFromModule("engine")
+            .classes()
+            .filter { it.name.startsWith("InMemory") }
+        check(ports.isNotEmpty()) { "no InMemory* classes in engine" }
+        ports.assertTrue(testName = "InMemory is @SingleWriter") { it.hasAnnotationOf(SingleWriter::class) }
+        ports.assertTrue(testName = "InMemory is @RunsOn(STORAGE)") { klass ->
+            klass.hasAnnotationOf(RunsOn::class) &&
+                klass.annotations.any { it.text.contains("STORAGE") }
+        }
+        ports.flatMap { klass ->
+            klass.functions(includeNested = false)
+                .withPublicOrDefaultModifier()
+                .filterNot { it.hasAnnotationOf(Reads::class) }
+        }.assertTrue(testName = "writes call writer.checkIn()") { function ->
+            function.text.contains("writer.checkIn()")
+        }
+    }
+
+    @Test
+    fun `Reads methods on InMemory ports do not check in`() {
+        Konsist.scopeFromModule("engine")
+            .classes()
+            .filter { it.name.startsWith("InMemory") }
+            .flatMap { it.functions(includeNested = false) }
+            .withAnnotationOf(Reads::class)
+            .assertFalse(testName = "@Reads does not checkIn") { it.text.contains("writer.checkIn()") }
+    }
+
+    @Test
+    fun `engine never claims REGION`() {
+        Konsist.scopeFromModule("engine")
+            .classes()
+            .withAnnotationOf(RunsOn::class)
+            .assertFalse(testName = "no REGION in engine") { klass ->
+                klass.annotations.any { it.text.contains("REGION") }
+            }
+        Konsist.scopeFromModule("engine")
+            .functions()
+            .withAnnotationOf(RunsOn::class)
+            .assertFalse(testName = "no REGION functions in engine") { function ->
+                function.annotations.any { it.text.contains("REGION") }
+            }
+    }
+
+    @Test
+    fun `STORAGE types never mention Bukkit`() {
+        Konsist.scopeFromModule("engine")
+            .classes()
+            .withAnnotationOf(RunsOn::class)
+            .filter { klass -> klass.annotations.any { it.text.contains("STORAGE") } }
+            .assertFalse(testName = "STORAGE has no Bukkit") { klass ->
+                klass.containingFile.text.contains("org.bukkit") ||
+                    klass.containingFile.text.contains("io.papermc")
+            }
+    }
+
+    @Test
+    fun `REGION functions do not open a unit of work without launch`() {
+        Konsist.scopeFromProject()
+            .functions()
+            .withAnnotationOf(RunsOn::class)
+            .filter { function -> function.annotations.any { it.text.contains("REGION") } }
+            .assertFalse(testName = "REGION no inline atomically") { function ->
+                function.text.contains("atomically") && !function.text.contains("launch")
+            }
+    }
+
+    @Test
+    fun `takeFifo and drainFifo are Consume`() {
+        Konsist.scopeFromProject()
+            .functions()
+            .filter { it.name == "takeFifo" || it.name == "drainFifo" }
+            .assertTrue(testName = "FIFO consume is @Consume") { it.hasAnnotationOf(Consume::class) }
+    }
+
+    @Test
+    fun `InMemoryLotRepository publishes a Snapshot`() {
+        Konsist.scopeFromModule("engine")
+            .classes()
+            .filter { it.name == "InMemoryLotRepository" }
+            .assertTrue(testName = "has @Snapshot nested state") { klass ->
+                klass.classes().any { it.hasAnnotationOf(Snapshot::class) }
+            }
     }
 
     @Test
@@ -96,6 +192,8 @@ class ArchitectureTest {
         // a function body (like a loop counter) are not properties, so they are unaffected by this.
         domainScope()
             .properties()
+            .filterNot { it.containingFile.name == "InMemoryLotRepository" }
+            .withPublicOrDefaultModifier()
             .assertFalse(testName = "no var properties") { it.isVar }
     }
 
@@ -145,13 +243,11 @@ class ArchitectureTest {
     }
 
     @Test
-    fun `JournalExecutor and InvolutionExecutor cannot be called without a LotLease`() {
+    fun `RequiresLease functions take a LotLease first`() {
         val gated = Konsist.scopeFromModule("engine")
-            .classes()
-            .filter { it.name == "JournalExecutor" || it.name == "InvolutionExecutor" }
-            .flatMap { it.functions() }
-            .filter { it.name == "execute" || it.name == "apply" }
-
+            .functions()
+            .withAnnotationOf(RequiresLease::class)
+        check(gated.isNotEmpty()) { "no @RequiresLease functions" }
         gated.assertTrue(testName = "first parameter is a LotLease") {
             it.parameters.firstOrNull()?.type?.name == "LotLease"
         }

@@ -16,17 +16,11 @@ public enum class ThreadContext {
     /** Off-thread work: queries, planning, compaction, retention. */
     ASYNC,
 
-    /** The single `SQLite` writer. */
+    /** The single database writer. */
     STORAGE,
 }
 
-/**
- * Declares which thread a function may execute on.
- *
- * This cannot be expressed by a type or a function, because the property being
- * checked is about the call graph: an [ThreadContext.ASYNC] function must never
- * reach a [ThreadContext.REGION] one without going through a scheduler.
- */
+/** Thread this type or function may run on. */
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY, AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.BINARY)
 @MustBeDocumented

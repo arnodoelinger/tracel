@@ -1,5 +1,6 @@
-package com.tracel.engine.rollback
+package com.tracel.engine.rollback.plan
 
+import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
 
 /**
@@ -7,16 +8,20 @@ import com.tracel.model.id.LotId
  * always come before the [RollbackStep.Take]s that depend on their output
  * existing again.
  */
-public data class RollbackPlan(public val steps: List<RollbackStep>) {
+public data class RollbackPlan(
+    public val steps: List<RollbackStep>,
+    public val rootOf: Map<LotId, LotId> = emptyMap(),
+    public val settled: Set<LotId> = emptySet(),
+) {
     public val mintCount: Int get() = steps.count { it is RollbackStep.Mint || it is RollbackStep.Debt }
     public val takeCount: Int get() = steps.count { it is RollbackStep.Take }
     public val unmakeCount: Int get() = steps.count { it is RollbackStep.Unmake }
 
-    /**
-     * Every lot this plan touches — what a [com.tracel.engine.ownership.LotLease] over this
-     * plan needs to reserve before [JournalExecutor] is allowed to apply it. An [RollbackStep.Unmake]
-     * touches both its output and every one of its inputs, not just the traced lot.
-     */
+    public val holders: Set<HolderId>
+        get() = buildSet {
+            for (step in steps) if (step is RollbackStep.Take) add(step.holder)
+        }
+
     public val touchedLots: Set<LotId>
         get() = buildSet {
             for (step in steps) when (step) {

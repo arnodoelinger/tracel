@@ -1,7 +1,9 @@
 package com.tracel.engine.rollback.involution
 
 import com.tracel.annotations.CauseKind
+import com.tracel.annotations.RequiresLease
 import com.tracel.engine.capture.craftFlows
+import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.ownership.LotLease
@@ -17,7 +19,7 @@ import com.tracel.platform.storage.UnitOfWork
 /**
  * Physically applies one [InvolutionStep] against the ledger.
  *
- * Takes a [LotLease] for the same reason [com.tracel.engine.journal.JournalExecutor] does:
+ * Takes a [LotLease] for the same reason [JournalExecutor] does:
  * undoing a job touches exactly the lots the original rollback touched, and nothing else may
  * be mutating them concurrently while that happens.
  */
@@ -26,6 +28,7 @@ public class InvolutionExecutor(
     private val log: TransactionLog,
     private val nextSeq: suspend () -> Seq,
 ) : UnitOfWork by ledger {
+    @RequiresLease
     public suspend fun apply(lease: LotLease, step: InvolutionStep, txn: TxnId): Unit = atomically {
         val flows = when (step) {
             is InvolutionStep.Return -> {
@@ -35,6 +38,7 @@ public class InvolutionExecutor(
 
             is InvolutionStep.Retract -> {
                 ledger.burn(step.from, step.itemKey, step.quantity, SinkKind.ROLLBACK_BURN, txn)
+                step.originalLot?.let { ledger.uncompensate(it, lease.job) }
                 listOf(Flow(step.itemKey, step.quantity, step.from, HolderId.Sink(SinkKind.ROLLBACK_BURN), FlowKind.BURN))
             }
 

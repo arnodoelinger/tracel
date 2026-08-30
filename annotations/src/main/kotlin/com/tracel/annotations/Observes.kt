@@ -18,6 +18,12 @@ public enum class CauseKind {
     UNKNOWN,
 }
 
+/**
+ * Rollback and undo bookkeeping. The job record is the reversible layer; lookup must not treat
+ * these as ordinary history, or every undo / rollback round-trip would re-read itself.
+ */
+public val CauseKind.isBookkeeping: Boolean get() = this == CauseKind.ROLLBACK || this == CauseKind.INVOLUTION
+
 /** Which holders the generated listener marks dirty for the end-of-tick diff. */
 public enum class Tracked {
     TOP_INVENTORY,
@@ -37,9 +43,6 @@ public enum class Tracked {
  * cancelled-event filter, marking [tracks] holders dirty, and opening a
  * transaction with [cause]. The annotated function is left with only the part
  * that is actually specific to the event.
- *
- * The event type is read from the function's single parameter. The Kotlin
- * signature already carries it.
  *
  * ```
  * @Observes(priority = Priority.LOWEST, cause = CauseKind.PLAYER_ACTION,

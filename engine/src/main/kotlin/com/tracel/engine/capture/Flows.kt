@@ -1,7 +1,7 @@
 package com.tracel.engine.capture
 
-import com.tracel.engine.balance.TransactionBalancer
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.ledger.LotPortion
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -9,24 +9,28 @@ import com.tracel.model.id.TxnId
 import com.tracel.model.item.ItemKey
 
 /**
- * Applies [flow] to this ledger — the mechanical half of what [TransactionBalancer] produces.
+ * Applies one [flow] to the ledger.
+ *
+ * Returns the portions that actually moved. The flow says how many, the lots say which ones.
+ *
+ * Crafts are in [LotLedger.craft].
+ *
+ * @see [Flow]
+ * @see [LotLedger.craft]
  */
-public suspend fun LotLedger.apply(flow: Flow, txn: TxnId) {
+public suspend fun LotLedger.apply(flow: Flow, txn: TxnId): List<LotPortion> =
     when (flow.kind) {
         FlowKind.MOVE -> move(flow.source, flow.destination, flow.itemKey, flow.quantity, txn)
-        FlowKind.MINT -> mint(flow.destination, flow.itemKey, flow.quantity, txn)
+        FlowKind.MINT -> listOf(LotPortion(mint(flow.destination, flow.itemKey, flow.quantity, txn).id, flow.quantity))
         FlowKind.BURN -> burn(flow.source, flow.itemKey, flow.quantity, (flow.destination as HolderId.Sink).kind, txn)
         FlowKind.TRANSFORM_IN, FlowKind.TRANSFORM_OUT ->
             error("TRANSFORM flows come from LotLedger.craft() directly, not from applying a Flow generically")
     }
-}
 
 /**
- * Throws unless every withdrawal [flows] implies can actually be satisfied — before any of them
- * has mutated anything.
+ * Fails the whole set if any withdrawal would overdraw, without mutating the ledger.
  *
- * Simulates the flows in order rather than summing per source, so a flow drawing on material an
- * earlier flow in the same transaction deposited is judged on the balance it would actually see.
+ * Walks [flows] in order: a later move can spend what an earlier one just deposited.
  */
 public suspend fun LotLedger.checkAllWithdrawalsSatisfiable(flows: List<Flow>): Unit = atomically {
     val pending = mutableMapOf<Pair<HolderId, ItemKey>, Long>()

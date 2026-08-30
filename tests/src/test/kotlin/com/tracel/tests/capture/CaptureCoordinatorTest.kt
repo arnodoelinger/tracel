@@ -26,7 +26,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
-/** The full pipeline: raw deltas -> balanced flows -> applied to the ledger -> logged. */
 class CaptureCoordinatorTest {
     @Test
     fun `a matched move updates the ledger and logs one transaction`() = runTest {
@@ -224,5 +223,27 @@ class CaptureCoordinatorTest {
         checkNotNull(transaction)
         assertEquals(5L, world.ledger.totalAt(ground, diamond)?.raw)
         assertNull(world.ledger.totalAt(steve, diamond))
+    }
+
+    @Test
+    fun `a mint and a withdrawal of the same material in one transaction both apply`() = runTest {
+        val world = LedgerHarness()
+        val log = InMemoryTransactionLog()
+        val bush = block(10, 64, 10)
+        val steve = player(1)
+        var nextSeqRaw = 1L
+        val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
+
+        val flows = listOf(
+            Flow(diamond, Quantity(3), HolderId.Source(SourceKind.WORLDGEN), bush, FlowKind.MINT),
+            Flow(diamond, Quantity(3), bush, steve, FlowKind.MOVE),
+        )
+
+        val transaction = coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
+
+        assertEquals(3L, world.ledger.totalAt(steve, diamond)?.raw, "the material ends up in the hand")
+        assertNull(world.ledger.totalAt(bush, diamond), "and none of it is left behind in the plant")
+        assertEquals(1, log.all().size, "one transaction, not a mint and a move filed separately")
+        assertEquals(2, transaction?.flows?.size)
     }
 }

@@ -9,13 +9,6 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
-/**
- * The scenario this exists for: admin A runs `/tracel rollback apply` over territory that
- * takes 30 seconds to resolve; admin B starts a second rollback over overlapping territory
- * 20 seconds in. Without a reservation, both would happily mutate the same lots. With one,
- * B's [com.tracel.engine.journal.JournalExecutor.execute] call cannot even be written —
- * there is no [com.tracel.engine.ownership.LotLease] to pass it.
- */
 class LotLeaseRegistryTest {
     @Test
     fun `a job can acquire lots nothing else holds`() = runTest {

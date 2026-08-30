@@ -1,6 +1,5 @@
 package com.tracel.tests.support
 
-/** `assertThrows` for code that suspends. */
 inline fun <reified T : Throwable> assertFails(block: () -> Unit): T {
     try {
         block()

@@ -6,10 +6,12 @@ import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
 import com.tracel.engine.ownership.LeaseAcquisition
-import com.tracel.engine.rollback.InMemoryRollbackJobRepository
-import com.tracel.engine.rollback.RollbackExecutor
-import com.tracel.engine.rollback.RollbackJobRecord
-import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.engine.rollback.job.InMemoryRollbackJobRepository
+import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.plan.RollbackPlanner
+import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.involution.InvolutionExecutor
 import com.tracel.engine.rollback.involution.InvolutionPlanner
 import com.tracel.model.flow.FlowKind
@@ -28,11 +30,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/**
- * Involution: undoing a rollback returns the ledger to its state right before that rollback
- * ran — not to some earlier, more innocent state. Material a rollback genuinely could not
- * recover (burned in lava, for instance) stays lost; only the compensation for it is retracted.
- */
 class InvolutionTest {
     @Test
     fun `undoing a take-plus-mint rollback restores the pre-rollback state exactly`() = runTest {
@@ -52,10 +49,10 @@ class InvolutionTest {
 
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
-        jobs.save(RollbackJobRecord(job, plan, chest))
+        jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
         val lease = world.acquireLease(job, plan)
         JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(lease, plan, restoreTo = chest)
+            .execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
         // Sanity check the rollback itself did what NoDupeTest already proves it does
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw)
@@ -73,6 +70,14 @@ class InvolutionTest {
         assertNull(world.ledger.totalAt(chest, diamond), "the chest gives back everything the rollback put there")
         assertEquals(6L, world.ledger.totalAt(steve, diamond)?.raw, "Steve gets back exactly what was actually recovered")
         assertEquals(6L, world.ledger.census(diamond), "back to the pre-rollback census — the burned 4 stay burned")
+
+        val compensated = plan.steps.filterIsInstance<RollbackStep.Mint>().map { it.lotId }.toSet()
+        val replan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        assertEquals(emptySet<Any>(), replan.settled, "undoing a rollback un-settles what it compensated")
+        assertTrue(
+            replan.steps.filterIsInstance<RollbackStep.Mint>().map { it.lotId }.containsAll(compensated),
+            "every lot the first rollback compensated is compensable again: $replan",
+        )
     }
 
     @Test
@@ -98,10 +103,10 @@ class InvolutionTest {
 
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(looted.id))
-        jobs.save(RollbackJobRecord(job, plan, chest))
+        jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
         val lease = world.acquireLease(job, plan)
         JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(lease, plan, restoreTo = chest)
+            .execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
         // Sanity check the rollback itself did what CraftUnmakeTest already proves it does
         assertEquals(4L, world.ledger.totalAt(chest, diamond)?.raw)
@@ -146,10 +151,10 @@ class InvolutionTest {
 
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
-        jobs.save(RollbackJobRecord(job, plan, chest))
+        jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
         val lease = world.acquireLease(job, plan)
         JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(lease, plan, restoreTo = chest)
+            .execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
         // Job 1's own lease was released automatically on success — but before anyone gets
         // around to undoing it, a second, unrelated job starts working the exact same lots

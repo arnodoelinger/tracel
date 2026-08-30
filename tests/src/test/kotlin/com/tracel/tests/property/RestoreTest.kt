@@ -2,9 +2,10 @@ package com.tracel.tests.property
 
 import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.rollback.RollbackExecutor
-import com.tracel.engine.rollback.RollbackPlanner
-import com.tracel.engine.rollback.WorldQuery
+import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.plan.RollbackPlanner
+import com.tracel.engine.rollback.plan.RollbackTarget
+import com.tracel.engine.rollback.plan.WorldQuery
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.tests.support.Fixtures.block
@@ -15,12 +16,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
-/**
- * Restore: no matter how many hops a traced batch's material takes
- * afterward — split three ways, passed between four different holders —
- * rolling back to its root reproduces the same real-world census the root
- * represented at the checkpoint.
- */
 class RestoreTest {
     @Test
     fun `census after rollback matches the census at the traced checkpoint`() = runTest {
@@ -44,7 +39,7 @@ class RestoreTest {
 
         val plan = RollbackPlanner(world.repo, WorldQuery { true }).plan(listOf(root.id))
         JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = chest)
+            .execute(world.acquireLease(RollbackJobId(1), plan), plan, target = RollbackTarget.Uniform(chest))
 
         assertEquals(checkpointCensus, world.ledger.census(diamond))
         assertEquals(20L, world.ledger.totalAt(chest, diamond)?.raw)

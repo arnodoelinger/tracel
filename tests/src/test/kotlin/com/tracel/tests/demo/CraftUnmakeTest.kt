@@ -4,8 +4,9 @@ import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
-import com.tracel.engine.rollback.RollbackExecutor
-import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.plan.RollbackPlanner
+import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.tests.support.Fixtures.block
@@ -18,17 +19,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/**
- * The case that actually justifies tracking lots instead of just quantities:
- * a player crafts a diamond block from 4 looted diamonds and 5 of their own.
- * A naive rollback either leaves the loot embedded in the block (an
- * uncorrected theft) or destroys the whole block (stealing the player's own
- * 5 diamonds too).
- *
- * Because the ledger knows exactly how many units of the traced lot went into
- * the craft, undoing it recovers precisely the 4 that were owed — the player
- * keeps their own material untouched.
- */
 class CraftUnmakeTest {
 
     @Test
@@ -61,7 +51,7 @@ class CraftUnmakeTest {
 
         val executor = RollbackExecutor(world.ledger, world.log, world::nextSeq)
         JournalExecutor(executor, InMemoryJournal(), world.leases, world::nextTxn)
-            .execute(world.acquireLease(RollbackJobId(1), plan), plan, restoreTo = chest)
+            .execute(world.acquireLease(RollbackJobId(1), plan), plan, target = RollbackTarget.Uniform(chest))
 
         assertEquals(4L, world.ledger.totalAt(chest, diamond)?.raw, "the 4 looted diamonds are back in the chest")
         assertEquals(5L, world.ledger.totalAt(steve, diamond)?.raw, "Steve keeps exactly his own 5 — not 9, not 0")
