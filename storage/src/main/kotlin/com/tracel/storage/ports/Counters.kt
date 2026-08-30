@@ -4,11 +4,12 @@ import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
+import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Durable ID allocation, a block at a time.
@@ -21,8 +22,9 @@ import kotlinx.coroutines.sync.withLock
 class Counters(private val storage: TracelStorage, private val blockSize: Long = DEFAULT_BLOCK_SIZE) {
     private class Reservation(var next: Long, var exhaustedAt: Long)
 
-    private val lock = Mutex()
+    private val lock = ReentrantLock()
     private val reserved = HashMap<Int, Reservation>()
+
 
     suspend fun nextTxnId(): TxnId = TxnId(next(TXN))
 
@@ -36,16 +38,50 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
 
     suspend fun nextPendingDeliveryId(): Long = next(PENDING_DELIVERY)
 
-    suspend fun forget() {
-        lock.withLock { reserved.clear() }
+    fun nextLotIdOn(unit: StorageUnit): LotId = LotId(nextOn(unit, LOT))
+
+    suspend fun peekTxnId(): Long {
+        lock.lock()
+        val cached = try {
+            reserved[TXN]?.takeIf { it.next < it.exhaustedAt }?.next
+        } finally {
+            lock.unlock()
+        }
+        if (cached != null) return cached
+        return storage.read {
+            get(Keys.counter(TXN))?.let(Records::asLong) ?: 1L
+        }
     }
 
-    private suspend fun next(name: Int): Long = lock.withLock {
-        val reservation = reserved[name]
-        if (reservation != null && reservation.next < reservation.exhaustedAt) {
-            return@withLock reservation.next++
+    private suspend fun next(name: Int): Long {
+        lock.lock()
+        try {
+            val reservation = reserved[name]
+            if (reservation != null && reservation.next < reservation.exhaustedAt) return reservation.next++
+        } finally {
+            lock.unlock()
         }
+
         val start = reserve(name)
+
+        lock.lock()
+        try {
+            val reservation = reserved[name]
+            if (reservation != null && reservation.next < reservation.exhaustedAt) return reservation.next++
+            reserved[name] = Reservation(start + 1, start + blockSize)
+        } finally {
+            lock.unlock()
+        }
+        return start
+    }
+
+    @Suppress("SameParameterValue")
+    private fun nextOn(unit: StorageUnit, name: Int): Long = lock.withLock {
+        val reservation = reserved[name]
+        if (reservation != null && reservation.next < reservation.exhaustedAt) return reservation.next++
+        val key = Keys.counter(name)
+        val start = unit.get(key)?.let(Records::asLong) ?: 1L
+        unit.put(key, Records.long(start + blockSize))
         reserved[name] = Reservation(start + 1, start + blockSize)
         start
     }

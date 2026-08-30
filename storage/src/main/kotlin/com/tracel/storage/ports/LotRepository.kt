@@ -2,6 +2,8 @@ package com.tracel.storage.ports
 
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.tracel.annotations.Consume
+import com.tracel.engine.ledger.LotPortion
 import com.tracel.engine.ledger.LotRepository as LotRepositoryPort
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
@@ -43,6 +45,7 @@ class LotRepository(
 ) : LotRepositoryPort, UnitOfWork by storage {
     private val interning: Interning get() = storage.interning
     private val lots: Cache<LotId, Lot> = Caffeine.newBuilder().maximumSize(100_000).build()
+    private val fifoScratch = FifoScratch()
 
     override suspend fun createLot(itemKey: ItemKey, quantity: Quantity, createdBy: TxnId): Lot {
         val id = counters.nextLotId()
@@ -78,24 +81,120 @@ class LotRepository(
         }
     }
 
+    override suspend fun removeEdge(parent: LotId, child: LotId) {
+        storage.write {
+            delete(Keys.edgeFrom(parent.raw, child.raw))
+            delete(Keys.edgeInto(child.raw, parent.raw))
+        }
+    }
+
     override suspend fun edgesFrom(lotId: LotId): List<LotEdge> = storage.read {
+        readEdgesFrom(lotId)
+    }
+
+    override suspend fun findCompensateEdge(originalLotId: LotId, job: RollbackJobId): LotEdge.Compensate? = storage.read {
+        scan(Keys.edgeFromPrefix(originalLotId.raw)).use { cursor ->
+            while (cursor.next()) {
+                val value = cursor.value()
+                if (Records.edgeKind(value) != Records.EDGE_COMPENSATE) continue
+                if (Records.edgeReference(value) != job.raw) continue
+                return@read LotEdge.Compensate(
+                    LotId(KeyReader.u64(cursor.key(), 9)),
+                    originalLotId,
+                    Quantity(Records.edgeQuantity(value)),
+                    job,
+                )
+            }
+        }
+        null
+    }
+
+    override suspend fun edgesFromAll(ids: Collection<LotId>): Map<LotId, List<LotEdge>> {
+        if (ids.isEmpty()) return emptyMap()
+        val unique = ids.distinct()
+        return storage.read {
+            val out = HashMap<LotId, List<LotEdge>>(unique.size)
+            var i = 0
+            while (i < unique.size) {
+                val id = unique[i]
+                out[id] = readEdgesFrom(id)
+                i++
+            }
+            out
+        }
+    }
+
+    override suspend fun edgesIntoAll(ids: Collection<LotId>): Map<LotId, List<LotEdge>> {
+        if (ids.isEmpty()) return emptyMap()
+        val unique = ids.distinct()
+        return storage.read {
+            val out = HashMap<LotId, List<LotEdge>>(unique.size)
+            var i = 0
+            while (i < unique.size) {
+                val id = unique[i]
+                out[id] = readEdgesInto(id)
+                i++
+            }
+            out
+        }
+    }
+
+    override suspend fun lotsOfAll(ids: Collection<LotId>): Map<LotId, Lot> {
+        if (ids.isEmpty()) return emptyMap()
+        val unique = ids.distinct()
+        return storage.read {
+            val out = HashMap<LotId, Lot>(unique.size)
+            var i = 0
+            while (i < unique.size) {
+                val id = unique[i]
+                out[id] = readLot(this, id)
+                i++
+            }
+            out
+        }
+    }
+
+    override suspend fun currentHoldersOf(ids: Collection<LotId>): Map<LotId, HolderId> {
+        if (ids.isEmpty()) return emptyMap()
+        val unique = ids.distinct()
+        return storage.read {
+            val out = HashMap<LotId, HolderId>(unique.size)
+            var i = 0
+            while (i < unique.size) {
+                val id = unique[i]
+                scan(Keys.placeRevPrefix(id.raw)).use { cursor ->
+                    if (cursor.next()) {
+                        out[id] = interning.resolveHolder(this, KeyReader.u32(cursor.key(), 9))
+                    }
+                }
+                i++
+            }
+            out
+        }
+    }
+
+    private fun StorageUnit.readEdgesFrom(lotId: LotId): List<LotEdge> {
         val out = ArrayList<LotEdge>()
         scan(Keys.edgeFromPrefix(lotId.raw)).use { cursor ->
             while (cursor.next()) {
                 out += decodeEdge(this, cursor.value(), parent = lotId.raw, child = KeyReader.u64(cursor.key(), 9))
             }
         }
-        out
+        return out
     }
 
     override suspend fun edgesInto(lotId: LotId): List<LotEdge> = storage.read {
+        readEdgesInto(lotId)
+    }
+
+    private fun StorageUnit.readEdgesInto(lotId: LotId): List<LotEdge> {
         val out = ArrayList<LotEdge>()
         scan(Keys.edgeIntoPrefix(lotId.raw)).use { cursor ->
             while (cursor.next()) {
                 out += decodeEdge(this, cursor.value(), parent = KeyReader.u64(cursor.key(), 9), child = lotId.raw)
             }
         }
-        out
+        return out
     }
 
     override suspend fun accountQueue(holder: HolderId, itemKey: ItemKey, limit: Int): List<AccountLot> = storage.read {
@@ -106,6 +205,118 @@ class LotRepository(
             while (out.size < limit && cursor.next()) {
                 out += accountLot(this, holder, cursor.key(), cursor.value())
             }
+        }
+        out
+    }
+
+    @Consume
+    override suspend fun takeFifo(
+        holder: HolderId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId,
+    ): List<LotPortion> = storage.write {
+        val holderId = interning.findHolderId(this, holder)
+            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0")
+        val itemKeyId = interning.findItemKeyId(this, itemKey)
+            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0")
+        val buf = fifoScratch
+        buf.clear()
+        var need = quantity.raw
+        scan(Keys.placePrefix(holderId, itemKeyId)).use { cursor ->
+            while (need > 0 && cursor.next()) {
+                val value = cursor.value()
+                val remaining = Records.placementRemaining(value)
+                buf.add(KeyReader.u64(cursor.key(), 9), Records.placementLotId(value), remaining)
+                need -= if (remaining <= need) remaining else need
+            }
+        }
+        check(need == 0L) {
+            "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, short by $need"
+        }
+        val taken = ArrayList<LotPortion>(buf.n)
+        var still = quantity.raw
+        var i = 0
+        while (i < buf.n && still > 0) {
+            val remaining = buf.rem[i]
+            val lotId = buf.lots[i]
+            val fifo = buf.fifo[i]
+            if (remaining <= still) {
+                consumeSlot(this, holderId, itemKeyId, fifo, lotId, remaining)
+                taken += LotPortion(LotId(lotId), Quantity(remaining))
+                still -= remaining
+            } else {
+                taken += splitSlot(this, holderId, itemKeyId, itemKey, fifo, lotId, remaining, still, txn).taken
+                still = 0
+            }
+            i++
+        }
+        taken
+    }
+
+    @Consume
+    override suspend fun drainFifo(
+        holder: HolderId,
+        itemKey: ItemKey,
+        owed: List<Pair<HolderId, Long>>,
+        txn: TxnId,
+    ): List<Pair<HolderId, List<LotPortion>>> = storage.write {
+        if (owed.isEmpty()) return@write emptyList()
+        val holderId = interning.findHolderId(this, holder) ?: return@write emptyList()
+        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@write emptyList()
+        val buf = fifoScratch
+        buf.clear()
+        var want = 0L
+        var o = 0
+        while (o < owed.size) {
+            want += owed[o].second
+            o++
+        }
+        var have = 0L
+        scan(Keys.placePrefix(holderId, itemKeyId)).use { cursor ->
+            while ((want == 0L || have < want) && cursor.next()) {
+                val value = cursor.value()
+                val remaining = Records.placementRemaining(value)
+                buf.add(KeyReader.u64(cursor.key(), 9), Records.placementLotId(value), remaining)
+                have += remaining
+            }
+        }
+        val out = ArrayList<Pair<HolderId, List<LotPortion>>>(owed.size)
+        var slot = 0
+        var lotId = if (buf.n == 0) 0L else buf.lots[0]
+        var left = if (buf.n == 0) 0L else buf.rem[0]
+        o = 0
+        while (o < owed.size) {
+            val dest = owed[o]
+            var stillNeeded = dest.second
+            var taken: ArrayList<LotPortion>? = null
+            while (stillNeeded > 0 && slot < buf.n) {
+                val fifo = buf.fifo[slot]
+                val take = if (left <= stillNeeded) left else stillNeeded
+                if (take == left) {
+                    consumeSlot(this, holderId, itemKeyId, fifo, lotId, left)
+                    val bucket = taken ?: ArrayList<LotPortion>(4).also { taken = it }
+                    bucket += LotPortion(LotId(lotId), Quantity(take))
+                    stillNeeded -= take
+                    slot++
+                    if (slot < buf.n) {
+                        lotId = buf.lots[slot]
+                        left = buf.rem[slot]
+                    } else {
+                        left = 0L
+                    }
+                } else {
+                    val split = splitSlot(this, holderId, itemKeyId, itemKey, fifo, lotId, left, take, txn)
+                    val bucket = taken ?: ArrayList<LotPortion>(4).also { taken = it }
+                    bucket += split.taken
+                    lotId = split.keptLotId
+                    left = split.keptRemaining
+                    stillNeeded = 0
+                }
+            }
+            val got = taken
+            if (!got.isNullOrEmpty()) out += dest.first to got
+            o++
         }
         out
     }
@@ -135,6 +346,25 @@ class LotRepository(
         val fifoSeq = Records.placementRevFifoSeq(reverse)
         val key = Keys.place(holderId, itemKeyId, fifoSeq)
         get(key)?.let { accountLot(this, holder, key, it) }
+    }
+
+    override suspend fun census(itemKey: ItemKey): Long = storage.read {
+        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read 0L
+        var total = 0L
+        scan(Keys.placeItemPrefix(itemKeyId)).use { cursor ->
+            while (cursor.next()) {
+                val holderId = KeyReader.u32(cursor.key(), 5)
+                when (interning.resolveHolder(this, holderId)) {
+                    is HolderId.Source, is HolderId.Sink -> continue
+                    else -> {
+                        val fifoSeq = KeyReader.u64(cursor.key(), 9)
+                        val placement = get(Keys.place(holderId, itemKeyId, fifoSeq)) ?: continue
+                        total += Records.placementRemaining(placement)
+                    }
+                }
+            }
+        }
+        total
     }
 
     override suspend fun allPlacements(itemKey: ItemKey): List<AccountLot> = storage.read {
@@ -202,6 +432,71 @@ class LotRepository(
         }
     }
 
+    override suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId) {
+        storage.write {
+            if (from == to) return@write
+            val fromId = interning.findHolderId(this, from)
+                ?: error("lot $lotId is not currently placed at $from")
+            val toId = interning.internHolder(this, to)
+            val reverseKey = Keys.placeRev(lotId.raw, fromId)
+            val reverse = get(reverseKey) ?: error("lot $lotId is not currently placed at $from")
+            val itemKeyId = Records.placementRevItemKeyId(reverse)
+            val fifoSeq = Records.placementRevFifoSeq(reverse)
+            val placementKey = Keys.place(fromId, itemKeyId, fifoSeq)
+            val remaining = get(placementKey)?.let(Records::placementRemaining) ?: return@write
+
+            delete(placementKey)
+            delete(reverseKey)
+            delete(Keys.placeItem(itemKeyId, fromId, fifoSeq))
+            put(Keys.place(toId, itemKeyId, fifoSeq), Records.placement(lotId.raw, remaining))
+            put(Keys.placeRev(lotId.raw, toId), Records.placementRev(itemKeyId, fifoSeq))
+            put(Keys.placeItem(itemKeyId, toId, fifoSeq), EMPTY)
+            addToTotal(this, fromId, itemKeyId, -remaining)
+            addToTotal(this, toId, itemKeyId, remaining)
+        }
+    }
+
+    override suspend fun relocate(from: HolderId, to: HolderId) {
+        storage.write {
+            val fromId = interning.findHolderId(this, from) ?: return@write
+            val toId = interning.internHolder(this, to)
+            if (fromId == toId) return@write
+
+            // Read the whole account out before touching any of it: rewriting keys under a cursor
+            // that is still walking the same prefix is a good way to visit a key twice or not at all.
+            val moving = ArrayList<Moved>()
+            scan(Keys.placeHolderPrefix(fromId)).use { cursor ->
+                while (cursor.next()) {
+                    val key = cursor.key()
+                    val value = cursor.value()
+                    moving += Moved(
+                        KeyReader.u32(key, 5),
+                        KeyReader.u64(key, 9),
+                        Records.placementLotId(value),
+                        Records.placementRemaining(value),
+                    )
+                }
+            }
+
+            for ((itemKeyId, fifoSeq, lotId, remaining) in moving) {
+                delete(Keys.place(fromId, itemKeyId, fifoSeq))
+                delete(Keys.placeRev(lotId, fromId))
+                delete(Keys.placeItem(itemKeyId, fromId, fifoSeq))
+
+                // The queue position travels with the lot, so a relocated account keeps its FIFO
+                // order both internally and against whatever already sat at the destination.
+                put(Keys.place(toId, itemKeyId, fifoSeq), Records.placement(lotId, remaining))
+                put(Keys.placeRev(lotId, toId), Records.placementRev(itemKeyId, fifoSeq))
+                put(Keys.placeItem(itemKeyId, toId, fifoSeq), EMPTY)
+
+                addToTotal(this, fromId, itemKeyId, -remaining)
+                addToTotal(this, toId, itemKeyId, remaining)
+            }
+        }
+    }
+
+    private data class Moved(val itemKeyId: Int, val fifoSeq: Long, val lotId: Long, val remaining: Long)
+
     override suspend fun replace(holder: HolderId, retiredLotId: LotId, newLotId: LotId, remaining: Quantity) {
         storage.write {
             val holderId = interning.findHolderId(this, holder) ?: error("no placement of $retiredLotId at $holder")
@@ -223,6 +518,79 @@ class LotRepository(
 
     fun forget() {
         lots.invalidateAll()
+    }
+
+    private class FifoScratch {
+        var fifo = LongArray(32)
+        var lots = LongArray(32)
+        var rem = LongArray(32)
+        var n = 0
+
+        fun clear() {
+            n = 0
+        }
+
+        fun add(fifoSeq: Long, lotId: Long, remaining: Long) {
+            if (n == fifo.size) {
+                val cap = n * 2
+                fifo = fifo.copyOf(cap)
+                lots = lots.copyOf(cap)
+                rem = rem.copyOf(cap)
+            }
+            fifo[n] = fifoSeq
+            lots[n] = lotId
+            rem[n] = remaining
+            n++
+        }
+    }
+
+    private class Split(val taken: LotPortion, val keptLotId: Long, val keptRemaining: Long)
+
+    private fun consumeSlot(
+        unit: StorageUnit,
+        holderId: Int,
+        itemKeyId: Int,
+        fifoSeq: Long,
+        lotId: Long,
+        remaining: Long,
+    ) {
+        unit.delete(Keys.place(holderId, itemKeyId, fifoSeq))
+        unit.delete(Keys.placeRev(lotId, holderId))
+        unit.delete(Keys.placeItem(itemKeyId, holderId, fifoSeq))
+        addToTotal(unit, holderId, itemKeyId, -remaining)
+    }
+
+    private fun splitSlot(
+        unit: StorageUnit,
+        holderId: Int,
+        itemKeyId: Int,
+        itemKey: ItemKey,
+        fifoSeq: Long,
+        parentLotId: Long,
+        remaining: Long,
+        take: Long,
+        txn: TxnId,
+    ): Split {
+        val takenId = counters.nextLotIdOn(unit)
+        val keptId = counters.nextLotIdOn(unit)
+        val takenQty = Quantity(take)
+        val keptQty = Quantity(remaining - take)
+        unit.put(Keys.lot(takenId.raw), Records.lot(itemKeyId, takenQty.raw, txn.raw))
+        unit.put(Keys.lot(keptId.raw), Records.lot(itemKeyId, keptQty.raw, txn.raw))
+        lots.put(takenId, Lot(takenId, itemKey, takenQty, txn))
+        lots.put(keptId, Lot(keptId, itemKey, keptQty, txn))
+        val splitTaken = Records.edge(Records.EDGE_SPLIT, takenQty.raw, 0, 0)
+        val splitKept = Records.edge(Records.EDGE_SPLIT, keptQty.raw, 0, 0)
+        unit.put(Keys.edgeFrom(parentLotId, takenId.raw), splitTaken)
+        unit.put(Keys.edgeInto(takenId.raw, parentLotId), splitTaken)
+        unit.put(Keys.edgeFrom(parentLotId, keptId.raw), splitKept)
+        unit.put(Keys.edgeInto(keptId.raw, parentLotId), splitKept)
+        val placementKey = Keys.place(holderId, itemKeyId, fifoSeq)
+        unit.put(placementKey, Records.placement(keptId.raw, keptQty.raw))
+        unit.delete(Keys.placeRev(parentLotId, holderId))
+        unit.put(Keys.placeRev(keptId.raw, holderId), Records.placementRev(itemKeyId, fifoSeq))
+        addToTotal(unit, holderId, itemKeyId, -take)
+        return Split(LotPortion(takenId, takenQty), keptId.raw, keptQty.raw)
     }
 
     private fun addToTotal(unit: StorageUnit, holderId: Int, itemKeyId: Int, delta: Long) {

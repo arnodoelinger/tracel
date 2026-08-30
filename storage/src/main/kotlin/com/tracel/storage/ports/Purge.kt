@@ -3,19 +3,13 @@ package com.tracel.storage.ports
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
 
-/** Every key family `Tracel` owns. Deleting all of them is deleting the database. */
-private val ALL_FAMILIES = byteArrayOf(
-    Keys.TXN, Keys.TXN_BY_ID, Keys.ACTOR, Keys.ITEM, Keys.TIME, Keys.SPATIAL,
-    Keys.LOT, Keys.PLACE, Keys.PLACE_REV, Keys.PLACE_ITEM, Keys.TOTAL,
-    Keys.EDGE_FROM, Keys.EDGE_INTO, Keys.LEASE, Keys.LEASE_JOB,
-    Keys.RB_STEP, Keys.RB_JOB, Keys.APPLIED, Keys.PENDING, Keys.COUNTER,
-    Keys.INTERN_FORWARD, Keys.INTERN_REVERSE,
-)
-
-/** Deletes everything, as one atomic batch. */
-suspend fun purgeAll(storage: TracelStorage, counters: Counters) {
+/**
+ * Deletes the `Tracel`'s history.
+ */
+// TODO: refactor
+suspend fun purgeAll(storage: TracelStorage) {
     storage.write {
-        for (family in ALL_FAMILIES) {
+        for (family in Keys.ALL.filterNot { it in Keys.KEEPS_ITS_NUMBERING }) {
             val keys = ArrayList<ByteArray>()
             scan(Keys.tagPrefix(family)).use { cursor ->
                 while (cursor.next()) keys += cursor.key()
@@ -23,8 +17,6 @@ suspend fun purgeAll(storage: TracelStorage, counters: Counters) {
             keys.forEach(::delete)
         }
     }
-    storage.interning.forget()
-    counters.forget()
 }
 
 /**
@@ -33,6 +25,7 @@ suspend fun purgeAll(storage: TracelStorage, counters: Counters) {
  * The `total` family is a cache and nothing more, so this is the answer to any suspicion about
  * it — and the reason a bug there is a wrong number (rather than lost history).
  */
+// TODO: refactor
 suspend fun rebuildTotals(storage: TracelStorage) {
     storage.write {
         val keys = ArrayList<ByteArray>()
@@ -47,7 +40,7 @@ suspend fun rebuildTotals(storage: TracelStorage) {
                 val key = cursor.key()
                 val holderId = com.tracel.storage.codec.KeyReader.u32(key, 1)
                 val itemKeyId = com.tracel.storage.codec.KeyReader.u32(key, 5)
-                val packed = (holderId.toLong() shl 32) or (itemKeyId.toLong() and 0xFFFFFFFFL)
+                val packed = (holderId.toLong() shl 32) or (itemKeyId.toLong() and 0xFFFFFFFFL) // -> 64
                 totals.merge(packed, com.tracel.storage.codec.Records.placementRemaining(cursor.value()), Long::plus)
             }
         }

@@ -23,10 +23,11 @@ class CorruptionTest {
 
     @Test
     fun `a torn write-ahead log frame truncates the log rather than poisoning it`(@TempDir dir: Path) {
-        engine(dir).use { engine ->
+        engine(dir).let { engine ->
             repeat(50) { i ->
                 MutationBatch().apply { put(key(i), "value-$i".toByteArray()) }.let { engine.write(it, durable = true) }
             }
+            engine.halt()
         }
 
         // Half a frame, the way a power cut leaves one
@@ -46,10 +47,11 @@ class CorruptionTest {
 
     @Test
     fun `garbage appended to the write-ahead log is ignored, not replayed`(@TempDir dir: Path) {
-        engine(dir).use { engine ->
+        engine(dir).let { engine ->
             repeat(20) { i ->
                 MutationBatch().apply { put(key(i), "value-$i".toByteArray()) }.let { engine.write(it, durable = true) }
             }
+            engine.halt()
         }
 
         val wal = Files.list(dir).use { stream -> stream.filter { it.toString().endsWith(".wal") }.toList().single() }

@@ -5,6 +5,8 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.BlockDataKey
+import com.tracel.model.world.EntityTypeKey
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Packed
@@ -14,8 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Turns holders, item keys and worlds into 4-byte ids, and does it fast enough to sit on a
- * region thread.
+ * Turns holders, item keys, worlds, block states and entity types into 4-byte ids, and does it
+ * fast enough to sit on a region thread.
  *
  * Two paths, because two callers with nothing in common:
  *
@@ -29,17 +31,23 @@ import java.util.concurrent.atomic.AtomicLong
  * IDs start at 1. Zero is "nobody", which is what makes a transaction with no cause and a
  * transaction caused by holder zero different records.
  */
-class Interning(private val cacheSize: Long = DEFAULT_CACHE_SIZE) {
-    private val holderIds: Cache<HolderId, Int> = Caffeine.newBuilder().maximumSize(cacheSize).build()
-    private val holdersById: Cache<Int, HolderId> = Caffeine.newBuilder().maximumSize(cacheSize).build()
-    private val itemKeyIds: Cache<ItemKey, Int> = Caffeine.newBuilder().maximumSize(ITEM_KEY_CACHE).build()
-    private val itemKeysById: Cache<Int, ItemKey> = Caffeine.newBuilder().maximumSize(ITEM_KEY_CACHE).build()
-    private val worldIds: Cache<WorldId, Int> = Caffeine.newBuilder().maximumSize(WORLD_CACHE).build()
-    private val worldsById: Cache<Int, WorldId> = Caffeine.newBuilder().maximumSize(WORLD_CACHE).build()
+class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
+    private val holderIds: Cache<HolderId, Int> = bounded(cacheSize)
+    private val holdersById: Cache<Int, HolderId> = bounded(cacheSize)
+    private val itemKeyIds: Cache<ItemKey, Int> = bounded(ITEM_KEY_CACHE)
+    private val itemKeysById: Cache<Int, ItemKey> = bounded(ITEM_KEY_CACHE)
+    private val worldIds: Cache<WorldId, Int> = bounded(WORLD_CACHE)
+    private val worldsById: Cache<Int, WorldId> = bounded(WORLD_CACHE)
+    private val blockDataIds: Cache<BlockDataKey, Int> = bounded(BLOCK_DATA_CACHE)
+    private val blockDataById: Cache<Int, BlockDataKey> = bounded(BLOCK_DATA_CACHE)
+    private val entityTypeIds: Cache<EntityTypeKey, Int> = bounded(ENTITY_TYPE_CACHE)
+    private val entityTypesById: Cache<Int, EntityTypeKey> = bounded(ENTITY_TYPE_CACHE)
 
     private val nextHolderId = AtomicInteger(0)
     private val nextItemKeyId = AtomicInteger(0)
     private val nextWorldId = AtomicInteger(0)
+    private val nextBlockDataId = AtomicInteger(0)
+    private val nextEntityTypeId = AtomicInteger(0)
 
     /** Values a region thread named before the storage thread had a real id for them. */
     private val provisionalIds = ConcurrentHashMap<Any, Int>()
@@ -101,7 +109,6 @@ class Interning(private val cacheSize: Long = DEFAULT_CACHE_SIZE) {
     @Volatile
     private var generation = 0L
 
-    /** A real id, a provisional one, or 0 meaning "drop this event". Never blocks, never reads the store. */
     fun holderIdForCapture(holder: HolderId): Int {
         val at = generation
         val cache = local.get()
@@ -122,6 +129,26 @@ class Interning(private val cacheSize: Long = DEFAULT_CACHE_SIZE) {
         return id
     }
 
+    fun blockDataIdForCapture(blockData: BlockDataKey): Int {
+        val at = generation
+        val cache = local.get()
+        val cached = cache.lookup(blockData, at)
+        if (cached != 0) return cached
+        val id = blockDataIds.getIfPresent(blockData) ?: return provisional(blockData)
+        cache.store(blockData, id, at)
+        return id
+    }
+
+    fun worldIdForCapture(world: WorldId): Int {
+        val at = generation
+        val cache = local.get()
+        val cached = cache.lookup(world, at)
+        if (cached != 0) return cached
+        val id = worldIds.getIfPresent(world) ?: return provisional(world)
+        cache.store(world, id, at)
+        return id
+    }
+
     private fun provisional(value: Any): Int {
         if (provisionalValues.size >= PROVISIONAL_LIMIT) {
             drops.incrementAndGet()
@@ -136,7 +163,6 @@ class Interning(private val cacheSize: Long = DEFAULT_CACHE_SIZE) {
 
     // Storage path: the writer thread, inside an open unit
 
-    /** Resolves whatever a ring slot carried. */
     fun canonical(unit: StorageUnit, id: Int): Int {
         if (id >= 0) return id
         provisionalToReal[id]?.let { return it }
@@ -144,16 +170,15 @@ class Interning(private val cacheSize: Long = DEFAULT_CACHE_SIZE) {
         val real = when (value) {
             is HolderId -> internHolder(unit, value)
             is ItemKey -> internItemKey(unit, value)
+            is WorldId -> internWorld(unit, value)
+            is BlockDataKey -> internBlockData(unit, value)
+            is EntityTypeKey -> internEntityType(unit, value)
             else -> error("nothing else is ever interned provisionally: ${value::class}")
         }
         provisionalToReal[id] = real
         return real
     }
 
-    /**
-     * Forgets provisional bookkeeping once every event that could name one has been drained.
-     * Callers must be sure the ring is empty; the drainer is.
-     */
     fun compactProvisional() {
         if (provisionalValues.size < PROVISIONAL_COMPACT_AT) return
         provisionalIds.clear()
@@ -170,7 +195,12 @@ class Interning(private val cacheSize: Long = DEFAULT_CACHE_SIZE) {
     fun internWorld(unit: StorageUnit, world: WorldId): Int =
         intern(unit, Keys.NS_WORLD, world, worldIds, worldsById, nextWorldId, Packed::world)
 
-    /** The ID [holder] already has, or `null` — a filter that matches nothing can stop right here. */
+    fun internBlockData(unit: StorageUnit, blockData: BlockDataKey): Int =
+        intern(unit, Keys.NS_BLOCK_DATA, blockData, blockDataIds, blockDataById, nextBlockDataId, Packed::blockData)
+
+    fun internEntityType(unit: StorageUnit, entityType: EntityTypeKey): Int =
+        intern(unit, Keys.NS_ENTITY_TYPE, entityType, entityTypeIds, entityTypesById, nextEntityTypeId, Packed::entityType)
+
     fun findHolderId(unit: StorageUnit, holder: HolderId): Int? =
         holderIds.getIfPresent(holder) ?: lookup(unit, Keys.NS_HOLDER, Packed.holder(holder))
             ?.also { holderIds.put(holder, it); holdersById.put(it, holder) }
@@ -189,23 +219,31 @@ class Interning(private val cacheSize: Long = DEFAULT_CACHE_SIZE) {
             unit.get(Keys.internForward(Keys.NS_ITEM_KEY, id)) ?: error("item key id $id was never interned")
         ).also { itemKeysById.put(id, it); itemKeyIds.put(it, id) }
 
-    /** Reloads the id counters from the store. Called once, when the database is opened. */
+    fun findWorldId(unit: StorageUnit, world: WorldId): Int? =
+        worldIds.getIfPresent(world) ?: lookup(unit, Keys.NS_WORLD, Packed.world(world))
+            ?.also { worldIds.put(world, it); worldsById.put(it, world) }
+
+    fun resolveWorld(unit: StorageUnit, id: Int): WorldId =
+        worldsById.getIfPresent(id) ?: Packed.decodeWorld(
+            unit.get(Keys.internForward(Keys.NS_WORLD, id)) ?: error("world id $id was never interned")
+        ).also { worldsById.put(id, it); worldIds.put(it, id) }
+
+    fun resolveBlockData(unit: StorageUnit, id: Int): BlockDataKey =
+        blockDataById.getIfPresent(id) ?: Packed.decodeBlockData(
+            unit.get(Keys.internForward(Keys.NS_BLOCK_DATA, id)) ?: error("block data id $id was never interned")
+        ).also { blockDataById.put(id, it); blockDataIds.put(it, id) }
+
+    fun resolveEntityType(unit: StorageUnit, id: Int): EntityTypeKey =
+        entityTypesById.getIfPresent(id) ?: Packed.decodeEntityType(
+            unit.get(Keys.internForward(Keys.NS_ENTITY_TYPE, id)) ?: error("entity type id $id was never interned")
+        ).also { entityTypesById.put(id, it); entityTypeIds.put(it, id) }
+
     fun restore(unit: StorageUnit) {
         nextHolderId.set(counter(unit, Keys.NS_HOLDER))
         nextItemKeyId.set(counter(unit, Keys.NS_ITEM_KEY))
         nextWorldId.set(counter(unit, Keys.NS_WORLD))
-    }
-
-    /** Drops every cached mapping. For a purge, which deletes the records these describe. */
-    fun forget() {
-        generation++
-        listOf(holderIds, holdersById, itemKeyIds, itemKeysById, worldIds, worldsById).forEach { it.invalidateAll() }
-        provisionalIds.clear()
-        provisionalValues.clear()
-        provisionalToReal.clear()
-        nextHolderId.set(0)
-        nextItemKeyId.set(0)
-        nextWorldId.set(0)
+        nextBlockDataId.set(counter(unit, Keys.NS_BLOCK_DATA))
+        nextEntityTypeId.set(counter(unit, Keys.NS_ENTITY_TYPE))
     }
 
     private fun <T : Any> intern(
@@ -241,10 +279,17 @@ class Interning(private val cacheSize: Long = DEFAULT_CACHE_SIZE) {
         unit.get(Keys.counter(COUNTER_BASE + namespace))?.let(Records::asLong)?.toInt() ?: 0
 
     private companion object {
+        fun <K : Any, V : Any> bounded(size: Long): Cache<K, V> =
+            Caffeine.newBuilder().maximumSize(size).executor(Runnable::run).build()
+
         /** ~24 MiB of holders at steady state. */
         const val DEFAULT_CACHE_SIZE = 262_144L
         const val ITEM_KEY_CACHE = 16_384L
         const val WORLD_CACHE = 256L
+
+        /** Distinct block states a server actually uses, with room for every stair rotation. */
+        const val BLOCK_DATA_CACHE = 65_536L
+        const val ENTITY_TYPE_CACHE = 512L
 
         /** How many unseen values may be in flight to the storage thread before captures start dropping. */
         const val PROVISIONAL_LIMIT = 65_536

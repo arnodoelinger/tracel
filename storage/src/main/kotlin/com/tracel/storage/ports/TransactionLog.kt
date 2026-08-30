@@ -1,15 +1,21 @@
 package com.tracel.storage.ports
 
+import com.tracel.annotations.CauseKind
+import com.tracel.annotations.isBookkeeping
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
 import com.tracel.engine.log.TransactionLog as TransactionLogPort
 import com.tracel.model.flow.Flow
+import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.Seq
 import com.tracel.model.id.WorldId
 import com.tracel.model.id.TxnId
 import com.tracel.model.transaction.Transaction
+import com.tracel.model.world.BlockPos
+import com.tracel.model.world.LogKind
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
@@ -42,6 +48,8 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             val causedById = transaction.causedBy?.let { interning.internHolder(this, it) } ?: 0
             val record = ByteArray(Records.transactionSize(transaction.flows.size))
             val into = MemorySegment.ofArray(record)
+            val at = transaction.at
+            val atWorldId = at?.let { interning.internWorld(this, it.world) } ?: 0
             Records.writeTransactionHeader(
                 into,
                 transaction.cause,
@@ -49,28 +57,44 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
                 causedById,
                 transaction.id.raw,
                 transaction.epochMillis,
+                atWorldId,
+                at?.x ?: 0,
+                at?.y ?: 0,
+                at?.z ?: 0,
             )
 
             val holders = HashSet<Int>()
             val itemKeys = HashSet<Int>()
+            val bookkeeping = transaction.cause.isBookkeeping
             if (causedById != 0) holders += causedById
-            transaction.causedBy?.let { index(this, it, seq) }
+            if (!bookkeeping) transaction.causedBy?.let { index(this, it, seq, transaction.epochMillis, transaction.cause) }
 
             transaction.flows.forEachIndexed { i, flow ->
                 val itemKeyId = interning.internItemKey(this, flow.itemKey)
                 val sourceId = interning.internHolder(this, flow.source)
                 val destinationId = interning.internHolder(this, flow.destination)
                 Records.writeFlow(into, i, itemKeyId, sourceId, destinationId, flow.kind, flow.quantity.raw)
-                if (holders.add(sourceId)) index(this, flow.source, seq)
-                if (holders.add(destinationId)) index(this, flow.destination, seq)
+                if (bookkeeping) return@forEachIndexed
+                if (holders.add(sourceId)) index(this, flow.source, seq, transaction.epochMillis, transaction.cause)
+                if (holders.add(destinationId)) index(this, flow.destination, seq, transaction.epochMillis, transaction.cause)
                 itemKeys += itemKeyId
             }
 
             put(Keys.txn(seq), record)
             put(Keys.txnById(transaction.id.raw), Records.long(seq))
-            for (holderId in holders) put(Keys.actor(holderId, seq), EMPTY)
-            for (itemKeyId in itemKeys) put(Keys.item(itemKeyId, seq), EMPTY)
-            put(Keys.time(transaction.epochMillis, seq), EMPTY)
+            if (bookkeeping) return@write
+            for (holderId in holders) put(Keys.actor(holderId, seq), OWN_LOG)
+            for (itemKeyId in itemKeys) put(Keys.item(itemKeyId, seq), OWN_LOG)
+            put(Keys.time(transaction.epochMillis, seq), OWN_LOG)
+            if (at != null && atWorldId != 0) {
+                put(
+                    Keys.spatial(atWorldId, at.x shr 4, at.z shr 4, at.y, seq, transaction.epochMillis),
+                    Records.logKind(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause, at.x, at.y, at.z),
+                )
+            }
+            for ((flowIndex, lotId, quantity) in transaction.lots) {
+                put(Keys.txnLot(seq, flowIndex, lotId.raw), Records.long(quantity.raw))
+            }
         }
     }
 
@@ -79,113 +103,193 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         get(Keys.txn(seq))?.let { decode(this, seq, it) }
     }
 
+    override suspend fun lotsAt(seq: Seq): List<FlowLot> = storage.read {
+        val out = ArrayList<FlowLot>()
+        scan(Keys.txnLotPrefix(seq.raw)).use { cursor ->
+            while (cursor.next()) {
+                val key = cursor.key()
+                out += FlowLot(
+                    KeyReader.u32(key, 9),
+                    LotId(KeyReader.u64(key, 13)),
+                    Quantity(Records.asLong(cursor.value())),
+                )
+            }
+        }
+        out
+    }
+
+    override suspend fun lotsAtAll(seqs: List<Seq>): Map<Seq, List<FlowLot>> = storage.read {
+        val loaded = loadLots(this, LongArray(seqs.size) { i -> seqs[i].raw })
+        val out = HashMap<Seq, List<FlowLot>>(loaded.size)
+        for ((seq, lots) in loaded) out[Seq(seq)] = lots
+        out
+    }
+
+    internal fun loadLots(unit: StorageUnit, seqs: LongArray): Map<Long, List<FlowLot>> {
+        if (seqs.isEmpty()) return emptyMap()
+        val n = seqs.size
+        QueryProbe.cursors(n.toLong())
+        val parts = arrayOfNulls<List<FlowLot>>(n)
+        val read = { i: Int ->
+            val lots = ArrayList<FlowLot>()
+            unit.scan(Keys.txnLotPrefix(seqs[i])).use { cursor ->
+                while (cursor.next()) {
+                    val key = cursor.key()
+                    lots += FlowLot(
+                        KeyReader.u32(key, 9),
+                        LotId(KeyReader.u64(key, 13)),
+                        Quantity(Records.asLong(cursor.value())),
+                    )
+                }
+            }
+            parts[i] = lots
+        }
+        if (n >= PARALLEL_GETS_FROM) {
+            java.util.stream.IntStream.range(0, n).parallel().forEach(read)
+        } else {
+            for (i in 0 until n) read(i)
+        }
+        val out = HashMap<Long, List<FlowLot>>(n)
+        for (i in 0 until n) {
+            val lots = parts[i]!!
+            if (lots.isNotEmpty()) out[seqs[i]] = lots
+        }
+        return out
+    }
+
     override suspend fun query(filter: LookupFilter): List<Transaction> = storage.read {
-        val holderIds = filter.holders.mapNotNull { interning.findHolderId(this, it) }
+        val holderIds = filter.holders.mapNotNull { interning.findHolderId(this, it) }.toSet()
         if (filter.holders.isNotEmpty() && holderIds.isEmpty()) return@read emptyList()
         val excludedIds = filter.excludedHolders.mapNotNull { interning.findHolderId(this, it) }.toSet()
+        val filterWorldId = filter.world?.let { interning.findWorldId(this, it) }
+        if (filter.world != null && filterWorldId == null) return@read emptyList()
 
         val materialIds = filter.material?.let { itemKeyIdsFor(this, it) }
         if (materialIds != null && materialIds.isEmpty()) return@read emptyList()
 
         val region = filter.region
+        val regionWorldId = region?.let { interning.findWorldId(this, it.world) }
         val since = filter.since
         val until = filter.until
 
-        val driver: Driver = when {
-            holderIds.isNotEmpty() -> Driver.Index(holderIds.map(Keys::actorPrefix))
-            region != null -> Driver.Index(regionPrefixes(this, region))
-            materialIds != null -> Driver.Index(materialIds.map(Keys::itemPrefix))
-            else -> Driver.Time
-        }
-
         val wanted = filter.limit + filter.offset
+        val batched = wanted >= BATCHED_FROM || region != null
+
+        val scans: List<Scan>? = when {
+            region != null -> regionScans(this, interning, region, since, until)
+            holderIds.isNotEmpty() -> scansOver(holderIds.map(Keys::actorPrefix))
+            materialIds != null -> scansOver(materialIds.map(Keys::itemPrefix))
+            else -> null
+        }
         val matched = ArrayList<Long>()
-
-        when (driver) {
-            is Driver.Time -> {
-                val prefix = byteArrayOf(Keys.TIME)
-                val from = if (until != null) Keys.timeFrom(until) else prefix
-                scan(prefix, from).use { cursor ->
-                    while (cursor.next() && matched.size < wanted) {
-                        val key = cursor.key()
-                        val epochMillis = Keys.invert(KeyReader.u64(key, 1))
-                        if (since != null && epochMillis < since) break
-                        val seq = Keys.invert(KeyReader.u64(key, 9))
-                        if (accepts(this, seq, filter, materialIds, excludedIds)) matched += seq
-                    }
-                }
+        val records = ArrayList<MemorySegment>()
+        val take = { seq: Long ->
+            val record = get(Keys.txn(seq))
+            if (record != null && accepts(record, filter, materialIds, holderIds, excludedIds, regionWorldId, filterWorldId)) {
+                matched += seq
+                records += record
             }
-
-            is Driver.Index -> {
-                if (driver.prefixes.isEmpty()) return@read emptyList()
-                mergeDescending(driver.prefixes, wanted) { seq ->
-                    if (accepts(this, seq, filter, materialIds, excludedIds)) matched += seq
-                    matched.size
-                }
-            }
+            matched.size
         }
 
-        matched.asSequence()
-            .drop(filter.offset)
-            .take(filter.limit)
-            .mapNotNull { seq -> get(Keys.txn(seq))?.let { decode(this, seq, it) } }
-            .toList()
+        if (batched) {
+            val seqs = ascending(
+                gatherSeqs(LogKind.TRANSACTION, scans, since, until, Int.MAX_VALUE, filter.excludedCauses, region),
+            )
+            return@read loadSeqs(this, seqs, filter)
+        }
+
+        if (scans != null) {
+            if (scans.isEmpty()) return@read emptyList()
+            mergeDescending(
+                scans, LogKind.TRANSACTION, wanted, take,
+                sinceMillis = since, untilMillis = until, excludedCauses = filter.excludedCauses,
+            )
+        } else {
+            scanDescendingByTime(LogKind.TRANSACTION, since, until, wanted, take)
+        }
+
+        val from = filter.offset.coerceAtMost(matched.size)
+        val until2 = (from.toLong() + filter.limit).coerceAtMost(matched.size.toLong()).toInt()
+        val out = ArrayList<Transaction>(until2 - from)
+        for (i in from until until2) out += decode(this, matched[i], records[i])
+        out
     }
 
-    private sealed interface Driver {
-        data object Time : Driver
-        data class Index(val prefixes: List<ByteArray>) : Driver
-    }
-
-    private inline fun StorageUnit.mergeDescending(
-        prefixes: List<ByteArray>,
-        wanted: Int,
-        accept: (Long) -> Int,
-    ) {
-        val cursors = Array(prefixes.size) { scan(prefixes[it]) }
-        try {
-            val heads = LongArray(cursors.size)
-            for (i in cursors.indices) heads[i] = headOf(cursors[i])
-
-            var previous = -1L
-            while (true) {
-                var best = -1
-                for (i in heads.indices) if (heads[i] >= 0 && (best < 0 || heads[i] > heads[best])) best = i
-                if (best < 0) break
-
-                val seq = heads[best]
-                heads[best] = headOf(cursors[best])
-                if (seq == previous) continue
-                previous = seq
-                if (accept(seq) >= wanted) break
+    internal fun loadSeqs(unit: StorageUnit, seqs: LongArray, filter: LookupFilter): List<Transaction> {
+        val holderIds = filter.holders.mapNotNull { interning.findHolderId(unit, it) }.toSet()
+        val excludedIds = filter.excludedHolders.mapNotNull { interning.findHolderId(unit, it) }.toSet()
+        val filterWorldId = filter.world?.let { interning.findWorldId(unit, it) }
+        val materialIds = filter.material?.let { itemKeyIdsFor(unit, it) }
+        val region = filter.region
+        val regionWorldId = region?.let { interning.findWorldId(unit, it.world) }
+        val page = pageNewest(seqs, filter.offset, filter.limit)
+        if (page.isEmpty()) return emptyList()
+        QueryProbe.opened(page.size.toLong())
+        val matched = ArrayList<Long>(page.size)
+        val records = ArrayList<MemorySegment>(page.size)
+        if (worthScanning(page)) {
+            unit.fetchAscending(Keys.TXN, page, Keys::txn) { seq, record ->
+                if (unit.accepts(record, filter, materialIds, holderIds, excludedIds, regionWorldId, filterWorldId)) {
+                    matched += seq
+                    records += record
+                }
             }
-        } finally {
-            cursors.forEach { it.close() }
+            val n = matched.size
+            if (n == 0) return emptyList()
+            val slots = arrayOfNulls<Transaction>(n)
+            if (n >= PARALLEL_GETS_FROM) {
+                java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+                    slots[i] = decode(unit, matched[i], records[i])
+                }
+            } else {
+                for (i in 0 until n) slots[i] = decode(unit, matched[i], records[i])
+            }
+            val out = ArrayList<Transaction>(n)
+            for (i in n - 1 downTo 0) out += slots[i]!!
+            return out
+        }
+        return collectNewestFirst(page) { seq ->
+            val record = unit.get(Keys.txn(seq)) ?: return@collectNewestFirst null
+            if (!unit.accepts(record, filter, materialIds, holderIds, excludedIds, regionWorldId, filterWorldId)) {
+                return@collectNewestFirst null
+            }
+            decode(unit, seq, record)
         }
     }
 
-    private fun headOf(cursor: com.tracel.storage.spi.EngineCursor): Long {
-        if (!cursor.next()) return -1
-        val key = cursor.key()
-        return Keys.invert(KeyReader.u64(key, key.size - 8))
-    }
-
-    private fun accepts(
-        unit: StorageUnit,
-        seq: Long,
+    private fun StorageUnit.accepts(
+        record: MemorySegment,
         filter: LookupFilter,
         materialIds: Set<Int>?,
+        holderIds: Set<Int>,
         excludedIds: Set<Int>,
+        regionWorldId: Int?,
+        filterWorldId: Int?,
     ): Boolean {
-        val record = unit.get(Keys.txn(seq)) ?: return false
         val epochMillis = Records.txnEpochMillis(record)
         val since = filter.since
         val until = filter.until
         if (since != null && epochMillis < since) return false
         if (until != null && epochMillis > until) return false
-        if (filter.causes.isNotEmpty() && Records.txnCause(record) !in filter.causes) return false
+        val cause = Records.txnCause(record)
+        if (cause.isBookkeeping) return false
+        if (filter.causes.isNotEmpty() && cause !in filter.causes) return false
+        if (filter.excludedCauses.isNotEmpty() && cause in filter.excludedCauses) return false
 
         val flowCount = Records.txnFlowCount(record)
+        if (holderIds.isNotEmpty()) {
+            var hit = Records.txnCausedBy(record) in holderIds
+            if (!hit) {
+                for (i in 0 until flowCount) {
+                    if (Records.flowSource(record, i) in holderIds || Records.flowDestination(record, i) in holderIds) {
+                        hit = true
+                        break
+                    }
+                }
+            }
+            if (!hit) return false
+        }
         if (excludedIds.isNotEmpty()) {
             if (Records.txnCausedBy(record) in excludedIds) return false
             for (i in 0 until flowCount) {
@@ -203,8 +307,65 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             }
             if (!hit) return false
         }
+        val region = filter.region
+        if (region != null) {
+            if (regionWorldId == null || !inRegion(record, flowCount, region, regionWorldId)) return false
+        } else if (filterWorldId != null && !inWorld(record, flowCount, filterWorldId)) {
+            return false
+        }
         return true
     }
+
+    private fun StorageUnit.inRegion(
+        record: MemorySegment,
+        flowCount: Int,
+        region: LookupRegion,
+        regionWorldId: Int,
+    ): Boolean {
+        if (Records.txnWorldId(record) == regionWorldId &&
+            region.containsBlock(Records.txnX(record), Records.txnY(record), Records.txnZ(record))
+        ) {
+            return true
+        }
+        for (i in 0 until flowCount) {
+            if (holderInRegion(Records.flowSource(record, i), region, regionWorldId)) return true
+            if (holderInRegion(Records.flowDestination(record, i), region, regionWorldId)) return true
+        }
+        return false
+    }
+
+    private fun StorageUnit.inWorld(record: MemorySegment, flowCount: Int, worldId: Int): Boolean {
+        if (Records.txnWorldId(record) == worldId) return true
+        for (i in 0 until flowCount) {
+            if (holderWorldId(Records.flowSource(record, i)) == worldId) return true
+            if (holderWorldId(Records.flowDestination(record, i)) == worldId) return true
+        }
+        return false
+    }
+
+    private fun StorageUnit.holderInRegion(id: Int, region: LookupRegion, regionWorldId: Int): Boolean {
+        val at = holderBlock(id) ?: return false
+        return at.worldId == regionWorldId && region.containsBlock(at.x, at.y, at.z)
+    }
+
+    private fun StorageUnit.holderWorldId(id: Int): Int? = holderBlock(id)?.worldId
+
+    private fun StorageUnit.holderBlock(id: Int): HolderBlock? {
+        if (id == 0) return null
+        return when (val holder = interning.resolveHolder(this, id)) {
+            is HolderId.Block -> HolderBlock(
+                interning.findWorldId(this, holder.world) ?: return null,
+                holder.x, holder.y, holder.z,
+            )
+            is HolderId.PlacedBlock -> HolderBlock(
+                interning.findWorldId(this, holder.world) ?: return null,
+                holder.x, holder.y, holder.z,
+            )
+            else -> null
+        }
+    }
+
+    private data class HolderBlock(val worldId: Int, val x: Int, val y: Int, val z: Int)
 
     private fun itemKeyIdsFor(unit: StorageUnit, material: String): Set<Int> {
         val out = HashSet<Int>()
@@ -218,18 +379,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         return out
     }
 
-    private fun regionPrefixes(unit: StorageUnit, region: LookupRegion): List<ByteArray> {
-        val worldId = interning.internWorld(unit, region.world)
-        val out = ArrayList<ByteArray>(region.chunks)
-        for (x in region.minChunkX..region.maxChunkX) {
-            for (z in region.minChunkZ..region.maxChunkZ) {
-                out += Keys.spatialChunkPrefix(worldId, x, z)
-            }
-        }
-        return out
-    }
-
-    private fun index(unit: StorageUnit, holder: HolderId, seq: Long) {
+    private fun index(unit: StorageUnit, holder: HolderId, seq: Long, epochMillis: Long, cause: CauseKind) {
         val world: WorldId
         val x: Int
         val y: Int
@@ -246,7 +396,10 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             else -> return
         }
         val worldId = interning.internWorld(unit, world)
-        unit.put(Keys.spatial(worldId, x shr 4, z shr 4, y, seq), EMPTY)
+        unit.put(
+            Keys.spatial(worldId, x shr 4, z shr 4, y, seq, epochMillis),
+            Records.logKind(LogKind.TRANSACTION, epochMillis, cause, x, y, z),
+        )
     }
 
     private fun decode(unit: StorageUnit, seq: Long, record: MemorySegment): Transaction {
@@ -266,6 +419,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             )
         }
         val causedById = Records.txnCausedBy(record)
+        val atWorldId = Records.txnWorldId(record)
         return Transaction(
             TxnId(Records.txnId(record)),
             Seq(seq),
@@ -273,10 +427,16 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             Records.txnCause(record),
             if (causedById == 0) null else interning.resolveHolder(unit, causedById),
             flows,
+            at = if (atWorldId == 0) null else BlockPos(
+                interning.resolveWorld(unit, atWorldId),
+                Records.txnX(record),
+                Records.txnY(record),
+                Records.txnZ(record),
+            ),
         )
     }
 
     private companion object {
-        val EMPTY = ByteArray(0)
+        val OWN_LOG = Records.logKind(LogKind.TRANSACTION)
     }
 }

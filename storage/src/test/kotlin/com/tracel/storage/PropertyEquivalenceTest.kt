@@ -2,9 +2,10 @@ package com.tracel.storage
 
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ownership.LeaseAcquisition
-import com.tracel.engine.rollback.RollbackExecutor
-import com.tracel.engine.rollback.RollbackPlan
-import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.plan.RollbackPlan
+import com.tracel.engine.rollback.plan.RollbackPlanner
+import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.storage.support.Stack
@@ -42,7 +43,7 @@ class PropertyEquivalenceTest {
                 stack.journal,
                 stack.leases,
                 stack.counters::nextTxnId,
-            ).execute(lease, plan, restoreTo = chest)
+            ).execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
             assertEquals(checkpointCensus, stack.ledger.census(diamond))
             assertEquals(20L, stack.ledger.totalAt(chest, diamond)?.raw)

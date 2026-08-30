@@ -2,11 +2,14 @@ package com.tracel.storage.capture
 
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
+import com.tracel.engine.world.BlockEdit
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.ActionKind
 
 /**
- * What a listener actually calls. Wraps [CaptureRing] in the four shapes real capture code has,
+ * What a listener actually calls. Wraps [CaptureRing] in the five shapes real capture code has,
  * so no listener has to think about claims, slots, or publication order.
  *
  * Every one of these returns `false` when the event was dropped, which happens when the ring is
@@ -83,6 +86,45 @@ class CaptureGate(private val ring: CaptureRing) {
             }
         }
         ring.commit(claim, deltas.size)
+        return true
+    }
+
+    /**
+     * Block edits that happened together — the world log's hot path.
+     *
+     * Only takes edits whose shapes carry no extras, because a sign's text is variable-length and
+     * a ring slot is 24 bytes. Returns `false` for anything else so the caller knows to go the
+     * slow way round rather than quietly losing it.
+     */
+    fun blocks(
+        cause: CauseKind,
+        action: ActionKind,
+        causedBy: HolderId?,
+        epochMillis: Long,
+        world: WorldId,
+        edits: List<BlockEdit>,
+    ): Boolean {
+        if (edits.isEmpty()) return true
+        if (edits.size > CaptureRing.MAX_DELTAS) return false
+        if (edits.any { it.before.extras != null || it.after.extras != null }) return false
+
+        val worldId = ring.worldId(world)
+        val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (worldId == 0) return false
+
+        val claim = ring.beginWorld(cause, action, causedById, epochMillis, worldId, edits.size)
+        if (claim == CaptureRing.REJECTED) return false
+        for (i in edits.indices) {
+            val edit = edits[i]
+            val before = ring.blockDataId(edit.before.data)
+            val after = ring.blockDataId(edit.after.data)
+            if (before == 0 || after == 0) {
+                ring.block(claim, i, edit.at.x, edit.at.y, edit.at.z, 0, 0)
+            } else {
+                ring.block(claim, i, edit.at.x, edit.at.y, edit.at.z, before, after)
+            }
+        }
+        ring.commit(claim, edits.size)
         return true
     }
 

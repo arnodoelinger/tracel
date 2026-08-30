@@ -16,8 +16,8 @@ class StorageUnit(
     val ownerThread: Thread,
 ) : AutoCloseable {
     fun get(key: ByteArray): MemorySegment? {
-        val wrapped = Key(key)
-        if (batch.touches(wrapped)) return batch.valueOf(wrapped)?.let(MemorySegment::ofArray)
+        val overlay = batch.lookup(Key(key))
+        if (overlay !== MutationBatch.MISSING) return (overlay as ByteArray?)?.let(MemorySegment::ofArray)
         return snapshot.get(key)
     }
 
@@ -45,8 +45,10 @@ class StorageUnit(
         batch.release(mark)
     }
 
-    fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor =
-        OverlayCursor(batch, snapshot.scan(prefix, from), prefix, from)
+    fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor {
+        if (batch.isEmpty()) return snapshot.scan(prefix, from)
+        return OverlayCursor(batch, snapshot.scan(prefix, from), prefix, from)
+    }
 
     override fun close() {
         snapshot.close()
@@ -54,12 +56,12 @@ class StorageUnit(
 }
 
 private class OverlayCursor(
-    batch: MutationBatch,
+    private val batch: MutationBatch,
     private val committed: EngineCursor,
     private val prefix: ByteArray,
     from: ByteArray,
 ) : EngineCursor {
-    private val pending = batch.from(Key(from))
+    private var pending = batch.keysFrom(Key(from))
     private var pendingKey: Key? = null
     private var pendingValue: ByteArray? = null
     private var committedValid = committed.next()
@@ -134,16 +136,27 @@ private class OverlayCursor(
 
     override fun value(): MemorySegment = currentValue ?: error("cursor is not positioned")
 
+    override fun skipTo(from: ByteArray) {
+        committed.skipTo(from)
+        committedValid = committed.next()
+        pending = batch.keysFrom(Key(from))
+        pendingKey = null
+        pendingValue = null
+        advancePending()
+        currentKey = null
+        currentValue = null
+    }
+
     override fun close() {
         committed.close()
     }
 
     private fun advancePending() {
         while (pending.hasNext()) {
-            val entry = pending.next()
-            if (!entry.key.startsWith(prefix)) break
-            pendingKey = entry.key
-            pendingValue = entry.value
+            val key = pending.next()
+            if (!key.startsWith(prefix)) break
+            pendingKey = key
+            pendingValue = batch.valueOf(key)
             return
         }
         pendingKey = null

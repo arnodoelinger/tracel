@@ -5,7 +5,9 @@ import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
+import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
@@ -37,6 +39,60 @@ class TransactionLogTest {
         from,
         listOf(Flow(diamond, Quantity(1), from, to, FlowKind.MOVE)),
     )
+
+    @Test
+    fun `the lots a transaction moved come back in flow order`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val txn = Transaction(
+                TxnId(4),
+                Seq(4),
+                1L,
+                CauseKind.PLAYER_ACTION,
+                player(1),
+                listOf(
+                    Flow(diamond, Quantity(3), block(1, 2, 3), player(1), FlowKind.MOVE),
+                    Flow(diamond, Quantity(2), block(4, 5, 6), player(1), FlowKind.MOVE),
+                ),
+                listOf(
+                    FlowLot(0, LotId(50), Quantity(1)),
+                    FlowLot(0, LotId(51), Quantity(2)),
+                    FlowLot(1, LotId(52), Quantity(2)),
+                ),
+            )
+            stack.log.append(txn)
+
+            assertEquals(txn.lots, stack.log.lotsAt(Seq(4)))
+        }
+    }
+
+    @Test
+    fun `a transaction with no lot linkage reads back as none, not as a failure`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            stack.log.append(move(1, player(1), block(1, 2, 3), 1L))
+            assertEquals(emptyList<FlowLot>(), stack.log.lotsAt(Seq(1)))
+        }
+    }
+
+    @Test
+    fun `one transaction's lots never bleed into the next`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            for (seq in 1L..3L) {
+                stack.log.append(
+                    Transaction(
+                        TxnId(seq),
+                        Seq(seq),
+                        seq,
+                        CauseKind.HOPPER,
+                        player(1),
+                        listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
+                        listOf(FlowLot(0, LotId(seq * 10), Quantity(1))),
+                    )
+                )
+            }
+
+            assertEquals(listOf(FlowLot(0, LotId(20), Quantity(1))), stack.log.lotsAt(Seq(2)))
+        }
+    }
 
     @Test
     fun `a transaction round-trips every field`(@TempDir dir: Path) = runTest {
@@ -108,6 +164,22 @@ class TransactionLogTest {
     }
 
     @Test
+    fun `a time-bounded region query skips older history in the same chunks`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val chest = block(0, 64, 0)
+            val steve = player(1)
+            for (i in 1L..500L) stack.log.append(move(i, chest, steve, at = i))
+            stack.log.append(move(501, chest, steve, at = 4_000_000))
+
+            val here = LookupRegion(world, 0, 0, 0, 0)
+            assertEquals(
+                listOf(501L),
+                stack.log.query(LookupFilter(region = here, since = 3_600_000, limit = Int.MAX_VALUE)).map { it.seq.raw },
+            )
+        }
+    }
+
+    @Test
     fun `a time range stops at its own boundaries`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             for (i in 1L..20L) stack.log.append(move(i, block(0, 64, 0), player(1), i * 100))
@@ -158,6 +230,47 @@ class TransactionLogTest {
     }
 
     @Test
+    fun `a batched region query does not fetch years of a chunk to keep an hour`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val steve = player(1)
+            for (seq in 1L..400L) stack.log.append(move(seq, block(3, 64, 5), steve, seq))
+            stack.log.append(move(401, block(3, 64, 5), steve, 10_000))
+            stack.log.append(move(402, block(1608, 64, 1608), steve, 10_100))
+
+            assertEquals(
+                listOf(401L),
+                stack.log.query(
+                    LookupFilter(
+                        region = LookupRegion(world, 0, 0, 0, 0),
+                        since = 9_000,
+                        limit = Int.MAX_VALUE,
+                    ),
+                ).map { it.seq.raw },
+            )
+        }
+    }
+
+    @Test
+    fun `a player filter still honours the radius`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val steve = player(1)
+            stack.log.append(move(1, block(3, 64, 5), steve, 100))
+            stack.log.append(move(2, block(1608, 64, 1608), steve, 200))
+            stack.log.append(move(3, block(9, 64, 9), player(2), 300))
+
+            val nearby = LookupRegion(
+                world, 0, 0, 0, 0,
+                minX = 0, maxX = 15, minY = 0, maxY = 128, minZ = 0, maxZ = 15,
+            )
+            assertEquals(
+                listOf(1L),
+                stack.log.query(LookupFilter(holders = setOf(steve), region = nearby)).map { it.seq.raw },
+                "u:steve r:10 must not reclaim the chest 1600 blocks away",
+            )
+        }
+    }
+
+    @Test
     fun `a chunk region only returns transactions inside it`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             // Chunk (0,0) is blocks 0..15; chunk (100,100) is a long way from it
@@ -204,6 +317,43 @@ class TransactionLogTest {
         Stack(dir).use { stack ->
             assertEquals(50, stack.log.query(LookupFilter(limit = 1000)).size)
             assertEquals(move(7, block(0, 64, 0), player(1), 1007), stack.log.find(TxnId(7)))
+        }
+    }
+
+    @Test
+    fun `bookkeeping is findable by id but invisible to lookup`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val chest = block(0, 64, 0)
+            val steve = player(1)
+
+            stack.log.append(move(1, chest, steve, at = 100))
+            stack.log.append(move(2, steve, chest, at = 200, cause = CauseKind.ROLLBACK))
+            stack.log.append(move(3, chest, steve, at = 300, cause = CauseKind.INVOLUTION))
+
+            assertEquals(move(2, steve, chest, at = 200, cause = CauseKind.ROLLBACK), stack.log.find(TxnId(2)))
+            assertEquals(move(3, chest, steve, at = 300, cause = CauseKind.INVOLUTION), stack.log.find(TxnId(3)))
+
+            val spatialKeys = stack.storage.read {
+                var n = 0
+                scan(byteArrayOf(com.tracel.storage.codec.Keys.SPATIAL)).use { cursor -> while (cursor.next()) n++ }
+                n
+            }
+            assertEquals(1, spatialKeys, "a restore must not add spatial keys for the next query to walk")
+
+            val region = LookupRegion(world, 0, 0, 0, 0)
+            assertEquals(
+                listOf(Seq(1)),
+                stack.log.query(LookupFilter(limit = Int.MAX_VALUE)).map { it.seq },
+                "lookup must not treat a restore as ordinary history",
+            )
+            assertEquals(
+                listOf(Seq(1)),
+                stack.log.query(LookupFilter(limit = Int.MAX_VALUE, region = region)).map { it.seq },
+            )
+            assertEquals(
+                listOf(Seq(1)),
+                stack.log.query(LookupFilter(limit = Int.MAX_VALUE, holders = setOf(steve))).map { it.seq },
+            )
         }
     }
 }

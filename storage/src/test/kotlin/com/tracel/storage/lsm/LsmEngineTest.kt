@@ -3,6 +3,7 @@ package com.tracel.storage.lsm
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -16,6 +17,57 @@ class LsmEngineTest {
 
     private fun engine(dir: Path, memtable: Long = 64 * 1024) =
         LsmEngine(dir, LsmConfig(memtableBytes = memtable, sync = SyncPolicy.EveryBatch))
+
+    @Test
+    fun `a crash and restart leaves neither a giant log nor a giant memtable`(@TempDir dir: Path) {
+        val memtable = 64L * 1024
+        repeat(4) {
+            engine(dir, memtable).let { engine ->
+                repeat(4000) { i ->
+                    val batch = MutationBatch()
+                    batch.put(key(i), value(i))
+                    engine.write(batch, durable = true)
+                }
+                assertTrue(
+                    engine.stats().memtableBytes <= memtable * (1 + 3),
+                    "memtable grew past its configured size plus the frozen queue",
+                )
+                engine.halt()
+            }
+            engine(dir, memtable).use { engine ->
+                assertTrue(
+                    engine.stats().memtableBytes <= memtable,
+                    "recovery kept an oversized memtable: ${engine.stats().memtableBytes} bytes",
+                )
+                assertEquals(0L, walBytes(dir), "the replayed log was not retired")
+                engine.snapshot().use { snapshot ->
+                    for (i in 0 until 4000) assertNotNull(snapshot.get(key(i)), "recovery lost $i")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a clean shutdown leaves nothing to replay`(@TempDir dir: Path) {
+        engine(dir).use { engine ->
+            repeat(500) { i ->
+                val batch = MutationBatch()
+                batch.put(key(i), value(i))
+                engine.write(batch, durable = true)
+            }
+        }
+        assertEquals(0L, walBytes(dir), "a sealed shutdown must not leave a log behind")
+        engine(dir).use { engine ->
+            engine.snapshot().use { snapshot ->
+                for (i in 0 until 500) assertNotNull(snapshot.get(key(i)), "sealing on shutdown lost $i")
+            }
+        }
+    }
+
+    private fun walBytes(dir: Path): Long =
+        java.nio.file.Files.list(dir).use { stream ->
+            stream.filter { it.toString().endsWith(".wal") }.mapToLong { java.nio.file.Files.size(it) }.sum()
+        }
 
     @Test
     fun `round trips values through memtable and segments`(@TempDir dir: Path) {
@@ -121,6 +173,35 @@ class LsmEngineTest {
                     val got = snapshot.get(key(k)) ?: error("missing $k")
                     assertEquals("value-$expected", String(got.readBytes(0, got.byteSize().toInt())))
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `a batch the fit check accepts always fits`(@TempDir dir: Path) {
+        engine(dir, memtable = 64 * 1024).use { engine ->
+            repeat(200) { round ->
+                val batch = MutationBatch()
+                repeat(300) { i -> batch.put(key(round * 300 + i), value(i)) }
+                engine.write(batch, durable = false)
+            }
+
+            engine.snapshot().use { snapshot ->
+                for (i in 0 until 200 * 300) assertNotNull(snapshot.get(key(i)), "lost key $i")
+            }
+        }
+    }
+
+    @Test
+    fun `a store whose log outgrew the default memtable still reopens`(@TempDir dir: Path) {
+        val big = MutationBatch()
+        repeat(20_000) { i -> big.put(key(i), value(i)) }
+
+        engine(dir, memtable = 16 * 1024).use { it.write(big, durable = true) }
+
+        engine(dir, memtable = 16 * 1024).use { engine ->
+            engine.snapshot().use { snapshot ->
+                for (i in 0 until 20_000) assertNotNull(snapshot.get(key(i)), "lost key $i after reopen")
             }
         }
     }

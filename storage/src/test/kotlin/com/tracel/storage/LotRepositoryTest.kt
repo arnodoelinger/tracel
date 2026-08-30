@@ -204,4 +204,56 @@ class LotRepositoryTest {
         }
         return count
     }
+    @Test
+    fun `relocating an account moves every lot, its quantities and its queue order`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val from = block(0, 64, 0)
+            val to = block(0, 64, 1)
+            val first = stack.ledger.mint(from, diamond, Quantity(3), stack.counters.nextTxnId())
+            val second = stack.ledger.mint(from, diamond, Quantity(5), stack.counters.nextTxnId())
+
+            stack.repo.relocate(from, to)
+
+            assertNull(stack.ledger.totalAt(from, diamond), "nothing is left at the old address")
+            assertEquals(8L, stack.ledger.totalAt(to, diamond)?.raw)
+            assertEquals(
+                listOf(first.id, second.id),
+                stack.repo.accountQueue(to, diamond).map { it.lot.id },
+                "a pushed chest keeps its FIFO order, or the next withdrawal takes the wrong lot",
+            )
+            assertEquals(to, stack.repo.currentHolderOf(first.id))
+        }
+    }
+
+    @Test
+    fun `relocating into an occupied account merges by queue position, not by arrival`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val from = block(0, 64, 0)
+            val to = block(0, 64, 1)
+            val older = stack.ledger.mint(from, diamond, Quantity(1), stack.counters.nextTxnId())
+            val newer = stack.ledger.mint(to, diamond, Quantity(1), stack.counters.nextTxnId())
+
+            stack.repo.relocate(from, to)
+
+            assertEquals(
+                listOf(older.id, newer.id),
+                stack.repo.accountQueue(to, diamond).map { it.lot.id },
+                "the relocated lot is older and must still be spent first",
+            )
+        }
+    }
+
+    @Test
+    fun `relocating an empty account, or one onto itself, changes nothing`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val here = block(0, 64, 0)
+            stack.ledger.mint(here, diamond, Quantity(2), stack.counters.nextTxnId())
+
+            stack.repo.relocate(block(9, 9, 9), here)
+            stack.repo.relocate(here, here)
+
+            assertEquals(2L, stack.ledger.totalAt(here, diamond)?.raw)
+        }
+    }
+
 }

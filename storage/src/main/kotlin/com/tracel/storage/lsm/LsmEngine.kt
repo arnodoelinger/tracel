@@ -85,37 +85,57 @@ class LsmEngine(
         }
         open += readers
 
-        val active = MemTable(config.memtableBytes)
         var recovered = manifest.lastSequence
+        var active = MemTable(config.memtableBytes)
+        val recoveredSegments = ArrayList<SegmentReader>()
         for (id in walIds) {
             val applied = Wal.replay(Manifest.walPath(directory, id), manifest.lastSequence) { seq, key, value ->
-                check(active.put(key, value, seq)) {
-                    "the recovered write-ahead log does not fit a ${config.memtableBytes}-byte memtable"
+                if (!active.put(key, value, seq)) {
+                    recoveredSegments += sealDuringRecovery(active)
+                    active = MemTable(maxOf(config.memtableBytes, entryBytes(key, value) * 2))
+                    check(active.put(key, value, seq)) {
+                        "a recovered entry does not fit a memtable sized for it — the accounting is wrong"
+                    }
                 }
             }
             if (applied > recovered) recovered = applied
         }
+        if (active.entries > 0) {
+            recoveredSegments += sealDuringRecovery(active)
+            active = MemTable(config.memtableBytes)
+        }
         sequence.set(recovered)
+        open += recoveredSegments
 
-        // Recovery keeps writing into the log it just replayed rather than starting a fresh one:
-        // a second crash before the next flush then replays both halves, in order, and the
-        // manifest never has to describe a log that is half superseded.
-        val activeWal = walIds.lastOrNull() ?: nextFileId++.also { walIds += it }
-        active.walId = activeWal
-        wal = Wal.create(Manifest.walPath(directory, activeWal))
-        version = Version(active, emptyList(), readers, recovered, manifest.lastSequence, generation.get())
+        val walId = nextFileId++
+        walIds = arrayListOf(walId)
+        active.walId = walId
+        wal = Wal.create(Manifest.walPath(directory, walId))
+        version = Version(active, emptyList(), readers + recoveredSegments, recovered, recovered, generation.get())
         publish(currentManifest())
+        if (recoveredSegments.isNotEmpty()) maintenance.execute { maybeCompact() }
     }
 
+    private fun sealDuringRecovery(table: MemTable): SegmentReader {
+        val id = nextFileId++
+        val reader = writeSegment(table, id, Long.MAX_VALUE)
+        table.close()
+        return reader
+    }
+
+    private fun entryBytes(key: ByteArray, value: ByteArray?): Long =
+        key.size + (value?.size ?: 0) + MemTable.MAX_ENTRY_OVERHEAD
+
     override fun write(batch: MutationBatch, durable: Boolean) {
-        if (batch.isEmpty()) {
-            if (durable) lock.withLock { wal.sync() }
-            return
-        }
+        if (batch.isEmpty()) return
 
         lock.withLock {
             check(!closed) { "storage engine is closed" }
             if (!fits(version.active, batch)) rotate(batch)
+            check(fits(version.active, batch)) {
+                "a ${needs(batch)}-byte batch does not fit a freshly rotated " +
+                    "${version.active.capacity}-byte memtable — the size accounting is wrong"
+            }
 
             val seq = sequence.incrementAndGet()
             wal.append(seq, batch)
@@ -134,6 +154,12 @@ class LsmEngine(
             writeCount.incrementAndGet()
 
             if (durable) syncPerPolicy()
+
+            // A batch too big for an ordinary memtable got one sized for it. Send that one on
+            // its way now rather than letting the server run on an oversized table for however
+            // long it takes to fill — the write-ahead log tracks the table, and a table that
+            // does not rotate is a log that does not get retired.
+            if (table.capacity > config.memtableBytes) rotate(null)
         }
     }
 
@@ -183,7 +209,11 @@ class LsmEngine(
         quiesce()
     }
 
-    override fun close() {
+    override fun close() = shutdown(seal = true)
+
+    internal fun halt() = shutdown(seal = false)
+
+    private fun shutdown(seal: Boolean) {
         // Three separate lock sections
         lock.withLock {
             if (closed) return
@@ -194,11 +224,35 @@ class LsmEngine(
         maintenance.shutdown()
         maintenance.awaitTermination(30, TimeUnit.SECONDS)
         lock.withLock {
+            if (seal) runCatching { sealOnShutdown() }
             open.forEach { runCatching { it.close() } }
             retired.forEach { (reader, _) -> runCatching { reader.close() } }
             retiredTables.forEach { (table, _) -> runCatching { table.close() } }
             version.closeMemTables()
         }
+    }
+
+    /** Called under [lock], after maintenance has stopped, so nothing else can be writing. */
+    private fun sealOnShutdown() {
+        val pending = buildList {
+            if (version.active.entries > 0) add(version.active)
+            addAll(version.frozen.filter { it.entries > 0 })
+        }
+        if (pending.isEmpty()) return
+        val written = ArrayList<SegmentReader>(pending.size)
+        // Oldest first: a later segment has to carry the higher id so it shadows the earlier one
+        for (table in pending.asReversed()) written += writeSegment(table, nextFileId++, Long.MAX_VALUE)
+        open += written
+        walIds.clear()
+        version = Version(
+            version.active,
+            version.frozen,
+            version.segments + written,
+            version.lastSequence,
+            version.lastSequence,
+            generation.incrementAndGet(),
+        )
+        publish(currentManifest())
     }
 
     // Write path, all under lock
@@ -218,7 +272,10 @@ class LsmEngine(
     }
 
     private fun fits(table: MemTable, batch: MutationBatch): Boolean =
-        table.bytesUsed + batch.byteSize() + batch.size * MAX_NODE_OVERHEAD <= table.capacity
+        table.bytesUsed + needs(batch) <= table.capacity
+
+    /** An upper bound on what [batch] will cost a memtable — see [MemTable.MAX_ENTRY_OVERHEAD]. */
+    private fun needs(batch: MutationBatch): Long = batch.byteSize() + batch.size * MemTable.MAX_ENTRY_OVERHEAD
 
     /**
      * Freezes the active memtable, starts a fresh log, and hands the frozen one to maintenance.
@@ -233,7 +290,7 @@ class LsmEngine(
             waited += 25
         }
 
-        val needed = oversized?.let { it.byteSize() + it.size * MAX_NODE_OVERHEAD } ?: 0
+        val needed = oversized?.let(::needs) ?: 0L
         val frozen = version.active
         val fresh = MemTable(maxOf(config.memtableBytes, needed * 2))
 
@@ -250,38 +307,46 @@ class LsmEngine(
 
     // Maintenance thread
 
+    /**
+     * One memtable, written out as an immutable level-0 segment.
+     *
+     * Collapses versions on the way: a running total rewritten once per captured event arrives
+     * here as thousands of entries for one key, and writing all of them would put that cost on
+     * every future read of the segment as well as on the file size. [horizon] is the sequence
+     * below which only the newest version still matters.
+     */
+    private fun writeSegment(table: MemTable, id: Long, horizon: Long): SegmentReader {
+        val path = Manifest.segmentPath(directory, id)
+        val meta = SegmentFile.Writer(path, table.entries).use { writer ->
+            var node = table.seek(ByteArray(0))
+            var lastKey: ByteArray? = null
+            var keptBelowHorizon = false
+            while (node != 0L) {
+                val userKey = table.userKeyBytes(node)
+                if (lastKey == null || !userKey.contentEquals(lastKey)) {
+                    lastKey = userKey
+                    keptBelowHorizon = false
+                }
+                val visible = table.sequenceOf(node) <= horizon
+                if (!visible || !keptBelowHorizon) {
+                    if (visible) keptBelowHorizon = true
+                    writer.add(
+                        table.segment.readBytes(table.keyOffset(node), table.keyLength(node)),
+                        table.valueOf(node)?.let { it.readBytes(0, it.byteSize().toInt()) },
+                    )
+                }
+                node = table.nextOf(node, 0)
+            }
+            writer.finish(id, 0)
+        }
+        fsyncDirectory(directory)
+        return SegmentFile.open(path, meta)
+    }
+
     private fun flush(frozen: MemTable) {
         try {
             val id = lock.withLock { nextFileId++ }
-            val path = Manifest.segmentPath(directory, id)
-            // Collapse versions on the way out. A running total rewritten once per captured
-            // event arrives here as thousands of entries for one key; writing all of them would
-            // put that cost on every future read of the segment as well as on the file size.
-            val horizon = oldestVisibleSequence()
-            val meta = SegmentFile.Writer(path, frozen.entries).use { writer ->
-                var node = frozen.seek(ByteArray(0))
-                var lastKey: ByteArray? = null
-                var keptBelowHorizon = false
-                while (node != 0L) {
-                    val userKey = frozen.userKeyBytes(node)
-                    if (lastKey == null || !userKey.contentEquals(lastKey)) {
-                        lastKey = userKey
-                        keptBelowHorizon = false
-                    }
-                    val visible = frozen.sequenceOf(node) <= horizon
-                    if (!visible || !keptBelowHorizon) {
-                        if (visible) keptBelowHorizon = true
-                        writer.add(
-                            frozen.segment.readBytes(frozen.keyOffset(node), frozen.keyLength(node)),
-                            frozen.valueOf(node)?.let { it.readBytes(0, it.byteSize().toInt()) },
-                        )
-                    }
-                    node = frozen.nextOf(node, 0)
-                }
-                writer.finish(id, 0)
-            }
-            fsyncDirectory(directory)
-            val reader = SegmentFile.open(path, meta)
+            val reader = writeSegment(frozen, id, oldestVisibleSequence())
 
             lock.withLock {
                 open += reader
@@ -339,7 +404,8 @@ class LsmEngine(
                 var lastKey: ByteArray? = null
                 var keptBelowHorizon = false
                 while (true) {
-                    val index = minimumOf(runs) ?: break
+                    val index = minimumOf(runs)
+                    if (index < 0) break
                     val run = runs[index]
                     val userKey = run.userKeyBytes()
                     if (lastKey == null || !userKey.contentEquals(lastKey)) {
@@ -353,7 +419,7 @@ class LsmEngine(
                         if (visible) keptBelowHorizon = true
                         if (!(run.isDeletion() && plan.dropTombstones && visible)) {
                             writer.add(
-                                run.keySegment().readBytes(run.keyOffset(), run.keyLength()),
+                                run.keySegment.readBytes(run.keyOffset, run.keyLength),
                                 run.value()?.let { it.readBytes(0, it.byteSize().toInt()) },
                             )
                         }
@@ -412,27 +478,6 @@ class LsmEngine(
      */
     private fun oldestVisibleSequence(): Long = pinnedSequences.firstEntry()?.key ?: Long.MAX_VALUE
 
-    // Picks the run currently positioned at the smallest key, for a compaction's k-way merge.
-    // A handful of segment inputs (single digits, capped by the configured fanout) makes a
-    // linear scan the right call. A heap would pay log(n) per step to save work that does not
-    // exist at this n, and would need its own bookkeeping to stay correct as runs go invalid.
-    private fun minimumOf(runs: Array<Run>): Int? {
-        var best = -1
-        for (i in runs.indices) {
-            if (!runs[i].valid()) continue
-            if (best < 0) {
-                best = i
-                continue
-            }
-            val cmp = SegmentCompare.compare(
-                runs[i].keySegment(), runs[i].keyOffset(), runs[i].keyLength(),
-                runs[best].keySegment(), runs[best].keyOffset(), runs[best].keyLength(),
-            )
-            if (cmp < 0) best = i
-        }
-        return if (best < 0) null else best
-    }
-
     private fun currentManifest(): Manifest = Manifest(
         lastSequence = version.durableSequence,
         nextFileId = nextFileId,
@@ -485,7 +530,6 @@ class LsmEngine(
          * Per-entry overhead the fit check has to reserve: node header, one next pointer, the
          * internal-key trailer, and alignment.
          */
-        const val MAX_NODE_OVERHEAD = 40
 
         /** How long a rotation waits for the flush queue to drain before going ahead anyway. */
         const val FLUSH_WAIT_MILLIS = 2000

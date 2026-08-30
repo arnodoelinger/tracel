@@ -3,77 +3,140 @@ package com.tracel.storage.lsm
 import com.tracel.storage.ffm.SegmentCompare
 import com.tracel.storage.spi.EngineCursor
 import java.lang.foreign.MemorySegment
+import java.lang.invoke.MethodHandles
+import java.lang.invoke.VarHandle
+import java.nio.ByteOrder
 
 /**
  * One sorted run positioned somewhere in itself. A memtable or a segment file, seen through
  * the same three questions the merge asks: where are you, how new are you, what do you hold.
  */
-internal interface Run {
-    fun valid(): Boolean
-    fun seek(internalKey: ByteArray)
-    fun next()
+internal abstract class Run {
+    @JvmField var valid: Boolean = false
+    @JvmField var keySegment: MemorySegment = MemorySegment.NULL
+    @JvmField var keyOffset: Long = 0
+    @JvmField var keyLength: Int = 0
+    @JvmField var userKeyLength: Int = 0
 
+    abstract fun seek(internalKey: ByteArray, length: Int)
+    abstract fun next()
+    abstract fun sequence(): Long
+    abstract fun isDeletion(): Boolean
+    abstract fun value(): MemorySegment?
+    abstract fun userKeyBytes(): ByteArray
+
+    fun seek(internalKey: ByteArray) = seek(internalKey, internalKey.size)
+
+    private var past = ByteArray(48)
+
+    /** Jumps past every remaining version of [userKey]. */
     fun skipPast(userKey: ByteArray) {
-        val past = ByteArray(userKey.size + InternalKey.TRAILER_BYTES)
-        userKey.copyInto(past)
-        for (i in userKey.size until past.size) past[i] = 0xFF.toByte()
-        seek(past)
+        val length = userKey.size + InternalKey.TRAILER_BYTES
+        var buffer = past
+        if (buffer.size < length) {
+            buffer = ByteArray(length + 32)
+            past = buffer
+        }
+        System.arraycopy(userKey, 0, buffer, 0, userKey.size)
+        BE_LONG.set(buffer, userKey.size, -1L)
+        seek(buffer, length)
     }
 
-    fun keySegment(): MemorySegment
-    fun keyOffset(): Long
-    fun keyLength(): Int
-    fun userKeyLength(): Int
-    fun sequence(): Long
-    fun isDeletion(): Boolean
-    fun value(): MemorySegment?
-    fun userKeyBytes(): ByteArray
+    companion object {
+        private val BE_LONG: VarHandle =
+            MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.BIG_ENDIAN)
+    }
 }
 
-internal class MemTableRun(private val table: MemTable) : Run {
+internal class MemTableRun(private val table: MemTable) : Run() {
     private var node = 0L
 
-    override fun valid(): Boolean = node != 0L
-    override fun seek(internalKey: ByteArray) {
-        node = table.seek(internalKey)
+    override fun seek(internalKey: ByteArray, length: Int) {
+        node = table.seek(internalKey, length)
+        refresh()
     }
 
     override fun next() {
         node = table.nextOf(node, 0)
+        refresh()
     }
 
-    override fun keySegment(): MemorySegment = table.segment
-    override fun keyOffset(): Long = table.keyOffset(node)
-    override fun keyLength(): Int = table.keyLength(node)
-    override fun userKeyLength(): Int = table.userKeyLength(node)
     override fun sequence(): Long = table.sequenceOf(node)
     override fun isDeletion(): Boolean = table.isDeletion(node)
     override fun value(): MemorySegment? = table.valueOf(node)
     override fun userKeyBytes(): ByteArray = table.userKeyBytes(node)
+
+    private fun refresh() {
+        val at = node
+        if (at == 0L) {
+            valid = false
+            return
+        }
+        val header = table.header(at)
+        valid = true
+        keySegment = table.segment
+        keyOffset = table.keyOffsetOf(at, header)
+        keyLength = table.keyLengthOf(header)
+        userKeyLength = keyLength - InternalKey.TRAILER_BYTES
+    }
 }
 
-internal class SegmentRun(private val reader: SegmentReader) : Run {
+internal class SegmentRun(private val reader: SegmentReader) : Run() {
+    private val end = reader.end()
     private var at = 0L
-    private var end = reader.end()
+    private var header = 0L
 
-    override fun valid(): Boolean = at < end
-    override fun seek(internalKey: ByteArray) {
-        at = reader.seek(internalKey)
+    override fun seek(internalKey: ByteArray, length: Int) {
+        at = reader.seek(internalKey, length)
+        refresh()
     }
 
     override fun next() {
-        at = reader.advance(at)
+        at = reader.advance(at, header)
+        refresh()
     }
 
-    override fun keySegment(): MemorySegment = reader.segment
-    override fun keyOffset(): Long = reader.keyOffset(at)
-    override fun keyLength(): Int = reader.keyLength(at)
-    override fun userKeyLength(): Int = reader.userKeyLength(at)
     override fun sequence(): Long = reader.sequenceOf(at)
-    override fun isDeletion(): Boolean = reader.isDeletion(at)
-    override fun value(): MemorySegment? = reader.valueOf(at)
+    override fun isDeletion(): Boolean = reader.isDeletionOf(header)
+    override fun value(): MemorySegment? = reader.valueOf(at, header)
     override fun userKeyBytes(): ByteArray = reader.userKeyBytes(at)
+
+    private fun refresh() {
+        val cursor = at
+        if (cursor >= end) {
+            valid = false
+            return
+        }
+        val head = reader.header(cursor)
+        header = head
+        valid = true
+        keySegment = reader.segment
+        keyOffset = cursor + 8
+        keyLength = head.toInt()
+        userKeyLength = keyLength - InternalKey.TRAILER_BYTES
+    }
 }
+
+/** The run positioned at the smallest key, or `-1` when every run is spent. */
+internal fun minimumOf(runs: Array<Run>): Int {
+    if (runs.isEmpty()) return -1
+    var best = -1
+    var winner: Run = runs[0]
+    for (i in runs.indices) {
+        val candidate = runs[i]
+        if (!candidate.valid) continue
+        if (best < 0 || less(candidate, winner)) {
+            best = i
+            winner = candidate
+        }
+    }
+    return best
+}
+
+private fun less(left: Run, right: Run): Boolean = SegmentCompare.compare(
+    left.keySegment, left.keyOffset, left.keyLength,
+    right.keySegment, right.keyOffset, right.keyLength,
+) < 0
 
 /**
  * Merges every run into one ascending stream of user keys, resolving each key to the newest
@@ -83,9 +146,6 @@ internal class SegmentRun(private val reader: SegmentReader) : Run {
  * across the runs is always the newest version of the smallest user key — so resolution is
  * "take the first version you meet that the snapshot can see, then skip the rest of that key"
  * rather than anything that has to look ahead.
- *
- * Run count is small (a memtable or three plus one segment per level), so picking the minimum
- * by linear scan beats a heap and allocates nothing per step.
  */
 internal class MergingCursor(
     private val runs: Array<Run>,
@@ -96,11 +156,21 @@ internal class MergingCursor(
     private var currentKey: ByteArray? = null
     private var currentValue: MemorySegment? = null
 
+    private val count = runs.size
+    private val r0: Run = if (count > 0) runs[0] else NoRun
+    private val r1: Run = if (count > 1) runs[1] else NoRun
+    private val r2: Run = if (count > 2) runs[2] else NoRun
+    private val r3: Run = if (count > 3) runs[3] else NoRun
+
     override fun next(): Boolean {
         while (true) {
-            val first = minimum() ?: return finish()
-            val userKey = runs[first].userKeyBytes()
-            if (!startsWith(userKey, prefix)) return finish()
+            val first = minimum()
+            if (first < 0) return finish()
+            val head = runs[first]
+            if (!SegmentCompare.startsWith(head.keySegment, head.keyOffset, head.userKeyLength, prefix)) {
+                return finish()
+            }
+            val userKey = head.userKeyBytes()
 
             var found = false
             var deletion = false
@@ -108,7 +178,7 @@ internal class MergingCursor(
 
             for (index in runs.indices) {
                 val run = runs[index]
-                while (run.valid() && sameUserKey(index, userKey)) {
+                while (run.valid && sameUserKey(run, userKey)) {
                     if (!found && run.sequence() <= snapshotSequence) {
                         found = true
                         deletion = run.isDeletion()
@@ -159,9 +229,9 @@ internal class MergingCursor(
                 // Fixing this took the full pipeline from roughly 9.500 events per second
                 // to over 53.000 in group-commit mode (August 23, 2026) — an order of magnitude,
                 // from one loop.
-                if (run.valid() && sameUserKey(index, userKey)) {
+                if (run.valid && sameUserKey(run, userKey)) {
                     run.next()
-                    if (run.valid() && sameUserKey(index, userKey)) run.skipPast(userKey)
+                    if (run.valid && sameUserKey(run, userKey)) run.skipPast(userKey)
                 }
             }
 
@@ -177,6 +247,13 @@ internal class MergingCursor(
 
     override fun value(): MemorySegment = currentValue ?: error("cursor is not positioned")
 
+    override fun skipTo(from: ByteArray) {
+        val target = InternalKey.seekTarget(from)
+        for (run in runs) run.seek(target, target.size)
+        currentKey = null
+        currentValue = null
+    }
+
     override fun close() {
         onClose()
     }
@@ -187,24 +264,48 @@ internal class MergingCursor(
         return false
     }
 
-    private fun minimum(): Int? {
-        var best = -1
-        for (i in runs.indices) {
-            if (!runs[i].valid()) continue
-            if (best < 0 || compare(i, best) < 0) best = i
+    private fun minimum(): Int {
+        when (count) {
+            0 -> return -1
+            1 -> return if (r0.valid) 0 else -1
+            2 -> {
+                if (!r0.valid) return if (r1.valid) 1 else -1
+                if (!r1.valid) return 0
+                return if (less(r1, r0)) 1 else 0
+            }
+            3 -> {
+                var best = -1
+                var winner = r0
+                if (r0.valid) best = 0
+                if (r1.valid && (best < 0 || less(r1, winner))) { best = 1; winner = r1 }
+                if (r2.valid && (best < 0 || less(r2, winner))) best = 2
+                return best
+            }
+            4 -> {
+                var best = -1
+                var winner = r0
+                if (r0.valid) best = 0
+                if (r1.valid && (best < 0 || less(r1, winner))) { best = 1; winner = r1 }
+                if (r2.valid && (best < 0 || less(r2, winner))) { best = 2; winner = r2 }
+                if (r3.valid && (best < 0 || less(r3, winner))) best = 3
+                return best
+            }
         }
-        return if (best < 0) null else best
+        return minimumOf(runs)
     }
 
-    private fun compare(left: Int, right: Int): Int = SegmentCompare.compare(
-        runs[left].keySegment(), runs[left].keyOffset(), runs[left].keyLength(),
-        runs[right].keySegment(), runs[right].keyOffset(), runs[right].keyLength(),
-    )
+    private fun sameUserKey(run: Run, userKey: ByteArray): Boolean =
+        run.userKeyLength == userKey.size &&
+            SegmentCompare.compare(run.keySegment, run.keyOffset, userKey.size, userKey, userKey.size) == 0
 
-    private fun sameUserKey(index: Int, userKey: ByteArray): Boolean =
-        runs[index].userKeyLength() == userKey.size &&
-            SegmentCompare.compare(runs[index].keySegment(), runs[index].keyOffset(), userKey.size, userKey) == 0
-
-    private fun startsWith(key: ByteArray, prefix: ByteArray): Boolean =
-        key.size >= prefix.size && java.util.Arrays.equals(key, 0, prefix.size, prefix, 0, prefix.size)
+    private companion object {
+        val NoRun = object : Run() {
+            override fun seek(internalKey: ByteArray, length: Int) = Unit
+            override fun next() = Unit
+            override fun sequence(): Long = error("no run")
+            override fun isDeletion(): Boolean = error("no run")
+            override fun value(): MemorySegment? = error("no run")
+            override fun userKeyBytes(): ByteArray = error("no run")
+        }
+    }
 }
