@@ -41,7 +41,7 @@ import java.util.UUID
  */
 object Records {
     /** Bumped whenever a layout below changes shape. Written into every transaction record. */
-    const val VERSION: Byte = 1
+    const val VERSION: Byte = 2 // TODO: remove it
 
     // Box "Lot": 20 bytes
 

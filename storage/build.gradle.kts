@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":platform"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.caffeine)
+    implementation(libs.lz4)
 
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.hdrhistogram)

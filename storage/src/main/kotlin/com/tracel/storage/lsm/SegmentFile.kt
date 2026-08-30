@@ -1,8 +1,10 @@
 package com.tracel.storage.lsm
 
+import com.tracel.storage.ffm.Bytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8
+import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.ffm.MappedFile
 import com.tracel.storage.ffm.SegmentCompare
 import java.io.BufferedOutputStream
@@ -19,25 +21,27 @@ import java.nio.file.Path
  * An immutable sorted run.
  *
  * ```
- * data ->
- * [varint shared][varint unshared][varint valueLen+1][unshared key][value]
- * // valueLen+1 is 0 for a tombstone, 1 for an empty value, n+1 for n payload bytes
- *
- * index  -> [u32 keyLen][internal key][u64 dataOffset] ... restart every INDEX_STRIDE of data
- * bloom  -> [u32 bitCount][u32 hashCount][bits]        ... over user keys
- * footer -> 40 bytes, at EOF
+ * data   -> repeated block:
+ *           [u32 uncompressed][u32 flags|payload][payload]
+ *           payload is LZ4 of prefix+varint records, or raw if LZ4 did not shrink
+ *           bit 31 of the second word set means LZ4
+ * index  -> [u32 keyLen][internal key][u64 blockOffset]  ... one per block
+ * bloom  -> [u32 bitCount][u32 hashCount][bits]
+ * dict   -> [bytes] trained on segment (hopper / actor / lot shapes + samples)
+ * footer -> 52 bytes, at EOF
  * ```
  *
- * Written once, `fsync`ed, then never touched again.
+ * Written once, `fsync`ed, then never touched again. Capture never reads this file.
  */
 object SegmentFile {
     const val MAGIC = 0x54524C53
-    const val VERSION = 4
-    const val OLDEST_READABLE_VERSION = 4
-    const val FOOTER_BYTES = 40
-
-    // Don't change this
-    private const val INDEX_STRIDE = 1024
+    const val VERSION = 6
+    const val OLDEST_READABLE_VERSION = 6
+    const val FOOTER_BYTES = 52
+    const val BLOCK_TARGET = 4096
+    const val FLAG_LZ4 = 1 shl 31
+    const val FLAG_DICT = 1 shl 30
+    const val PAYLOAD_MASK = 0x3FFFFFFF
 
     private val LE_INT: VarHandle = MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
     private val LE_LONG: VarHandle = MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
@@ -54,9 +58,14 @@ object SegmentFile {
         private var indexUsed = 0
 
         private val header = ByteArray(16)
+        private val compressor = Lz4.compressor()
+        private var block = ByteArray(BLOCK_TARGET + 512)
+        private var blockUsed = 0
+        private var blockFirstKey: ByteArray? = null
+        private val pending = ArrayList<ByteArray>()
+        private val pendingFirst = ArrayList<ByteArray>()
 
         private var dataBytes = 0L
-        private var sinceIndex = 0L
         private var count = 0
         private var firstKey: ByteArray? = null
         private var lastKey: ByteArray = ByteArray(0)
@@ -64,11 +73,8 @@ object SegmentFile {
 
         fun add(internalKey: ByteArray, value: ByteArray?) {
             require(internalKey.size <= 0xFFFF) { "internal key ${internalKey.size} does not fit a u16 length" }
-            val restart = sinceIndex == 0L || sinceIndex >= INDEX_STRIDE
-            if (restart) {
-                stageIndex(internalKey, dataBytes)
-                sinceIndex = 0
-            }
+            if (blockUsed >= BLOCK_TARGET) flushBlock()
+            val restart = blockUsed == 0
             val shared = if (restart) 0 else sharedPrefix(lastKey, lastKeyLength, internalKey)
             val unshared = internalKey.size - shared
             val valueLength = value?.size ?: -1
@@ -76,13 +82,13 @@ object SegmentFile {
             headerAt = Varints.write(header, headerAt, shared)
             headerAt = Varints.write(header, headerAt, unshared)
             headerAt = Varints.write(header, headerAt, valueLength + 1)
-            out.write(header, 0, headerAt)
-            out.write(internalKey, shared, unshared)
-            if (value != null) out.write(value)
-
-            val entryBytes = headerAt.toLong() + unshared + (value?.size ?: 0)
-            dataBytes += entryBytes
-            sinceIndex += entryBytes
+            val payload = headerAt + unshared + (value?.size ?: 0)
+            ensureBlock(payload)
+            System.arraycopy(header, 0, block, blockUsed, headerAt)
+            System.arraycopy(internalKey, shared, block, blockUsed + headerAt, unshared)
+            if (value != null) System.arraycopy(value, 0, block, blockUsed + headerAt + unshared, value.size)
+            blockUsed += payload
+            if (restart) blockFirstKey = internalKey.copyOf()
             count++
             bloom.add(internalKey, internalKey.size - InternalKey.TRAILER_BYTES)
             if (firstKey == null) firstKey = internalKey
@@ -92,6 +98,13 @@ object SegmentFile {
         }
 
         fun finish(id: Long, level: Int): SegmentMeta {
+            flushBlock()
+            val dict = Lz4Dict.train(pending)
+            for (i in pending.indices) {
+                stageIndex(pendingFirst[i], dataBytes)
+                writeBlock(pending[i], dict)
+            }
+
             val indexOffset = dataBytes
             val indexBytes = indexUsed.toLong()
             out.write(index, 0, indexUsed)
@@ -99,12 +112,17 @@ object SegmentFile {
             val bloomOffset = indexOffset + indexBytes
             val bloomBytes = bloom.writeTo(out)
 
+            val dictOffset = bloomOffset + bloomBytes
+            out.write(dict)
+
             val footer = ByteBuffer.allocate(FOOTER_BYTES).order(ByteOrder.LITTLE_ENDIAN)
             footer.putLong(indexOffset)
             footer.putInt(indexBytes.toInt())
             footer.putLong(bloomOffset)
             footer.putInt(bloomBytes.toInt())
             footer.putLong(count.toLong())
+            footer.putLong(dictOffset)
+            footer.putInt(dict.size)
             footer.putInt(VERSION)
             footer.putInt(MAGIC)
             out.write(footer.array())
@@ -118,6 +136,56 @@ object SegmentFile {
         override fun close() {
             runCatching { out.close() }
             runCatching { file.close() }
+        }
+
+        private fun flushBlock() {
+            if (blockUsed == 0) return
+            val first = blockFirstKey ?: error("a non-empty block has no first key")
+            pending.add(block.copyOf(blockUsed))
+            pendingFirst.add(first)
+            blockUsed = 0
+            blockFirstKey = null
+        }
+
+        @Suppress("ConvertTwoComparisonsToRangeCheck")
+        private fun writeBlock(raw: ByteArray, dict: ByteArray) {
+            val bound = maxOf(compressor.maxCompressedLength(raw.size), raw.size + 16)
+            val dictBuf = ByteArray(bound)
+            val plainBuf = ByteArray(bound)
+            val withDict = Lz4Dict.compress(dict, raw, raw.size, dictBuf)
+            val without = compressor.compress(raw, 0, raw.size, plainBuf, 0, plainBuf.size)
+            val useDict = withDict in 1 until raw.size && (without <= 0 || withDict <= without)
+            val useLz4 = !useDict && without in 1 until raw.size
+            val payload: Int
+            val flags: Int
+            val body: ByteArray
+            when {
+                useDict -> {
+                    payload = withDict
+                    flags = payload or FLAG_LZ4 or FLAG_DICT
+                    body = dictBuf
+                }
+                useLz4 -> {
+                    payload = without
+                    flags = payload or FLAG_LZ4
+                    body = plainBuf
+                }
+                else -> {
+                    payload = raw.size
+                    flags = payload
+                    body = raw
+                }
+            }
+            LE_INT.set(header, 0, raw.size)
+            LE_INT.set(header, 4, flags)
+            out.write(header, 0, 8)
+            out.write(body, 0, payload)
+            dataBytes += 8L + payload
+        }
+
+        private fun ensureBlock(more: Int) {
+            val need = blockUsed + more
+            if (need > block.size) block = block.copyOf(maxOf(need, block.size shl 1))
         }
 
         private fun sharedPrefix(previous: ByteArray, previousLength: Int, next: ByteArray): Int {
@@ -142,14 +210,16 @@ object SegmentFile {
         }
     }
 
-    fun open(path: Path, meta: SegmentMeta): SegmentReader {
+    fun open(path: Path, meta: SegmentMeta): SegmentReader = open(path, meta, BlockCache())
+
+    internal fun open(path: Path, meta: SegmentMeta, cache: BlockCache): SegmentReader {
         val mapped = MappedFile.openRead(path)
         val segment = mapped.segment
         val footerAt = segment.byteSize() - FOOTER_BYTES
         require(footerAt >= 0) { "$path is too short to be a segment" }
-        val magic = segment.i32(footerAt + 36)
+        val magic = segment.i32(footerAt + FOOTER_BYTES - 4)
         require(magic == MAGIC) { "$path is not a Tracel segment (magic ${magic.toString(16)})" }
-        val version = segment.i32(footerAt + 32)
+        val version = segment.i32(footerAt + FOOTER_BYTES - 8)
         require(version in OLDEST_READABLE_VERSION..VERSION) {
             "$path was written by segment format v$version, this build reads v$OLDEST_READABLE_VERSION-v$VERSION"
         }
@@ -158,6 +228,8 @@ object SegmentFile {
         val indexBytes = segment.i32(footerAt + 8)
         val bloomOffset = segment.i64(footerAt + 12)
         val bloomBytes = segment.i32(footerAt + 20)
+        val dictOffset = segment.i64(footerAt + 32)
+        val dictBytes = segment.i32(footerAt + 40)
         val indexEnd = indexOffset + indexBytes
         var count = 0
         var at = indexOffset
@@ -187,6 +259,8 @@ object SegmentFile {
             search,
             dataEnd = indexOffset,
             bloom = if (bloomBytes > 0) Bloom(segment, bloomOffset) else null,
+            cache = cache,
+            dict = if (dictBytes > 0) segment.readBytes(dictOffset, dictBytes) else ByteArray(0),
         )
     }
 }
@@ -212,6 +286,8 @@ class SegmentReader internal constructor(
     private val search: LongArray,
     private val dataEnd: Long,
     private val bloom: Bloom?,
+    private val cache: BlockCache,
+    private val dict: ByteArray,
 ) : AutoCloseable {
     val segment: MemorySegment get() = mapped.segment
     val path: Path get() = mapped.path
@@ -255,8 +331,41 @@ class SegmentReader internal constructor(
 
     fun end(): Long = dataEnd
 
+    @Suppress("ConvertTwoComparisonsToRangeCheck")
+    fun blockAt(offset: Long): ByteArray {
+        if (offset < 0 || offset >= dataEnd) return EMPTY_BLOCK
+        return cache.get(meta.id, offset) { decodeBlock(offset) }
+    }
+
+    @Suppress("ConvertTwoComparisonsToRangeCheck")
+    fun nextBlock(offset: Long): Long {
+        if (offset < 0 || offset >= dataEnd) return dataEnd
+        val packed = segment.i32(offset + 4)
+        val payload = packed and SegmentFile.PAYLOAD_MASK
+        return offset + 8 + payload
+    }
+
+    private fun decodeBlock(offset: Long): ByteArray {
+        val uncompressed = segment.i32(offset)
+        val packed = segment.i32(offset + 4)
+        val lz4 = packed < 0
+        val withDict = packed and SegmentFile.FLAG_DICT != 0
+        val payload = packed and SegmentFile.PAYLOAD_MASK
+        val src = ByteArray(payload)
+        MemorySegment.copy(segment, Bytes.I8, offset + 8, src, 0, payload)
+        if (!lz4) return if (payload == uncompressed) src else src.copyOf(uncompressed)
+        val dest = ByteArray(uncompressed)
+        if (withDict) Lz4Dict.decompress(dict, src, payload, dest, uncompressed)
+        else Lz4.decompressor.decompress(src, 0, dest, 0, uncompressed)
+        return dest
+    }
+
     override fun close() {
         mapped.close()
+    }
+
+    private companion object {
+        val EMPTY_BLOCK = ByteArray(0)
     }
 }
 

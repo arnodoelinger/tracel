@@ -83,8 +83,10 @@ internal class MemTableRun(private val table: MemTable) : Run() {
 }
 
 internal class SegmentRun(private val reader: SegmentReader) : Run() {
-    private val end = reader.end()
-    private val data = reader.segment
+    private val fileEnd = reader.end()
+    private var data: MemorySegment = MemorySegment.NULL
+    private var fileOff = 0L
+    private var blockEnd = 0L
     private var at = 0L
     private var headerBytes = 0
     private var unshared = 0
@@ -94,9 +96,16 @@ internal class SegmentRun(private val reader: SegmentReader) : Run() {
     private var keyMem = MemorySegment.ofArray(key)
 
     override fun seek(internalKey: ByteArray, length: Int) {
-        at = reader.restartAt(internalKey, length)
+        if (!openBlock(reader.restartAt(internalKey, length))) {
+            valid = false
+            return
+        }
         keyLength = 0
-        while (at < end) {
+        while (true) {
+            if (at >= blockEnd && !openBlock(reader.nextBlock(fileOff))) {
+                valid = false
+                return
+            }
             decode()
             if (SegmentCompare.compare(keyMem, 0, keyLength, internalKey, length) >= 0) {
                 valid = true
@@ -104,12 +113,11 @@ internal class SegmentRun(private val reader: SegmentReader) : Run() {
             }
             at = nextAt()
         }
-        valid = false
     }
 
     override fun next() {
         at = nextAt()
-        if (at >= end) {
+        if (at >= blockEnd && !openBlock(reader.nextBlock(fileOff))) {
             valid = false
             return
         }
@@ -127,6 +135,18 @@ internal class SegmentRun(private val reader: SegmentReader) : Run() {
     }
 
     override fun userKeyBytes(): ByteArray = key.copyOf(userKeyLength)
+
+    @Suppress("ConvertTwoComparisonsToRangeCheck")
+    private fun openBlock(offset: Long): Boolean {
+        if (offset < 0 || offset >= fileEnd) return false
+        val raw = reader.blockAt(offset)
+        if (raw.isEmpty()) return false
+        fileOff = offset
+        data = MemorySegment.ofArray(raw)
+        blockEnd = raw.size.toLong()
+        at = 0
+        return true
+    }
 
     private fun decode() {
         var cursor = at

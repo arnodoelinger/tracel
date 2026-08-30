@@ -60,6 +60,8 @@ class LsmEngine(
 
     private val pinnedSequences = ConcurrentSkipListMap<Long, AtomicInteger>()
 
+    private val blocks = BlockCache()
+
     private val retired = ArrayList<Pair<SegmentReader, Long>>()
     private val retiredTables = ArrayList<Pair<MemTable, Long>>()
     private val open = ArrayList<SegmentReader>()
@@ -81,7 +83,7 @@ class LsmEngine(
         walIds = ArrayList(manifest.walIds)
 
         val readers = manifest.segments.map { meta ->
-            SegmentFile.open(Manifest.segmentPath(directory, meta.id), meta)
+            SegmentFile.open(Manifest.segmentPath(directory, meta.id), meta, blocks)
         }
         open += readers
 
@@ -340,7 +342,7 @@ class LsmEngine(
             writer.finish(id, 0)
         }
         fsyncDirectory(directory)
-        return SegmentFile.open(path, meta)
+        return SegmentFile.open(path, meta, blocks)
     }
 
     private fun flush(frozen: MemTable) {
@@ -429,7 +431,7 @@ class LsmEngine(
                 writer.finish(id, plan.level + 1)
             }
             fsyncDirectory(directory)
-            val reader = SegmentFile.open(path, meta)
+            val reader = SegmentFile.open(path, meta, blocks)
 
             lock.withLock {
                 open += reader
