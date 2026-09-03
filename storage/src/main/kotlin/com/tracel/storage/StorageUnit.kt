@@ -134,6 +134,10 @@ private class OverlayCursor(
 
     override fun key(): ByteArray = currentKey ?: error("cursor is not positioned")
 
+    override fun keyLength(): Int = key().size
+
+    override fun keyByte(at: Int): Byte = key()[at]
+
     override fun value(): MemorySegment = currentValue ?: error("cursor is not positioned")
 
     override fun skipTo(from: ByteArray) {

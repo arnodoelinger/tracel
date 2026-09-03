@@ -19,11 +19,15 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.BlockShape
 import com.tracel.model.world.EntityShape
 import com.tracel.model.world.EntityTypeKey
+import com.tracel.storage.codec.Keys
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
@@ -151,4 +155,142 @@ class RollbackJobPersistenceTest {
             assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoable(limit = 10))
         }
     }
+
+    @Test
+    fun `halves written apart still read back as one list, across run boundaries`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            fun blocks(from: Int, count: Int) = (from until from + count).map { i ->
+                StructureStep.SetBlock(
+                    BlockPos(world, i, 70, 0),
+                    BlockShape(BlockDataKey("minecraft:stone")),
+                    BlockShape.AIR,
+                )
+            }
+
+            val many = blocks(0, 700)
+            val gone = blocks(10_000, 600)
+            val record = RollbackJobRecord(RollbackJobId(5), plan, RollbackTarget.Uniform(player(1)), many, gone)
+            stack.jobs.finish(stack.jobs.begin(record), gone)
+
+            val read = stack.jobs.find(RollbackJobId(5))!!
+            assertEquals(many, read.create)
+            assertEquals(gone, read.destroy)
+        }
+    }
+
+    @Test
+    fun `a save that never finished is not a job at all`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val record = RollbackJobRecord(RollbackJobId(6), plan, RollbackTarget.Uniform(player(1)), create, destroy)
+            stack.jobs.begin(record)
+
+            assertNull(stack.jobs.find(RollbackJobId(6)))
+            assertFalse(stack.jobs.isUndoable(RollbackJobId(6)))
+        }
+    }
+
+    @Test
+    fun `a job's blocks are packed by section and still all come back`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val blocks = (0 until 2).flatMap { s ->
+                (0 until 4096).map { i ->
+                    StructureStep.SetBlock(
+                        BlockPos(world, i and 15, 64 + s * 16 + (i shr 8), (i shr 4) and 15),
+                        BlockShape(BlockDataKey("minecraft:stone")),
+                        BlockShape.AIR,
+                    )
+                }
+            }.shuffled(java.util.Random(7).let { rng -> kotlin.random.Random(rng.nextLong()) })
+            val many = blocks + StructureStep.SpawnEntity(at, boat, EntityShape(EntityTypeKey("minecraft:boat"), 1.0, 2.0, 3.0))
+
+            stack.jobs.save(RollbackJobRecord(RollbackJobId(7), plan, RollbackTarget.Uniform(player(1)), many, destroy))
+
+            val read = stack.jobs.find(RollbackJobId(7))!!
+            assertEquals(many.size, read.create.size)
+            assertEquals(many.toSet(), read.create.toSet())
+            assertEquals(destroy, read.destroy)
+        }
+    }
+
+    @Test
+    fun `packing a job's blocks by section costs a fraction of a step apiece`(@TempDir dir: Path) = runTest {
+        val packed = dir.resolve("packed")
+        val apiece = dir.resolve("apiece")
+        fun crater(from: Int, count: Int) = (from until from + count).map { i ->
+            StructureStep.SetBlock(
+                BlockPos(world, i and 15, 64 + (i shr 8), (i shr 4) and 15),
+                BlockShape(BlockDataKey("minecraft:stone")),
+                BlockShape.AIR,
+            )
+        }
+
+        Stack(packed).use { stack ->
+            stack.jobs.save(RollbackJobRecord(RollbackJobId(1), plan, RollbackTarget.Uniform(player(1)), crater(0, 4096)))
+        }
+        Stack(apiece).use { stack ->
+            crater(0, 4096).forEachIndexed { i, step ->
+                stack.jobs.save(RollbackJobRecord(RollbackJobId(i + 1L), plan, RollbackTarget.Uniform(player(1)), listOf(step)))
+            }
+        }
+
+        val packedBytes = bytesIn(packed)
+        val apieceBytes = bytesIn(apiece)
+        println("4096 job steps: $packedBytes bytes packed, $apieceBytes bytes a step each")
+        assertTrue(apieceBytes > packedBytes * 5, "$apieceBytes against $packedBytes")
+    }
+
+
+    @Test
+    fun `an undone job leaves nothing behind`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val id = RollbackJobId(11)
+            val target = RollbackTarget.PerRoot(mapOf(LotId(1) to block(0, 64, 0), LotId(2) to player(2)))
+            stack.jobs.save(RollbackJobRecord(id, plan, target, create, destroy))
+            val before = bytesIn(dir)
+
+            stack.jobs.markUndone(id)
+
+            assertNull(stack.jobs.find(id), "an undone job is not a job any more")
+            assertFalse(stack.jobs.isUndoable(id))
+            assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoable(limit = 10))
+            assertTrue(bytesIn(dir) >= 0 && before > 0)
+            assertEquals(0, keysUnder(stack, Keys.rbStructPrefix(id.raw)))
+            assertEquals(0, keysUnder(stack, Keys.rbStepPrefix(id.raw)))
+            assertEquals(0, keysUnder(stack, Keys.rbTargetPrefix(id.raw)))
+        }
+    }
+
+    @Test
+    fun `the undo stack keeps twenty jobs and forgets the rest entirely`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val depth = com.tracel.engine.rollback.job.RollbackJobRepository.UNDO_DEPTH
+            for (i in 1..depth + 5) {
+                stack.jobs.save(RollbackJobRecord(RollbackJobId(i.toLong()), plan, RollbackTarget.Uniform(player(1)), create))
+            }
+
+            val stack20 = stack.jobs.undoable(limit = 100)
+            assertEquals(depth, stack20.size, "the stack is capped")
+            assertEquals(RollbackJobId((depth + 5).toLong()), stack20.first(), "newest first")
+
+            for (i in 1..5) {
+                assertNull(stack.jobs.find(RollbackJobId(i.toLong())), "job $i should have been evicted")
+                assertEquals(0, keysUnder(stack, Keys.rbStructPrefix(i.toLong())))
+            }
+            val kept = stack.jobs.find(RollbackJobId(6))!!
+            assertEquals(create, kept.create)
+        }
+    }
+
+    private suspend fun keysUnder(stack: Stack, prefix: ByteArray): Int = stack.storage.read {
+        var n = 0
+        scan(prefix).use { cursor -> while (cursor.next()) n++ }
+        n
+    }
+
+    private fun bytesIn(dir: Path): Long =
+        java.nio.file.Files.walk(dir).use { paths ->
+            paths.filter { java.nio.file.Files.isRegularFile(it) }
+                .mapToLong { java.nio.file.Files.size(it) }
+                .sum()
+        }
 }

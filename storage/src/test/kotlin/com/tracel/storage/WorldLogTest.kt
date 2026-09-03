@@ -168,6 +168,23 @@ class WorldLogTest {
     }
 
     @Test
+    fun `structureEnds keeps newest and oldest at each block, not every grass tick`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val pos = at(5, 70, 5)
+            for (i in 1L..500L) stack.worldLog.append(broke(i, pos, epochMillis = i))
+            val other = at(6, 70, 5)
+            stack.worldLog.append(broke(501, other, epochMillis = 501))
+
+            val filter = LookupFilter(region = LookupRegion(world, 0, 0, 0, 0), limit = Int.MAX_VALUE)
+            val (all, _) = stack.worldLog.queryTogether(stack.log, filter)
+            val (ends, _) = stack.worldLog.queryTogether(stack.log, filter, structureEnds = true)
+            assertEquals(501, all.size)
+            assertEquals(3, ends.size, "two ends at the busy block plus the one change next to it")
+            assertEquals(setOf(500L, 1L, 501L), ends.map { it.seq.raw }.toSet())
+        }
+    }
+
+    @Test
     fun `a short time window plus a radius still finds the change`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             val steve = player(1)
@@ -545,6 +562,76 @@ class WorldLogTest {
                 found.map { it.seq.raw }.sorted(),
                 "every chunk inside the z range and not one outside it",
             )
+        }
+    }
+
+    @Test
+    fun `a region query answering off the index agrees with one that reads every record`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val sign = BlockShape(
+                BlockDataKey("minecraft:oak_sign[rotation=4]"),
+                BlockExtras.Opaque(byteArrayOf(1, 2, 3)),
+            )
+            val boat = UUID(7, 7)
+            val boatShape = com.tracel.model.world.EntityShape(
+                com.tracel.model.world.EntityTypeKey("minecraft:chest_boat"),
+                5.5, 70.0, 5.25, 90f, 0f,
+            )
+            for (seq in 1L..40L) stack.worldLog.append(broke(seq, at(5, 70, (seq % 8).toInt()), epochMillis = seq))
+            stack.worldLog.append(
+                WorldChange(
+                    Seq(41), ActionKind.BLOCK_BREAK, CauseKind.PLAYER_ACTION, player(2), 41L,
+                    at(6, 70, 6), ChangeSubject.Block(sign, BlockShape.AIR),
+                )
+            )
+            stack.worldLog.append(
+                WorldChange(
+                    Seq(42), ActionKind.ENTITY_REMOVE, CauseKind.EXPLOSION, player(3), 42L,
+                    at(5, 70, 5), ChangeSubject.Entity(boat, boatShape.type, boatShape, null),
+                )
+            )
+
+            val filter = LookupFilter(region = LookupRegion(world, 0, 0, 0, 0), limit = Int.MAX_VALUE)
+            val (inlined, _) = stack.worldLog.queryTogether(stack.log, filter)
+
+            assertEquals(stack.worldLog.query(filter), inlined, "every field, not just the sequence")
+            assertEquals(42, inlined.size)
+        }
+    }
+
+    @Test
+    fun `an actor filter is applied to rows the index answered on its own`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val steve = player(1)
+            for (seq in 1L..30L) {
+                val by = if (seq % 2 == 0L) steve else player(2)
+                stack.worldLog.append(broke(seq, at(5, 70, (seq % 4).toInt()), by = by, epochMillis = seq))
+            }
+
+            val filter = LookupFilter(
+                region = LookupRegion(world, 0, 0, 0, 0),
+                holders = setOf(steve),
+                limit = Int.MAX_VALUE,
+            )
+            val (found, _) = stack.worldLog.queryTogether(stack.log, filter)
+
+            assertEquals((30L downTo 1L step 2).toList(), found.map { it.seq.raw })
+            assertTrue(found.all { it.causedBy == steve }, "the holder comes off the row, so it has to be right")
+        }
+    }
+
+    @Test
+    fun `a material filter over a dense range is still applied when the fetch is one scan`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val dirt = BlockShape(BlockDataKey("minecraft:dirt"))
+            for (seq in 1L..100L) {
+                val before = if (seq % 2 == 1L) stone else dirt
+                stack.worldLog.append(broke(seq, at(0, 70, 0), before = before, epochMillis = seq))
+            }
+
+            val found = stack.worldLog.query(LookupFilter(material = "minecraft:stone", limit = Int.MAX_VALUE))
+
+            assertEquals((99L downTo 1L step 2).toList(), found.map { it.seq.raw })
         }
     }
 }

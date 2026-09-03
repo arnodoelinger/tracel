@@ -156,6 +156,8 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         repo.removeEdge(edge.parent, edge.child)
     }
 
+    public suspend fun prefetchLots(ids: Collection<LotId>): Unit = repo.prefetchLots(ids)
+
     public suspend fun itemKeyOf(lotId: LotId): ItemKey = repo.lot(lotId).itemKey
 
     public suspend fun quantityOf(lotId: LotId): Quantity = repo.lot(lotId).quantity

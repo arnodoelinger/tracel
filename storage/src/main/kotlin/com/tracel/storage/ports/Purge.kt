@@ -2,20 +2,29 @@ package com.tracel.storage.ports
 
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
+import java.lang.foreign.MemorySegment
 
-/**
- * Deletes the `Tracel`'s history.
- */
-// TODO: refactor
+/** Deletes the `Tracel`'s history. */
 suspend fun purgeAll(storage: TracelStorage) {
-    storage.write {
-        for (family in Keys.ALL.filterNot { it in Keys.KEEPS_ITS_NUMBERING }) {
-            val keys = ArrayList<ByteArray>()
+    val kept = ArrayList<Pair<ByteArray, ByteArray>>()
+    storage.read {
+        for (family in Keys.KEEPS_ITS_NUMBERING) {
             scan(Keys.tagPrefix(family)).use { cursor ->
-                while (cursor.next()) keys += cursor.key()
+                while (cursor.next()) {
+                    val value = cursor.value()
+                    val bytes = ByteArray(value.byteSize().toInt())
+                    MemorySegment.ofArray(bytes).copyFrom(value.asSlice(0, bytes.size.toLong()))
+                    kept += cursor.key() to bytes
+                }
             }
-            keys.forEach(::delete)
         }
+    }
+
+    storage.engine.wipe()
+
+    if (kept.isEmpty()) return
+    storage.write {
+        for ((key, value) in kept) put(key, value)
     }
 }
 

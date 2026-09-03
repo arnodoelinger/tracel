@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm
 
+import com.github.luben.zstd.Zstd
 import com.tracel.storage.ffm.Bytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
@@ -27,21 +28,20 @@ import java.nio.file.Path
  *           bit 31 of the second word set means LZ4
  * index  -> [u32 keyLen][internal key][u64 blockOffset]  ... one per block
  * bloom  -> [u32 bitCount][u32 hashCount][bits]
- * dict   -> [bytes] trained on segment (hopper / actor / lot shapes + samples)
  * footer -> 52 bytes, at EOF
  * ```
  *
  * Written once, `fsync`ed, then never touched again. Capture never reads this file.
  */
 object SegmentFile {
-    const val MAGIC = 0x54524C53
-    const val VERSION = 6
-    const val OLDEST_READABLE_VERSION = 6
-    const val FOOTER_BYTES = 52
+    val MAGIC = "TSEG".toByteArray(Charsets.US_ASCII)
+    const val VERSION = 7
+    const val OLDEST_READABLE_VERSION = 7
+    const val FOOTER_BYTES = 40
     const val BLOCK_TARGET = 4096
-    const val FLAG_LZ4 = 1 shl 31
-    const val FLAG_DICT = 1 shl 30
-    const val PAYLOAD_MASK = 0x3FFFFFFF
+    const val FLAG_ZSTD = 1 shl 31
+    const val PAYLOAD_MASK = 0x7FFFFFFF
+    const val ZSTD_LEVEL = 5
 
     private val LE_INT: VarHandle = MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
     private val LE_LONG: VarHandle = MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
@@ -58,7 +58,6 @@ object SegmentFile {
         private var indexUsed = 0
 
         private val header = ByteArray(16)
-        private val compressor = Lz4.compressor()
         private var block = ByteArray(BLOCK_TARGET + 512)
         private var blockUsed = 0
         private var blockFirstKey: ByteArray? = null
@@ -99,10 +98,9 @@ object SegmentFile {
 
         fun finish(id: Long, level: Int): SegmentMeta {
             flushBlock()
-            val dict = Lz4Dict.train(pending)
             for (i in pending.indices) {
                 stageIndex(pendingFirst[i], dataBytes)
-                writeBlock(pending[i], dict)
+                writeBlock(pending[i])
             }
 
             val indexOffset = dataBytes
@@ -112,19 +110,14 @@ object SegmentFile {
             val bloomOffset = indexOffset + indexBytes
             val bloomBytes = bloom.writeTo(out)
 
-            val dictOffset = bloomOffset + bloomBytes
-            out.write(dict)
-
             val footer = ByteBuffer.allocate(FOOTER_BYTES).order(ByteOrder.LITTLE_ENDIAN)
             footer.putLong(indexOffset)
             footer.putInt(indexBytes.toInt())
             footer.putLong(bloomOffset)
             footer.putInt(bloomBytes.toInt())
             footer.putLong(count.toLong())
-            footer.putLong(dictOffset)
-            footer.putInt(dict.size)
             footer.putInt(VERSION)
-            footer.putInt(MAGIC)
+            footer.put(MAGIC)
             out.write(footer.array())
             out.flush()
             file.fd.sync()
@@ -147,35 +140,15 @@ object SegmentFile {
             blockFirstKey = null
         }
 
-        @Suppress("ConvertTwoComparisonsToRangeCheck")
-        private fun writeBlock(raw: ByteArray, dict: ByteArray) {
-            val bound = maxOf(compressor.maxCompressedLength(raw.size), raw.size + 16)
-            val dictBuf = ByteArray(bound)
-            val plainBuf = ByteArray(bound)
-            val withDict = Lz4Dict.compress(dict, raw, raw.size, dictBuf)
-            val without = compressor.compress(raw, 0, raw.size, plainBuf, 0, plainBuf.size)
-            val useDict = withDict in 1 until raw.size && (without <= 0 || withDict <= without)
-            val useLz4 = !useDict && without in 1 until raw.size
-            val payload: Int
-            val flags: Int
-            val body: ByteArray
-            when {
-                useDict -> {
-                    payload = withDict
-                    flags = payload or FLAG_LZ4 or FLAG_DICT
-                    body = dictBuf
-                }
-                useLz4 -> {
-                    payload = without
-                    flags = payload or FLAG_LZ4
-                    body = plainBuf
-                }
-                else -> {
-                    payload = raw.size
-                    flags = payload
-                    body = raw
-                }
-            }
+        private fun writeBlock(raw: ByteArray) {
+            val bound = Zstd.compressBound(raw.size.toLong()).toInt()
+            val packedBuf = ByteArray(bound)
+            val packed = Zstd.compressByteArray(packedBuf, 0, bound, raw, 0, raw.size, ZSTD_LEVEL).toInt()
+            val worthIt = packed in 1 until raw.size
+            val payload = if (worthIt) packed else raw.size
+            val flags = if (worthIt) payload or FLAG_ZSTD else payload
+            val body = if (worthIt) packedBuf else raw
+
             LE_INT.set(header, 0, raw.size)
             LE_INT.set(header, 4, flags)
             out.write(header, 0, 8)
@@ -217,8 +190,10 @@ object SegmentFile {
         val segment = mapped.segment
         val footerAt = segment.byteSize() - FOOTER_BYTES
         require(footerAt >= 0) { "$path is too short to be a segment" }
-        val magic = segment.i32(footerAt + FOOTER_BYTES - 4)
-        require(magic == MAGIC) { "$path is not a Tracel segment (magic ${magic.toString(16)})" }
+        val magic = segment.readBytes(footerAt + FOOTER_BYTES - 4, 4)
+        require(magic.contentEquals(MAGIC)) {
+            "$path is not a Tracel segment (starts ${String(magic, Charsets.ISO_8859_1)})"
+        }
         val version = segment.i32(footerAt + FOOTER_BYTES - 8)
         require(version in OLDEST_READABLE_VERSION..VERSION) {
             "$path was written by segment format v$version, this build reads v$OLDEST_READABLE_VERSION-v$VERSION"
@@ -228,8 +203,6 @@ object SegmentFile {
         val indexBytes = segment.i32(footerAt + 8)
         val bloomOffset = segment.i64(footerAt + 12)
         val bloomBytes = segment.i32(footerAt + 20)
-        val dictOffset = segment.i64(footerAt + 32)
-        val dictBytes = segment.i32(footerAt + 40)
         val indexEnd = indexOffset + indexBytes
         var count = 0
         var at = indexOffset
@@ -260,7 +233,6 @@ object SegmentFile {
             dataEnd = indexOffset,
             bloom = if (bloomBytes > 0) Bloom(segment, bloomOffset) else null,
             cache = cache,
-            dict = if (dictBytes > 0) segment.readBytes(dictOffset, dictBytes) else ByteArray(0),
         )
     }
 }
@@ -287,7 +259,6 @@ class SegmentReader internal constructor(
     private val dataEnd: Long,
     private val bloom: Bloom?,
     private val cache: BlockCache,
-    private val dict: ByteArray,
 ) : AutoCloseable {
     val segment: MemorySegment get() = mapped.segment
     val path: Path get() = mapped.path
@@ -348,15 +319,13 @@ class SegmentReader internal constructor(
     private fun decodeBlock(offset: Long): ByteArray {
         val uncompressed = segment.i32(offset)
         val packed = segment.i32(offset + 4)
-        val lz4 = packed < 0
-        val withDict = packed and SegmentFile.FLAG_DICT != 0
+        val compressed = packed and SegmentFile.FLAG_ZSTD != 0
         val payload = packed and SegmentFile.PAYLOAD_MASK
         val src = ByteArray(payload)
         MemorySegment.copy(segment, Bytes.I8, offset + 8, src, 0, payload)
-        if (!lz4) return if (payload == uncompressed) src else src.copyOf(uncompressed)
+        if (!compressed) return if (payload == uncompressed) src else src.copyOf(uncompressed)
         val dest = ByteArray(uncompressed)
-        if (withDict) Lz4Dict.decompress(dict, src, payload, dest, uncompressed)
-        else Lz4.decompressor.decompress(src, 0, dest, 0, uncompressed)
+        Zstd.decompressByteArray(dest, 0, uncompressed, src, 0, payload)
         return dest
     }
 

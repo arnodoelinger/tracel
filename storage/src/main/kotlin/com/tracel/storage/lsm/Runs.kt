@@ -4,6 +4,7 @@ import com.tracel.storage.ffm.Bytes.i8
 import com.tracel.storage.ffm.SegmentCompare
 import com.tracel.storage.spi.EngineCursor
 import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.VarHandle
 import java.nio.ByteOrder
@@ -26,20 +27,24 @@ internal abstract class Run {
     abstract fun value(): MemorySegment?
     abstract fun userKeyBytes(): ByteArray
 
+    fun userKeyInto(dst: ByteArray) {
+        MemorySegment.copy(keySegment, ValueLayout.JAVA_BYTE, keyOffset, dst, 0, userKeyLength)
+    }
+
     fun seek(internalKey: ByteArray) = seek(internalKey, internalKey.size)
 
     private var past = ByteArray(48)
 
-    /** Jumps past every remaining version of [userKey]. */
-    fun skipPast(userKey: ByteArray) {
-        val length = userKey.size + InternalKey.TRAILER_BYTES
+    /** Jumps past every remaining version of the first [userKeyLength] bytes of [userKey]. */
+    fun skipPast(userKey: ByteArray, userKeyLength: Int) {
+        val length = userKeyLength + InternalKey.TRAILER_BYTES
         var buffer = past
         if (buffer.size < length) {
             buffer = ByteArray(length + 32)
             past = buffer
         }
-        System.arraycopy(userKey, 0, buffer, 0, userKey.size)
-        BE_LONG.set(buffer, userKey.size, -1L)
+        System.arraycopy(userKey, 0, buffer, 0, userKeyLength)
+        BE_LONG.set(buffer, userKeyLength, -1L)
         seek(buffer, length)
     }
 
@@ -218,19 +223,40 @@ private fun less(left: Run, right: Run): Boolean = SegmentCompare.compare(
  * rather than anything that has to look ahead.
  */
 internal class MergingCursor(
-    private val runs: Array<Run>,
+    initial: Array<Run>,
     private val prefix: ByteArray,
     private val snapshotSequence: Long,
     private val onClose: () -> Unit,
 ) : EngineCursor {
-    private var currentKey: ByteArray? = null
+    private var runs: Array<Run> = initial
+    private var scratch = ByteArray(64)
+    private var scratchLength = -1
     private var currentValue: MemorySegment? = null
 
-    private val count = runs.size
-    private val r0: Run = if (count > 0) runs[0] else NoRun
-    private val r1: Run = if (count > 1) runs[1] else NoRun
-    private val r2: Run = if (count > 2) runs[2] else NoRun
-    private val r3: Run = if (count > 3) runs[3] else NoRun
+    private var count = runs.size
+    private var r0: Run = NoRun
+    private var r1: Run = NoRun
+    private var r2: Run = NoRun
+    private var r3: Run = NoRun
+
+    init {
+        prune()
+    }
+
+    private fun prune() {
+        var kept = 0
+        for (run in runs) {
+            if (!run.valid) continue
+            if (!SegmentCompare.startsWith(run.keySegment, run.keyOffset, run.userKeyLength, prefix)) continue
+            runs[kept++] = run
+        }
+        if (kept != runs.size) runs = runs.copyOf(kept) as Array<Run>
+        count = kept
+        r0 = if (count > 0) runs[0] else NoRun
+        r1 = if (count > 1) runs[1] else NoRun
+        r2 = if (count > 2) runs[2] else NoRun
+        r3 = if (count > 3) runs[3] else NoRun
+    }
 
     override fun next(): Boolean {
         while (true) {
@@ -240,7 +266,10 @@ internal class MergingCursor(
             if (!SegmentCompare.startsWith(head.keySegment, head.keyOffset, head.userKeyLength, prefix)) {
                 return finish()
             }
-            val userKey = head.userKeyBytes()
+            val userKeyLength = head.userKeyLength
+            if (scratch.size < userKeyLength) scratch = ByteArray(userKeyLength + 32)
+            val userKey = scratch
+            head.userKeyInto(userKey)
 
             var found = false
             var deletion = false
@@ -248,7 +277,7 @@ internal class MergingCursor(
 
             for (index in runs.indices) {
                 val run = runs[index]
-                while (run.valid && sameUserKey(run, userKey)) {
+                while (run.valid && sameUserKey(run, userKey, userKeyLength)) {
                     if (!found && run.sequence() <= snapshotSequence) {
                         found = true
                         deletion = run.isDeletion()
@@ -299,28 +328,59 @@ internal class MergingCursor(
                 // Fixing this took the full pipeline from roughly 9.500 events per second
                 // to over 53.000 in group-commit mode (August 23, 2026) — an order of magnitude,
                 // from one loop.
-                if (run.valid && sameUserKey(run, userKey)) {
+                if (run.valid && sameUserKey(run, userKey, userKeyLength)) {
                     run.next()
-                    if (run.valid && sameUserKey(run, userKey)) run.skipPast(userKey)
+                    if (run.valid && sameUserKey(run, userKey, userKeyLength)) {
+                        run.skipPast(userKey, userKeyLength)
+                    }
                 }
             }
 
             if (found && !deletion) {
-                currentKey = userKey
+                scratchLength = userKeyLength
                 currentValue = value
                 return true
             }
         }
     }
 
-    override fun key(): ByteArray = currentKey ?: error("cursor is not positioned")
+    override fun key(): ByteArray {
+        if (scratchLength < 0) error("cursor is not positioned")
+        return scratch.copyOf(scratchLength)
+    }
+
+    override fun keyLength(): Int {
+        if (scratchLength < 0) error("cursor is not positioned")
+        return scratchLength
+    }
+
+    override fun keyByte(at: Int): Byte {
+        if (scratchLength < 0) error("cursor is not positioned")
+        return scratch[at]
+    }
+
+    override fun keyU32(at: Int): Int {
+        if (scratchLength < 0) error("cursor is not positioned")
+        val key = scratch
+        return ((key[at].toInt() and 0xFF) shl 24) or ((key[at + 1].toInt() and 0xFF) shl 16) or
+            ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
+    }
+
+    override fun keyU64(at: Int): Long {
+        if (scratchLength < 0) error("cursor is not positioned")
+        val key = scratch
+        var value = 0L
+        for (i in 0 until 8) value = (value shl 8) or (key[at + i].toLong() and 0xFF)
+        return value
+    }
 
     override fun value(): MemorySegment = currentValue ?: error("cursor is not positioned")
 
     override fun skipTo(from: ByteArray) {
         val target = InternalKey.seekTarget(from)
         for (run in runs) run.seek(target, target.size)
-        currentKey = null
+        prune()
+        scratchLength = -1
         currentValue = null
     }
 
@@ -329,7 +389,7 @@ internal class MergingCursor(
     }
 
     private fun finish(): Boolean {
-        currentKey = null
+        scratchLength = -1
         currentValue = null
         return false
     }
@@ -364,9 +424,9 @@ internal class MergingCursor(
         return minimumOf(runs)
     }
 
-    private fun sameUserKey(run: Run, userKey: ByteArray): Boolean =
-        run.userKeyLength == userKey.size &&
-            SegmentCompare.compare(run.keySegment, run.keyOffset, userKey.size, userKey, userKey.size) == 0
+    private fun sameUserKey(run: Run, userKey: ByteArray, length: Int): Boolean =
+        run.userKeyLength == length &&
+            SegmentCompare.compare(run.keySegment, run.keyOffset, length, userKey, length) == 0
 
     private companion object {
         val NoRun = object : Run() {

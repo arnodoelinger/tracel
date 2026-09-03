@@ -20,38 +20,36 @@ import java.nio.file.StandardCopyOption
  * Every failure between those steps leaves the previous manifest in force, which is why a
  * compaction that dies halfway costs nothing but the orphaned files [Manifest.sweep] removes.
  */
-// TODO: enhance this
 data class Manifest(
     val lastSequence: Long,
-    // Shared ID counter for segment and log files alike; two counters would be one too many
     val nextFileId: Long,
     val walIds: List<Long>,
     val segments: List<SegmentMeta>,
 ) {
     fun write(directory: Path) {
-        var size = 4 + 4 + 8 + 8 + 4 + walIds.size * 8 + 4
+        var size = MAGIC.size + 4 + 8 + 8 + 4 + walIds.size * 8 + 4
         for ((_, _, _, _, firstKey, lastKey) in segments) {
             size += 8 + 4 + 4 + 8 + 4 + firstKey.size + 4 + lastKey.size
         }
         size += 4
 
         val buffer = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
-        buffer.putInt(MAGIC)
+        buffer.put(MAGIC)
         buffer.putInt(VERSION)
         buffer.putLong(lastSequence)
         buffer.putLong(nextFileId)
         buffer.putInt(walIds.size)
         walIds.forEach(buffer::putLong)
         buffer.putInt(segments.size)
-        for ((id, level, entries, fileBytes, firstKey, lastKey) in segments) {
-            buffer.putLong(id)
-            buffer.putInt(level)
-            buffer.putInt(entries)
-            buffer.putLong(fileBytes)
-            buffer.putInt(firstKey.size)
-            buffer.put(firstKey)
-            buffer.putInt(lastKey.size)
-            buffer.put(lastKey)
+        for (segment in segments) {
+            buffer.putLong(segment.id)
+            buffer.putInt(segment.level)
+            buffer.putInt(segment.entries)
+            buffer.putLong(segment.fileBytes)
+            buffer.putInt(segment.firstKey.size)
+            buffer.put(segment.firstKey)
+            buffer.putInt(segment.lastKey.size)
+            buffer.put(segment.lastKey)
         }
         val body = buffer.array().copyOf(buffer.position())
         buffer.putInt(Bytes.checksum(body))
@@ -67,8 +65,12 @@ data class Manifest(
     }
 
     companion object {
-        const val NAME = "MANIFEST"
-        private const val MAGIC = 0x544D414E
+        const val NAME = "tracel.index"
+        const val SEGMENTS = "segments"
+        const val SEGMENT_SUFFIX = ".seg"
+        const val LOG_SUFFIX = ".log"
+
+        private val MAGIC = "TMAN".toByteArray(Charsets.US_ASCII)
         private const val VERSION = 1
 
         val EMPTY = Manifest(lastSequence = 0, nextFileId = 1, walIds = listOf(1), segments = emptyList())
@@ -85,7 +87,7 @@ data class Manifest(
             }
 
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            require(buffer.int == MAGIC) { "$path is not a Tracel manifest" }
+            require(ByteArray(4).also(buffer::get).contentEquals(MAGIC)) { "$path is not a Tracel manifest" }
             val version = buffer.int
             require(version == VERSION) { "$path is manifest v$version, this build reads v$VERSION" }
 
@@ -104,21 +106,32 @@ data class Manifest(
             return Manifest(lastSequence, nextFileId, walIds, segments)
         }
 
-        fun segmentPath(directory: Path, id: Long): Path = directory.resolve("%08d.seg".format(id))
+        fun segmentsDirectory(directory: Path): Path = directory.resolve(SEGMENTS)
 
-        fun walPath(directory: Path, id: Long): Path = directory.resolve("%08d.wal".format(id))
+        fun segmentPath(directory: Path, id: Long): Path =
+            segmentsDirectory(directory).resolve("%08d%s".format(id, SEGMENT_SUFFIX))
+
+        fun walPath(directory: Path, id: Long): Path =
+            directory.resolve("%08d%s".format(id, LOG_SUFFIX))
 
         fun sweep(directory: Path, manifest: Manifest) {
-            val liveSegments = manifest.segments.mapTo(HashSet()) { segmentPath(directory, it.id).fileName }
             val liveWals = manifest.walIds.mapTo(HashSet()) { walPath(directory, it).fileName }
             Files.newDirectoryStream(directory).use { stream ->
                 for (path in stream) {
-                    val name = path.fileName
-                    val isSegment = name.toString().endsWith(".seg")
-                    val isWal = name.toString().endsWith(".wal")
-                    if (isSegment && name !in liveSegments) Files.deleteIfExists(path)
-                    if (isWal && name !in liveWals) Files.deleteIfExists(path)
-                    if (name.toString() == "$NAME.tmp") Files.deleteIfExists(path)
+                    val name = path.fileName.toString()
+                    if (name.endsWith(LOG_SUFFIX) && path.fileName !in liveWals) Files.deleteIfExists(path)
+                    if (name == "$NAME.tmp") Files.deleteIfExists(path)
+                }
+            }
+
+            val segments = segmentsDirectory(directory)
+            if (!Files.isDirectory(segments)) return
+            val live = manifest.segments.mapTo(HashSet()) { segmentPath(directory, it.id).fileName }
+            Files.newDirectoryStream(segments).use { stream ->
+                for (path in stream) {
+                    if (path.fileName.toString().endsWith(SEGMENT_SUFFIX) && path.fileName !in live) {
+                        Files.deleteIfExists(path)
+                    }
                 }
             }
         }

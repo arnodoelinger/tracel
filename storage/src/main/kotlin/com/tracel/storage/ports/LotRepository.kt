@@ -22,6 +22,7 @@ import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.intern.Interning
+import com.tracel.storage.spi.EngineCursor
 
 /**
  * [LotRepositoryPort] over the packed keyspace.
@@ -112,14 +113,16 @@ class LotRepository(
     override suspend fun edgesFromAll(ids: Collection<LotId>): Map<LotId, List<LotEdge>> {
         if (ids.isEmpty()) return emptyMap()
         val unique = ids.distinct()
+        val sorted = rawsOf(unique)
         return storage.read {
-            val out = HashMap<LotId, List<LotEdge>>(unique.size)
-            var i = 0
-            while (i < unique.size) {
-                val id = unique[i]
-                out[id] = readEdgesFrom(id)
-                i++
+            val out = HashMap<LotId, MutableList<LotEdge>>(unique.size)
+            QueryProbe.cursors(1)
+            QueryProbe.scanned(sorted.size.toLong())
+            walkWanted(Keys.EDGE_FROM, sorted, 0, sorted.size, Keys::edgeFromPrefix) { at, cursor ->
+                out.getOrPut(LotId(at)) { ArrayList() } +=
+                    decodeEdge(this, cursor.value(), parent = at, child = cursor.keyU64(9))
             }
+            for (id in unique) out.putIfAbsent(id, ArrayList(0))
             out
         }
     }
@@ -127,29 +130,54 @@ class LotRepository(
     override suspend fun edgesIntoAll(ids: Collection<LotId>): Map<LotId, List<LotEdge>> {
         if (ids.isEmpty()) return emptyMap()
         val unique = ids.distinct()
+        val sorted = rawsOf(unique)
         return storage.read {
-            val out = HashMap<LotId, List<LotEdge>>(unique.size)
-            var i = 0
-            while (i < unique.size) {
-                val id = unique[i]
-                out[id] = readEdgesInto(id)
-                i++
+            val out = HashMap<LotId, MutableList<LotEdge>>(unique.size)
+            QueryProbe.cursors(1)
+            QueryProbe.scanned(sorted.size.toLong())
+            walkWanted(Keys.EDGE_INTO, sorted, 0, sorted.size, Keys::edgeIntoPrefix) { at, cursor ->
+                out.getOrPut(LotId(at)) { ArrayList() } +=
+                    decodeEdge(this, cursor.value(), parent = cursor.keyU64(9), child = at)
             }
+            for (id in unique) out.putIfAbsent(id, ArrayList(0))
             out
+        }
+    }
+
+    override suspend fun prefetchLots(ids: Collection<LotId>) {
+        if (ids.isEmpty()) return
+        val missing = ArrayList<LotId>()
+        for (id in ids) if (lots.getIfPresent(id) == null) missing += id
+        if (missing.isEmpty()) return
+        val sorted = rawsOf(missing)
+        storage.read {
+            QueryProbe.cursors(1)
+            QueryProbe.scanned(sorted.size.toLong())
+            walkWanted(Keys.LOT, sorted, 0, sorted.size, Keys::lot) { at, cursor ->
+                val id = LotId(at)
+                lots.put(id, decodeLot(this, id, cursor.value()))
+            }
         }
     }
 
     override suspend fun lotsOfAll(ids: Collection<LotId>): Map<LotId, Lot> {
         if (ids.isEmpty()) return emptyMap()
-        val unique = ids.distinct()
+        val out = HashMap<LotId, Lot>(ids.size)
+        val missing = ArrayList<LotId>()
+        for (id in ids.distinct()) {
+            val cached = lots.getIfPresent(id)
+            if (cached != null) out[id] = cached else missing += id
+        }
+        if (missing.isEmpty()) return out
+        val sorted = rawsOf(missing)
         return storage.read {
-            val out = HashMap<LotId, Lot>(unique.size)
-            var i = 0
-            while (i < unique.size) {
-                val id = unique[i]
-                out[id] = readLot(this, id)
-                i++
+            QueryProbe.cursors(1)
+            QueryProbe.scanned(sorted.size.toLong())
+            walkWanted(Keys.LOT, sorted, 0, sorted.size, Keys::lot) { at, cursor ->
+                val id = LotId(at)
+                out[id] = decodeLot(this, id, cursor.value()).also { lots.put(id, it) }
             }
+            for (id in missing) if (id !in out) out[id] = readLot(this, id)
             out
         }
     }
@@ -157,23 +185,23 @@ class LotRepository(
     override suspend fun currentHoldersOf(ids: Collection<LotId>): Map<LotId, HolderId> {
         if (ids.isEmpty()) return emptyMap()
         val unique = ids.distinct()
+        val sorted = rawsOf(unique)
         return storage.read {
             val out = HashMap<LotId, HolderId>(unique.size)
-            var i = 0
-            while (i < unique.size) {
-                val id = unique[i]
-                scan(Keys.placeRevPrefix(id.raw)).use { cursor ->
-                    if (cursor.next()) {
-                        out[id] = interning.resolveHolder(this, KeyReader.u32(cursor.key(), 9))
-                    }
-                }
-                i++
+            QueryProbe.cursors(1)
+            QueryProbe.scanned(sorted.size.toLong())
+            walkWanted(Keys.PLACE_REV, sorted, 0, sorted.size, Keys::placeRevPrefix) { at, cursor ->
+                val id = LotId(at)
+                if (id !in out) out[id] = interning.resolveHolder(this, cursor.keyU32(9))
             }
             out
         }
     }
 
-    private fun StorageUnit.readEdgesFrom(lotId: LotId): List<LotEdge> {
+    private fun rawsOf(ids: List<LotId>): LongArray =
+        LongArray(ids.size) { ids[it].raw }.also { java.util.Arrays.sort(it) }
+
+    private fun StorageUnit.readEdgesFrom(lotId: LotId): MutableList<LotEdge> {
         val out = ArrayList<LotEdge>()
         scan(Keys.edgeFromPrefix(lotId.raw)).use { cursor ->
             while (cursor.next()) {
@@ -187,7 +215,7 @@ class LotRepository(
         readEdgesInto(lotId)
     }
 
-    private fun StorageUnit.readEdgesInto(lotId: LotId): List<LotEdge> {
+    private fun StorageUnit.readEdgesInto(lotId: LotId): MutableList<LotEdge> {
         val out = ArrayList<LotEdge>()
         scan(Keys.edgeIntoPrefix(lotId.raw)).use { cursor ->
             while (cursor.next()) {
@@ -227,7 +255,7 @@ class LotRepository(
             while (need > 0 && cursor.next()) {
                 val value = cursor.value()
                 val remaining = Records.placementRemaining(value)
-                buf.add(KeyReader.u64(cursor.key(), 9), Records.placementLotId(value), remaining)
+                buf.add(cursor.keyU64(9), Records.placementLotId(value), remaining)
                 need -= if (remaining <= need) remaining else need
             }
         }
@@ -277,7 +305,7 @@ class LotRepository(
             while ((want == 0L || have < want) && cursor.next()) {
                 val value = cursor.value()
                 val remaining = Records.placementRemaining(value)
-                buf.add(KeyReader.u64(cursor.key(), 9), Records.placementLotId(value), remaining)
+                buf.add(cursor.keyU64(9), Records.placementLotId(value), remaining)
                 have += remaining
             }
         }
@@ -603,13 +631,15 @@ class LotRepository(
     private fun readLot(unit: StorageUnit, id: LotId): Lot {
         lots.getIfPresent(id)?.let { return it }
         val value = unit.get(Keys.lot(id.raw)) ?: error("lot $id does not exist")
-        return Lot(
-            id,
-            interning.resolveItemKey(unit, Records.lotItemKeyId(value)),
-            Quantity(Records.lotQuantity(value)),
-            TxnId(Records.lotCreatedBy(value)),
-        ).also { lots.put(id, it) }
+        return decodeLot(unit, id, value).also { lots.put(id, it) }
     }
+
+    private fun decodeLot(unit: StorageUnit, id: LotId, value: java.lang.foreign.MemorySegment): Lot = Lot(
+        id,
+        interning.resolveItemKey(unit, Records.lotItemKeyId(value)),
+        Quantity(Records.lotQuantity(value)),
+        TxnId(Records.lotCreatedBy(value)),
+    )
 
     private fun accountLot(
         unit: StorageUnit,

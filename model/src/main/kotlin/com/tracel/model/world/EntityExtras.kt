@@ -13,4 +13,6 @@ public sealed interface EntityExtras {
 
         override fun toString(): String = "Opaque(${nbt.size} bytes)"
     }
+
+    public data class Falling(public val data: BlockDataKey) : EntityExtras
 }

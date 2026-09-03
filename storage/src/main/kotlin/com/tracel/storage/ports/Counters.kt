@@ -30,6 +30,12 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
 
     suspend fun nextSeq(): Seq = Seq(next(SEQ))
 
+    suspend fun nextSeqRange(count: Int): Seq {
+        require(count > 0) { "a range of $count sequences is not a range" }
+        if (count == 1) return nextSeq()
+        return Seq(nextRange(SEQ, count))
+    }
+
     suspend fun nextLotId(): LotId = LotId(next(LOT))
 
     suspend fun nextFifoSeq(): Seq = Seq(next(PLACEMENT))
@@ -73,6 +79,13 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
             lock.unlock()
         }
         return start
+    }
+
+    private suspend fun nextRange(name: Int, count: Int): Long = storage.write {
+        val key = Keys.counter(name)
+        val value = get(key)?.let(Records::asLong) ?: 1L
+        put(key, Records.long(value + count))
+        value
     }
 
     @Suppress("SameParameterValue")

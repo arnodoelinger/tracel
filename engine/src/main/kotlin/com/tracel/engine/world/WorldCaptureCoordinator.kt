@@ -18,25 +18,14 @@ import java.util.UUID
 public class WorldCaptureCoordinator(
     private val log: WorldLog,
     private val nextSeq: suspend () -> Seq,
+    private val nextSeqRange: suspend (Int) -> Seq,
 ) {
-    /** Appends one [WorldChange] per edit that actually changed something. Returns how many it wrote. */
-    public suspend fun record(edits: BlockEdits): Int {
-        val real = edits.edits.filter { it.before != it.after }
-        for ((at, before, after) in real) {
-            log.append(
-                WorldChange(
-                    nextSeq(),
-                    edits.action,
-                    edits.cause,
-                    edits.causedBy,
-                    edits.epochMillis,
-                    at,
-                    ChangeSubject.Block(before, after),
-                )
-            )
-        }
-        return real.size
-    }
+    /**
+     * Records every edit of one event that actually changed something.
+     *
+     * @return how many it wrote.
+     */
+    public suspend fun record(edits: BlockEdits): Int = log.appendAll(edits, nextSeqRange)
 
     /**
      * Appends one entity change.

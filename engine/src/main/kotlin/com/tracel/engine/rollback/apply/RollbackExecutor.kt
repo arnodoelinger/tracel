@@ -17,6 +17,7 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
+import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction
 import com.tracel.platform.storage.UnitOfWork
@@ -37,6 +38,8 @@ public class RollbackExecutor(
         plan: RollbackPlan? = null,
         target: RollbackTarget? = null,
     ): Unit = atomically {
+        ledger.prefetchLots(lotsNamedBy(steps))
+
         val flows = ArrayList<Flow>(steps.size)
         for (step in steps) {
             val dest = if (plan != null && target != null) destinationOf(plan, target, step) else null
@@ -58,6 +61,22 @@ public class RollbackExecutor(
     public suspend fun apply(job: RollbackJobId, step: RollbackStep, txn: TxnId): Unit = atomically {
         val flows = applyOne(job, step, txn, dest = null)
         log.append(Transaction(txn, nextSeq(), System.currentTimeMillis(), CauseKind.ROLLBACK, causedBy = null, flows))
+    }
+
+    private fun lotsNamedBy(steps: List<RollbackStep>): Set<LotId> {
+        val ids = HashSet<LotId>(steps.size)
+        for (step in steps) {
+            when (step) {
+                is RollbackStep.Take -> ids += step.lotId
+                is RollbackStep.Mint -> ids += step.lotId
+                is RollbackStep.Debt -> ids += step.lotId
+                is RollbackStep.Unmake -> {
+                    ids += step.outputLot
+                    for (input in step.inputs) ids += input.lotId
+                }
+            }
+        }
+        return ids
     }
 
     /** The ledger half of one step. Logging is the caller's, so a batch can log once. */

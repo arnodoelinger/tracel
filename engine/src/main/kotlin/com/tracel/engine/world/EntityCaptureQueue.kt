@@ -15,6 +15,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
 
 /** One entity appearing, changing or going away, as the region thread saw it. */
@@ -51,16 +52,28 @@ public class EntityCaptureQueue(
         pending.incrementAndGet()
         if (queue.trySend(change).isSuccess) return true
         pending.decrementAndGet()
-        droppedCount.incrementAndGet()
+        val total = droppedCount.incrementAndGet()
+        if (total == 1L || total % DROP_REPORT_EVERY == 0L) {
+            logger.warning(
+                "Tracel entity capture queue is full — $total entity change(s) have been dropped and " +
+                    "cannot be rolled back. The storage thread is not keeping up."
+            )
+        }
         return false
     }
 
-    /** Waits until everything [offer] accepted has been written (or dropped by the writer). */
-    public suspend fun flush(timeoutMs: Long = 2_000) {
+    /**
+     * Waits until everything [offer] accepted has been written (or dropped by the writer).
+     *
+     * @return whether it all landed. False means whoever reads the log next is reading a window
+     * that does not yet have the last few entity changes in it.
+     */
+    public suspend fun flush(timeoutMs: Long = 2_000): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (pending.value > 0 && System.currentTimeMillis() < deadline) {
             delay(1.milliseconds)
         }
+        return pending.value <= 0
     }
 
     /** Runs until [scope] is canceled, writing whatever has piled up as one unit of work at a time. */
@@ -74,24 +87,12 @@ public class EntityCaptureQueue(
             }
             try {
                 unit.atomically {
-                    for (i in batch.indices) {
-                        val c = batch[i]
-                        coordinator.recordEntity(
-                            c.action,
-                            c.cause,
-                            c.causedBy,
-                            c.epochMillis,
-                            c.at,
-                            c.entity,
-                            c.before,
-                            c.after,
-                        )
-                    }
+                    for (i in batch.indices) write(batch[i])
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Throwable) {
-                // One bad NBT used to kill the writer, and every spawn after that vanished
+                writeOneByOne(batch)
             } finally {
                 pending.addAndGet(-batch.size)
             }
@@ -99,8 +100,39 @@ public class EntityCaptureQueue(
         }
     }
 
+    private suspend fun writeOneByOne(batch: List<EntityChange>) {
+        for (change in batch) {
+            try {
+                unit.atomically { write(change) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (failure: Throwable) {
+                val total = droppedCount.incrementAndGet()
+                logger.warning(
+                    "Tracel could not record a ${change.action} of entity ${change.entity} at ${change.at} " +
+                        "(${failure.javaClass.simpleName}: ${failure.message}); $total entity change(s) dropped so far"
+                )
+            }
+        }
+    }
+
+    private suspend fun write(change: EntityChange) {
+        coordinator.recordEntity(
+            change.action,
+            change.cause,
+            change.causedBy,
+            change.epochMillis,
+            change.at,
+            change.entity,
+            change.before,
+            change.after,
+        )
+    }
+
     private companion object {
         const val DEFAULT_CAPACITY = 1 shl 14
         const val DEFAULT_MAX_BATCH = 512
+        const val DROP_REPORT_EVERY = 1_000L
+        val logger: Logger = Logger.getLogger("EntityCaptureQueue")
     }
 }

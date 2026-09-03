@@ -41,7 +41,7 @@ import java.util.UUID
  */
 object Records {
     /** Bumped whenever a layout below changes shape. Written into every transaction record. */
-    const val VERSION: Byte = 2 // TODO: remove it
+    const val VERSION: Byte = 1
 
     // Box "Lot": 20 bytes
 
@@ -78,12 +78,20 @@ object Records {
 
     fun asInt(v: MemorySegment): Int = v.i32(0)
 
-    // Box "Shared index value": 1 byte, or 9 when the spatial index carries a timestamp
+    // Box "Shared index value": 1 byte, 9 with a timestamp, 22 with a position, and 28 when it
+    // carries the block change itself.
+
+    // TODO: remove comp
+
+    const val LOG_KIND_POSITION_BYTES: Int = 22
+    const val LOG_KIND_INLINE_BYTES: Int = 28
+    const val LOG_KIND_SECTION_BYTES: Int = 24
+    const val INLINE_NEEDS_RECORD: Byte = 1
 
     fun logKind(kind: LogKind): ByteArray = value(1) { putI8(0, kind.ordinal.toByte()) }
 
     fun logKind(kind: LogKind, epochMillis: Long, cause: CauseKind, x: Int, y: Int, z: Int): ByteArray =
-        value(22) {
+        value(LOG_KIND_POSITION_BYTES) {
             putI8(0, kind.ordinal.toByte())
             putI64(1, epochMillis)
             putI8(9, cause.ordinal.toByte())
@@ -92,16 +100,73 @@ object Records {
             putI32(18, z)
         }
 
+    fun logKindInline(
+        kind: LogKind,
+        cause: CauseKind,
+        x: Int,
+        y: Int,
+        z: Int,
+        action: ActionKind,
+        beforeDataId: Int,
+        afterDataId: Int,
+        causedById: Int,
+        flags: Byte,
+    ): ByteArray = value(LOG_KIND_INLINE_BYTES) {
+        putI8(0, kind.ordinal.toByte())
+        putI8(1, cause.ordinal.toByte())
+        putI8(2, action.ordinal.toByte())
+        putI8(3, flags)
+        putI32(4, x)
+        putI32(8, y)
+        putI32(12, z)
+        putI32(16, beforeDataId)
+        putI32(20, afterDataId)
+        putI32(24, causedById)
+    }
+
     fun asLogKind(v: MemorySegment): LogKind = LogKind.entries[v.i8(0).toInt()]
 
-    fun logKindMillis(v: MemorySegment): Long? = if (v.byteSize() >= 9) v.i64(1) else null
+    private fun isInline(v: MemorySegment): Boolean = v.byteSize() == LOG_KIND_INLINE_BYTES.toLong()
 
-    fun logKindCause(v: MemorySegment): CauseKind? =
-        if (v.byteSize() >= 10) CauseKind.entries[v.i8(9).toInt() and 0xFF] else null
+    fun logKindMillis(v: MemorySegment): Long? = when {
+        isInline(v) || logKindIsSection(v) -> null
+        v.byteSize() >= 9 -> v.i64(1)
+        else -> null
+    }
 
-    fun logKindX(v: MemorySegment): Int? = if (v.byteSize() >= 22) v.i32(10) else null
-    fun logKindY(v: MemorySegment): Int? = if (v.byteSize() >= 22) v.i32(14) else null
-    fun logKindZ(v: MemorySegment): Int? = if (v.byteSize() >= 22) v.i32(18) else null
+    fun logKindCause(v: MemorySegment): CauseKind? = when {
+        isInline(v) || logKindIsSection(v) -> CauseKind.entries[v.i8(1).toInt() and 0xFF]
+        v.byteSize() >= 10 -> CauseKind.entries[v.i8(9).toInt() and 0xFF]
+        else -> null
+    }
+
+    fun logKindX(v: MemorySegment): Int? = when {
+        logKindIsSection(v) -> null
+        isInline(v) -> v.i32(4)
+        v.byteSize() >= LOG_KIND_POSITION_BYTES -> v.i32(10)
+        else -> null
+    }
+
+    fun logKindY(v: MemorySegment): Int? = when {
+        logKindIsSection(v) -> null
+        isInline(v) -> v.i32(8)
+        v.byteSize() >= LOG_KIND_POSITION_BYTES -> v.i32(14)
+        else -> null
+    }
+
+    fun logKindZ(v: MemorySegment): Int? = when {
+        logKindIsSection(v) -> null
+        isInline(v) -> v.i32(12)
+        v.byteSize() >= LOG_KIND_POSITION_BYTES -> v.i32(18)
+        else -> null
+    }
+
+    fun logKindHasInline(v: MemorySegment): Boolean = isInline(v) && v.i8(3) != INLINE_NEEDS_RECORD
+
+    fun logKindAction(v: MemorySegment): ActionKind = ActionKind.entries[v.i8(2).toInt() and 0xFF]
+    fun logKindBefore(v: MemorySegment): Int = v.i32(16)
+    fun logKindAfter(v: MemorySegment): Int = v.i32(20)
+    fun logKindCausedBy(v: MemorySegment): Int = v.i32(24)
 
     // Box "Lot edge": 21 bytes
 
@@ -149,6 +214,7 @@ object Records {
     private const val STRUCT_SET_BLOCK: Byte = 0
     private const val STRUCT_SPAWN_ENTITY: Byte = 1
     private const val STRUCT_REMOVE_ENTITY: Byte = 2
+    private const val STRUCT_SECTION: Byte = 3
 
     fun structureStep(
         step: StructureStep,
@@ -174,6 +240,43 @@ object Records {
         is StructureStep.SpawnEntity -> entity(STRUCT_SPAWN_ENTITY, step.at, step.entity, step.shape, worldId, entityTypeId)
         is StructureStep.RemoveEntity -> entity(STRUCT_REMOVE_ENTITY, step.at, step.entity, step.shape, worldId, entityTypeId)
     }
+
+    @Suppress("NOTHING_TO_INLINE")
+    inline fun decodeStructureInto(
+        v: MemorySegment,
+        noinline world: (Int) -> WorldId,
+        noinline blockData: (Int) -> BlockDataKey,
+        noinline entityType: (Int) -> EntityTypeKey,
+        out: MutableList<StructureStep>,
+    ) {
+        if (v.i8(0) != structureSectionTag()) {
+            out += decodeStructureStep(v, world, blockData, entityType)
+            return
+        }
+        val tail = structSectionTail()
+        val at = world(v.i32(1))
+        val cornerX = v.i32(5)
+        val cornerY = v.i32(9)
+        val cornerZ = v.i32(13)
+        forEachSectionPosition(v, tail) { index, packed ->
+            val extras = sectionExtras(v, index, tail)
+            out += StructureStep.SetBlock(
+                BlockPos(
+                    at,
+                    cornerX + sectionPositionX(packed),
+                    cornerY + sectionPositionY(packed),
+                    cornerZ + sectionPositionZ(packed),
+                ),
+                BlockShape(blockData(sectionBefore(v, index, tail)), decodeBlockExtras(extras?.before ?: EMPTY_BYTES)),
+                BlockShape(blockData(sectionAfter(v, index, tail)), decodeBlockExtras(extras?.after ?: EMPTY_BYTES)),
+            )
+        }
+    }
+
+    fun structureSectionTag(): Byte = STRUCT_SECTION
+
+    @PublishedApi
+    internal val EMPTY_BYTES: ByteArray = ByteArray(0)
 
     fun decodeStructureStep(
         v: MemorySegment,
@@ -301,15 +404,26 @@ object Records {
 
     const val CHANGE_BLOCK: Byte = 0
     const val CHANGE_ENTITY: Byte = 1
+    const val CHANGE_SECTION: Byte = 2
 
     const val WCHG_HEADER_BYTES = 32
     private const val BLOCK_TAIL_BYTES = 12
     private const val ENTITY_TAIL_BYTES = 24
 
+    const val SECTION_POSITIONS = 4096
+    private const val SECTION_BITMAP_BYTES = SECTION_POSITIONS / 8
+    private const val SECTION_BITMAP_FROM = SECTION_BITMAP_BYTES / 2
+    private const val WORLD_SECTION_TAIL = WCHG_HEADER_BYTES + 8
+    private const val STRUCT_SECTION_TAIL = 17
+    private const val SECTION_FLAG_BITMAP = 1
+    private const val SECTION_FLAG_WIDE_INDEX = 2
+    private const val SECTION_TAIL_BYTES = 24
+
     const val MAX_EXTRAS_BYTES = 0xFFFF
 
     private const val EXTRAS_OPAQUE: Byte = 0
     private const val EXTRAS_POSED: Byte = 1
+    private const val EXTRAS_FALLING: Byte = 2
     private const val POSE_BYTES = 33
 
     fun blockExtras(extras: BlockExtras?): ByteArray = when (extras) {
@@ -326,11 +440,15 @@ object Records {
     fun entityExtras(extras: EntityExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
         is EntityExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.nbt)
+        is EntityExtras.Falling -> tagged(EXTRAS_FALLING, extras.data.value.toByteArray(Charsets.UTF_8))
     }
 
     fun decodeEntityExtras(bytes: ByteArray): EntityExtras? = when {
         bytes.isEmpty() -> null
         bytes[0] == EXTRAS_OPAQUE -> EntityExtras.Opaque(bytes.copyOfRange(1, bytes.size))
+        bytes[0] == EXTRAS_FALLING ->
+            EntityExtras.Falling(BlockDataKey(String(bytes, 1, bytes.size - 1, Charsets.UTF_8)))
+
         else -> error("unrecognized entity extras tag: ${bytes[0]}")
     }
 
@@ -432,6 +550,275 @@ object Records {
         writeBytes(56L + beforeExtras.size, afterExtras)
         }
     }
+
+    fun sectionDelta(
+        action: ActionKind,
+        cause: CauseKind,
+        causedByHolderId: Int,
+        worldId: Int,
+        sectionX: Int,
+        sectionY: Int,
+        sectionZ: Int,
+        epochMillis: Long,
+        baseSeq: Long,
+        positions: IntArray,
+        count: Int,
+        before: IntArray,
+        after: IntArray,
+        extras: List<SectionExtras> = emptyList(),
+    ): ByteArray = packSection(WORLD_SECTION_TAIL, positions, count, before, after, extras) {
+        header(
+            CHANGE_SECTION, action, cause, causedByHolderId, worldId,
+            sectionX shl 4, sectionY shl 4, sectionZ shl 4, epochMillis,
+        )
+        putI64(32, baseSeq)
+    }
+
+    fun structureSection(
+        worldId: Int,
+        sectionX: Int,
+        sectionY: Int,
+        sectionZ: Int,
+        positions: IntArray,
+        count: Int,
+        target: IntArray,
+        expected: IntArray,
+        extras: List<SectionExtras>,
+    ): ByteArray = packSection(STRUCT_SECTION_TAIL, positions, count, target, expected, extras) {
+        putI8(0, STRUCT_SECTION)
+        putI32(1, worldId)
+        putI32(5, sectionX shl 4)
+        putI32(9, sectionY shl 4)
+        putI32(13, sectionZ shl 4)
+    }
+
+    private inline fun packSection(
+        tailAt: Int,
+        positions: IntArray,
+        count: Int,
+        before: IntArray,
+        after: IntArray,
+        extras: List<SectionExtras>,
+        head: MemorySegment.(Int) -> Unit,
+    ): ByteArray {
+        require(count > 0) { "a packed section with no positions says nothing" }
+        val palette = paletteOf(before, after, count)
+        val wide = palette.size > 256
+        val bitmap = count >= SECTION_BITMAP_FROM
+        val indexBytes = if (wide) 2 else 1
+
+        val positionsAt = tailAt + SECTION_TAIL_BYTES
+        val positionBytes = if (bitmap) SECTION_BITMAP_BYTES else count * 2
+        val paletteAt = positionsAt + positionBytes
+        val indicesAt = paletteAt + palette.size * 4
+        val extrasAt = indicesAt + count * indexBytes * 2
+        var extrasBytes = 4
+        for (entry in extras) extrasBytes += 8 + entry.before.size + entry.after.size
+
+        return value(extrasAt + extrasBytes) {
+            head(paletteAt)
+            putI32(tailAt.toLong(), count)
+            putI8(
+                tailAt + 4L,
+                ((if (bitmap) SECTION_FLAG_BITMAP else 0) or (if (wide) SECTION_FLAG_WIDE_INDEX else 0)).toByte(),
+            )
+            putI16(tailAt + 5L, palette.size.toShort())
+            putI32(tailAt + 8L, positionsAt)
+            putI32(tailAt + 12L, paletteAt)
+            putI32(tailAt + 16L, indicesAt)
+            putI32(tailAt + 20L, extrasAt)
+
+            if (bitmap) {
+                for (i in 0 until count) {
+                    val at = positions[i]
+                    val byteAt = positionsAt + (at shr 3)
+                    putI8(byteAt.toLong(), (i8(byteAt.toLong()).toInt() or (1 shl (at and 7))).toByte())
+                }
+            } else {
+                for (i in 0 until count) putI16((positionsAt + i * 2).toLong(), positions[i].toShort())
+            }
+
+            for (i in palette.indices) putI32((paletteAt + i * 4).toLong(), palette[i])
+
+            val slot = HashMap<Int, Int>(palette.size * 2)
+            for (i in palette.indices) slot[palette[i]] = i
+            for (i in 0 until count) {
+                val b = slot.getValue(before[i])
+                val a = slot.getValue(after[i])
+                if (wide) {
+                    putI16((indicesAt + i * 2).toLong(), b.toShort())
+                    putI16((indicesAt + count * 2 + i * 2).toLong(), a.toShort())
+                } else {
+                    putI8((indicesAt + i).toLong(), b.toByte())
+                    putI8((indicesAt + count + i).toLong(), a.toByte())
+                }
+            }
+
+            putI32(extrasAt.toLong(), extras.size)
+            var at = extrasAt + 4L
+            for (entry in extras) {
+                putI32(at, entry.index)
+                putI16(at + 4, entry.before.size.toShort())
+                putI16(at + 6, entry.after.size.toShort())
+                writeBytes(at + 8, entry.before)
+                writeBytes(at + 8 + entry.before.size, entry.after)
+                at += 8 + entry.before.size + entry.after.size
+            }
+        }
+    }
+
+    class SectionExtras(val index: Int, val before: ByteArray, val after: ByteArray)
+
+    private fun paletteOf(before: IntArray, after: IntArray, count: Int): IntArray {
+        val seen = LinkedHashSet<Int>()
+        for (i in 0 until count) {
+            seen += before[i]
+            seen += after[i]
+        }
+        return seen.toIntArray()
+    }
+
+    fun sectionBaseSeq(v: MemorySegment): Long = v.i64(WCHG_HEADER_BYTES.toLong())
+
+    fun worldSectionTail(): Int = WORLD_SECTION_TAIL
+
+    fun structSectionTail(): Int = STRUCT_SECTION_TAIL
+
+    fun sectionCount(v: MemorySegment, tailAt: Int = WORLD_SECTION_TAIL): Int = v.i32(tailAt.toLong())
+
+    fun sectionPaletteSize(v: MemorySegment, tailAt: Int = WORLD_SECTION_TAIL): Int =
+        v.i16(tailAt + 5L).toInt() and 0xFFFF
+
+    private fun sectionFlags(v: MemorySegment, tailAt: Int): Int = v.i8(tailAt + 4L).toInt()
+    private fun positionsOffset(v: MemorySegment, tailAt: Int): Long = v.i32(tailAt + 8L).toLong()
+    private fun paletteOffset(v: MemorySegment, tailAt: Int): Long = v.i32(tailAt + 12L).toLong()
+    private fun sectionIndicesAt(v: MemorySegment, tailAt: Int): Long = v.i32(tailAt + 16L).toLong()
+    private fun sectionExtrasAt(v: MemorySegment, tailAt: Int): Long = v.i32(tailAt + 20L).toLong()
+
+    fun sectionPaletteAt(v: MemorySegment, slot: Int, tailAt: Int = WORLD_SECTION_TAIL): Int =
+        v.i32(paletteOffset(v, tailAt) + slot * 4L)
+
+    fun sectionBefore(v: MemorySegment, index: Int, tailAt: Int = WORLD_SECTION_TAIL): Int =
+        sectionPaletteAt(v, sectionSlot(v, index, after = false, tailAt = tailAt), tailAt)
+
+    fun sectionAfter(v: MemorySegment, index: Int, tailAt: Int = WORLD_SECTION_TAIL): Int =
+        sectionPaletteAt(v, sectionSlot(v, index, after = true, tailAt = tailAt), tailAt)
+
+    private fun sectionSlot(v: MemorySegment, index: Int, after: Boolean, tailAt: Int): Int {
+        val count = sectionCount(v, tailAt)
+        val at = sectionIndicesAt(v, tailAt)
+        return if (sectionFlags(v, tailAt) and SECTION_FLAG_WIDE_INDEX != 0) {
+            (v.i16(at + (if (after) count + index else index) * 2L).toInt() and 0xFFFF)
+        } else {
+            v.i8(at + (if (after) count + index else index).toLong()).toInt() and 0xFF
+        }
+    }
+
+    inline fun forEachSectionPosition(
+        v: MemorySegment,
+        tailAt: Int = worldSectionTail(),
+        action: (index: Int, packed: Int) -> Unit,
+    ) {
+        val count = sectionCount(v, tailAt)
+        val at = sectionPositionsAt(v, tailAt)
+        if (!sectionIsBitmap(v, tailAt)) {
+            for (i in 0 until count) action(i, v.i16(at + i * 2L).toInt() and 0xFFFF)
+            return
+        }
+        var index = 0
+        var byteAt = 0
+        while (index < count && byteAt < sectionBitmapBytes()) {
+            var bits = v.i8(at + byteAt).toInt() and 0xFF
+            while (bits != 0) {
+                val bit = Integer.numberOfTrailingZeros(bits)
+                action(index++, (byteAt shl 3) or bit)
+                bits = bits and (bits - 1)
+            }
+            byteAt++
+        }
+    }
+
+    fun sectionIndexOf(v: MemorySegment, packed: Int, tailAt: Int = WORLD_SECTION_TAIL): Int {
+        val count = sectionCount(v, tailAt)
+        val at = sectionPositionsAt(v, tailAt)
+        if (!sectionIsBitmap(v, tailAt)) {
+            var low = 0
+            var high = count - 1
+            while (low <= high) {
+                val mid = (low + high) ushr 1
+                val here = v.i16(at + mid * 2L).toInt() and 0xFFFF
+                when {
+                    here < packed -> low = mid + 1
+                    here > packed -> high = mid - 1
+                    else -> return mid
+                }
+            }
+            return -1
+        }
+        val byteAt = packed shr 3
+        if (v.i8(at + byteAt).toInt() and (1 shl (packed and 7)) == 0) return -1
+        var index = 0
+        for (b in 0 until byteAt) index += Integer.bitCount(v.i8(at + b).toInt() and 0xFF)
+        return index + Integer.bitCount((v.i8(at + byteAt).toInt() and 0xFF) and ((1 shl (packed and 7)) - 1))
+    }
+
+    fun sectionExtras(v: MemorySegment, index: Int, tailAt: Int = WORLD_SECTION_TAIL): SectionExtras? {
+        var at = sectionExtrasAt(v, tailAt)
+        val entries = v.i32(at)
+        at += 4
+        for (unused in 0 until entries) {
+            val which = v.i32(at)
+            val beforeLength = v.i16(at + 4).toInt() and 0xFFFF
+            val afterLength = v.i16(at + 6).toInt() and 0xFFFF
+            if (which == index) {
+                return SectionExtras(
+                    index,
+                    v.readBytes(at + 8, beforeLength),
+                    v.readBytes(at + 8 + beforeLength, afterLength),
+                )
+            }
+            at += 8 + beforeLength + afterLength
+        }
+        return null
+    }
+
+    fun sectionIsBitmap(v: MemorySegment, tailAt: Int = WORLD_SECTION_TAIL): Boolean =
+        sectionFlags(v, tailAt) and SECTION_FLAG_BITMAP != 0
+
+    fun sectionPositionsAt(v: MemorySegment, tailAt: Int = WORLD_SECTION_TAIL): Long =
+        positionsOffset(v, tailAt)
+
+    fun sectionBitmapBytes(): Int = SECTION_BITMAP_BYTES
+
+    fun packSectionPosition(x: Int, y: Int, z: Int): Int =
+        ((y and 15) shl 8) or ((z and 15) shl 4) or (x and 15)
+
+    fun sectionPositionX(packed: Int): Int = packed and 15
+    fun sectionPositionZ(packed: Int): Int = (packed shr 4) and 15
+    fun sectionPositionY(packed: Int): Int = (packed shr 8) and 15
+
+    fun logKindSection(
+        kind: LogKind,
+        cause: CauseKind,
+        action: ActionKind,
+        sectionX: Int,
+        sectionY: Int,
+        sectionZ: Int,
+        count: Int,
+        causedById: Int,
+    ): ByteArray = value(LOG_KIND_SECTION_BYTES) {
+        putI8(0, kind.ordinal.toByte())
+        putI8(1, cause.ordinal.toByte())
+        putI8(2, action.ordinal.toByte())
+        putI8(3, 0)
+        putI32(4, sectionX)
+        putI32(8, sectionY)
+        putI32(12, sectionZ)
+        putI32(16, count)
+        putI32(20, causedById)
+    }
+
+    fun logKindIsSection(v: MemorySegment): Boolean = v.byteSize() == LOG_KIND_SECTION_BYTES.toLong()
 
     fun wchgVersion(v: MemorySegment): Byte = v.i8(0)
     fun wchgKind(v: MemorySegment): Byte = v.i8(1)

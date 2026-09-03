@@ -34,6 +34,9 @@ interface KeyValueEngine : AutoCloseable {
     /** Flushes and compacts everything, then waits for it. */
     fun compactEverything()
 
+    /** Throws the whole store away and leaves an empty one behind. */
+    fun wipe()
+
     /** Numbers worth putting in a bug report. */
     fun stats(): EngineStats
 
@@ -58,21 +61,32 @@ interface EngineSnapshot : AutoCloseable {
 interface EngineCursor : AutoCloseable {
     fun next(): Boolean
 
-    /** The current key. A fresh array — cursors hand out keys that outlive their position. */
     fun key(): ByteArray
 
-    /** The current value, read-only and valid only until the next [next]. */
     fun value(): MemorySegment
 
-    /**
-     * Repositions so the next [next] is the first key at or after [from], still under this
-     * cursor's prefix. A spatial scan uses this to jump out of a y-bin once its newest remaining
-     * row is already older than the query window, instead of walking years of a spawn chunk.
-     */
+    fun keyLength(): Int = key().size
+
+    fun keyByte(at: Int): Byte = key()[at]
+
+    fun keyU32(at: Int): Int {
+        val key = key()
+        return ((key[at].toInt() and 0xFF) shl 24) or ((key[at + 1].toInt() and 0xFF) shl 16) or
+            ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
+    }
+
+    fun keyU64(at: Int): Long {
+        val key = key()
+        var value = 0L
+        for (i in 0 until 8) value = (value shl 8) or (key[at + i].toLong() and 0xFF)
+        return value
+    }
+
     fun skipTo(from: ByteArray)
 }
 
 data class EngineStats(
+    val syncs: Long,
     val liveBytes: Long,
     val segmentCount: Int,
     val memtableBytes: Long,

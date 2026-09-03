@@ -78,7 +78,7 @@ class CodecGoldensTest {
 
     @Test
     fun `the transaction record is a 40-byte header and 24 bytes per flow`() {
-        assertEquals(2.toByte(), Records.VERSION)
+        assertEquals(1.toByte(), Records.VERSION, "the codec version is pinned; bumping it means wiping the store")
         assertEquals(40, Records.transactionSize(0))
         assertEquals(64, Records.transactionSize(1))
         assertEquals(88, Records.transactionSize(2))

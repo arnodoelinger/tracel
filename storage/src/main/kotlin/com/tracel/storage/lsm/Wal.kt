@@ -57,11 +57,17 @@ class Wal private constructor(
         unsynced = true
     }
 
+    /** Forces what has been written to the platter. */
     fun sync() {
         if (!unsynced) return
         stream.fd.sync()
         unsynced = false
+        syncCount++
     }
+
+    private var syncCount = 0L
+
+    val syncs: Long get() = syncCount
 
     override fun close() {
         sync()

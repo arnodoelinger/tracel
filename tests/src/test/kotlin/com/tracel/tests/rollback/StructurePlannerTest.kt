@@ -183,4 +183,28 @@ class StructurePlannerTest {
         assertEquals(BlockShape.AIR, inverse.target)
         assertEquals(stone, inverse.expected)
     }
+
+    @Test
+    fun `several coordinates interleaved keep their own two ends`() {
+        val positions = (0 until 3).map { BlockPos(world, it, 70, 0) }
+        val changes = ArrayList<WorldChange>()
+        var seq = 9L
+        for (round in 0 until 3) {
+            for (at in positions) {
+                val before = if (round == 2) stone else cobble
+                val after = if (round == 0) chest else cobble
+                changes += block(seq--, before, after, at)
+            }
+        }
+
+        val (create, destroy) = StructurePlanner().plan(changes)
+
+        assertEquals(emptyList<StructureStep>(), destroy)
+        assertEquals(3, create.size)
+        for (step in create.map { it as StructureStep.SetBlock }) {
+            assertEquals(stone, step.target, "${step.at} took the oldest change's before")
+            assertEquals(chest, step.expected, "${step.at} took the newest change's after")
+        }
+        assertEquals(positions.toSet(), create.map { (it as StructureStep.SetBlock).at }.toSet())
+    }
 }

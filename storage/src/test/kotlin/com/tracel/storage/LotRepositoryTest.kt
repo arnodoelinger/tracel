@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
@@ -256,4 +257,54 @@ class LotRepositoryTest {
         }
     }
 
+
+    @Test
+    fun `batch reads agree with the one-at-a-time reads, dense and sparse`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val repo = stack.repo
+            val chest = block(0, 64, 0)
+            val parents = ArrayList<LotId>()
+            repeat(200) { i ->
+                val parent = repo.createLot(diamond, Quantity(4), TxnId(1))
+                val child = repo.createLot(diamond, Quantity(2), TxnId(1))
+                repo.recordEdge(LotEdge.Split(child.id, parent.id, Quantity(2)))
+                repo.place(chest, parent.id, Quantity(4))
+                parents += parent.id
+            }
+
+            for (ids in listOf(parents, parents.take(8))) {
+                repo.forget()
+                assertEquals(ids.associateWith { repo.edgesFrom(it) }, repo.edgesFromAll(ids))
+                repo.forget()
+                assertEquals(ids.associateWith { repo.lot(it) }, repo.lotsOfAll(ids))
+                repo.forget()
+                assertEquals(
+                    ids.associateWith { repo.currentHolderOf(it)!! },
+                    repo.currentHoldersOf(ids),
+                )
+                repo.forget()
+                val children = ids.map { LotId(it.raw + 1) }
+                assertEquals(children.associateWith { repo.edgesInto(it) }, repo.edgesIntoAll(children))
+                repo.forget()
+                val mixed = ids + children
+                assertEquals(mixed.associateWith { repo.edgesFrom(it) }, repo.edgesFromAll(mixed))
+            }
+        }
+    }
+
+    @Test
+    fun `prefetching lots warms the cache without inventing the ones that do not exist`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val repo = stack.repo
+            val made = (1..200).map { repo.createLot(diamond, Quantity(it.toLong()), TxnId(1)) }
+            repo.forget()
+
+            val asked = made.map { it.id } + (900_000L..900_050L).map { LotId(it) }
+            repo.prefetchLots(asked)
+
+            for (lot in made) assertEquals(lot, repo.lot(lot.id))
+            val absent = runCatching { repo.lot(LotId(900_000)) }.exceptionOrNull()
+            assertTrue(absent is IllegalStateException, "a lot that does not exist must still say so, got $absent")
+        }
+    }
 }

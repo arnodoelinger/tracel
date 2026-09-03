@@ -156,4 +156,84 @@ class DrainerTest {
             assertEquals(steve, move.flows.single().destination)
         }
     }
+
+    @Test
+    fun `an idle drain loop writes nothing at all`(@TempDir dir: Path) = runTest {
+        withContext(Dispatchers.Default) {
+        Stack(dir).use { stack ->
+            seed(stack, 10)
+            stack.drain()
+            stack.storage.engine.sync()
+
+            val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
+            val job = stack.drainer.start(scope)
+            val before = stack.storage.engine.stats()
+            val walBefore = walBytes(dir)
+
+            delay(1_000.milliseconds)
+
+            val after = stack.storage.engine.stats()
+            assertEquals(
+                before.syncs, after.syncs,
+                "a quiet server forced the disk ${after.syncs - before.syncs} times in one idle second",
+            )
+            job.cancel()
+            withTimeout(10_000.milliseconds) { job.join() }
+            scope.cancel()
+
+            assertEquals(
+                before.writes, after.writes,
+                "a quiet server must not commit anything: ${after.writes - before.writes} commits in a second of nothing",
+            )
+            assertEquals(walBefore, walBytes(dir), "the log grew while nothing happened")
+        }
+        }
+    }
+
+    @Test
+    fun `events trickling in one at a time cost one commit each, not more`(@TempDir dir: Path) = runTest {
+        withContext(Dispatchers.Default) {
+        Stack(dir).use { stack ->
+            seed(stack, 100)
+            stack.drain()
+
+            val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
+            val job = stack.drainer.start(scope)
+            val before = stack.storage.engine.stats().writes
+            val syncsBefore = stack.storage.engine.stats().syncs
+
+            val trickled = 20
+            repeat(trickled) {
+                stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1)
+                delay(20.milliseconds)
+            }
+            withTimeout(10_000.milliseconds) {
+                while (stack.drainer.events < trickled.toLong()) delay(5.milliseconds)
+            }
+
+            val commits = stack.storage.engine.stats().writes - before
+            val syncs = stack.storage.engine.stats().syncs - syncsBefore
+            job.cancel()
+            withTimeout(10_000.milliseconds) { job.join() }
+            scope.cancel()
+
+            assertTrue(
+                commits <= trickled.toLong() * 2,
+                "$trickled trickled events cost $commits commits — the loop is committing its own idleness",
+            )
+            assertTrue(syncs > 0, "the sync counter is not wired up — it never moved")
+            assertTrue(
+                syncs <= trickled.toLong() * 2,
+                "$trickled trickled events forced the disk $syncs times",
+            )
+        }
+        }
+    }
+
+    private fun walBytes(dir: Path): Long =
+        java.nio.file.Files.list(dir).use { stream ->
+            stream.filter { it.toString().endsWith(".tracel-log") }
+                .mapToLong { java.nio.file.Files.size(it) }
+                .sum()
+        }
 }

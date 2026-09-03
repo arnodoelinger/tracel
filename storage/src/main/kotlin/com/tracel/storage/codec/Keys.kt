@@ -1,5 +1,7 @@
 package com.tracel.storage.codec
 
+import com.tracel.storage.spi.EngineCursor
+
 /**
  * The whole keyspace.
  *
@@ -68,6 +70,7 @@ object Keys {
     const val WCHG: Byte = 0x17
     const val WCHG_AT: Byte = 0x18
     const val WCHG_ENTITY: Byte = 0x19
+    const val WCHG_AT_SECTION: Byte = 0x20
     const val TXN_LOT: Byte = 0x1A
     const val BLOCK_LEASE: Byte = 0x1B
     const val RB_STRUCT: Byte = 0x1C
@@ -131,6 +134,10 @@ object Keys {
     fun spatialChunkZ(key: ByteArray): Int = KeyReader.u32(key, 9) xor Int.MIN_VALUE
 
     fun spatialMillis(key: ByteArray): Long = invert(KeyReader.u64(key, 13))
+
+    fun spatialChunkZ(cursor: EngineCursor): Int = cursor.keyU32(9) xor Int.MIN_VALUE
+
+    fun spatialMillis(cursor: EngineCursor): Long = invert(cursor.keyU64(13))
 
     fun lot(lotId: Long): ByteArray = KeyWriter(9).tag(LOT).u64(lotId).done()
 
@@ -212,6 +219,15 @@ object Keys {
     fun wchgAtPrefix(worldId: Int, x: Int, y: Int, z: Int): ByteArray =
         KeyWriter(17).tag(WCHG_AT).u32(worldId).u32(ordered(x)).u32(ordered(y)).u32(ordered(z)).done()
 
+    fun wchgAtSection(worldId: Int, sectionX: Int, sectionY: Int, sectionZ: Int, seq: Long): ByteArray =
+        KeyWriter(25).tag(WCHG_AT_SECTION).u32(worldId)
+            .u32(ordered(sectionX)).u32(ordered(sectionY)).u32(ordered(sectionZ))
+            .u64(invert(seq)).done()
+
+    fun wchgAtSectionPrefix(worldId: Int, sectionX: Int, sectionY: Int, sectionZ: Int): ByteArray =
+        KeyWriter(17).tag(WCHG_AT_SECTION).u32(worldId)
+            .u32(ordered(sectionX)).u32(ordered(sectionY)).u32(ordered(sectionZ)).done()
+
     fun wchgEntity(entity: java.util.UUID, seq: Long): ByteArray =
         KeyWriter(25).tag(WCHG_ENTITY).u64(entity.mostSignificantBits).u64(entity.leastSignificantBits)
             .u64(invert(seq)).done()
@@ -274,6 +290,7 @@ object Keys {
         INTERN_REVERSE,
         WCHG,
         WCHG_AT,
+        WCHG_AT_SECTION,
         WCHG_ENTITY,
         TXN_LOT,
         BLOCK_LEASE,

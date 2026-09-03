@@ -32,6 +32,36 @@ import org.junit.jupiter.api.Test
 
 class InvolutionTest {
     @Test
+    fun `undo does not abort when the dest has already been emptied`() = runTest {
+        val world = LedgerHarness()
+        val jobs = InMemoryRollbackJobRepository()
+        val chest = block(0, 64, 0)
+        val steve = player(1)
+        val hopper = block(1, 64, 0)
+
+        val root = world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
+        world.ledger.move(chest, steve, diamond, Quantity(10), world.nextTxn())
+
+        val job = RollbackJobId(1)
+        val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        val target = RollbackTarget.Uniform(chest)
+        jobs.save(RollbackJobRecord(job, plan, target))
+        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+            .execute(world.acquireLease(job, plan), plan, target)
+
+        world.ledger.move(chest, hopper, diamond, Quantity(10), world.nextTxn())
+
+        val steps = InvolutionPlanner(world.repo).plan(jobs.find(job)!!)
+        val executor = InvolutionExecutor(world.ledger, world.log, world::nextSeq)
+        val lease = world.acquireLease(job, plan)
+        for (step in steps) executor.apply(lease, step, world.nextTxn())
+        world.leases.release(job)
+
+        assertEquals(10L, world.ledger.totalAt(hopper, diamond)?.raw)
+        assertNull(world.ledger.totalAt(chest, diamond))
+    }
+
+    @Test
     fun `undoing a take-plus-mint rollback restores the pre-rollback state exactly`() = runTest {
         val world = LedgerHarness()
         val jobs = InMemoryRollbackJobRepository()

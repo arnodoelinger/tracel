@@ -2,6 +2,7 @@ package com.tracel.storage.lsm
 
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
+import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -66,7 +67,7 @@ class LsmEngineTest {
 
     private fun walBytes(dir: Path): Long =
         java.nio.file.Files.list(dir).use { stream ->
-            stream.filter { it.toString().endsWith(".wal") }.mapToLong { java.nio.file.Files.size(it) }.sum()
+            stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.mapToLong { java.nio.file.Files.size(it) }.sum()
         }
 
     @Test
@@ -202,6 +203,76 @@ class LsmEngineTest {
         engine(dir, memtable = 16 * 1024).use { engine ->
             engine.snapshot().use { snapshot ->
                 for (i in 0 until 20_000) assertNotNull(snapshot.get(key(i)), "lost key $i after reopen")
+            }
+        }
+    }
+
+    @Test
+    fun `keys handed out by a cursor outlive the cursor's position`(@TempDir dir: Path) {
+        engine(dir).use { engine ->
+            for (round in 0 until 3) {
+                repeat(300) { i ->
+                    val batch = MutationBatch()
+                    batch.put(key(i), value(i + round))
+                    engine.write(batch, durable = false)
+                }
+                if (round < 2) engine.flushNow()
+            }
+
+            val kept = ArrayList<ByteArray>()
+            val fields = ArrayList<Long>()
+            engine.snapshot().use { snapshot ->
+                snapshot.scan(byteArrayOf(1)).use { cursor ->
+                    while (cursor.next()) {
+                        kept += cursor.key()
+                        fields += cursor.keyU64(1)
+                        assertEquals(9, cursor.keyLength())
+                        assertEquals(1.toByte(), cursor.keyByte(0))
+                    }
+                }
+            }
+
+            assertEquals(300, kept.size)
+            for (i in 0 until 300) {
+                assertArrayEquals(key(i), kept[i], "the cursor recycled a key it had handed out")
+                assertEquals(i.toLong(), fields[i])
+            }
+        }
+    }
+
+    @Test
+    fun `a scan whose prefix most segments know nothing about still reads every row`(@TempDir dir: Path) {
+        engine(dir).use { engine ->
+            fun famKey(family: Int, i: Int) = byteArrayOf(family.toByte()) + longBe(i.toLong())
+            for (family in 1..8) {
+                repeat(400) { i ->
+                    val batch = MutationBatch()
+                    batch.put(famKey(family, i), "f$family-$i".toByteArray())
+                    engine.write(batch, durable = false)
+                }
+                engine.flushNow()
+            }
+
+            for (family in 1..8) {
+                val seen = ArrayList<Int>()
+                engine.snapshot().use { snapshot ->
+                    snapshot.scan(byteArrayOf(family.toByte())).use { cursor ->
+                        while (cursor.next()) {
+                            assertEquals(family.toByte(), cursor.keyByte(0))
+                            seen += cursor.keyU64(1).toInt()
+                        }
+                    }
+                }
+                assertEquals((0 until 400).toList(), seen, "family $family came back wrong")
+            }
+
+            engine.snapshot().use { snapshot ->
+                snapshot.scan(byteArrayOf(3)).use { cursor ->
+                    cursor.skipTo(famKey(3, 350))
+                    val rest = ArrayList<Int>()
+                    while (cursor.next()) rest += cursor.keyU64(1).toInt()
+                    assertEquals((350 until 400).toList(), rest)
+                }
             }
         }
     }

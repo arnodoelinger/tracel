@@ -62,6 +62,7 @@ class LsmEngine(
 
     private val blocks = BlockCache()
 
+    private var walSyncs = 0L
     private val retired = ArrayList<Pair<SegmentReader, Long>>()
     private val retiredTables = ArrayList<Pair<MemTable, Long>>()
     private val open = ArrayList<SegmentReader>()
@@ -77,6 +78,7 @@ class LsmEngine(
 
     init {
         Files.createDirectories(directory)
+        Files.createDirectories(Manifest.segmentsDirectory(directory))
         val manifest = Manifest.read(directory)
         Manifest.sweep(directory, manifest)
         nextFileId = manifest.nextFileId
@@ -186,9 +188,37 @@ class LsmEngine(
         quiesce()
     }
 
+    override fun wipe() {
+        quiesce()
+        lock.withLock {
+            val kept = version.lastSequence
+            val fresh = MemTable(config.memtableBytes)
+            val walId = nextFileId++
+            wal.sync()
+            wal.close()
+            walSyncs += wal.syncs
+            walIds = arrayListOf(walId)
+            wal = Wal.create(Manifest.walPath(directory, walId))
+            fresh.walId = walId
+
+            val at = generation.incrementAndGet()
+            val discarded = version.segments
+            val discardedTables = buildList {
+                add(version.active)
+                addAll(version.frozen)
+            }
+            version = Version(fresh, emptyList(), emptyList(), kept, kept, at)
+            for (segment in discarded) retired += segment to at
+            for (table in discardedTables) retiredTables += table to at
+            publish(currentManifest())
+        }
+        quiesce()
+    }
+
     override fun stats(): EngineStats {
         val current = version
         return EngineStats(
+            syncs = walSyncs + wal.syncs,
             liveBytes = current.segments.sumOf { it.meta.fileBytes },
             segmentCount = current.segments.size,
             memtableBytes = current.active.bytesUsed + current.frozen.sumOf { it.bytesUsed },
@@ -234,13 +264,17 @@ class LsmEngine(
         }
     }
 
-    /** Called under [lock], after maintenance has stopped, so nothing else can be writing. */
     private fun sealOnShutdown() {
         val pending = buildList {
             if (version.active.entries > 0) add(version.active)
             addAll(version.frozen.filter { it.entries > 0 })
         }
-        if (pending.isEmpty()) return
+        if (pending.isEmpty()) {
+            if (walIds.isEmpty()) return
+            walIds.clear()
+            publish(currentManifest())
+            return
+        }
         val written = ArrayList<SegmentReader>(pending.size)
         // Oldest first: a later segment has to carry the higher id so it shadows the earlier one
         for (table in pending.asReversed()) written += writeSegment(table, nextFileId++, Long.MAX_VALUE)
@@ -299,6 +333,7 @@ class LsmEngine(
         val walId = nextFileId++
         wal.sync()
         wal.close()
+        walSyncs += wal.syncs
         walIds += walId
         wal = Wal.create(Manifest.walPath(directory, walId))
         fresh.walId = walId
@@ -341,7 +376,7 @@ class LsmEngine(
             }
             writer.finish(id, 0)
         }
-        fsyncDirectory(directory)
+        fsyncDirectory(Manifest.segmentsDirectory(directory))
         return SegmentFile.open(path, meta, blocks)
     }
 
@@ -430,7 +465,7 @@ class LsmEngine(
                 }
                 writer.finish(id, plan.level + 1)
             }
-            fsyncDirectory(directory)
+            fsyncDirectory(Manifest.segmentsDirectory(directory))
             val reader = SegmentFile.open(path, meta, blocks)
 
             lock.withLock {

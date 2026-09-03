@@ -1,6 +1,7 @@
 package com.tracel.storage.ports
 
 import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.job.SaveHandle
 import com.tracel.engine.rollback.job.RollbackJobRepository as RollbackJobRepositoryPort
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackStep
@@ -21,6 +22,8 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
         const val STEPS_PER_RECORD = 512
         const val BYTES_PER_RECORD = 1 shl 16
 
+        const val SECTION_FROM = 2
+
         inline fun runs(parts: List<ByteArray>, write: (Int, ByteArray) -> Unit) {
             var index = 0
             var from = 0
@@ -39,17 +42,13 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
     }
 
     override suspend fun save(record: RollbackJobRecord) {
+        finish(begin(record), record.destroy)
+    }
+
+    override suspend fun begin(record: RollbackJobRecord): SaveHandle {
+        var runsWritten = 0
         storage.write {
             val target = record.target
-            val uniformHolder = when (target) {
-                is RollbackTarget.Uniform -> storage.interning.internHolder(this, target.holder)
-                is RollbackTarget.PerRoot -> 0
-            }
-            put(
-                Keys.rbJob(record.id.raw),
-                Records.rbJob(uniformHolder, record.plan.steps.size, record.create.size, record.destroy.size),
-            )
-
             if (target is RollbackTarget.PerRoot) {
                 // Written per (!) leaf lot, already resolved through the plan's rootOf, rather than
                 // per root. rootOf is derived at planning time and is not on disk, so a record
@@ -64,8 +63,6 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                     )
                 }
             }
-            // The undo stack, so nobody ever has to read a job number off a chat line
-            put(Keys.rbRecent(record.id.raw), EMPTY)
 
             runs(record.plan.steps.map { step -> Records.step(step) { holder -> storage.interning.internHolder(this, holder) } }) { index, packed ->
                 put(Keys.rbStep(record.id.raw, index), packed)
@@ -73,17 +70,94 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
 
             // Create first, destroy after, one contiguous run — the header's counts are the
             // boundary, so reading them back is a single prefix scan and a split.
-            val structure = (record.create + record.destroy).map { step ->
-                Records.structureStep(
-                    step,
-                    { world -> storage.interning.internWorld(this, world) },
-                    { data -> storage.interning.internBlockData(this, data) },
-                    { type -> storage.interning.internEntityType(this, type) },
-                )
+            runs(structureRuns(this, record.create)) { index, packed ->
+                put(Keys.rbStruct(record.id.raw, index), packed)
+                runsWritten = index + 1
             }
-            runs(structure) { index, packed -> put(Keys.rbStruct(record.id.raw, index), packed) }
+        }
+        return SaveHandle(record, runsWritten)
+    }
+
+    override suspend fun finish(handle: SaveHandle, destroy: List<StructureStep>) {
+        val record = handle.record
+        storage.write {
+            runs(structureRuns(this, destroy)) { index, packed ->
+                put(Keys.rbStruct(record.id.raw, handle.fromRun + index), packed)
+            }
+
+            val target = record.target
+            val uniformHolder = when (target) {
+                is RollbackTarget.Uniform -> storage.interning.internHolder(this, target.holder)
+                is RollbackTarget.PerRoot -> 0
+            }
+            // Last, both of them. Until the header exists there is no job to read back, and until
+            // the stack entry exists there is no job to undo.
+            put(
+                Keys.rbJob(record.id.raw),
+                Records.rbJob(uniformHolder, record.plan.steps.size, record.create.size, destroy.size),
+            )
+            // The undo stack
+            put(Keys.rbRecent(record.id.raw), EMPTY)
+            evictPastDepth()
         }
     }
+
+    /** Encodes [steps], letting the set-block ones of a chunk section share an entry. */
+    private fun structureRuns(unit: com.tracel.storage.StorageUnit, steps: List<StructureStep>): List<ByteArray> {
+        val worldOf = { world: com.tracel.model.id.WorldId -> storage.interning.internWorld(unit, world) }
+        val dataOf = { data: com.tracel.model.world.BlockDataKey -> storage.interning.internBlockData(unit, data) }
+        val typeOf = { type: com.tracel.model.world.EntityTypeKey -> storage.interning.internEntityType(unit, type) }
+
+        val bySection = LinkedHashMap<Long, MutableList<StructureStep.SetBlock>>()
+        val loose = ArrayList<StructureStep>()
+        for (step in steps) {
+            if (step is StructureStep.SetBlock) {
+                bySection.getOrPut(sectionOf(step.at)) { ArrayList() } += step
+            } else {
+                loose += step
+            }
+        }
+
+        val out = ArrayList<ByteArray>(steps.size)
+        for (group in bySection.values) {
+            if (group.size < SECTION_FROM) {
+                for (step in group) out += Records.structureStep(step, worldOf, dataOf, typeOf)
+                continue
+            }
+            val ordered = group.sortedBy { Records.packSectionPosition(it.at.x, it.at.y, it.at.z) }
+            val count = ordered.size
+            val positions = IntArray(count)
+            val target = IntArray(count)
+            val expected = IntArray(count)
+            val extras = ArrayList<Records.SectionExtras>()
+            for (i in 0 until count) {
+                val step = ordered[i]
+                positions[i] = Records.packSectionPosition(step.at.x, step.at.y, step.at.z)
+                target[i] = dataOf(step.target.data)
+                expected[i] = dataOf(step.expected.data)
+                if (step.target.extras != null || step.expected.extras != null) {
+                    extras += Records.SectionExtras(
+                        i,
+                        Records.blockExtras(step.target.extras),
+                        Records.blockExtras(step.expected.extras),
+                    )
+                }
+            }
+            val first = ordered.first().at
+            out += Records.structureSection(
+                worldOf(first.world), first.x shr 4, first.y shr 4, first.z shr 4,
+                positions, count, target, expected, extras,
+            )
+        }
+        for (step in loose) out += Records.structureStep(step, worldOf, dataOf, typeOf)
+        return out
+    }
+
+    private fun sectionOf(at: com.tracel.model.world.BlockPos): Long =
+        (at.world.uuid.leastSignificantBits shl 1) xor
+            ((at.x shr 4).toLong() and 0x1FFFFF shl 42) xor
+            ((at.z shr 4).toLong() and 0x1FFFFF shl 21) xor
+            ((at.y shr 4).toLong() and 0x1FFFFF)
 
     override suspend fun undoable(limit: Int): List<RollbackJobId> = storage.read {
         val out = ArrayList<RollbackJobId>(limit)
@@ -99,7 +173,33 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
     override suspend fun isUndoable(id: RollbackJobId): Boolean = storage.read { exists(Keys.rbRecent(id.raw)) }
 
     override suspend fun markUndone(id: RollbackJobId) {
-        storage.write { delete(Keys.rbRecent(id.raw)) }
+        storage.write { forget(id) }
+    }
+
+    private fun com.tracel.storage.StorageUnit.forget(id: RollbackJobId) {
+        val doomed = ArrayList<ByteArray>()
+        for (prefix in listOf(Keys.rbStepPrefix(id.raw), Keys.rbStructPrefix(id.raw), Keys.rbTargetPrefix(id.raw))) {
+            scan(prefix).use { cursor ->
+                while (cursor.next()) doomed += cursor.key()
+            }
+        }
+        doomed.forEach(::delete)
+        delete(Keys.rbJob(id.raw))
+        delete(Keys.rbRecent(id.raw))
+    }
+
+    private fun com.tracel.storage.StorageUnit.evictPastDepth() {
+        val doomed = ArrayList<RollbackJobId>()
+        var seen = 0
+        scan(Keys.rbRecentPrefix()).use { cursor ->
+            while (cursor.next()) {
+                seen++
+                if (seen > RollbackJobRepositoryPort.UNDO_DEPTH) {
+                    doomed += RollbackJobId(Keys.invert(cursor.keyU64(1)))
+                }
+            }
+        }
+        for (id in doomed) forget(id)
     }
 
     override suspend fun find(id: RollbackJobId): RollbackJobRecord? = storage.read {
@@ -131,11 +231,12 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
         scan(Keys.rbStructPrefix(id.raw)).use { cursor ->
             while (cursor.next()) {
                 Records.forEachPacked(cursor.value()) { part ->
-                    structure += Records.decodeStructureStep(
+                    Records.decodeStructureInto(
                         part,
                         { worldId -> storage.interning.resolveWorld(this, worldId) },
                         { dataId -> storage.interning.resolveBlockData(this, dataId) },
                         { typeId -> storage.interning.resolveEntityType(this, typeId) },
+                        structure,
                     )
                 }
             }

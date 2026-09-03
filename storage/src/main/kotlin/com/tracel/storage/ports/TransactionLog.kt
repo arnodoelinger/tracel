@@ -107,10 +107,9 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val out = ArrayList<FlowLot>()
         scan(Keys.txnLotPrefix(seq.raw)).use { cursor ->
             while (cursor.next()) {
-                val key = cursor.key()
                 out += FlowLot(
-                    KeyReader.u32(key, 9),
-                    LotId(KeyReader.u64(key, 13)),
+                    cursor.keyU32(9),
+                    LotId(cursor.keyU64(13)),
                     Quantity(Records.asLong(cursor.value())),
                 )
             }
@@ -128,31 +127,39 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
     internal fun loadLots(unit: StorageUnit, seqs: LongArray): Map<Long, List<FlowLot>> {
         if (seqs.isEmpty()) return emptyMap()
         val n = seqs.size
-        QueryProbe.cursors(n.toLong())
-        val parts = arrayOfNulls<List<FlowLot>>(n)
-        val read = { i: Int ->
-            val lots = ArrayList<FlowLot>()
-            unit.scan(Keys.txnLotPrefix(seqs[i])).use { cursor ->
-                while (cursor.next()) {
-                    val key = cursor.key()
-                    lots += FlowLot(
-                        KeyReader.u32(key, 9),
-                        LotId(KeyReader.u64(key, 13)),
-                        Quantity(Records.asLong(cursor.value())),
-                    )
-                }
+        val sorted = seqs.copyOf()
+        java.util.Arrays.sort(sorted)
+        val slices = sliceCount(n)
+        QueryProbe.cursors(slices.toLong())
+        QueryProbe.scanned(n.toLong())
+
+        val parts = arrayOfNulls<HashMap<Long, MutableList<FlowLot>>>(slices)
+        val take = { s: Int ->
+            val out = HashMap<Long, MutableList<FlowLot>>()
+            unit.walkWanted(
+                Keys.TXN_LOT, sorted, n * s / slices, n * (s + 1) / slices, Keys::txnLotPrefix,
+            ) { at, cursor ->
+                out.getOrPut(at) { ArrayList() } += FlowLot(
+                    cursor.keyU32(9),
+                    LotId(cursor.keyU64(13)),
+                    Quantity(Records.asLong(cursor.value())),
+                )
             }
-            parts[i] = lots
+            parts[s] = out
         }
-        if (n >= PARALLEL_GETS_FROM) {
-            java.util.stream.IntStream.range(0, n).parallel().forEach(read)
+        if (slices > 1) {
+            java.util.stream.IntStream.range(0, slices).parallel().forEach(take)
         } else {
-            for (i in 0 until n) read(i)
+            take(0)
         }
-        val out = HashMap<Long, List<FlowLot>>(n)
-        for (i in 0 until n) {
-            val lots = parts[i]!!
-            if (lots.isNotEmpty()) out[seqs[i]] = lots
+
+        if (slices == 1) return parts[0]!!
+        val out = HashMap<Long, MutableList<FlowLot>>(n)
+        for (s in 0 until slices) {
+            for ((at, lots) in parts[s]!!) {
+                val existing = out.putIfAbsent(at, lots)
+                if (existing != null) existing += lots
+            }
         }
         return out
     }
@@ -167,16 +174,16 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val materialIds = filter.material?.let { itemKeyIdsFor(this, it) }
         if (materialIds != null && materialIds.isEmpty()) return@read emptyList()
 
-        val region = filter.region
-        val regionWorldId = region?.let { interning.findWorldId(this, it.world) }
+        val regoin = filter.region
+        val regionWorldId = regoin?.let { interning.findWorldId(this, it.world) }
         val since = filter.since
         val until = filter.until
 
         val wanted = filter.limit + filter.offset
-        val batched = wanted >= BATCHED_FROM || region != null
+        val batched = wanted >= BATCHED_FROM || regoin != null
 
         val scans: List<Scan>? = when {
-            region != null -> regionScans(this, interning, region, since, until)
+            regoin != null -> regionScans(this, interning, regoin, since, until)
             holderIds.isNotEmpty() -> scansOver(holderIds.map(Keys::actorPrefix))
             materialIds != null -> scansOver(materialIds.map(Keys::itemPrefix))
             else -> null
@@ -194,7 +201,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
 
         if (batched) {
             val seqs = ascending(
-                gatherSeqs(LogKind.TRANSACTION, scans, since, until, Int.MAX_VALUE, filter.excludedCauses, region),
+                gatherSeqs(LogKind.TRANSACTION, scans, since, until, Int.MAX_VALUE, filter.excludedCauses, regoin),
             )
             return@read loadSeqs(this, seqs, filter)
         }
@@ -229,6 +236,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val matched = ArrayList<Long>(page.size)
         val records = ArrayList<MemorySegment>(page.size)
         if (worthScanning(page)) {
+            QueryProbe.scanned(page.size.toLong())
             unit.fetchAscending(Keys.TXN, page, Keys::txn) { seq, record ->
                 if (unit.accepts(record, filter, materialIds, holderIds, excludedIds, regionWorldId, filterWorldId)) {
                     matched += seq
@@ -249,6 +257,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             for (i in n - 1 downTo 0) out += slots[i]!!
             return out
         }
+        QueryProbe.pointGot(page.size.toLong())
         return collectNewestFirst(page) { seq ->
             val record = unit.get(Keys.txn(seq)) ?: return@collectNewestFirst null
             if (!unit.accepts(record, filter, materialIds, holderIds, excludedIds, regionWorldId, filterWorldId)) {
@@ -307,11 +316,10 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             }
             if (!hit) return false
         }
+        if (filterWorldId != null && !inWorld(record, flowCount, filterWorldId)) return false
         val region = filter.region
         if (region != null) {
             if (regionWorldId == null || !inRegion(record, flowCount, region, regionWorldId)) return false
-        } else if (filterWorldId != null && !inWorld(record, flowCount, filterWorldId)) {
-            return false
         }
         return true
     }

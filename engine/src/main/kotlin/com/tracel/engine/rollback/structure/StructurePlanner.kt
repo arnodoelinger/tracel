@@ -19,16 +19,16 @@ public class StructurePlanner {
     public fun plan(changes: List<WorldChange>): Pair<List<StructureStep>, List<StructureStep>> {
         val create = mutableListOf<StructureStep>()
         val destroy = mutableListOf<StructureStep>()
-        val newest = LinkedHashMap<Any, WorldChange>(changes.size.coerceAtMost(65_536))
-        val oldest = HashMap<Any, WorldChange>(changes.size.coerceAtMost(65_536))
+
+        val ends = HashMap<Any, Array<WorldChange>>(changes.size.coerceAtMost(65_536))
         for (change in changes) {
-            val key = change.key()
-            newest.putIfAbsent(key, change)
-            oldest[key] = change
+            val slot = ends.getOrPut(change.key()) { arrayOf(change, change) }
+            slot[OLDEST] = change
         }
 
-        for ((key, last) in oldest) {
-            val first = newest.getValue(key)
+        for (slot in ends.values) {
+            val last = slot[OLDEST]
+            val first = slot[NEWEST]
             when (val subject = last.subject) {
                 is ChangeSubject.Block -> {
                     val expected = (first.subject as ChangeSubject.Block).after
@@ -64,6 +64,11 @@ public class StructurePlanner {
         }
 
         return create to destroy
+    }
+
+    private companion object {
+        const val NEWEST = 0
+        const val OLDEST = 1
     }
 
     private fun WorldChange.key(): Any = when (val subject = subject) {
