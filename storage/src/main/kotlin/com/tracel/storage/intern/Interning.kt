@@ -11,6 +11,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Records
+import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -32,35 +33,36 @@ import java.util.concurrent.atomic.AtomicLong
  * transaction caused by holder zero different records.
  */
 class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
-    private val holderIds: Cache<HolderId, Int> = bounded(cacheSize)
-    private val holdersById: Cache<Int, HolderId> = bounded(cacheSize)
-    private val itemKeyIds: Cache<ItemKey, Int> = bounded(ITEM_KEY_CACHE)
-    private val itemKeysById: Cache<Int, ItemKey> = bounded(ITEM_KEY_CACHE)
-    private val worldIds: Cache<WorldId, Int> = bounded(WORLD_CACHE)
-    private val worldsById: Cache<Int, WorldId> = bounded(WORLD_CACHE)
-    private val blockDataIds: Cache<BlockDataKey, Int> = bounded(BLOCK_DATA_CACHE)
-    private val blockDataById: Cache<Int, BlockDataKey> = bounded(BLOCK_DATA_CACHE)
-    private val entityTypeIds: Cache<EntityTypeKey, Int> = bounded(ENTITY_TYPE_CACHE)
-    private val entityTypesById: Cache<Int, EntityTypeKey> = bounded(ENTITY_TYPE_CACHE)
+    private val holders = Interned("holder", Keys.NS_HOLDER, cacheSize, Packed::holder, Packed::decodeHolder)
+    private val itemKeys = Interned("item key", Keys.NS_ITEM_KEY, ITEM_KEY_CACHE, Packed::itemKey, Packed::decodeItemKey)
+    private val worlds = Interned("world", Keys.NS_WORLD, WORLD_CACHE, Packed::world, Packed::decodeWorld)
+    private val blockData =
+        Interned("block data", Keys.NS_BLOCK_DATA, BLOCK_DATA_CACHE, Packed::blockData, Packed::decodeBlockData)
+    private val entityTypes =
+        Interned("entity type", Keys.NS_ENTITY_TYPE, ENTITY_TYPE_CACHE, Packed::entityType, Packed::decodeEntityType)
 
-    private val nextHolderId = AtomicInteger(0)
-    private val nextItemKeyId = AtomicInteger(0)
-    private val nextWorldId = AtomicInteger(0)
-    private val nextBlockDataId = AtomicInteger(0)
-    private val nextEntityTypeId = AtomicInteger(0)
-
-    /** Values a region thread named before the storage thread had a real id for them. */
-    private val provisionalIds = ConcurrentHashMap<Any, Int>()
-    private val provisionalValues = ConcurrentHashMap<Int, Any>()
-    private val provisionalToReal = ConcurrentHashMap<Int, Int>()
-    private val nextProvisional = AtomicInteger(0)
-
-    /** Events refused because the provisional table was full. Same category of loss as a full ring. */
-    val droppedForCapacity: Long get() = drops.get()
-
-    private val drops = AtomicLong(0)
+    private val tables = listOf(holders, itemKeys, worlds, blockData, entityTypes)
 
     // Сapture path: region threads
+
+    private val local = ThreadLocal.withInitial { ThreadCache() }
+
+    fun holderIdForCapture(holder: HolderId): Int = forCapture(holders, holder)
+
+    fun itemKeyIdForCapture(itemKey: ItemKey): Int = forCapture(itemKeys, itemKey)
+
+    fun blockDataIdForCapture(blockData: BlockDataKey): Int = forCapture(this.blockData, blockData)
+
+    fun worldIdForCapture(world: WorldId): Int = forCapture(worlds, world)
+
+    private fun <T : Any> forCapture(table: Interned<T>, value: T): Int {
+        val cache = local.get()
+        val cached = cache.lookup(value)
+        if (cached != 0) return cached
+        val id = table.cached(value) ?: return provisional(value)
+        cache.store(value, id)
+        return id
+    }
 
     /**
      * A direct-mapped cache per thread, in front of the shared one.
@@ -68,86 +70,43 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
      * A region thread sees the same handful of holders over and over... One hopper, its chest,
      * one item key — and a shared bounded cache still costs a hash, a table probe and an
      * eviction-policy record for every one of them. This is an array index and an `equals`.
-     *
-     * Correctness comes from [generation]: a purge bumps it, and every hit checks it, so a
-     * stale per-thread entry can never outlive the mapping it names.
      */
     private class ThreadCache {
-        val keys = arrayOfNulls<Any>(SLOTS)
-        val ids = IntArray(SLOTS)
-        var generation = -1L
+        private val keys = arrayOfNulls<Any>(SLOTS)
+        private val ids = IntArray(SLOTS)
 
-        fun lookup(value: Any, generation: Long): Int {
-            if (this.generation != generation) return 0
+        /** @return the id for [value], or zero if it is not in this thread's cache. */
+        fun lookup(value: Any): Int {
             val slot = slotOf(value)
             return if (keys[slot] == value) ids[slot] else 0
         }
 
-        fun store(value: Any, id: Int, generation: Long) {
-            if (this.generation != generation) {
-                java.util.Arrays.fill(keys, null)
-                this.generation = generation
-            }
+        /** Stores the mapping from [value] to [id] in this thread's cache. */
+        fun store(value: Any, id: Int) {
             val slot = slotOf(value)
             keys[slot] = value
             ids[slot] = id
         }
 
         private fun slotOf(value: Any): Int {
-            val h = value.hashCode()
-            return (h xor (h ushr 16)) and (SLOTS - 1)
+            val hash = value.hashCode()
+            return (hash xor (hash ushr 16)) and (SLOTS - 1)
         }
 
-        companion object {
-            /// Small enough to stay in L1
+        private companion object {
             const val SLOTS = 256
         }
     }
 
-    private val local = ThreadLocal.withInitial { ThreadCache() }
+    // Provisional IDs: the hand-off from a region thread to the storage thread
 
-    @Volatile
-    private var generation = 0L
+    private val provisionalIds = ConcurrentHashMap<Any, Int>()
+    private val provisionalValues = ConcurrentHashMap<Int, Any>()
+    private val provisionalToReal = ConcurrentHashMap<Int, Int>()
+    private val nextProvisional = AtomicInteger(0)
+    private val drops = AtomicLong(0)
 
-    fun holderIdForCapture(holder: HolderId): Int {
-        val at = generation
-        val cache = local.get()
-        val cached = cache.lookup(holder, at)
-        if (cached != 0) return cached
-        val id = holderIds.getIfPresent(holder) ?: return provisional(holder)
-        cache.store(holder, id, at)
-        return id
-    }
-
-    fun itemKeyIdForCapture(itemKey: ItemKey): Int {
-        val at = generation
-        val cache = local.get()
-        val cached = cache.lookup(itemKey, at)
-        if (cached != 0) return cached
-        val id = itemKeyIds.getIfPresent(itemKey) ?: return provisional(itemKey)
-        cache.store(itemKey, id, at)
-        return id
-    }
-
-    fun blockDataIdForCapture(blockData: BlockDataKey): Int {
-        val at = generation
-        val cache = local.get()
-        val cached = cache.lookup(blockData, at)
-        if (cached != 0) return cached
-        val id = blockDataIds.getIfPresent(blockData) ?: return provisional(blockData)
-        cache.store(blockData, id, at)
-        return id
-    }
-
-    fun worldIdForCapture(world: WorldId): Int {
-        val at = generation
-        val cache = local.get()
-        val cached = cache.lookup(world, at)
-        if (cached != 0) return cached
-        val id = worldIds.getIfPresent(world) ?: return provisional(world)
-        cache.store(world, id, at)
-        return id
-    }
+    val droppedForCapacity: Long get() = drops.get()
 
     private fun provisional(value: Any): Int {
         if (provisionalValues.size >= PROVISIONAL_LIMIT) {
@@ -161,24 +120,30 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
         }
     }
 
-    // Storage path: the writer thread, inside an open unit
-
+    /** Resolves a provisional id to a real one, interning the value if it has to. */
     fun canonical(unit: StorageUnit, id: Int): Int {
         if (id >= 0) return id
         provisionalToReal[id]?.let { return it }
         val value = provisionalValues[id] ?: return 0
         val real = when (value) {
-            is HolderId -> internHolder(unit, value)
-            is ItemKey -> internItemKey(unit, value)
-            is WorldId -> internWorld(unit, value)
-            is BlockDataKey -> internBlockData(unit, value)
-            is EntityTypeKey -> internEntityType(unit, value)
+            is HolderId -> holders.intern(unit, value)
+            is ItemKey -> itemKeys.intern(unit, value)
+            is WorldId -> worlds.intern(unit, value)
+            is BlockDataKey -> blockData.intern(unit, value)
+            is EntityTypeKey -> entityTypes.intern(unit, value)
             else -> error("nothing else is ever interned provisionally: ${value::class}")
         }
         provisionalToReal[id] = real
         return real
     }
 
+    /**
+     * Drops every provisional value and mapping, once there are enough of them to be worth it.
+     *
+     * Safe at any point where nothing holds an unresolved provisional id: every one of them has
+     * already been canonicalized into a real ID, and a value that turns up again simply gets a
+     * fresh placeholder.
+     */
     fun compactProvisional() {
         if (provisionalValues.size < PROVISIONAL_COMPACT_AT) return
         provisionalIds.clear()
@@ -186,80 +151,75 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
         provisionalToReal.clear()
     }
 
-    fun internHolder(unit: StorageUnit, holder: HolderId): Int =
-        intern(unit, Keys.NS_HOLDER, holder, holderIds, holdersById, nextHolderId, Packed::holder)
+    // Storage path: the writer thread, inside an open unit
 
-    fun internItemKey(unit: StorageUnit, itemKey: ItemKey): Int =
-        intern(unit, Keys.NS_ITEM_KEY, itemKey, itemKeyIds, itemKeysById, nextItemKeyId, Packed::itemKey)
+    fun internHolder(unit: StorageUnit, holder: HolderId): Int = holders.intern(unit, holder)
 
-    fun internWorld(unit: StorageUnit, world: WorldId): Int =
-        intern(unit, Keys.NS_WORLD, world, worldIds, worldsById, nextWorldId, Packed::world)
+    fun internItemKey(unit: StorageUnit, itemKey: ItemKey): Int = itemKeys.intern(unit, itemKey)
 
-    fun internBlockData(unit: StorageUnit, blockData: BlockDataKey): Int =
-        intern(unit, Keys.NS_BLOCK_DATA, blockData, blockDataIds, blockDataById, nextBlockDataId, Packed::blockData)
+    fun internWorld(unit: StorageUnit, world: WorldId): Int = worlds.intern(unit, world)
 
-    fun internEntityType(unit: StorageUnit, entityType: EntityTypeKey): Int =
-        intern(unit, Keys.NS_ENTITY_TYPE, entityType, entityTypeIds, entityTypesById, nextEntityTypeId, Packed::entityType)
+    fun internBlockData(unit: StorageUnit, blockData: BlockDataKey): Int = this.blockData.intern(unit, blockData)
 
-    fun findHolderId(unit: StorageUnit, holder: HolderId): Int? =
-        holderIds.getIfPresent(holder) ?: lookup(unit, Keys.NS_HOLDER, Packed.holder(holder))
-            ?.also { holderIds.put(holder, it); holdersById.put(it, holder) }
+    fun internEntityType(unit: StorageUnit, entityType: EntityTypeKey): Int = entityTypes.intern(unit, entityType)
 
-    fun findItemKeyId(unit: StorageUnit, itemKey: ItemKey): Int? =
-        itemKeyIds.getIfPresent(itemKey) ?: lookup(unit, Keys.NS_ITEM_KEY, Packed.itemKey(itemKey))
-            ?.also { itemKeyIds.put(itemKey, it); itemKeysById.put(it, itemKey) }
+    fun findHolderId(unit: StorageUnit, holder: HolderId): Int? = holders.find(unit, holder)
 
-    fun resolveHolder(unit: StorageUnit, id: Int): HolderId =
-        holdersById.getIfPresent(id) ?: Packed.decodeHolder(
-            unit.get(Keys.internForward(Keys.NS_HOLDER, id)) ?: error("holder id $id was never interned")
-        ).also { holdersById.put(id, it); holderIds.put(it, id) }
+    fun findItemKeyId(unit: StorageUnit, itemKey: ItemKey): Int? = itemKeys.find(unit, itemKey)
 
-    fun resolveItemKey(unit: StorageUnit, id: Int): ItemKey =
-        itemKeysById.getIfPresent(id) ?: Packed.decodeItemKey(
-            unit.get(Keys.internForward(Keys.NS_ITEM_KEY, id)) ?: error("item key id $id was never interned")
-        ).also { itemKeysById.put(id, it); itemKeyIds.put(it, id) }
+    fun findWorldId(unit: StorageUnit, world: WorldId): Int? = worlds.find(unit, world)
 
-    fun findWorldId(unit: StorageUnit, world: WorldId): Int? =
-        worldIds.getIfPresent(world) ?: lookup(unit, Keys.NS_WORLD, Packed.world(world))
-            ?.also { worldIds.put(world, it); worldsById.put(it, world) }
+    fun resolveHolder(unit: StorageUnit, id: Int): HolderId = holders.resolve(unit, id)
 
-    fun resolveWorld(unit: StorageUnit, id: Int): WorldId =
-        worldsById.getIfPresent(id) ?: Packed.decodeWorld(
-            unit.get(Keys.internForward(Keys.NS_WORLD, id)) ?: error("world id $id was never interned")
-        ).also { worldsById.put(id, it); worldIds.put(it, id) }
+    fun resolveItemKey(unit: StorageUnit, id: Int): ItemKey = itemKeys.resolve(unit, id)
 
-    fun resolveBlockData(unit: StorageUnit, id: Int): BlockDataKey =
-        blockDataById.getIfPresent(id) ?: Packed.decodeBlockData(
-            unit.get(Keys.internForward(Keys.NS_BLOCK_DATA, id)) ?: error("block data id $id was never interned")
-        ).also { blockDataById.put(id, it); blockDataIds.put(it, id) }
+    fun resolveWorld(unit: StorageUnit, id: Int): WorldId = worlds.resolve(unit, id)
 
-    fun resolveEntityType(unit: StorageUnit, id: Int): EntityTypeKey =
-        entityTypesById.getIfPresent(id) ?: Packed.decodeEntityType(
-            unit.get(Keys.internForward(Keys.NS_ENTITY_TYPE, id)) ?: error("entity type id $id was never interned")
-        ).also { entityTypesById.put(id, it); entityTypeIds.put(it, id) }
+    fun resolveBlockData(unit: StorageUnit, id: Int): BlockDataKey = blockData.resolve(unit, id)
+
+    fun resolveEntityType(unit: StorageUnit, id: Int): EntityTypeKey = entityTypes.resolve(unit, id)
 
     fun restore(unit: StorageUnit) {
-        nextHolderId.set(counter(unit, Keys.NS_HOLDER))
-        nextItemKeyId.set(counter(unit, Keys.NS_ITEM_KEY))
-        nextWorldId.set(counter(unit, Keys.NS_WORLD))
-        nextBlockDataId.set(counter(unit, Keys.NS_BLOCK_DATA))
-        nextEntityTypeId.set(counter(unit, Keys.NS_ENTITY_TYPE))
+        for (table in tables) table.restore(unit)
     }
 
-    private fun <T : Any> intern(
-        unit: StorageUnit,
-        namespace: Byte,
-        value: T,
-        byValue: Cache<T, Int>,
-        byId: Cache<Int, T>,
-        counter: AtomicInteger,
-        pack: (T) -> ByteArray,
-    ): Int {
+    private companion object {
+        const val DEFAULT_CACHE_SIZE = 262_144L
+        const val ITEM_KEY_CACHE = 16_384L
+        const val WORLD_CACHE = 256L
+        const val BLOCK_DATA_CACHE = 65_536L
+        const val ENTITY_TYPE_CACHE = 512L
+
+        const val PROVISIONAL_LIMIT = 65_536
+        const val PROVISIONAL_COMPACT_AT = 4_096
+    }
+}
+
+/** One kind of value and its IDs, directions. Cached. */
+private class Interned<T : Any>(
+    private val name: String,
+    private val namespace: Byte,
+    cacheSize: Long,
+    private val pack: (T) -> ByteArray,
+    private val decode: (MemorySegment) -> T,
+) {
+    private val byValue: Cache<T, Int> = bounded(cacheSize)
+    private val byId: Cache<Int, T> = bounded(cacheSize)
+    private val counter = AtomicInteger(0)
+
+    /** What the shared cache already knows, without touching the store. The capture path's second look. */
+    fun cached(value: T): Int? = byValue.getIfPresent(value)
+
+    /** The id [value] has, or null. Reads the store, writes nothing but the cache. */
+    fun find(unit: StorageUnit, value: T): Int? =
+        byValue.getIfPresent(value) ?: idOf(unit, pack(value))?.also { remember(value, it) }
+
+    /** The id [value] has, assigning and writing one if it has none. */
+    fun intern(unit: StorageUnit, value: T): Int {
         byValue.getIfPresent(value)?.let { return it }
         val packed = pack(value)
-        lookup(unit, namespace, packed)?.let {
-            byValue.put(value, it)
-            byId.put(it, value)
+        idOf(unit, packed)?.let {
+            remember(value, it)
             return it
         }
 
@@ -267,35 +227,33 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
         unit.putPinned(Keys.internForward(namespace, id), packed)
         unit.putPinned(Keys.internReverse(namespace, packed), Records.int(id))
         unit.putPinned(Keys.counter(COUNTER_BASE + namespace), Records.long(id.toLong()))
-        byValue.put(value, id)
-        byId.put(id, value)
+        remember(value, id)
         return id
     }
 
-    private fun lookup(unit: StorageUnit, namespace: Byte, packed: ByteArray): Int? =
+    /** The value behind [id]. */
+    fun resolve(unit: StorageUnit, id: Int): T =
+        byId.getIfPresent(id) ?: decode(
+            unit.get(Keys.internForward(namespace, id)) ?: error("$name id $id was never interned"),
+        ).also { remember(it, id) }
+
+    /** Restores the counter from the store. */
+    fun restore(unit: StorageUnit) {
+        counter.set(unit.get(Keys.counter(COUNTER_BASE + namespace))?.let(Records::asLong)?.toInt() ?: 0)
+    }
+
+    private fun idOf(unit: StorageUnit, packed: ByteArray): Int? =
         unit.get(Keys.internReverse(namespace, packed))?.let(Records::asInt)
 
-    private fun counter(unit: StorageUnit, namespace: Byte): Int =
-        unit.get(Keys.counter(COUNTER_BASE + namespace))?.let(Records::asLong)?.toInt() ?: 0
+    private fun remember(value: T, id: Int) {
+        byValue.put(value, id)
+        byId.put(id, value)
+    }
 
     private companion object {
         fun <K : Any, V : Any> bounded(size: Long): Cache<K, V> =
             Caffeine.newBuilder().maximumSize(size).executor(Runnable::run).build()
 
-        /** ~24 MiB of holders at steady state. */
-        const val DEFAULT_CACHE_SIZE = 262_144L
-        const val ITEM_KEY_CACHE = 16_384L
-        const val WORLD_CACHE = 256L
-
-        /** Distinct block states a server actually uses, with room for every stair rotation. */
-        const val BLOCK_DATA_CACHE = 65_536L
-        const val ENTITY_TYPE_CACHE = 512L
-
-        /** How many unseen values may be in flight to the storage thread before captures start dropping. */
-        const val PROVISIONAL_LIMIT = 65_536
-        const val PROVISIONAL_COMPACT_AT = 4_096
-
-        /** Intern counters live in the counter family, above anything the ledger names. */
         const val COUNTER_BASE = 0x7000_0000
     }
 }

@@ -6,8 +6,8 @@ import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
-import kotlinx.coroutines.runBlocking
 import java.nio.file.Path
+import kotlinx.coroutines.runBlocking
 
 object CrashHarness {
     const val COMMITTED = "COMMITTED "

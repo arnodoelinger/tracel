@@ -1,5 +1,6 @@
 package com.tracel.storage.codec
 
+import com.tracel.model.world.ActionKind
 import com.tracel.storage.ffm.Bytes.i16
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
@@ -8,7 +9,6 @@ import com.tracel.storage.ffm.Bytes.putI16
 import com.tracel.storage.ffm.Bytes.putI32
 import com.tracel.storage.ffm.Bytes.putI64
 import com.tracel.storage.ffm.Bytes.putI8
-import com.tracel.model.world.ActionKind
 import java.lang.foreign.MemorySegment
 
 /**
@@ -52,23 +52,11 @@ import java.lang.foreign.MemorySegment
  * spawner's settings is variable-length, does not fit 24 bytes, and takes the slow path.
  */
 object CaptureSlot {
-    /** Slot type: start of an event. Must be followed by exactly `deltaCount` "DELTA" slots. */
     const val HEADER: Byte = 1
-
-    /** Slot type: one quantity change for a concrete (`holderId`, `itemKeyId`) pair. */
     const val DELTA: Byte = 2
-
-    /**
-     * Slot type: a holder has completely ceased to exist (despawn / merge / break).
-     * All of its content must be moved from `from` to `to`.
-     * The storage thread is responsible for looking up the actual quantities.
-     */
     const val RELEASE: Byte = 3
 
-    /** Slot type: start of a world change. Must be followed by exactly `count` "WORLD_BLOCK" slots. */
     const val WORLD_HEADER: Byte = 4
-
-    /** Slot type: one coordinate going from one block state to another. */
     const val WORLD_BLOCK: Byte = 5
 
     /**
@@ -196,7 +184,7 @@ object CaptureSlot {
         slots.putI32(offset + 20, afterDataId)
     }
 
-    // Readers
+    // region Readers
 
     fun releaseFrom(slots: MemorySegment, offset: Long): Int = slots.i32(offset + 16)
     fun releaseTo(slots: MemorySegment, offset: Long): Int = slots.i32(offset + 20)
@@ -228,4 +216,6 @@ object CaptureSlot {
 
     fun blockBefore(slots: MemorySegment, offset: Long): Int = slots.i32(offset + 16)
     fun blockAfter(slots: MemorySegment, offset: Long): Int = slots.i32(offset + 20)
+
+    // endregion
 }

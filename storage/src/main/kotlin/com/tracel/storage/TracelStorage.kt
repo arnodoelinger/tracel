@@ -8,18 +8,18 @@ import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
+import java.nio.file.Path
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.nio.file.Path
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.Executors
-import kotlin.coroutines.AbstractCoroutineContextElement
-import kotlin.coroutines.CoroutineContext
 
 /**
  * The one door into the store. You better not touch storage at all.
@@ -27,6 +27,13 @@ import kotlin.coroutines.CoroutineContext
  * Every port goes through [read] or [write] and none of them cares which thread its caller
  * happened to be on. Only one unit of work is ever open at a time, guarded by a suspending
  * [Mutex].
+ *
+ * @see StorageUnit
+ * @see Interning
+ * @see CaptureRing
+ * @see KeyValueEngine
+ * @see LsmEngine
+ * @see UnitOfWork
  */
 class TracelStorage private constructor(
     val engine: KeyValueEngine,
@@ -119,17 +126,11 @@ class TracelStorage private constructor(
         readerPool.shutdown()
     }
 
-    /** Carries the open unit to everything nested inside it. */
     private class OpenUnit(
         private val unit: StorageUnit,
         private val thread: Thread,
         val readOnly: Boolean = false,
     ) : AbstractCoroutineContextElement(OpenUnit) {
-        /**
-         * The open unit, once it is established that we are still on the thread that opened it.
-         * A unit that hops to a region or entity thread mid-flight and then reaches back into
-         * storage would be handing one write batch to two threads at once, so it fails here.
-         */
         fun joined(): StorageUnit {
             check(thread === Thread.currentThread()) {
                 "unit of work opened on ${thread.name} was re-entered from ${Thread.currentThread().name} — " +
@@ -142,16 +143,12 @@ class TracelStorage private constructor(
     }
 
     companion object {
-        /**
-         * Opens (or creates) the store at [path].
-         *
-         * [engineFactory] is the swap seam: the shipped build passes an [LsmEngine], and the
-         * benchmarks pass whatever they are measuring.
-         */
+        /** Opens (or creates) the store at [path]. */
         fun open(
             path: Path,
             ringSlots: Int = DEFAULT_RING_SLOTS,
-            engineFactory: (Path) -> KeyValueEngine = { LsmEngine(it, LsmConfig()) },
+            lsm: LsmConfig = LsmConfig(),
+            engineFactory: (Path) -> KeyValueEngine = { LsmEngine(it, lsm) },
         ): TracelStorage {
             val engine = engineFactory(path)
             val executor = Executors.newSingleThreadScheduledExecutor { runnable -> Thread(runnable, "Tracel-Storage") }

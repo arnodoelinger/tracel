@@ -38,23 +38,11 @@ class OffHeapRing(capacitySlots: Int) : AutoCloseable {
     private val capacity = capacitySlots.toLong()
     private val mask = (capacitySlots - 1).toLong()
 
-    /**
-     * Control words and slots are separate allocations, each 128-byte aligned: the producers'
-     * `CAS` target and the consumer's cursor sharing a cache line would turn every drain into a
-     * line ping-pong against every region thread on the box.
-     */
     private val control: MemorySegment = arena.allocate(CONTROL_BYTES, 128)
     private val slots: MemorySegment = arena.allocate(capacity * SLOT_BYTES, 128)
 
-    /** Events the ring refused because it was full. Never resets — a counter that forgets is a lie. */
     val dropped: Long get() = getVolatile(control, DROPPED_OFFSET)
 
-    /** Slots claimed but not yet handed back by the consumer. */
-    val depth: Long get() = getVolatile(control, CLAIM_OFFSET) - getVolatile(control, RELEASE_OFFSET)
-
-    val capacitySlots: Int get() = capacity.toInt()
-
-    /** The segment the slots live in. Addressable only through [payloadOffset]. */
     val payload: MemorySegment get() = slots
 
     /**

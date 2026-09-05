@@ -5,13 +5,15 @@ import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
 import com.tracel.model.lot.LotEdge
-import com.tracel.storage.ports.rebuildTotals
+import com.tracel.storage.ports.ops.rebuildTotals
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.placedBlock
 import com.tracel.tests.support.Fixtures.player
+import java.nio.file.Path
+import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
@@ -24,8 +26,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import java.nio.file.Path
-import java.util.concurrent.Executors
 
 class LotRepositoryTest {
     @Test

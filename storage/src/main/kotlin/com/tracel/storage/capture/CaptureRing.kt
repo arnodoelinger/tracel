@@ -46,7 +46,6 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
     private val ring = OffHeapRing(slots)
 
     val dropped: Long get() = ring.dropped + interning.droppedForCapacity
-    val capacity: Int get() = ring.capacitySlots
 
     fun holderId(holder: HolderId): Int = interning.holderIdForCapture(holder)
 
@@ -163,10 +162,7 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
     }
 
     companion object {
-        /** The ring had no room. The caller drops the event; it must not wait, ever. */
-        const val REJECTED = -1L
-
-        /** A single captured event's deltas. An explosion diff bigger than this is split by the caller. */
+        const val REJECTED = -1L // It must not wait, ever
         const val MAX_DELTAS = 4095
     }
 }

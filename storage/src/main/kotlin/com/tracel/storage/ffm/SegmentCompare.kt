@@ -2,6 +2,8 @@ package com.tracel.storage.ffm
 
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8
+import java.lang.Long.compareUnsigned
+import java.lang.Long.reverseBytes
 import java.lang.foreign.MemorySegment
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.VarHandle
@@ -10,32 +12,36 @@ import java.nio.ByteOrder
 /**
  * Unsigned lexicographic comparison between a [MemorySegment] range and a `ByteArray`, eight
  * bytes at a time.
- *
- * Reading eight little-endian bytes and byte-swapping gives the big-endian numeric value of
- * that run, and unsigned comparison of those two longs *is* lexicographic comparison of the
- * bytes. Keys here are 9–25 bytes, so this is two or three comparisons instead of twenty-five.
  */
 object SegmentCompare {
     private val BE_LONG: VarHandle =
         MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.BIG_ENDIAN)
 
+    /** Compares the bytes in [segment] starting at [offset] with the bytes in [other]. */
     fun compare(segment: MemorySegment, offset: Long, length: Int, other: ByteArray): Int =
         compare(segment, offset, length, other, other.size)
 
+    /**
+     * Compares the bytes in [segment] starting at [offset] with the first [otherLength] bytes in
+     * [other].
+     *
+     * @return a negative number if the segment is lexicographically less than the other,
+     * a positive number if it is greater, or zero if they are equal.
+     */
     fun compare(segment: MemorySegment, offset: Long, length: Int, other: ByteArray, otherLength: Int): Int {
         val shared = if (length < otherLength) length else otherLength
         if (shared >= 8) {
             val last = shared - 8
             var i = 0
             while (i < last) {
-                val a = java.lang.Long.reverseBytes(segment.i64(offset + i))
+                val a = reverseBytes(segment.i64(offset + i))
                 val b = BE_LONG.get(other, i) as Long
-                if (a != b) return java.lang.Long.compareUnsigned(a, b)
+                if (a != b) return compareUnsigned(a, b)
                 i += 8
             }
-            val a = java.lang.Long.reverseBytes(segment.i64(offset + last))
+            val a = reverseBytes(segment.i64(offset + last))
             val b = BE_LONG.get(other, last) as Long
-            if (a != b) return java.lang.Long.compareUnsigned(a, b)
+            if (a != b) return compareUnsigned(a, b)
             return length - otherLength
         }
         var i = 0
@@ -48,6 +54,12 @@ object SegmentCompare {
         return length - otherLength
     }
 
+    /**
+     * Compares the bytes in [left] starting at [leftOffset] with the bytes in [right] starting at [rightOffset].
+     *
+     * @return a negative number if the left segment is lexicographically less than the right,
+     * a positive number if it is greater, or zero if they are equal.
+     */
     fun compare(
         left: MemorySegment,
         leftOffset: Long,
@@ -61,14 +73,14 @@ object SegmentCompare {
             val last = shared - 8
             var i = 0
             while (i < last) {
-                val a = java.lang.Long.reverseBytes(left.i64(leftOffset + i))
-                val b = java.lang.Long.reverseBytes(right.i64(rightOffset + i))
-                if (a != b) return java.lang.Long.compareUnsigned(a, b)
+                val a = reverseBytes(left.i64(leftOffset + i))
+                val b = reverseBytes(right.i64(rightOffset + i))
+                if (a != b) return compareUnsigned(a, b)
                 i += 8
             }
-            val a = java.lang.Long.reverseBytes(left.i64(leftOffset + last))
-            val b = java.lang.Long.reverseBytes(right.i64(rightOffset + last))
-            if (a != b) return java.lang.Long.compareUnsigned(a, b)
+            val a = reverseBytes(left.i64(leftOffset + last))
+            val b = reverseBytes(right.i64(rightOffset + last))
+            if (a != b) return compareUnsigned(a, b)
             return leftLength - rightLength
         }
         var i = 0
@@ -81,9 +93,17 @@ object SegmentCompare {
         return leftLength - rightLength
     }
 
+    /**
+     * @return true if the bytes in [segment] starting at [offset] with length [length] start with
+     * the given [prefix].
+     */
     fun startsWith(segment: MemorySegment, offset: Long, length: Int, prefix: ByteArray): Boolean =
         length >= prefix.size && compare(segment, offset, prefix.size, prefix, prefix.size) == 0
 
+    /**
+     * @return the first [length] bytes of [key] as a big-endian long, or the whole key if it is shorter than
+     * [length].
+     */
     fun prefixOf(key: ByteArray, length: Int): Long {
         if (length >= 8) return BE_LONG.get(key, 0) as Long
         var value = 0L
@@ -95,6 +115,10 @@ object SegmentCompare {
         return value
     }
 
+    /**
+     * @return the first 8 bytes of [segment] starting at [offset] as a big-endian long.
+     * If the segment has fewer than 8 bytes remaining, the result is undefined.
+     */
     fun prefixOf(segment: MemorySegment, offset: Long): Long =
-        java.lang.Long.reverseBytes(segment.i64(offset))
+        reverseBytes(segment.i64(offset))
 }

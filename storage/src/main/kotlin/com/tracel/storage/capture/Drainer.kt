@@ -10,18 +10,17 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.BlockShape
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.CaptureSlot
 import com.tracel.storage.intern.Interning
+import java.util.concurrent.atomic.AtomicLong
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicLong
-import java.util.logging.Level
-import java.util.logging.Logger
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Drains the capture ring and turns it back into ledger work — the storage-thread half of the
@@ -71,9 +70,13 @@ class Drainer(
         }
     }
 
-    /** One pass. Returns how many events it applied. Exposed so tests can drain deterministically. */
+    /**
+     * One pass of drain.
+     *
+     * @return how many events it applied. Exposed so tests can drain deterministically.
+     */
     suspend fun drainOnce(): Int {
-        val events = collect()
+        val events = ring.collectPublished(maxBatch)
         if (events.isEmpty()) {
             interning.compactProvisional()
             return 0
@@ -99,90 +102,10 @@ class Drainer(
         return events.size
     }
 
-    /** Copies published events out of the ring and hands the slots straight back. */
-    private fun collect(): List<Raw> {
-        val out = ArrayList<Raw>()
-        var cursor = ring.consumerCursor()
-        val payload = ring.payload
-
-        while (out.size < maxBatch) {
-            if (!ring.isPublished(cursor)) break
-            val at = ring.payloadOffset(cursor)
-            when (val type = CaptureSlot.type(payload, at)) {
-                CaptureSlot.RELEASE -> {
-                    out += Raw.Items(
-                        CaptureSlot.cause(payload, at),
-                        CaptureSlot.causedBy(payload, at),
-                        CaptureSlot.epochMillis(payload, at),
-                        intArrayOf(CaptureSlot.releaseFrom(payload, at), CaptureSlot.releaseTo(payload, at)),
-                        EMPTY_INTS,
-                        EMPTY_LONGS,
-                        release = true,
-                    )
-                    cursor += 1
-                }
-
-                CaptureSlot.HEADER -> {
-                    val count = CaptureSlot.deltaCount(payload, at)
-                    val holders = IntArray(count)
-                    val itemKeys = IntArray(count)
-                    val amounts = LongArray(count)
-                    for (i in 0 until count) {
-                        val slot = ring.payloadOffset(cursor + 1 + i)
-                        holders[i] = CaptureSlot.holderId(payload, slot)
-                        itemKeys[i] = CaptureSlot.itemKeyId(payload, slot)
-                        amounts[i] = CaptureSlot.delta(payload, slot)
-                    }
-                    out += Raw.Items(
-                        CaptureSlot.cause(payload, at),
-                        CaptureSlot.causedBy(payload, at),
-                        CaptureSlot.epochMillis(payload, at),
-                        holders,
-                        itemKeys,
-                        amounts,
-                        release = false,
-                    )
-                    cursor += 1L + count
-                }
-
-                CaptureSlot.WORLD_HEADER -> {
-                    val count = CaptureSlot.worldCount(payload, at)
-                    val coordinates = IntArray(count * 3)
-                    val befores = IntArray(count)
-                    val afters = IntArray(count)
-                    for (i in 0 until count) {
-                        val slot = ring.payloadOffset(cursor + 1 + i)
-                        coordinates[i * 3] = CaptureSlot.blockX(payload, slot)
-                        coordinates[i * 3 + 1] = CaptureSlot.blockY(payload, slot)
-                        coordinates[i * 3 + 2] = CaptureSlot.blockZ(payload, slot)
-                        befores[i] = CaptureSlot.blockBefore(payload, slot)
-                        afters[i] = CaptureSlot.blockAfter(payload, slot)
-                    }
-                    out += Raw.World(
-                        CaptureSlot.cause(payload, at),
-                        CaptureSlot.causedBy(payload, at),
-                        CaptureSlot.epochMillis(payload, at),
-                        CaptureSlot.action(payload, at),
-                        CaptureSlot.worldId(payload, at),
-                        coordinates,
-                        befores,
-                        afters,
-                    )
-                    cursor += 1L + count
-                }
-
-                else -> error("ring slot $cursor holds type $type where an event was expected — the ring is corrupt")
-            }
-        }
-
-        if (out.isNotEmpty()) ring.releaseSlots(cursor)
-        return out
-    }
-
-    private suspend fun apply(event: Raw) {
+    private suspend fun apply(event: RingEvent) {
         val cause = CauseKind.entries[event.cause]
         when (event) {
-            is Raw.World -> {
+            is RingEvent.World -> {
                 val edits = storage.read { resolve(this, event) }
                 if (edits.isNotEmpty()) {
                     worldSink(
@@ -191,13 +114,13 @@ class Drainer(
                 }
             }
 
-            is Raw.Items -> {
-                if (event.release) {
-                    val from = storage.read { resolveHolder(this, event.holders[0]) } ?: return
-                    val to = storage.read { resolveHolder(this, event.holders[1]) } ?: return
-                    releaseSink(from, to, event.epochMillis, cause, causedBy(event))
-                    return
-                }
+            is RingEvent.Release -> {
+                val from = storage.read { resolveHolder(this, event.fromHolderId) } ?: return
+                val to = storage.read { resolveHolder(this, event.toHolderId) } ?: return
+                releaseSink(from, to, event.epochMillis, cause, causedBy(event))
+            }
+
+            is RingEvent.Items -> {
                 val deltas = storage.read { resolve(this, event) }
                 if (deltas.isNotEmpty()) sink(deltas, event.epochMillis, cause, causedBy(event))
             }
@@ -209,7 +132,7 @@ class Drainer(
         return if (real == 0) null else interning.resolveHolder(unit, real)
     }
 
-    private fun resolve(unit: StorageUnit, event: Raw.World): List<BlockEdit> {
+    private fun resolve(unit: StorageUnit, event: RingEvent.World): List<BlockEdit> {
         val worldId = interning.canonical(unit, event.worldId)
         if (worldId == 0) return emptyList()
         val world = interning.resolveWorld(unit, worldId)
@@ -228,7 +151,7 @@ class Drainer(
         return edits
     }
 
-    private fun resolve(unit: StorageUnit, event: Raw.Items): List<InventoryDelta> {
+    private fun resolve(unit: StorageUnit, event: RingEvent.Items): List<InventoryDelta> {
         val deltas = ArrayList<InventoryDelta>(event.holders.size)
         for (i in event.holders.indices) {
             val holderId = interning.canonical(unit, event.holders[i])
@@ -243,7 +166,7 @@ class Drainer(
         return deltas
     }
 
-    private suspend fun causedBy(event: Raw): HolderId? {
+    private suspend fun causedBy(event: RingEvent): HolderId? {
         if (event.causedBy == 0) return null
         return storage.read {
             val id = interning.canonical(this, event.causedBy)
@@ -251,41 +174,8 @@ class Drainer(
         }
     }
 
-    /** One event, copied out of the ring so the slots can go back to the producers immediately. */
-    private sealed interface Raw {
-        val cause: Int
-        val causedBy: Int
-        val epochMillis: Long
-
-        /** Material moving, or a holder ceasing to exist and handing everything on. */
-        class Items(
-            override val cause: Int,
-            override val causedBy: Int,
-            override val epochMillis: Long,
-            val holders: IntArray,
-            val itemKeys: IntArray,
-            val amounts: LongArray,
-            val release: Boolean,
-        ) : Raw
-
-        /** Coordinates changing shape. Parallel arrays, because this is a copy out of a ring and not a model. */
-        class World(
-            override val cause: Int,
-            override val causedBy: Int,
-            override val epochMillis: Long,
-            val action: Int,
-            val worldId: Int,
-            val coordinates: IntArray,
-            val befores: IntArray,
-            val afters: IntArray,
-        ) : Raw
-    }
-
     private companion object {
         const val DEFAULT_MAX_BATCH = 1024
         const val DEFAULT_IDLE_MILLIS = 2L
-
-        val EMPTY_INTS = IntArray(0)
-        val EMPTY_LONGS = LongArray(0)
     }
 }

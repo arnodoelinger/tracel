@@ -7,7 +7,7 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 
 /**
- * A read-only `mmap` of a finished file, kept alive by its own [Arena].
+ * A read-only mmap of a finished file, kept alive by its own [Arena].
  *
  * Segments are immutable once published, so mapping them shared and never unmapping until
  * close is the whole story: a lookup reads straight out of the page cache.
@@ -24,6 +24,7 @@ class MappedFile private constructor(
     }
 
     companion object {
+        /** Opens a file for read-only access, mapping it into memory. */
         fun openRead(path: Path): MappedFile {
             val arena = Arena.ofShared()
             return try {
@@ -39,6 +40,7 @@ class MappedFile private constructor(
     }
 }
 
+/** Forces the directory entry for [directory] to disk, ensuring that any new files created in it are durable. */
 fun fsyncDirectory(directory: Path) {
     FileChannel.open(directory, StandardOpenOption.READ).use { it.force(true) }
 }

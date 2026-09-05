@@ -150,6 +150,11 @@ object Packed {
         s.putI64(8, world.uuid.leastSignificantBits)    // Bits 64–127
     }
 
+    /**
+     * Encodes a UTF-8 string with a 2-byte big-endian length prefix.
+     *
+     * @return byte array of size `2 + utf8.length`
+     */
     private fun text(value: String): ByteArray {
         val utf8 = value.toByteArray(Charsets.UTF_8)
         val out = ByteArray(2 + utf8.size)
@@ -159,12 +164,23 @@ object Packed {
         return out
     }
 
+    /**
+     * Decodes a UTF-8 string from a 2-byte big-endian length prefix.
+     *
+     * @param v segment containing the length-prefixed UTF-8 string
+     * @return reconstituted string
+     */
     private fun decodeText(v: MemorySegment): String {
         val length = ((v.i8(0).toInt() and 0xFF) shl 8) or (v.i8(1).toInt() and 0xFF)
         return String(v.readBytes(2, length), Charsets.UTF_8)
     }
 
-    /** Reads back what [world] wrote. */
+    /**
+     * Reads back what [world] wrote.
+     *
+     * @param v segment containing the world identifier
+     * @return decoded world identifier
+     */
     fun decodeWorld(v: MemorySegment): WorldId = WorldId(UUID(v.i64(0), v.i64(8)))
 
     /**

@@ -1,12 +1,13 @@
 package com.tracel.storage.lsm
 
 import com.tracel.storage.ffm.SegmentCompare
+import com.tracel.storage.lsm.write.MemTable
+import java.util.SplittableRandom
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.util.SplittableRandom
 
 class MemTableTest {
     @Test

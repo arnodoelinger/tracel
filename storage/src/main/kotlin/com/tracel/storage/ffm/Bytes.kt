@@ -5,6 +5,7 @@ import java.lang.foreign.ValueLayout
 import java.nio.ByteOrder
 import java.util.Arrays
 import java.util.zip.CRC32C
+import com.tracel.storage.codec.Keys
 
 /**
  * Unaligned little-endian views over a [MemorySegment]. Little-endian because every machine
@@ -15,7 +16,7 @@ import java.util.zip.CRC32C
  * half of them. We pay a possible unaligned-access penalty instead of padding every field
  * out to its own alignment, which would blow the 16–24 byte record budget.
  *
- * Keys are the exception and are written big-endian — see [Keys][com.tracel.storage.codec.Keys].
+ * Keys are the exception and are written big-endian — see [Keys].
  */
 object Bytes {
     val I8: ValueLayout.OfByte = ValueLayout.JAVA_BYTE

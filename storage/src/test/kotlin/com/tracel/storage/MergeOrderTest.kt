@@ -1,23 +1,23 @@
 package com.tracel.storage
 
 import com.tracel.annotations.CauseKind
+import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.world.BlockEdit
+import com.tracel.engine.world.BlockEdits
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockDataKey
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.BlockShape
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.player
+import java.nio.file.Path
+import java.util.UUID
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import java.nio.file.Path
-import java.util.UUID
 
 class MergeOrderTest {
     private val world = WorldId(UUID(0L, 1L))

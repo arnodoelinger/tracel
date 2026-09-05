@@ -85,6 +85,8 @@ object Keys {
     const val NS_BLOCK_DATA: Byte = 3
     const val NS_ENTITY_TYPE: Byte = 4
 
+    // region Functions
+
     fun invert(sequence: Long): Long = Long.MAX_VALUE - sequence
 
     fun ordered(value: Int): Int = value xor Int.MIN_VALUE
@@ -232,9 +234,6 @@ object Keys {
         KeyWriter(25).tag(WCHG_ENTITY).u64(entity.mostSignificantBits).u64(entity.leastSignificantBits)
             .u64(invert(seq)).done()
 
-    fun wchgEntityPrefix(entity: java.util.UUID): ByteArray =
-        KeyWriter(17).tag(WCHG_ENTITY).u64(entity.mostSignificantBits).u64(entity.leastSignificantBits).done()
-
     fun txnLot(seq: Long, flowIndex: Int, lotId: Long): ByteArray =
         KeyWriter(21).tag(TXN_LOT).u64(seq).u32(flowIndex).u64(lotId).done()
 
@@ -242,8 +241,6 @@ object Keys {
 
     fun blockLease(worldId: Int, x: Int, y: Int, z: Int): ByteArray =
         KeyWriter(17).tag(BLOCK_LEASE).u32(worldId).u32(ordered(x)).u32(ordered(y)).u32(ordered(z)).done()
-
-    fun blockLeasePrefix(): ByteArray = KeyWriter(1).tag(BLOCK_LEASE).done()
 
     fun rbStruct(jobId: Long, stepIndex: Int): ByteArray =
         KeyWriter(13).tag(RB_STRUCT).u64(jobId).u32(stepIndex).done()
@@ -264,6 +261,8 @@ object Keys {
     val KEEPS_ITS_NUMBERING: ByteArray = byteArrayOf(COUNTER, INTERN_FORWARD, INTERN_REVERSE, ITEM_FORM)
 
     fun tagPrefix(tag: Byte): ByteArray = byteArrayOf(tag)
+
+    // endregion
 
     val ALL: ByteArray = byteArrayOf(
         TXN,
@@ -300,6 +299,8 @@ object Keys {
         ITEM_FORM,
     )
 }
+
+// region Key writer & reader
 
 /** Fixed-size big-endian key builder. Sized exactly, so it never grows and never copies. */
 class KeyWriter(size: Int) {
@@ -350,3 +351,5 @@ object KeyReader {
         return value
     }
 }
+
+// endregion

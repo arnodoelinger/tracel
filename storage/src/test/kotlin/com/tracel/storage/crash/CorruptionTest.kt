@@ -2,17 +2,17 @@ package com.tracel.storage.crash
 
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
-import com.tracel.storage.lsm.Manifest
-import com.tracel.storage.lsm.SyncPolicy
+import com.tracel.storage.lsm.state.Manifest
+import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.spi.MutationBatch
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 class CorruptionTest {
     private fun key(i: Int) = byteArrayOf(1) + ByteArray(8) { (i.toLong() ushr (56 - it * 8)).toByte() }
