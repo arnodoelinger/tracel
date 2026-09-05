@@ -12,11 +12,11 @@ import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
-import java.nio.file.Path
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
 
 class PropertyEquivalenceTest {
     @Test
@@ -51,25 +51,26 @@ class PropertyEquivalenceTest {
     }
 
     @Test
-    fun `determinism - identical operation sequences produce identical plans on fresh stores`(@TempDir dir: Path) = runTest {
-        suspend fun scenario(path: Path): RollbackPlan = Stack(path).use { stack ->
-            val chest = block(0, 64, 0)
-            val p1 = player(1)
-            val p2 = player(2)
+    fun `determinism - identical operation sequences produce identical plans on fresh stores`(@TempDir dir: Path) =
+        runTest {
+            suspend fun scenario(path: Path): RollbackPlan = Stack(path).use { stack ->
+                val chest = block(0, 64, 0)
+                val p1 = player(1)
+                val p2 = player(2)
 
-            val root = stack.ledger.mint(chest, diamond, Quantity(10), stack.counters.nextTxnId())
-            stack.ledger.move(chest, p1, diamond, Quantity(6), stack.counters.nextTxnId())
-            stack.ledger.move(chest, p2, diamond, Quantity(4), stack.counters.nextTxnId())
-            stack.ledger.move(p1, p2, diamond, Quantity(2), stack.counters.nextTxnId())
-            RollbackPlanner(stack.repo, { true }).plan(listOf(root.id))
+                val root = stack.ledger.mint(chest, diamond, Quantity(10), stack.counters.nextTxnId())
+                stack.ledger.move(chest, p1, diamond, Quantity(6), stack.counters.nextTxnId())
+                stack.ledger.move(chest, p2, diamond, Quantity(4), stack.counters.nextTxnId())
+                stack.ledger.move(p1, p2, diamond, Quantity(2), stack.counters.nextTxnId())
+                RollbackPlanner(stack.repo, { true }).plan(listOf(root.id))
+            }
+
+            assertEquals(
+                scenario(dir.resolve("first")),
+                scenario(dir.resolve("second")),
+                "two fresh stores running the identical sequence must assign identical ids",
+            )
         }
-
-        assertEquals(
-            scenario(dir.resolve("first")),
-            scenario(dir.resolve("second")),
-            "two fresh stores running the identical sequence must assign identical ids",
-        )
-    }
 
     @Test
     fun `conservation - a long random walk never creates or loses a unit`(@TempDir dir: Path) = runTest {

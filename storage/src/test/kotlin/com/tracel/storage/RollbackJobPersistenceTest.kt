@@ -1,37 +1,21 @@
 package com.tracel.storage
 
 import com.tracel.engine.rollback.job.RollbackJobRecord
-import com.tracel.engine.rollback.plan.LotContribution
-import com.tracel.engine.rollback.plan.RollbackPlan
-import com.tracel.engine.rollback.plan.RollbackStep
-import com.tracel.engine.rollback.plan.RollbackTarget
-import com.tracel.engine.rollback.plan.destinationFor
+import com.tracel.engine.rollback.plan.*
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.TxnId
-import com.tracel.model.id.WorldId
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.BlockExtras
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
-import com.tracel.model.world.EntityShape
-import com.tracel.model.world.EntityTypeKey
+import com.tracel.model.id.*
+import com.tracel.model.world.*
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.player
-import java.nio.file.Path
-import java.util.UUID
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
+import java.util.*
 
 class RollbackJobPersistenceTest {
     private val world = WorldId(UUID(0L, 1L))
@@ -60,7 +44,11 @@ class RollbackJobPersistenceTest {
     )
 
     private val destroy = listOf(
-        StructureStep.SetBlock(BlockPos(world, 11, 70, -3), BlockShape.AIR, BlockShape(BlockDataKey("minecraft:cobblestone"))),
+        StructureStep.SetBlock(
+            BlockPos(world, 11, 70, -3),
+            BlockShape.AIR,
+            BlockShape(BlockDataKey("minecraft:cobblestone"))
+        ),
     )
 
     @Test
@@ -113,11 +101,22 @@ class RollbackJobPersistenceTest {
     fun `an entity's position survives to the last bit`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             // An entity that comes back a thousandth of a block off is an entity somebody notices
-            val exact = EntityShape(EntityTypeKey("minecraft:item_frame"), -0.1, 63.99999999, 1.0 / 3.0, 179.5f, -89.25f)
+            val exact =
+                EntityShape(EntityTypeKey("minecraft:item_frame"), -0.1, 63.99999999, 1.0 / 3.0, 179.5f, -89.25f)
             val steps = listOf(StructureStep.SpawnEntity(at, boat, exact))
-            stack.jobs.save(RollbackJobRecord(RollbackJobId(3), RollbackPlan(emptyList()), RollbackTarget.PerRoot(emptyMap()), steps))
+            stack.jobs.save(
+                RollbackJobRecord(
+                    RollbackJobId(3),
+                    RollbackPlan(emptyList()),
+                    RollbackTarget.PerRoot(emptyMap()),
+                    steps
+                )
+            )
 
-            assertEquals(exact, (stack.jobs.find(RollbackJobId(3))!!.create.single() as StructureStep.SpawnEntity).shape)
+            assertEquals(
+                exact,
+                (stack.jobs.find(RollbackJobId(3))!!.create.single() as StructureStep.SpawnEntity).shape
+            )
         }
     }
 
@@ -201,7 +200,11 @@ class RollbackJobPersistenceTest {
                     )
                 }
             }.shuffled(java.util.Random(7).let { rng -> kotlin.random.Random(rng.nextLong()) })
-            val many = blocks + StructureStep.SpawnEntity(at, boat, EntityShape(EntityTypeKey("minecraft:boat"), 1.0, 2.0, 3.0))
+            val many = blocks + StructureStep.SpawnEntity(
+                at,
+                boat,
+                EntityShape(EntityTypeKey("minecraft:boat"), 1.0, 2.0, 3.0)
+            )
 
             stack.jobs.save(RollbackJobRecord(RollbackJobId(7), plan, RollbackTarget.Uniform(player(1)), many, destroy))
 
@@ -225,11 +228,25 @@ class RollbackJobPersistenceTest {
         }
 
         Stack(packed).use { stack ->
-            stack.jobs.save(RollbackJobRecord(RollbackJobId(1), plan, RollbackTarget.Uniform(player(1)), crater(0, 4096)))
+            stack.jobs.save(
+                RollbackJobRecord(
+                    RollbackJobId(1),
+                    plan,
+                    RollbackTarget.Uniform(player(1)),
+                    crater(0, 4096)
+                )
+            )
         }
         Stack(apiece).use { stack ->
             crater(0, 4096).forEachIndexed { i, step ->
-                stack.jobs.save(RollbackJobRecord(RollbackJobId(i + 1L), plan, RollbackTarget.Uniform(player(1)), listOf(step)))
+                stack.jobs.save(
+                    RollbackJobRecord(
+                        RollbackJobId(i + 1L),
+                        plan,
+                        RollbackTarget.Uniform(player(1)),
+                        listOf(step)
+                    )
+                )
             }
         }
 
@@ -265,7 +282,14 @@ class RollbackJobPersistenceTest {
         Stack(dir).use { stack ->
             val depth = com.tracel.engine.rollback.job.RollbackJobRepository.UNDO_DEPTH
             for (i in 1..depth + 5) {
-                stack.jobs.save(RollbackJobRecord(RollbackJobId(i.toLong()), plan, RollbackTarget.Uniform(player(1)), create))
+                stack.jobs.save(
+                    RollbackJobRecord(
+                        RollbackJobId(i.toLong()),
+                        plan,
+                        RollbackTarget.Uniform(player(1)),
+                        create
+                    )
+                )
             }
 
             val stack20 = stack.jobs.undoable(limit = 100)

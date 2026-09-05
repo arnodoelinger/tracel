@@ -13,24 +13,18 @@ import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.model.id.WorldId
 import com.tracel.model.transaction.Transaction
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.BlockExtras
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
+import com.tracel.model.world.*
 import com.tracel.storage.ports.ops.purgeAll
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
-import java.nio.file.Path
-import java.util.UUID
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
+import java.util.*
 
 class WorldLogTest {
     private val world = WorldId(UUID(0L, 1L))
@@ -333,7 +327,12 @@ class WorldLogTest {
 
             val interned = stack.storage.read {
                 var count = 0
-                scan(byteArrayOf(com.tracel.storage.codec.Keys.INTERN_FORWARD, com.tracel.storage.codec.Keys.NS_BLOCK_DATA))
+                scan(
+                    byteArrayOf(
+                        com.tracel.storage.codec.Keys.INTERN_FORWARD,
+                        com.tracel.storage.codec.Keys.NS_BLOCK_DATA
+                    )
+                )
                     .use { cursor -> while (cursor.next()) count++ }
                 count
             }
@@ -384,6 +383,7 @@ class WorldLogTest {
             assertTrue(failure is IllegalStateException, "expected append-only refusal, got $failure")
         }
     }
+
     @Test
     fun `an entity change round-trips and is findable by its own uuid`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
@@ -438,7 +438,7 @@ class WorldLogTest {
     fun `a chest boat's shape never carries its cargo`(@TempDir dir: Path) = runTest {
         Stack(dir).use {
             val fields = com.tracel.model.world.EntityShape::class.java.declaredFields.map { it.type.name } +
-                BlockShape::class.java.declaredFields.map { it.type.name }
+                    BlockShape::class.java.declaredFields.map { it.type.name }
             assertTrue(
                 fields.none { it.contains("Inventory") || it.contains("ItemStack") || it.contains("ItemKey") },
                 "a shape holding items is a shape a rollback could duplicate from: $fields",
@@ -455,7 +455,13 @@ class WorldLogTest {
                     CauseKind.PLAYER_ACTION,
                     player(1),
                     1_000L,
-                    listOf(BlockEdit(BlockPos(world, 1, 2, 3), BlockShape(BlockDataKey("minecraft:stone")), BlockShape.AIR)),
+                    listOf(
+                        BlockEdit(
+                            BlockPos(world, 1, 2, 3),
+                            BlockShape(BlockDataKey("minecraft:stone")),
+                            BlockShape.AIR
+                        )
+                    ),
                 )
             )
             assertEquals(1, stack.worldLog.at(BlockPos(world, 1, 2, 3)).size)
@@ -469,7 +475,13 @@ class WorldLogTest {
                     CauseKind.PLAYER_ACTION,
                     player(1),
                     2_000L,
-                    listOf(BlockEdit(BlockPos(world, 1, 2, 3), BlockShape(BlockDataKey("minecraft:dirt")), BlockShape.AIR)),
+                    listOf(
+                        BlockEdit(
+                            BlockPos(world, 1, 2, 3),
+                            BlockShape(BlockDataKey("minecraft:dirt")),
+                            BlockShape.AIR
+                        )
+                    ),
                 )
             )
             assertEquals(1, stack.worldLog.at(BlockPos(world, 1, 2, 3)).size)
@@ -509,25 +521,32 @@ class WorldLogTest {
     }
 
     @Test
-    fun `a query big enough to batch its reads returns exactly what reading one at a time does`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            val count = 900
-            for (seq in 1L..count) stack.worldLog.append(broke(seq, at((seq % 40).toInt(), 70, (seq / 40).toInt()), epochMillis = seq))
+    fun `a query big enough to batch its reads returns exactly what reading one at a time does`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                val count = 900
+                for (seq in 1L..count) stack.worldLog.append(
+                    broke(
+                        seq,
+                        at((seq % 40).toInt(), 70, (seq / 40).toInt()),
+                        epochMillis = seq
+                    )
+                )
 
-            val region = LookupRegion(world, minChunkX = 0, maxChunkX = 3, minChunkZ = 0, maxChunkZ = 2)
-            val batched = stack.worldLog.query(LookupFilter(region = region, limit = Int.MAX_VALUE))
-            val oneAtATime = stack.worldLog.query(LookupFilter(region = region, limit = 255))
+                val region = LookupRegion(world, minChunkX = 0, maxChunkX = 3, minChunkZ = 0, maxChunkZ = 2)
+                val batched = stack.worldLog.query(LookupFilter(region = region, limit = Int.MAX_VALUE))
+                val oneAtATime = stack.worldLog.query(LookupFilter(region = region, limit = 255))
 
-            assertEquals(count, batched.size, "the batched path must find every change")
-            assertEquals(
-                oneAtATime.map { it.seq.raw },
-                batched.take(255).map { it.seq.raw },
-                "both paths must agree, newest first, on the rows they share",
-            )
-            assertEquals(count.toLong(), batched.first().seq.raw, "newest first")
-            assertEquals(1L, batched.last().seq.raw, "oldest last")
+                assertEquals(count, batched.size, "the batched path must find every change")
+                assertEquals(
+                    oneAtATime.map { it.seq.raw },
+                    batched.take(255).map { it.seq.raw },
+                    "both paths must agree, newest first, on the rows they share",
+                )
+                assertEquals(count.toLong(), batched.first().seq.raw, "newest first")
+                assertEquals(1L, batched.last().seq.raw, "oldest last")
+            }
         }
-    }
 
     @Test
     fun `a batched query whose sequences are scattered still returns them all`(@TempDir dir: Path) = runTest {
@@ -621,17 +640,18 @@ class WorldLogTest {
     }
 
     @Test
-    fun `a material filter over a dense range is still applied when the fetch is one scan`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            val dirt = BlockShape(BlockDataKey("minecraft:dirt"))
-            for (seq in 1L..100L) {
-                val before = if (seq % 2 == 1L) stone else dirt
-                stack.worldLog.append(broke(seq, at(0, 70, 0), before = before, epochMillis = seq))
+    fun `a material filter over a dense range is still applied when the fetch is one scan`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                val dirt = BlockShape(BlockDataKey("minecraft:dirt"))
+                for (seq in 1L..100L) {
+                    val before = if (seq % 2 == 1L) stone else dirt
+                    stack.worldLog.append(broke(seq, at(0, 70, 0), before = before, epochMillis = seq))
+                }
+
+                val found = stack.worldLog.query(LookupFilter(material = "minecraft:stone", limit = Int.MAX_VALUE))
+
+                assertEquals((99L downTo 1L step 2).toList(), found.map { it.seq.raw })
             }
-
-            val found = stack.worldLog.query(LookupFilter(material = "minecraft:stone", limit = Int.MAX_VALUE))
-
-            assertEquals((99L downTo 1L step 2).toList(), found.map { it.seq.raw })
         }
-    }
 }

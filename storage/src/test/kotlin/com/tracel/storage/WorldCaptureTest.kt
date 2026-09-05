@@ -5,23 +5,17 @@ import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.world.BlockEdit
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.WorldId
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.BlockExtras
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
+import com.tracel.model.world.*
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
-import java.nio.file.Path
-import java.util.UUID
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
+import java.util.*
 
 class WorldCaptureTest {
     private val world = WorldId(UUID(0L, 1L))
@@ -79,20 +73,21 @@ class WorldCaptureTest {
     }
 
     @Test
-    fun `an edit carrying extras is refused by the ring so the caller takes the slow path`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            val sign = BlockShape(BlockDataKey("minecraft:oak_sign"), BlockExtras.Opaque(byteArrayOf(1, 2, 3)))
-            assertFalse(
-                stack.gate.blocks(
-                    CauseKind.PLAYER_ACTION, ActionKind.BLOCK_BREAK, steve, 1L, world,
-                    listOf(BlockEdit(BlockPos(world, 0, 0, 0), sign, BlockShape.AIR)),
-                ),
-                "a variable-length shape does not fit a 24-byte slot and must say so",
-            )
-            stack.drain()
-            assertTrue(stack.worldLog.query(LookupFilter()).isEmpty())
+    fun `an edit carrying extras is refused by the ring so the caller takes the slow path`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                val sign = BlockShape(BlockDataKey("minecraft:oak_sign"), BlockExtras.Opaque(byteArrayOf(1, 2, 3)))
+                assertFalse(
+                    stack.gate.blocks(
+                        CauseKind.PLAYER_ACTION, ActionKind.BLOCK_BREAK, steve, 1L, world,
+                        listOf(BlockEdit(BlockPos(world, 0, 0, 0), sign, BlockShape.AIR)),
+                    ),
+                    "a variable-length shape does not fit a 24-byte slot and must say so",
+                )
+                stack.drain()
+                assertTrue(stack.worldLog.query(LookupFilter()).isEmpty())
+            }
         }
-    }
 
     @Test
     fun `a block edit and an item movement drain together and stay in their own logs`(@TempDir dir: Path) = runTest {

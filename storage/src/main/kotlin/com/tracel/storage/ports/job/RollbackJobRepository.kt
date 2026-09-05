@@ -1,7 +1,6 @@
 package com.tracel.storage.ports.job
 
 import com.tracel.engine.rollback.job.RollbackJobRecord
-import com.tracel.engine.rollback.job.RollbackJobRepository as RollbackJobRepositoryPort
 import com.tracel.engine.rollback.job.SaveHandle
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackStep
@@ -9,10 +8,12 @@ import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.destinationFor
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.*
 import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
-import com.tracel.model.world.*
+import com.tracel.model.id.WorldId
+import com.tracel.model.world.BlockDataKey
+import com.tracel.model.world.BlockPos
+import com.tracel.model.world.EntityTypeKey
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
@@ -20,6 +21,7 @@ import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
 import com.tracel.storage.util.eachRow
+import com.tracel.engine.rollback.job.RollbackJobRepository as RollbackJobRepositoryPort
 
 /** A rollback plan, stored one step per record under `rbStep | job | index`. */
 class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRepositoryPort {
@@ -72,7 +74,14 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                 }
             }
 
-            runs(record.plan.steps.map { step -> Records.step(step) { holder -> storage.interning.internHolder(this, holder) } }) { index, packed ->
+            runs(record.plan.steps.map { step ->
+                Records.step(step) { holder ->
+                    storage.interning.internHolder(
+                        this,
+                        holder
+                    )
+                }
+            }) { index, packed ->
                 put(Keys.rbStep(record.id.raw, index), packed)
             }
 
@@ -161,9 +170,9 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
 
     private fun sectionOf(at: BlockPos): Long =
         (at.world.uuid.leastSignificantBits shl 1) xor
-            ((at.x shr 4).toLong() and 0x1FFFFF shl 42) xor
-            ((at.z shr 4).toLong() and 0x1FFFFF shl 21) xor
-            ((at.y shr 4).toLong() and 0x1FFFFF)
+                ((at.x shr 4).toLong() and 0x1FFFFF shl 42) xor
+                ((at.z shr 4).toLong() and 0x1FFFFF shl 21) xor
+                ((at.y shr 4).toLong() and 0x1FFFFF)
 
     override suspend fun undoable(limit: Int): List<RollbackJobId> = storage.read {
         val out = ArrayList<RollbackJobId>(limit)

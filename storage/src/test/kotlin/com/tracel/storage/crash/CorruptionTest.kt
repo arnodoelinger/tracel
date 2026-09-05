@@ -5,14 +5,14 @@ import com.tracel.storage.lsm.LsmEngine
 import com.tracel.storage.lsm.state.Manifest
 import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.spi.MutationBatch
-import java.nio.channels.FileChannel
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardOpenOption
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.channels.FileChannel
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 
 class CorruptionTest {
     private fun key(i: Int) = byteArrayOf(1) + ByteArray(8) { (i.toLong() ushr (56 - it * 8)).toByte() }
@@ -29,7 +29,8 @@ class CorruptionTest {
         }
 
         // Half a frame, the way a power cut leaves one
-        val wal = Files.list(dir).use { stream -> stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.toList().single() }
+        val wal = Files.list(dir)
+            .use { stream -> stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.toList().single() }
         val size = Files.size(wal)
         FileChannel.open(wal, StandardOpenOption.WRITE).use { it.truncate(size - 9) }
 
@@ -52,12 +53,16 @@ class CorruptionTest {
             engine.halt()
         }
 
-        val wal = Files.list(dir).use { stream -> stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.toList().single() }
+        val wal = Files.list(dir)
+            .use { stream -> stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.toList().single() }
         Files.write(wal, ByteArray(64) { 0x5A }, StandardOpenOption.APPEND)
 
         engine(dir).use { engine ->
             engine.snapshot().use { snapshot ->
-                for (i in 0 until 20) assertNotNull(snapshot.get(key(i)), "lost $i to a checksum that should have caught the garbage")
+                for (i in 0 until 20) assertNotNull(
+                    snapshot.get(key(i)),
+                    "lost $i to a checksum that should have caught the garbage"
+                )
             }
         }
     }
@@ -100,6 +105,9 @@ class CorruptionTest {
         Files.write(segment, bytes)
 
         val failure = runCatching { engine(dir).close() }.exceptionOrNull()
-        assertTrue(failure is IllegalArgumentException, "a segment from a newer build must not be guessed at, got $failure")
+        assertTrue(
+            failure is IllegalArgumentException,
+            "a segment from a newer build must not be guessed at, got $failure"
+        )
     }
 }

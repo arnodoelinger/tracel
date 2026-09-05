@@ -2,12 +2,7 @@ package com.tracel.storage.lsm
 
 import com.tracel.storage.lsm.read.LsmSnapshot
 import com.tracel.storage.lsm.read.SegmentRun
-import com.tracel.storage.lsm.segment.BlockCache
-import com.tracel.storage.lsm.segment.CompactionPlan
-import com.tracel.storage.lsm.segment.SegmentFile
-import com.tracel.storage.lsm.segment.SegmentReader
-import com.tracel.storage.lsm.segment.SegmentWriter
-import com.tracel.storage.lsm.segment.planCompaction
+import com.tracel.storage.lsm.segment.*
 import com.tracel.storage.lsm.state.Manifest
 import com.tracel.storage.lsm.state.Retirement
 import com.tracel.storage.lsm.state.Version
@@ -26,8 +21,6 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlin.collections.isNotEmpty
-import kotlin.collections.map
 import kotlin.concurrent.withLock
 
 /**
@@ -134,7 +127,7 @@ class LsmEngine(
             if (!fits(version.active, batch)) rotate(batch)
             check(fits(version.active, batch)) {
                 "a ${needs(batch)}-byte batch does not fit a freshly rotated " +
-                    "${version.active.capacity}-byte memtable — the size accounting is wrong"
+                        "${version.active.capacity}-byte memtable — the size accounting is wrong"
             }
 
             val seq = sequence.incrementAndGet()

@@ -2,12 +2,9 @@ package com.tracel.storage.lsm
 
 import com.tracel.storage.ffm.SegmentCompare
 import com.tracel.storage.lsm.write.MemTable
-import java.util.SplittableRandom
-import org.junit.jupiter.api.Assertions.assertArrayEquals
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class MemTableTest {
     @Test
@@ -53,7 +50,14 @@ class MemTableTest {
                     } else {
                         assertTrue(!table.isDeletion(node))
                         val held = table.valueOf(node)!!
-                        assertArrayEquals(value, ByteArray(held.byteSize().toInt()) { held.get(com.tracel.storage.ffm.Bytes.I8, it.toLong()) })
+                        assertArrayEquals(
+                            value,
+                            ByteArray(held.byteSize().toInt()) {
+                                held.get(
+                                    com.tracel.storage.ffm.Bytes.I8,
+                                    it.toLong()
+                                )
+                            })
                     }
                 }
             }
@@ -78,7 +82,12 @@ class MemTableTest {
             var previous: ByteArray? = null
             while (node != 0L) {
                 val key = table.segment.let { segment ->
-                    ByteArray(table.keyLength(node)) { segment.get(com.tracel.storage.ffm.Bytes.I8, table.keyOffset(node) + it) }
+                    ByteArray(table.keyLength(node)) {
+                        segment.get(
+                            com.tracel.storage.ffm.Bytes.I8,
+                            table.keyOffset(node) + it
+                        )
+                    }
                 }
                 previous?.let {
                     assertTrue(SegmentCompare.compare(table.segment, table.keyOffset(node), key.size, it) > 0) {

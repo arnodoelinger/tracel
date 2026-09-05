@@ -1,13 +1,7 @@
 package com.tracel.storage.codec.records
 
 import com.tracel.annotations.CauseKind
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.BlockExtras
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.EntityExtras
-import com.tracel.model.world.EntityShape
-import com.tracel.model.world.EntityTypeKey
+import com.tracel.model.world.*
 import com.tracel.storage.ffm.Bytes.i16
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
@@ -19,7 +13,7 @@ import com.tracel.storage.ffm.Bytes.putI8
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.ffm.Bytes.writeBytes
 import java.lang.foreign.MemorySegment
-import java.util.UUID
+import java.util.*
 
 object World {
     const val CHANGE_BLOCK: Byte = 0
@@ -58,6 +52,7 @@ object World {
         bytes[0] == EXTRAS_OPAQUE -> EntityExtras.Opaque(bytes.copyOfRange(1, bytes.size))
         bytes[0] == EXTRAS_FALLING ->
             EntityExtras.Falling(BlockDataKey(String(bytes, 1, bytes.size - 1, Charsets.UTF_8)))
+
         else -> error("unrecognized entity extras tag: ${bytes[0]}")
     }
 
@@ -81,7 +76,8 @@ object World {
         return when (payload[0]) {
             EXTRAS_POSED -> {
                 check(payload.size >= POSE_BYTES) { "posed extras truncated at ${payload.size} bytes" }
-                val nested = if (payload.size == POSE_BYTES) ByteArray(0) else payload.copyOfRange(POSE_BYTES, payload.size)
+                val nested =
+                    if (payload.size == POSE_BYTES) ByteArray(0) else payload.copyOfRange(POSE_BYTES, payload.size)
                 EntityShape(
                     type,
                     Double.fromBits(v.i64(1)),
@@ -92,6 +88,7 @@ object World {
                     decodeEntityExtras(nested),
                 )
             }
+
             EXTRAS_OPAQUE -> EntityShape(
                 type,
                 at.x + 0.5,
@@ -99,6 +96,7 @@ object World {
                 at.z + 0.5,
                 extras = decodeEntityExtras(payload),
             )
+
             else -> error("unrecognized entity extras tag: ${payload[0]}")
         }
     }

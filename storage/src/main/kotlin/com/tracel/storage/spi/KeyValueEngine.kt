@@ -72,7 +72,7 @@ interface EngineCursor : AutoCloseable {
     fun keyU32(at: Int): Int {
         val key = key()
         return ((key[at].toInt() and 0xFF) shl 24) or ((key[at + 1].toInt() and 0xFF) shl 16) or
-            ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
+                ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
     }
 
     fun keyU64(at: Int): Long {

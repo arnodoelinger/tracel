@@ -15,13 +15,11 @@ import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
-import java.nio.file.Path
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
 
 class CrashRecoveryTest {
     @Test
@@ -101,7 +99,11 @@ class CrashRecoveryTest {
                 target = RollbackTarget.Uniform(chest),
             )
 
-            assertEquals(afterFirst, stack.ledger.totalAt(chest, diamond)?.raw, "a rollback is idempotent or it is a dupe machine")
+            assertEquals(
+                afterFirst,
+                stack.ledger.totalAt(chest, diamond)?.raw,
+                "a rollback is idempotent or it is a dupe machine"
+            )
             assertEquals(censusAfterFirst, stack.ledger.census(diamond))
         }
     }

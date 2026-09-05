@@ -21,7 +21,12 @@ object Job {
     fun pendingJobId(v: MemorySegment): Long = v.i64(12)
 
     fun rbJob(restoreToHolderId: Int, stepCount: Int, createCount: Int, destroyCount: Int): ByteArray =
-        recordBytes(16) { putI32(0, restoreToHolderId); putI32(4, stepCount); putI32(8, createCount); putI32(12, destroyCount) }
+        recordBytes(16) {
+            putI32(0, restoreToHolderId); putI32(4, stepCount); putI32(8, createCount); putI32(
+            12,
+            destroyCount
+        )
+        }
 
     fun rbJobRestoreTo(v: MemorySegment): Int = v.i32(0)
     fun rbJobStepCount(v: MemorySegment): Int = v.i32(4)

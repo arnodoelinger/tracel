@@ -34,7 +34,8 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
     private val holders = Interned("holder", Keys.NS_HOLDER, cacheSize, Packed::holder, Packed::decodeHolder)
-    private val itemKeys = Interned("item key", Keys.NS_ITEM_KEY, ITEM_KEY_CACHE, Packed::itemKey, Packed::decodeItemKey)
+    private val itemKeys =
+        Interned("item key", Keys.NS_ITEM_KEY, ITEM_KEY_CACHE, Packed::itemKey, Packed::decodeItemKey)
     private val worlds = Interned("world", Keys.NS_WORLD, WORLD_CACHE, Packed::world, Packed::decodeWorld)
     private val blockData =
         Interned("block data", Keys.NS_BLOCK_DATA, BLOCK_DATA_CACHE, Packed::blockData, Packed::decodeBlockData)

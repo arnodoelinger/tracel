@@ -7,11 +7,7 @@ import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.Seq
-import com.tracel.model.id.TxnId
-import com.tracel.model.id.WorldId
+import com.tracel.model.id.*
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction
@@ -20,25 +16,24 @@ import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 
 class TransactionLogTest {
     private val world = WorldId(UUID(0L, 1L))
 
-    private fun move(seq: Long, from: HolderId, to: HolderId, at: Long, cause: CauseKind = CauseKind.HOPPER) = Transaction(
-        TxnId(seq),
-        Seq(seq),
-        at,
-        cause,
-        from,
-        listOf(Flow(diamond, Quantity(1), from, to, FlowKind.MOVE)),
-    )
+    private fun move(seq: Long, from: HolderId, to: HolderId, at: Long, cause: CauseKind = CauseKind.HOPPER) =
+        Transaction(
+            TxnId(seq),
+            Seq(seq),
+            at,
+            cause,
+            from,
+            listOf(Flow(diamond, Quantity(1), from, to, FlowKind.MOVE)),
+        )
 
     @Test
     fun `the lots a transaction moved come back in flow order`(@TempDir dir: Path) = runTest {
@@ -174,7 +169,8 @@ class TransactionLogTest {
             val here = LookupRegion(world, 0, 0, 0, 0)
             assertEquals(
                 listOf(501L),
-                stack.log.query(LookupFilter(region = here, since = 3_600_000, limit = Int.MAX_VALUE)).map { it.seq.raw },
+                stack.log.query(LookupFilter(region = here, since = 3_600_000, limit = Int.MAX_VALUE))
+                    .map { it.seq.raw },
             )
         }
     }
@@ -207,13 +203,34 @@ class TransactionLogTest {
             val enchanted = ItemKey("minecraft:diamond_sword", ContentHash("cafe"))
             val steve = player(1)
             stack.log.append(
-                Transaction(TxnId(1), Seq(1), 100, CauseKind.HOPPER, null, listOf(Flow(plain, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))),
+                Transaction(
+                    TxnId(1),
+                    Seq(1),
+                    100,
+                    CauseKind.HOPPER,
+                    null,
+                    listOf(Flow(plain, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))
+                ),
             )
             stack.log.append(
-                Transaction(TxnId(2), Seq(2), 200, CauseKind.HOPPER, null, listOf(Flow(enchanted, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))),
+                Transaction(
+                    TxnId(2),
+                    Seq(2),
+                    200,
+                    CauseKind.HOPPER,
+                    null,
+                    listOf(Flow(enchanted, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))
+                ),
             )
             stack.log.append(
-                Transaction(TxnId(3), Seq(3), 300, CauseKind.HOPPER, null, listOf(Flow(diamond, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))),
+                Transaction(
+                    TxnId(3),
+                    Seq(3),
+                    300,
+                    CauseKind.HOPPER,
+                    null,
+                    listOf(Flow(diamond, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))
+                ),
             )
 
             val swords = stack.log.query(LookupFilter(material = "minecraft:diamond_sword"))
@@ -287,20 +304,21 @@ class TransactionLogTest {
     }
 
     @Test
-    fun `a world filter and a region both apply, and a region does not swallow the world`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            val other = WorldId(UUID(0L, 2L))
-            fun elsewhere(x: Int, y: Int, z: Int) = HolderId.Block(other, x, y, z)
-            stack.log.append(move(1, block(3, 64, 5), player(1), 100))
-            stack.log.append(move(2, elsewhere(3, 64, 5), player(1), 200))
+    fun `a world filter and a region both apply, and a region does not swallow the world`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                val other = WorldId(UUID(0L, 2L))
+                fun elsewhere(x: Int, y: Int, z: Int) = HolderId.Block(other, x, y, z)
+                stack.log.append(move(1, block(3, 64, 5), player(1), 100))
+                stack.log.append(move(2, elsewhere(3, 64, 5), player(1), 200))
 
-            val here = stack.log.query(LookupFilter(region = LookupRegion(world, 0, 0, 0, 0), world = world))
-            assertEquals(listOf(1L), here.map { it.seq.raw })
+                val here = stack.log.query(LookupFilter(region = LookupRegion(world, 0, 0, 0, 0), world = world))
+                assertEquals(listOf(1L), here.map { it.seq.raw })
 
-            val impossible = stack.log.query(LookupFilter(region = LookupRegion(world, 0, 0, 0, 0), world = other))
-            assertTrue(impossible.isEmpty())
+                val impossible = stack.log.query(LookupFilter(region = LookupRegion(world, 0, 0, 0, 0), world = other))
+                assertTrue(impossible.isEmpty())
+            }
         }
-    }
 
     @Test
     fun `a region query still honours limit, unlike filtering a global page afterwards`(@TempDir dir: Path) = runTest {
@@ -374,28 +392,29 @@ class TransactionLogTest {
     }
 
     @Test
-    fun `lot linkage for a dense batch of transactions is one walk, not one scan per transaction`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            val seqs = ArrayList<Seq>()
-            for (seq in 1L..100L) {
-                stack.log.append(
-                    Transaction(
-                        TxnId(seq), Seq(seq), seq, CauseKind.HOPPER, player(1),
-                        listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
-                        listOf(FlowLot(0, LotId(seq * 10), Quantity(1))),
+    fun `lot linkage for a dense batch of transactions is one walk, not one scan per transaction`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                val seqs = ArrayList<Seq>()
+                for (seq in 1L..100L) {
+                    stack.log.append(
+                        Transaction(
+                            TxnId(seq), Seq(seq), seq, CauseKind.HOPPER, player(1),
+                            listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
+                            listOf(FlowLot(0, LotId(seq * 10), Quantity(1))),
+                        )
                     )
-                )
-                seqs += Seq(seq)
-            }
+                    seqs += Seq(seq)
+                }
 
-            val loaded = stack.log.lotsAtAll(seqs)
+                val loaded = stack.log.lotsAtAll(seqs)
 
-            assertEquals(100, loaded.size)
-            for (seq in 1L..100L) {
-                assertEquals(listOf(FlowLot(0, LotId(seq * 10), Quantity(1))), loaded[Seq(seq)])
+                assertEquals(100, loaded.size)
+                for (seq in 1L..100L) {
+                    assertEquals(listOf(FlowLot(0, LotId(seq * 10), Quantity(1))), loaded[Seq(seq)])
+                }
             }
         }
-    }
 
     @Test
     fun `lot linkage still skips transactions with none in the middle of a dense batch`(@TempDir dir: Path) = runTest {
@@ -422,30 +441,31 @@ class TransactionLogTest {
     }
 
     @Test
-    fun `lot linkage for a scattered batch seeks over the gaps and still finds every one`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            val wanted = ArrayList<Seq>()
-            for (seq in 1L..20_000L) {
-                stack.log.append(
-                    Transaction(
-                        TxnId(seq), Seq(seq), seq, CauseKind.HOPPER, player(1),
-                        listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
-                        listOf(FlowLot(0, LotId(seq * 10), Quantity(1))),
+    fun `lot linkage for a scattered batch seeks over the gaps and still finds every one`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                val wanted = ArrayList<Seq>()
+                for (seq in 1L..20_000L) {
+                    stack.log.append(
+                        Transaction(
+                            TxnId(seq), Seq(seq), seq, CauseKind.HOPPER, player(1),
+                            listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
+                            listOf(FlowLot(0, LotId(seq * 10), Quantity(1))),
+                        )
                     )
+                    if (seq % 100L == 0L) wanted += Seq(seq)
+                }
+
+                val loaded = stack.log.lotsAtAll(wanted)
+
+                assertEquals(wanted.size, loaded.size)
+                for (seq in wanted) {
+                    assertEquals(listOf(FlowLot(0, LotId(seq.raw * 10), Quantity(1))), loaded[seq], "lost $seq")
+                }
+                assertEquals(
+                    listOf(FlowLot(0, LotId(190_000), Quantity(1))),
+                    stack.log.lotsAtAll(listOf(Seq(19_000)))[Seq(19_000)],
                 )
-                if (seq % 100L == 0L) wanted += Seq(seq)
             }
-
-            val loaded = stack.log.lotsAtAll(wanted)
-
-            assertEquals(wanted.size, loaded.size)
-            for (seq in wanted) {
-                assertEquals(listOf(FlowLot(0, LotId(seq.raw * 10), Quantity(1))), loaded[seq], "lost $seq")
-            }
-            assertEquals(
-                listOf(FlowLot(0, LotId(190_000), Quantity(1))),
-                stack.log.lotsAtAll(listOf(Seq(19_000)))[Seq(19_000)],
-            )
         }
-    }
 }

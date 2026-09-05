@@ -1,5 +1,6 @@
 package com.tracel.storage.ffm
 
+import com.tracel.storage.ffm.OffHeapRing.Companion.GATE_OFFSET
 import java.lang.foreign.Arena
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout

@@ -5,6 +5,7 @@ import com.tracel.storage.lsm.read.Run
 import com.tracel.storage.lsm.read.SegmentRun
 import com.tracel.storage.lsm.segment.SegmentReader
 import com.tracel.storage.lsm.write.MemTable
+
 /**
  * A snapshot of the LSM state at a moment in time. The active table is mutable, the frozen tables are immutable, and
  * the segments are immutable. The [lastSequence] is the last sequence number assigned to a write, and the

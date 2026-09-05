@@ -12,20 +12,13 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.placedBlock
 import com.tracel.tests.support.Fixtures.player
-import java.nio.file.Path
-import java.util.concurrent.Executors
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
+import java.util.concurrent.Executors
 
 class LotRepositoryTest {
     @Test
@@ -151,21 +144,22 @@ class LotRepositoryTest {
     }
 
     @Test
-    fun `a PlacedBlock holder round-trips through the codec, distinct from a Block holder`(@TempDir dir: Path) = runTest {
-        val chest = placedBlock(0, 64, 0)
-        val lotId = Stack(dir).use { stack ->
-            val lot = stack.repo.createLot(diamond, Quantity(10), TxnId(1))
-            stack.repo.place(chest, lot.id, Quantity(10))
-            stack.repo.place(block(0, 64, 0), stack.repo.createLot(diamond, Quantity(3), TxnId(1)).id, Quantity(3))
-            lot.id
-        }
+    fun `a PlacedBlock holder round-trips through the codec, distinct from a Block holder`(@TempDir dir: Path) =
+        runTest {
+            val chest = placedBlock(0, 64, 0)
+            val lotId = Stack(dir).use { stack ->
+                val lot = stack.repo.createLot(diamond, Quantity(10), TxnId(1))
+                stack.repo.place(chest, lot.id, Quantity(10))
+                stack.repo.place(block(0, 64, 0), stack.repo.createLot(diamond, Quantity(3), TxnId(1)).id, Quantity(3))
+                lot.id
+            }
 
-        Stack(dir).use { stack ->
-            assertEquals(chest, stack.repo.currentHolderOf(lotId))
-            assertEquals(10L, stack.repo.accountQueue(chest, diamond).single().remaining.raw)
-            assertEquals(3L, stack.repo.totalOf(block(0, 64, 0), diamond), "a Block is not a PlacedBlock")
+            Stack(dir).use { stack ->
+                assertEquals(chest, stack.repo.currentHolderOf(lotId))
+                assertEquals(10L, stack.repo.accountQueue(chest, diamond).single().remaining.raw)
+                assertEquals(3L, stack.repo.totalOf(block(0, 64, 0), diamond), "a Block is not a PlacedBlock")
+            }
         }
-    }
 
     @Test
     fun `writes from any thread still all land on the one storage thread`(@TempDir dir: Path) = runTest {
@@ -175,7 +169,13 @@ class LotRepositoryTest {
                 val lots = coroutineScope {
                     listOf(
                         async(Dispatchers.Default) { stack.repo.createLot(diamond, Quantity(1), TxnId(1)) },
-                        async(intruder.asCoroutineDispatcher()) { stack.repo.createLot(diamond, Quantity(2), TxnId(2)) },
+                        async(intruder.asCoroutineDispatcher()) {
+                            stack.repo.createLot(
+                                diamond,
+                                Quantity(2),
+                                TxnId(2)
+                            )
+                        },
                         async { withContext(Dispatchers.IO) { stack.repo.createLot(diamond, Quantity(3), TxnId(3)) } },
                     ).awaitAll()
                 }
@@ -205,6 +205,7 @@ class LotRepositoryTest {
         }
         return count
     }
+
     @Test
     fun `relocating an account moves every lot, its quantities and its queue order`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->

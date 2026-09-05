@@ -4,15 +4,10 @@ import com.tracel.annotations.CauseKind
 import com.tracel.annotations.isBookkeeping
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
-import com.tracel.engine.log.TransactionLog as TransactionLogPort
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.Seq
-import com.tracel.model.id.TxnId
-import com.tracel.model.id.WorldId
+import com.tracel.model.id.*
 import com.tracel.model.item.namesMaterial
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
@@ -24,12 +19,9 @@ import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Records
 import com.tracel.storage.intern.Interning
-import com.tracel.storage.util.ascending
-import com.tracel.storage.util.collectNewestFirst
-import com.tracel.storage.util.eachIndex
-import com.tracel.storage.util.eachRow
-import com.tracel.storage.util.pageNewest
+import com.tracel.storage.util.*
 import java.lang.foreign.MemorySegment
+import com.tracel.engine.log.TransactionLog as TransactionLogPort
 
 /**
  * The append-only log, plus the four indexes that make it searchable.
@@ -74,7 +66,15 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             val itemKeys = HashSet<Int>()
             val bookkeeping = transaction.cause.isBookkeeping
             if (causedById != 0) holders += causedById
-            if (!bookkeeping) transaction.causedBy?.let { index(this, it, seq, transaction.epochMillis, transaction.cause) }
+            if (!bookkeeping) transaction.causedBy?.let {
+                index(
+                    this,
+                    it,
+                    seq,
+                    transaction.epochMillis,
+                    transaction.cause
+                )
+            }
 
             transaction.flows.forEachIndexed { i, flow ->
                 val itemKeyId = interning.internItemKey(this, flow.itemKey)
@@ -83,7 +83,13 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
                 Records.writeFlow(into, i, itemKeyId, sourceId, destinationId, flow.kind, flow.quantity.raw)
                 if (bookkeeping) return@forEachIndexed
                 if (holders.add(sourceId)) index(this, flow.source, seq, transaction.epochMillis, transaction.cause)
-                if (holders.add(destinationId)) index(this, flow.destination, seq, transaction.epochMillis, transaction.cause)
+                if (holders.add(destinationId)) index(
+                    this,
+                    flow.destination,
+                    seq,
+                    transaction.epochMillis,
+                    transaction.cause
+                )
                 itemKeys += itemKeyId
             }
 
@@ -363,10 +369,12 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
                 interning.findWorldId(this, holder.world) ?: return null,
                 holder.x, holder.y, holder.z,
             )
+
             is HolderId.PlacedBlock -> HolderBlock(
                 interning.findWorldId(this, holder.world) ?: return null,
                 holder.x, holder.y, holder.z,
             )
+
             else -> null
         }
     }

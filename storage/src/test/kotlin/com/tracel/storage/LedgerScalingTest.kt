@@ -10,12 +10,12 @@ import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
-import java.nio.file.Path
-import kotlin.time.TimeSource
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
+import kotlin.time.TimeSource
 
 class LedgerScalingTest {
     private suspend fun perStepMicros(dir: Path, steps: Int): Double {
@@ -60,7 +60,7 @@ class LedgerScalingTest {
         assertTrue(
             large < small * 2.5,
             "four times the steps cost ${"%.1f".format(large / small)}x per step " +
-                "($small us -> $large us) — that is the escrow drain gone quadratic again",
+                    "($small us -> $large us) — that is the escrow drain gone quadratic again",
         )
     }
 }

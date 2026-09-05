@@ -4,13 +4,8 @@ import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.annotations.Consume
 import com.tracel.engine.ledger.LotPortion
-import com.tracel.engine.ledger.LotRepository as LotRepositoryPort
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.Seq
-import com.tracel.model.id.TxnId
+import com.tracel.model.id.*
 import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.AccountLot
 import com.tracel.model.lot.Lot
@@ -27,6 +22,7 @@ import com.tracel.storage.ports.log.walkWanted
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
+import com.tracel.engine.ledger.LotRepository as LotRepositoryPort
 
 /** [LotRepositoryPort] over the packed keyspace. */
 class LotRepository(
@@ -82,20 +78,21 @@ class LotRepository(
         readEdgesFrom(lotId)
     }
 
-    override suspend fun findCompensateEdge(originalLotId: LotId, job: RollbackJobId): LotEdge.Compensate? = storage.read {
-        eachRow(Keys.edgeFromPrefix(originalLotId.raw)) { cursor ->
-            val value = cursor.value()
-            if (Records.edgeKind(value) != Records.EDGE_COMPENSATE) return@eachRow
-            if (Records.edgeReference(value) != job.raw) return@eachRow
-            return@read LotEdge.Compensate(
-                LotId(KeyReader.u64(cursor.key(), 9)),
-                originalLotId,
-                Quantity(Records.edgeQuantity(value)),
-                job,
-            )
+    override suspend fun findCompensateEdge(originalLotId: LotId, job: RollbackJobId): LotEdge.Compensate? =
+        storage.read {
+            eachRow(Keys.edgeFromPrefix(originalLotId.raw)) { cursor ->
+                val value = cursor.value()
+                if (Records.edgeKind(value) != Records.EDGE_COMPENSATE) return@eachRow
+                if (Records.edgeReference(value) != job.raw) return@eachRow
+                return@read LotEdge.Compensate(
+                    LotId(KeyReader.u64(cursor.key(), 9)),
+                    originalLotId,
+                    Quantity(Records.edgeQuantity(value)),
+                    job,
+                )
+            }
+            null
         }
-        null
-    }
 
     override suspend fun edgesFromAll(ids: Collection<LotId>): Map<LotId, List<LotEdge>> {
         if (ids.isEmpty()) return emptyMap()
@@ -394,7 +391,14 @@ class LotRepository(
     override suspend fun placementsAt(holder: HolderId): List<AccountLot> = storage.read {
         val holderId = interning.findHolderId(this, holder) ?: return@read emptyList()
         val out = ArrayList<AccountLot>()
-        eachRow(Keys.placeHolderPrefix(holderId)) { cursor -> out += accountLot(this, holder, cursor.key(), cursor.value()) }
+        eachRow(Keys.placeHolderPrefix(holderId)) { cursor ->
+            out += accountLot(
+                this,
+                holder,
+                cursor.key(),
+                cursor.value()
+            )
+        }
         out
     }
 

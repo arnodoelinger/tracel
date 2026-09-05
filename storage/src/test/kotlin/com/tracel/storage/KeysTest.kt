@@ -1,9 +1,7 @@
 package com.tracel.storage
 
 import com.tracel.storage.codec.Keys
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class KeysTest {
@@ -18,7 +16,7 @@ class KeysTest {
         assertTrue(
             missing.isEmpty(),
             "these key families are declared but missing from Keys.ALL, so a purge would leave " +
-                "their records behind for ever: ${missing.keys}",
+                    "their records behind for ever: ${missing.keys}",
         )
     }
 

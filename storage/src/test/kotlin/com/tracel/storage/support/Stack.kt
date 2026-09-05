@@ -26,7 +26,8 @@ class Stack(path: Path, config: LsmConfig = LsmConfig()) : AutoCloseable {
     val ledger: LotLedger = LotLedger(repo)
     val log: TransactionLog = TransactionLog(storage)
     val worldLog: WorldLog = WorldLog(storage)
-    val worldCapture: WorldCaptureCoordinator = WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
+    val worldCapture: WorldCaptureCoordinator =
+        WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
     val leases: LotLeaseRegistry = LotLeaseRegistry(storage)
     val jobs: RollbackJobRepository = RollbackJobRepository(storage)
     val journal: Journal = Journal.forRollback(storage)

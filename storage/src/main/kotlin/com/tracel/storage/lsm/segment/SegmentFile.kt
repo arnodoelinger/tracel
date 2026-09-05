@@ -43,7 +43,8 @@ object SegmentFile {
     const val ZSTD_LEVEL = 5
 
     private val LE_INT: VarHandle = MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
-    private val LE_LONG: VarHandle = MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
+    private val LE_LONG: VarHandle =
+        MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
 
     class Writer(private val path: Path, expectedEntries: Int) : AutoCloseable {
         private val file = java.io.FileOutputStream(path.toFile())
@@ -128,7 +129,14 @@ object SegmentFile {
             file.fd.sync()
             file.close()
 
-            return SegmentMeta(id, level, count, Files.size(path), firstKey ?: ByteArray(0), lastKey.copyOf(lastKeyLength))
+            return SegmentMeta(
+                id,
+                level,
+                count,
+                Files.size(path),
+                firstKey ?: ByteArray(0),
+                lastKey.copyOf(lastKeyLength)
+            )
         }
 
         override fun close() {
@@ -410,8 +418,10 @@ class Bloom internal constructor(
         const val LANES = 8
         const val BITS_PER_KEY = 12
 
-        private val LE_LONG: VarHandle = MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
-        private val LE_INT: VarHandle = MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
+        private val LE_LONG: VarHandle =
+            MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
+        private val LE_INT: VarHandle =
+            MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
 
         // Odd, but beautiful
         internal val SALT_0: Long = 0x9E3779B97F4A7C15uL.toLong()
@@ -443,16 +453,19 @@ class Bloom internal constructor(
                     a = le64(key, at)
                     b = le64(key, length - 8)
                 }
+
                 remaining >= 4 -> {
                     a = le32(key, at)
                     b = le32(key, length - 4)
                 }
+
                 remaining >= 1 -> {
                     a = ((key[at].toLong() and 0xFF) shl 16) or
-                        ((key[at + (remaining shr 1)].toLong() and 0xFF) shl 8) or
-                        (key[length - 1].toLong() and 0xFF)
+                            ((key[at + (remaining shr 1)].toLong() and 0xFF) shl 8) or
+                            (key[length - 1].toLong() and 0xFF)
                     b = 0
                 }
+
                 else -> {
                     a = 0
                     b = 0

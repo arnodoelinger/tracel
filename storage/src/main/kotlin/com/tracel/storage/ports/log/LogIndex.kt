@@ -276,7 +276,12 @@ internal fun StorageUnit.walkColumn(
             if (excludedCauses.isNotEmpty() && cause != null && cause in excludedCauses) continue
             if (region != null) {
                 val x = Records.logKindX(value)
-                if (x != null && !region.containsBlock(x, Records.logKindY(value)!!, Records.logKindZ(value)!!)) continue
+                if (x != null && !region.containsBlock(
+                        x,
+                        Records.logKindY(value)!!,
+                        Records.logKindZ(value)!!
+                    )
+                ) continue
             }
             kept++
             val seq = seqOf(cursor)
@@ -372,7 +377,12 @@ internal fun StorageUnit.gatherBothByTime(
             if (excludedCauses.isNotEmpty() && cause != null && cause in excludedCauses) continue
             if (region != null) {
                 val x = Records.logKindX(value)
-                if (x != null && !region.containsBlock(x, Records.logKindY(value)!!, Records.logKindZ(value)!!)) continue
+                if (x != null && !region.containsBlock(
+                        x,
+                        Records.logKindY(value)!!,
+                        Records.logKindZ(value)!!
+                    )
+                ) continue
             }
             dest += Keys.invert(KeyReader.u64(key, 9))
         }

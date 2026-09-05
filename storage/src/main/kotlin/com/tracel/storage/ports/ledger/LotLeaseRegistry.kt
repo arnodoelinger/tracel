@@ -1,6 +1,5 @@
 package com.tracel.storage.ports.ledger
 
-import com.tracel.engine.ownership.LotLeaseRegistry as LotLeaseRegistryPort
 import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.storage.StorageUnit
@@ -9,6 +8,7 @@ import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.util.eachRow
+import com.tracel.engine.ownership.LotLeaseRegistry as LotLeaseRegistryPort
 
 /**
  * The durable half of ownership. A lease record survives the process dying.

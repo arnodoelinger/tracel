@@ -12,13 +12,18 @@ import java.nio.ByteOrder
  * the same three questions the merge asks: where are you, how new are you, what do you hold.
  */
 internal abstract class Run {
-    @JvmField var valid: Boolean = false
+    @JvmField
+    var valid: Boolean = false
 
-    @JvmField var keySegment: MemorySegment = MemorySegment.NULL
-    @JvmField var keyOffset: Long = 0
-    @JvmField var keyLength: Int = 0
+    @JvmField
+    var keySegment: MemorySegment = MemorySegment.NULL
+    @JvmField
+    var keyOffset: Long = 0
+    @JvmField
+    var keyLength: Int = 0
 
-    @JvmField var userKeyLength: Int = 0
+    @JvmField
+    var userKeyLength: Int = 0
 
     abstract fun seek(internalKey: ByteArray, length: Int)
     abstract fun next()

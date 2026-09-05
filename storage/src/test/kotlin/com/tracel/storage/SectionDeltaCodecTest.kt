@@ -4,12 +4,9 @@ import com.tracel.annotations.CauseKind
 import com.tracel.model.world.ActionKind
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
-import java.lang.foreign.MemorySegment
-import org.junit.jupiter.api.Assertions.assertArrayEquals
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.lang.foreign.MemorySegment
 
 class SectionDeltaCodecTest {
     private class Built(

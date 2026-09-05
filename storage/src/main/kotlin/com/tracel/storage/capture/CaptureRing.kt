@@ -108,7 +108,15 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
 
     /** One coordinate of a world change claimed by [beginWorld]. */
     fun block(claim: Long, index: Int, x: Int, y: Int, z: Int, beforeDataId: Int, afterDataId: Int) {
-        CaptureSlot.writeWorldBlock(ring.payload, ring.payloadOffset(claim + 1 + index), x, y, z, beforeDataId, afterDataId)
+        CaptureSlot.writeWorldBlock(
+            ring.payload,
+            ring.payloadOffset(claim + 1 + index),
+            x,
+            y,
+            z,
+            beforeDataId,
+            afterDataId
+        )
     }
 
     /** Enqueues "everything [fromHolderId] had went to [toHolderId]" in one slot. */

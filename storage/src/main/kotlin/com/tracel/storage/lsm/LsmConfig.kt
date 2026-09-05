@@ -1,6 +1,7 @@
 package com.tracel.storage.lsm
 
 import com.tracel.storage.lsm.write.SyncPolicy
+
 /**
  * `Tracel` LSM configuration.
  *

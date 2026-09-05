@@ -9,6 +9,12 @@ import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockDataKey
 import com.tracel.model.world.EntityTypeKey
+import com.tracel.storage.codec.Packed.BLOCK
+import com.tracel.storage.codec.Packed.ENTITY
+import com.tracel.storage.codec.Packed.ITEM_ENTITY
+import com.tracel.storage.codec.Packed.PLACED_BLOCK
+import com.tracel.storage.codec.Packed.PLACED_ENTITY
+import com.tracel.storage.codec.Packed.PLAYER
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8
@@ -17,7 +23,7 @@ import com.tracel.storage.ffm.Bytes.putI64
 import com.tracel.storage.ffm.Bytes.putI8
 import com.tracel.storage.ffm.Bytes.readBytes
 import java.lang.foreign.MemorySegment
-import java.util.UUID
+import java.util.*
 
 /**
  * Binary encodings of the two things worth interning.
@@ -122,7 +128,8 @@ object Packed {
         val material = String(v.readBytes(2, materialLen), Charsets.UTF_8)
         val at = 2L + materialLen
         val decorationLen = ((v.i8(at).toInt() and 0xFF) shl 8) or (v.i8(at + 1).toInt() and 0xFF)
-        val decoration = if (decorationLen == 0) null else ContentHash(String(v.readBytes(at + 2, decorationLen), Charsets.UTF_8))
+        val decoration =
+            if (decorationLen == 0) null else ContentHash(String(v.readBytes(at + 2, decorationLen), Charsets.UTF_8))
         return ItemKey(material, decoration)
     }
 

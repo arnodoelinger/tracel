@@ -6,12 +6,7 @@ import com.tracel.engine.log.LookupRegion
 import com.tracel.engine.world.BlockEdit
 import com.tracel.engine.world.BlockEdits
 import com.tracel.model.id.WorldId
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.BlockExtras
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
-import com.tracel.model.world.ChangeSubject
+import com.tracel.model.world.*
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
@@ -20,7 +15,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 
 class SectionDeltaLogTest {
     private val SECTION_FULL = 4096
@@ -178,7 +173,8 @@ class SectionDeltaLogTest {
         Stack(dir).use { stack ->
             val chestAt = BlockPos(world, 6, 64, 6)
             val chest = BlockShape(BlockDataKey("minecraft:chest[facing=north]"), BlockExtras.Opaque(byteArrayOf(4, 2)))
-            val edits = section(SECTION_FULL).map { if (it.at == chestAt) BlockEdit(it.at, chest, BlockShape.AIR) else it }
+            val edits =
+                section(SECTION_FULL).map { if (it.at == chestAt) BlockEdit(it.at, chest, BlockShape.AIR) else it }
             blastDirect(stack, edits)
 
             val change = stack.worldLog.at(chestAt).single()
@@ -214,7 +210,7 @@ class SectionDeltaLogTest {
             assertTrue(
                 bytesIn(pair) < bytesIn(apart),
                 "two blocks of one event must cost less together than apart: " +
-                    "${bytesIn(pair)} against ${bytesIn(apart)}",
+                        "${bytesIn(pair)} against ${bytesIn(apart)}",
             )
 
             Stack(dir.resolve("read")).use { stack ->
@@ -231,7 +227,13 @@ class SectionDeltaLogTest {
     fun `an event spanning sections is split into one record for each`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             val edits = (0 until 3).flatMap { s ->
-                (0 until 20).map { i -> BlockEdit(BlockPos(world, i and 15, 64 + s * 16, i shr 4), stone, BlockShape.AIR) }
+                (0 until 20).map { i ->
+                    BlockEdit(
+                        BlockPos(world, i and 15, 64 + s * 16, i shr 4),
+                        stone,
+                        BlockShape.AIR
+                    )
+                }
             }
             blast(stack, edits)
 
@@ -327,13 +329,25 @@ class SectionDeltaLogTest {
             assertTrue(
                 stack.gate.blocks(
                     CauseKind.EXPLOSION, ActionKind.BLOCK_BREAK, steve, 1_700_000_000_000L, world,
-                    (0 until 64).map { BlockEdit(BlockPos(world, it and 15, 64 + (it shr 4), 0), stone, BlockShape.AIR) },
+                    (0 until 64).map {
+                        BlockEdit(
+                            BlockPos(world, it and 15, 64 + (it shr 4), 0),
+                            stone,
+                            BlockShape.AIR
+                        )
+                    },
                 )
             )
             assertTrue(
                 stack.gate.blocks(
                     CauseKind.EXPLOSION, ActionKind.BLOCK_BREAK, alex, 1_700_000_001_000L, world,
-                    (0 until 64).map { BlockEdit(BlockPos(world, it and 15, 64 + (it shr 4), 1), stone, BlockShape.AIR) },
+                    (0 until 64).map {
+                        BlockEdit(
+                            BlockPos(world, it and 15, 64 + (it shr 4), 1),
+                            stone,
+                            BlockShape.AIR
+                        )
+                    },
                 )
             )
             stack.drain()

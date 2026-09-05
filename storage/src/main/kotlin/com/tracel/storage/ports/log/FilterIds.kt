@@ -29,6 +29,6 @@ internal fun Interning.idsFor(unit: StorageUnit, filter: LookupFilter): FilterId
         world = world,
         regionWorld = filter.region?.let { findWorldId(unit, it.world) },
         matchesNothing = (filter.holders.isNotEmpty() && holders.isEmpty()) ||
-            (filter.world != null && world == null),
+                (filter.world != null && world == null),
     )
 }

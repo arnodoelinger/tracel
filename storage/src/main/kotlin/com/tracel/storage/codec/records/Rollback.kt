@@ -9,11 +9,7 @@ import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.TxnId
 import com.tracel.model.id.WorldId
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
-import com.tracel.model.world.EntityShape
-import com.tracel.model.world.EntityTypeKey
+import com.tracel.model.world.*
 import com.tracel.storage.ffm.Bytes.i16
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
@@ -25,7 +21,7 @@ import com.tracel.storage.ffm.Bytes.putI8
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.ffm.Bytes.writeBytes
 import java.lang.foreign.MemorySegment
-import java.util.UUID
+import java.util.*
 
 object Rollback {
     private const val STRUCT_SET_BLOCK: Byte = 0
@@ -57,8 +53,24 @@ object Rollback {
                 writeBytes(29L + target.size, expected)
             }
         }
-        is StructureStep.SpawnEntity -> entity(STRUCT_SPAWN_ENTITY, step.at, step.entity, step.shape, worldId, entityTypeId)
-        is StructureStep.RemoveEntity -> entity(STRUCT_REMOVE_ENTITY, step.at, step.entity, step.shape, worldId, entityTypeId)
+
+        is StructureStep.SpawnEntity -> entity(
+            STRUCT_SPAWN_ENTITY,
+            step.at,
+            step.entity,
+            step.shape,
+            worldId,
+            entityTypeId
+        )
+
+        is StructureStep.RemoveEntity -> entity(
+            STRUCT_REMOVE_ENTITY,
+            step.at,
+            step.entity,
+            step.shape,
+            worldId,
+            entityTypeId
+        )
     }
 
     @Suppress("NOTHING_TO_INLINE")
@@ -87,8 +99,14 @@ object Rollback {
                     cornerY + Section.sectionPositionY(packed),
                     cornerZ + Section.sectionPositionZ(packed),
                 ),
-                BlockShape(blockData(Section.sectionBefore(v, index, tail)), World.decodeBlockExtras(extras?.before ?: EMPTY_BYTES)),
-                BlockShape(blockData(Section.sectionAfter(v, index, tail)), World.decodeBlockExtras(extras?.after ?: EMPTY_BYTES)),
+                BlockShape(
+                    blockData(Section.sectionBefore(v, index, tail)),
+                    World.decodeBlockExtras(extras?.before ?: EMPTY_BYTES)
+                ),
+                BlockShape(
+                    blockData(Section.sectionAfter(v, index, tail)),
+                    World.decodeBlockExtras(extras?.after ?: EMPTY_BYTES)
+                ),
             )
         }
     }
@@ -109,11 +127,20 @@ object Rollback {
                 StructureStep.SetBlock(
                     at,
                     BlockShape(blockData(v.i32(17)), World.decodeBlockExtras(v.readBytes(29, targetLen))),
-                    BlockShape(blockData(v.i32(21)), World.decodeBlockExtras(v.readBytes(29L + targetLen, expectedLen))),
+                    BlockShape(
+                        blockData(v.i32(21)),
+                        World.decodeBlockExtras(v.readBytes(29L + targetLen, expectedLen))
+                    ),
                 )
             }
+
             STRUCT_SPAWN_ENTITY -> StructureStep.SpawnEntity(at, UUID(v.i64(21), v.i64(29)), decodeShape(v, entityType))
-            STRUCT_REMOVE_ENTITY -> StructureStep.RemoveEntity(at, UUID(v.i64(21), v.i64(29)), decodeShape(v, entityType))
+            STRUCT_REMOVE_ENTITY -> StructureStep.RemoveEntity(
+                at,
+                UUID(v.i64(21), v.i64(29)),
+                decodeShape(v, entityType)
+            )
+
             else -> error("unrecognized structure step kind: $kind")
         }
     }
@@ -166,14 +193,17 @@ object Rollback {
             putI8(0, STEP_TAKE); putI64(1, step.lotId.raw); putI64(9, step.quantity.raw)
             putI32(17, holderId(step.holder))
         }
+
         is RollbackStep.Mint -> recordBytes(18) {
             putI8(0, STEP_MINT); putI64(1, step.lotId.raw); putI64(9, step.quantity.raw)
             putI8(17, step.reason.ordinal.toByte())
         }
+
         is RollbackStep.Debt -> recordBytes(33) {
             putI8(0, STEP_DEBT); putI64(1, step.lotId.raw); putI64(9, step.quantity.raw)
             putI64(17, step.player.mostSignificantBits); putI64(25, step.player.leastSignificantBits)
         }
+
         is RollbackStep.Unmake -> recordBytes(23 + step.inputs.size * 16) {
             putI8(0, STEP_UNMAKE); putI64(1, step.outputLot.raw); putI64(9, step.craftedBy.raw)
             putI32(17, holderId(step.holder)); putI16(21, step.inputs.size.toShort())
@@ -197,6 +227,7 @@ object Rollback {
                 }
                 RollbackStep.Unmake(LotId(v.i64(1)), inputs, TxnId(v.i64(9)), holder(v.i32(17)))
             }
+
             else -> error("unrecognized rollback step kind: $kind")
         }
 }

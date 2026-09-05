@@ -16,30 +16,31 @@ import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
-import java.nio.file.Path
-import java.util.UUID
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
+import java.util.*
 
 class PortsTest {
     @Test
-    fun `journal progress survives a reopen and does not cross between rollback and undo`(@TempDir dir: Path) = runTest {
-        val job = RollbackJobId(4)
-        Stack(dir).use { stack ->
-            stack.journal.markCompleted(job, 3)
-            assertTrue(stack.journal.isCompleted(job, 3))
-            assertFalse(stack.involutionJournal.isCompleted(job, 3), "undo progress is not rollback progress")
+    fun `journal progress survives a reopen and does not cross between rollback and undo`(@TempDir dir: Path) =
+        runTest {
+            val job = RollbackJobId(4)
+            Stack(dir).use { stack ->
+                stack.journal.markCompleted(job, 3)
+                assertTrue(stack.journal.isCompleted(job, 3))
+                assertFalse(stack.involutionJournal.isCompleted(job, 3), "undo progress is not rollback progress")
+            }
+            Stack(dir).use { stack ->
+                assertTrue(
+                    stack.journal.isCompleted(job, 3),
+                    "a journal that forgets across a restart is not a journal"
+                )
+                assertFalse(stack.journal.isCompleted(job, 4))
+            }
         }
-        Stack(dir).use { stack ->
-            assertTrue(stack.journal.isCompleted(job, 3), "a journal that forgets across a restart is not a journal")
-            assertFalse(stack.journal.isCompleted(job, 4))
-        }
-    }
 
     @Test
     fun `completed is the marked steps, not a probe of every index up to count`(@TempDir dir: Path) = runTest {
@@ -162,7 +163,13 @@ class PortsTest {
     fun `a plan with more than ten steps still comes back in order`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             val steps = (1..40).map { RollbackStep.Take(LotId(it.toLong()), Quantity(1), player(1)) }
-            stack.jobs.save(RollbackJobRecord(RollbackJobId(1), RollbackPlan(steps), RollbackTarget.Uniform(block(0, 64, 0))))
+            stack.jobs.save(
+                RollbackJobRecord(
+                    RollbackJobId(1),
+                    RollbackPlan(steps),
+                    RollbackTarget.Uniform(block(0, 64, 0))
+                )
+            )
             val found = stack.jobs.find(RollbackJobId(1))?.plan?.steps.orEmpty()
             assertEquals(steps, found, "step 10 must not sort before step 9")
         }

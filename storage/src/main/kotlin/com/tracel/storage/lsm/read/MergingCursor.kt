@@ -178,7 +178,7 @@ internal class MergingCursor(
         if (scratchLength < 0) error("cursor is not positioned")
         val key = scratch
         return ((key[at].toInt() and 0xFF) shl 24) or ((key[at + 1].toInt() and 0xFF) shl 16) or
-            ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
+                ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
     }
 
     override fun keyU64(at: Int): Long {
@@ -218,20 +218,28 @@ internal class MergingCursor(
                 if (!r1.valid) return 0
                 return if (less(r1, r0)) 1 else 0
             }
+
             3 -> {
                 var best = -1
                 var winner = r0
                 if (r0.valid) best = 0
-                if (r1.valid && (best < 0 || less(r1, winner))) { best = 1; winner = r1 }
+                if (r1.valid && (best < 0 || less(r1, winner))) {
+                    best = 1; winner = r1
+                }
                 if (r2.valid && (best < 0 || less(r2, winner))) best = 2
                 return best
             }
+
             4 -> {
                 var best = -1
                 var winner = r0
                 if (r0.valid) best = 0
-                if (r1.valid && (best < 0 || less(r1, winner))) { best = 1; winner = r1 }
-                if (r2.valid && (best < 0 || less(r2, winner))) { best = 2; winner = r2 }
+                if (r1.valid && (best < 0 || less(r1, winner))) {
+                    best = 1; winner = r1
+                }
+                if (r2.valid && (best < 0 || less(r2, winner))) {
+                    best = 2; winner = r2
+                }
                 if (r3.valid && (best < 0 || less(r3, winner))) best = 3
                 return best
             }
@@ -241,7 +249,7 @@ internal class MergingCursor(
 
     private fun sameUserKey(run: Run, userKey: ByteArray, length: Int): Boolean =
         run.userKeyLength == length &&
-            SegmentCompare.compare(run.keySegment, run.keyOffset, length, userKey, length) == 0
+                SegmentCompare.compare(run.keySegment, run.keyOffset, length, userKey, length) == 0
 
     private companion object {
         @Suppress("RedundantNullableReturnType")

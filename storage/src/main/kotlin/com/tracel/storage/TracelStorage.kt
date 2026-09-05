@@ -8,18 +8,18 @@ import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
-import java.nio.file.Path
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import kotlin.coroutines.AbstractCoroutineContextElement
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.nio.file.Path
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 
 /**
  * The one door into the store. You better not touch storage at all.
@@ -134,7 +134,7 @@ class TracelStorage private constructor(
         fun joined(): StorageUnit {
             check(thread === Thread.currentThread()) {
                 "unit of work opened on ${thread.name} was re-entered from ${Thread.currentThread().name} — " +
-                    "an atomically { } block must not leave the storage thread"
+                        "an atomically { } block must not leave the storage thread"
             }
             return unit
         }

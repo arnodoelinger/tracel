@@ -343,7 +343,7 @@ class KeyWriter(size: Int) {
 object KeyReader {
     fun u32(key: ByteArray, at: Int): Int =
         ((key[at].toInt() and 0xFF) shl 24) or ((key[at + 1].toInt() and 0xFF) shl 16) or
-            ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
+                ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
 
     fun u64(key: ByteArray, at: Int): Long {
         var value = 0L

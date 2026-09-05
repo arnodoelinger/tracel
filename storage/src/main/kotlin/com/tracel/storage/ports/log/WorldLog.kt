@@ -6,19 +6,10 @@ import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
 import com.tracel.engine.world.BlockEdit
 import com.tracel.engine.world.BlockEdits
-import com.tracel.engine.world.WorldLog as WorldLogPort
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.WorldId
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.EntityShape
-import com.tracel.model.world.EntityTypeKey
-import com.tracel.model.world.LogKind
-import com.tracel.model.world.WorldChange
+import com.tracel.model.world.*
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
@@ -30,6 +21,7 @@ import com.tracel.storage.util.eachIndex
 import com.tracel.storage.util.pageNewest
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
+import com.tracel.engine.world.WorldLog as WorldLogPort
 
 /**
  * The world-change log, plus the indexes that make it searchable.
@@ -211,8 +203,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
     private fun sectionOf(x: Int, y: Int, z: Int): Long =
         ((x shr 4).toLong() and 0x1FFFFF shl 42) or
-            ((z shr 4).toLong() and 0x1FFFFF shl 21) or
-            ((y shr 4).toLong() and 0x1FFFFF)
+                ((z shr 4).toLong() and 0x1FFFFF shl 21) or
+                ((y shr 4).toLong() and 0x1FFFFF)
 
     /**
      * Two families answer this: the per-coordinate one, and the per-section one that the deltas
@@ -308,8 +300,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             else -> null
         }
         val inlineWorld = includeWorld && scans != null && region != null && regionWorldId != null &&
-            (filterWorldId == null || filterWorldId == regionWorldId) &&
-            filter.material == null && filter.offset == 0 && filter.limit == Int.MAX_VALUE
+                (filterWorldId == null || filterWorldId == regionWorldId) &&
+                filter.material == null && filter.offset == 0 && filter.limit == Int.MAX_VALUE
         val worldRows = if (inlineWorld) SpatialRows() else null
 
         val (worldSeqs, txnSeqs) = if (scans != null && scans.isEmpty()) {
@@ -331,6 +323,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                     worldRows != null -> QueryProbe.phase("world rows") {
                         fromRows(unit, worldRows, filter, ids, regionWorldId!!, structureEnds)
                     }
+
                     else -> QueryProbe.phase("world records") {
                         loadSeqs(unit, worldArr, filter, ids, structureEnds)
                     }
@@ -375,7 +368,15 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
         if (batched) {
             val seqs = ascending(
-                gatherSeqs(LogKind.WORLD, scans, filter.since, filter.until, Int.MAX_VALUE, filter.excludedCauses, region),
+                gatherSeqs(
+                    LogKind.WORLD,
+                    scans,
+                    filter.since,
+                    filter.until,
+                    Int.MAX_VALUE,
+                    filter.excludedCauses,
+                    region
+                ),
             )
             return@read loadSeqs(this, seqs, filter, ids, structureEnds = false)
         }
@@ -631,8 +632,12 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             slot[1] = i
         }
         for (slot in ends.values) {
-            if (!pick[slot[0]]) { pick[slot[0]] = true; count++ }
-            if (!pick[slot[1]]) { pick[slot[1]] = true; count++ }
+            if (!pick[slot[0]]) {
+                pick[slot[0]] = true; count++
+            }
+            if (!pick[slot[1]]) {
+                pick[slot[1]] = true; count++
+            }
         }
 
         val resolved = resolveAll(unit, records, pick)
@@ -716,8 +721,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         if ((x shr 4) !in region.minChunkX..region.maxChunkX) return false
         if ((z shr 4) !in region.minChunkZ..region.maxChunkZ) return false
         return x + 15 >= region.minX && x <= region.maxX &&
-            y + 15 >= region.minY && y <= region.maxY &&
-            z + 15 >= region.minZ && z <= region.maxZ
+                y + 15 >= region.minY && y <= region.maxY &&
+                z + 15 >= region.minZ && z <= region.maxZ
     }
 
     private class Resolved(
@@ -864,8 +869,22 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
         val subject = when (val kind = Records.wchgKind(record)) {
             Records.CHANGE_BLOCK -> ChangeSubject.Block(
-                blockShape(unit, Records.blockChangeBefore(record), Records.blockChangeBeforeExtrasLength(record), record, before = true, resolved = resolved),
-                blockShape(unit, Records.blockChangeAfter(record), Records.blockChangeAfterExtrasLength(record), record, before = false, resolved = resolved),
+                blockShape(
+                    unit,
+                    Records.blockChangeBefore(record),
+                    Records.blockChangeBeforeExtrasLength(record),
+                    record,
+                    before = true,
+                    resolved = resolved
+                ),
+                blockShape(
+                    unit,
+                    Records.blockChangeAfter(record),
+                    Records.blockChangeAfterExtrasLength(record),
+                    record,
+                    before = false,
+                    resolved = resolved
+                ),
             )
 
             Records.CHANGE_ENTITY -> {
@@ -877,9 +896,19 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 val beforePayload = Records.entityChangeBeforeExtras(record).takeIf { beforeLen > 0 } ?: ByteArray(0)
                 val afterPayload = Records.entityChangeAfterExtras(record).takeIf { afterLen > 0 } ?: ByteArray(0)
                 val before = Records.decodeEntityShape(type, at, beforePayload)
-                    ?: if (action == ActionKind.ENTITY_SPAWN) null else EntityShape(type, at.x + 0.5, at.y.toDouble(), at.z + 0.5)
+                    ?: if (action == ActionKind.ENTITY_SPAWN) null else EntityShape(
+                        type,
+                        at.x + 0.5,
+                        at.y.toDouble(),
+                        at.z + 0.5
+                    )
                 val after = Records.decodeEntityShape(type, at, afterPayload)
-                    ?: if (action == ActionKind.ENTITY_REMOVE) null else EntityShape(type, at.x + 0.5, at.y.toDouble(), at.z + 0.5)
+                    ?: if (action == ActionKind.ENTITY_REMOVE) null else EntityShape(
+                        type,
+                        at.x + 0.5,
+                        at.y.toDouble(),
+                        at.z + 0.5
+                    )
                 ChangeSubject.Entity(Records.entityChangeUuid(record), type, before, after)
             }
 

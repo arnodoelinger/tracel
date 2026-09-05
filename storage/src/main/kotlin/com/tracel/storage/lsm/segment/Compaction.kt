@@ -2,6 +2,7 @@ package com.tracel.storage.lsm.segment
 
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.state.Version
+
 /**
  * Segments to merge into one, and whether this merge is allowed to forget deletions.
  *
