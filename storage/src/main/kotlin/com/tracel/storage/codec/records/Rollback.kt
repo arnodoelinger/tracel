@@ -2,6 +2,7 @@ package com.tracel.storage.codec.records
 
 import com.tracel.engine.rollback.plan.LotContribution
 import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.UnmadeOutput
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
@@ -24,15 +25,42 @@ import java.lang.foreign.MemorySegment
 import java.util.*
 
 object Rollback {
+    /**
+     * Binary codec for structure and rollback steps.
+     *
+     * Encodes steps into compact byte records and decodes them back from memory segments.
+     */
     private const val STRUCT_SET_BLOCK: Byte = 0
     private const val STRUCT_SPAWN_ENTITY: Byte = 1
     private const val STRUCT_REMOVE_ENTITY: Byte = 2
+
+    /** A structure step that changes an entity's shape in place. */
+    private const val STRUCT_CHANGE_ENTITY: Byte = 4
+
+    /** Fixed size of an encoded entity shape before its extras. */
+    private const val SHAPE_BYTES = 71L
+
+    /** Fixed size of the second entity shape after the first shape's extras. */
+    private const val POSE_TAIL_BYTES = 34L
 
     private const val STEP_TAKE: Byte = 0
     private const val STEP_MINT: Byte = 1
     private const val STEP_DEBT: Byte = 2
     private const val STEP_UNMAKE: Byte = 3
 
+    /** An [RollbackStep.Unmake] with multiple outputs or output holders. */
+    private const val STEP_UNMAKE_MANY: Byte = 4
+
+    /**
+     * Binary codec for structure and rollback steps.
+     *
+     * Encodes steps into compact byte records and decodes them back from memory segments.
+     *
+     * @param step a structure step to encode.
+     * @param worldId a function that returns the world ID for a given world.
+     * @param blockDataId a function that returns the block data ID for a given block data key.
+     * @param entityTypeId a function that returns the entity type ID for a given entity type key.
+     */
     fun structureStep(
         step: StructureStep,
         worldId: (WorldId) -> Int,
@@ -54,14 +82,13 @@ object Rollback {
             }
         }
 
-        is StructureStep.SpawnEntity -> entity(
-            STRUCT_SPAWN_ENTITY,
-            step.at,
-            step.entity,
-            step.shape,
-            worldId,
-            entityTypeId
-        )
+        is StructureStep.SpawnEntity -> step.expected.let { expected ->
+            if (expected == null) {
+                entity(STRUCT_SPAWN_ENTITY, step.at, step.entity, step.shape, worldId, entityTypeId)
+            } else {
+                changedEntity(step.at, step.entity, step.shape, expected, worldId, entityTypeId)
+            }
+        }
 
         is StructureStep.RemoveEntity -> entity(
             STRUCT_REMOVE_ENTITY,
@@ -73,6 +100,10 @@ object Rollback {
         )
     }
 
+    /**
+     * Decodes a structure memory segment into a series of structure steps and appends them to the
+     * specified output list.
+     */
     @Suppress("NOTHING_TO_INLINE")
     inline fun decodeStructureInto(
         v: MemorySegment,
@@ -111,8 +142,10 @@ object Rollback {
         }
     }
 
+    /** @return the tag byte for a structure section. */
     fun structureSectionTag(): Byte = Section.STRUCT_SECTION
 
+    /** Decodes a structure memory segment into a single structure step. */
     fun decodeStructureStep(
         v: MemorySegment,
         world: (Int) -> WorldId,
@@ -135,6 +168,13 @@ object Rollback {
             }
 
             STRUCT_SPAWN_ENTITY -> StructureStep.SpawnEntity(at, UUID(v.i64(21), v.i64(29)), decodeShape(v, entityType))
+            STRUCT_CHANGE_ENTITY -> StructureStep.SpawnEntity(
+                at,
+                UUID(v.i64(21), v.i64(29)),
+                decodeShape(v, entityType),
+                decodeExpectedShape(v, entityType),
+            )
+
             STRUCT_REMOVE_ENTITY -> StructureStep.RemoveEntity(
                 at,
                 UUID(v.i64(21), v.i64(29)),
@@ -167,6 +207,54 @@ object Rollback {
             putI32(65, shape.pitch.toRawBits())
             putI16(69, extras.size.toShort())
             writeBytes(71, extras)
+        }
+    }
+
+    private fun decodeExpectedShape(v: MemorySegment, entityType: (Int) -> EntityTypeKey): EntityShape {
+        val base = SHAPE_BYTES + (v.i16(69).toInt() and 0xFFFF)
+        val extras = v.i16(base + 32).toInt() and 0xFFFF
+        return EntityShape(
+            entityType(v.i32(17)),
+            Double.fromBits(v.i64(base)),
+            Double.fromBits(v.i64(base + 8)),
+            Double.fromBits(v.i64(base + 16)),
+            Float.fromBits(v.i32(base + 24)),
+            Float.fromBits(v.i32(base + 28)),
+            World.decodeEntityExtras(v.readBytes(base + 34, extras)),
+        )
+    }
+
+    private fun changedEntity(
+        at: BlockPos,
+        entity: UUID,
+        shape: EntityShape,
+        expected: EntityShape,
+        worldId: (WorldId) -> Int,
+        entityTypeId: (EntityTypeKey) -> Int,
+    ): ByteArray {
+        val extras = World.entityExtras(shape.extras)
+        val tail = World.entityExtras(expected.extras)
+        World.checkExtras(extras, tail)
+        return recordBytes((SHAPE_BYTES + extras.size + POSE_TAIL_BYTES + tail.size).toInt()) {
+            position(STRUCT_CHANGE_ENTITY, worldId(at.world), at)
+            putI32(17, entityTypeId(shape.type))
+            putI64(21, entity.mostSignificantBits)
+            putI64(29, entity.leastSignificantBits)
+            putI64(37, shape.x.toRawBits())
+            putI64(45, shape.y.toRawBits())
+            putI64(53, shape.z.toRawBits())
+            putI32(61, shape.yaw.toRawBits())
+            putI32(65, shape.pitch.toRawBits())
+            putI16(69, extras.size.toShort())
+            writeBytes(SHAPE_BYTES, extras)
+            val base = SHAPE_BYTES + extras.size
+            putI64(base, expected.x.toRawBits())
+            putI64(base + 8, expected.y.toRawBits())
+            putI64(base + 16, expected.z.toRawBits())
+            putI32(base + 24, expected.yaw.toRawBits())
+            putI32(base + 28, expected.pitch.toRawBits())
+            putI16(base + 32, tail.size.toShort())
+            writeBytes(base + 34, tail)
         }
     }
 
@@ -204,12 +292,33 @@ object Rollback {
             putI64(17, step.player.mostSignificantBits); putI64(25, step.player.leastSignificantBits)
         }
 
-        is RollbackStep.Unmake -> recordBytes(23 + step.inputs.size * 16) {
-            putI8(0, STEP_UNMAKE); putI64(1, step.outputLot.raw); putI64(9, step.craftedBy.raw)
-            putI32(17, holderId(step.holder)); putI16(21, step.inputs.size.toShort())
-            step.inputs.forEachIndexed { i, input ->
-                putI64(23L + i * 16, input.lotId.raw)
-                putI64(31L + i * 16, input.quantity.raw)
+        is RollbackStep.Unmake -> {
+            val single = step.outputs.singleOrNull()?.takeIf { it.holder == step.holder }
+            if (single != null) {
+                recordBytes(23 + step.inputs.size * 16) {
+                    putI8(0, STEP_UNMAKE); putI64(1, single.lotId.raw); putI64(9, step.craftedBy.raw)
+                    putI32(17, holderId(step.holder)); putI16(21, step.inputs.size.toShort())
+                    step.inputs.forEachIndexed { i, input ->
+                        putI64(23L + i * 16, input.lotId.raw)
+                        putI64(31L + i * 16, input.quantity.raw)
+                    }
+                }
+            } else {
+                val outputsAt = 17L
+                val inputsAt = outputsAt + step.outputs.size * 12
+                recordBytes((inputsAt + step.inputs.size * 16).toInt()) {
+                    putI8(0, STEP_UNMAKE_MANY); putI64(1, step.craftedBy.raw)
+                    putI32(9, holderId(step.holder))
+                    putI16(13, step.outputs.size.toShort()); putI16(15, step.inputs.size.toShort())
+                    step.outputs.forEachIndexed { i, output ->
+                        putI64(outputsAt + i * 12, output.lotId.raw)
+                        putI32(outputsAt + 8 + i * 12, holderId(output.holder))
+                    }
+                    step.inputs.forEachIndexed { i, input ->
+                        putI64(inputsAt + i * 16, input.lotId.raw)
+                        putI64(inputsAt + 8 + i * 16, input.quantity.raw)
+                    }
+                }
             }
         }
     }
@@ -225,7 +334,24 @@ object Rollback {
                 for (i in 0 until count) {
                     inputs += LotContribution(LotId(v.i64(23L + i * 16)), Quantity(v.i64(31L + i * 16)))
                 }
-                RollbackStep.Unmake(LotId(v.i64(1)), inputs, TxnId(v.i64(9)), holder(v.i32(17)))
+                val at = holder(v.i32(17))
+                RollbackStep.Unmake(listOf(UnmadeOutput(LotId(v.i64(1)), at)), inputs, TxnId(v.i64(9)), at)
+            }
+
+            STEP_UNMAKE_MANY -> {
+                val outputCount = v.i16(13).toInt() and 0xFFFF
+                val inputCount = v.i16(15).toInt() and 0xFFFF
+                val outputsAt = 17L
+                val inputsAt = outputsAt + outputCount * 12
+                val outputs = ArrayList<UnmadeOutput>(outputCount)
+                for (i in 0 until outputCount) {
+                    outputs += UnmadeOutput(LotId(v.i64(outputsAt + i * 12)), holder(v.i32(outputsAt + 8 + i * 12)))
+                }
+                val inputs = ArrayList<LotContribution>(inputCount)
+                for (i in 0 until inputCount) {
+                    inputs += LotContribution(LotId(v.i64(inputsAt + i * 16)), Quantity(v.i64(inputsAt + 8 + i * 16)))
+                }
+                RollbackStep.Unmake(outputs, inputs, TxnId(v.i64(1)), holder(v.i32(9)))
             }
 
             else -> error("unrecognized rollback step kind: $kind")

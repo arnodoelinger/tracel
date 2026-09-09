@@ -2,17 +2,19 @@ package com.tracel.engine.rollback.involution
 
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.RequiresLease
-import com.tracel.engine.capture.craftFlows
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.ledger.LotPortion
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.ownership.LotLease
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
+import com.tracel.model.holder.SourceKind
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
+import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction
 import com.tracel.platform.storage.UnitOfWork
 
@@ -28,23 +30,84 @@ public class InvolutionExecutor(
     private val log: TransactionLog,
     private val nextSeq: suspend () -> Seq,
 ) : UnitOfWork by ledger {
+    /**
+     * Checks whether all steps can be applied without overdrawing any holder.
+     *
+     * Steps are checked in order, so a later step can spend items returned by an earlier one.
+     *
+     * The check is done before applying anything. Otherwise, a failed step could leave the undo only
+     * partially applied. We don't want that.
+     *
+     * [InvolutionStep.Remake] is skipped because its ingredient ownership cannot be determined here.
+     * The original craft logic already knows which holder supplied them, so trying to guess it here
+     * would reject valid, real undos.
+     */
+    @RequiresLease
+    public suspend fun checkSatisfiable(lease: LotLease, steps: List<InvolutionStep>): Unit = atomically {
+        val pending = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
+        val known = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
+
+        /** Balance of an [itemKey] in a [holder]. */
+        suspend fun balanceOf(holder: HolderId, itemKey: ItemKey): Long {
+            val account = holder to itemKey
+            val actual = known[account] ?: (ledger.totalAt(holder, itemKey)?.raw ?: 0L).also { known[account] = it }
+            return actual + pending.getOrDefault(account, 0L)
+        }
+
+        /** Debit [amount] of [itemKey] from [holder]. */
+        suspend fun debit(holder: HolderId, itemKey: ItemKey, amount: Long) {
+            val available = balanceOf(holder, itemKey)
+            check(available >= amount) {
+                "insufficient balance at $holder for $itemKey: needed $amount, have $available"
+            }
+            pending.merge(holder to itemKey, -amount, Long::plus)
+        }
+
+        for (step in steps) {
+            when (step) {
+                is InvolutionStep.Return -> {
+                    debit(step.from, step.itemKey, step.quantity.raw)
+                    pending.merge(step.to to step.itemKey, step.quantity.raw, Long::plus)
+                }
+                is InvolutionStep.Retract -> debit(step.from, step.itemKey, step.quantity.raw)
+                is InvolutionStep.Remake -> Unit
+            }
+        }
+    }
+
+    /** Apply an [InvolutionStep] to the ledger. */
     @RequiresLease
     public suspend fun apply(lease: LotLease, step: InvolutionStep, txn: TxnId): Unit = atomically {
         val flows = when (step) {
             is InvolutionStep.Return -> {
-                ledger.move(step.from, step.to, step.itemKey, step.quantity, txn)
+                ledger.moveBack(step.from, step.to, step.lotId, step.itemKey, step.quantity, txn)
                 listOf(Flow(step.itemKey, step.quantity, step.from, step.to, FlowKind.MOVE))
             }
 
             is InvolutionStep.Retract -> {
-                ledger.burn(step.from, step.itemKey, step.quantity, SinkKind.ROLLBACK_BURN, txn)
+                // The mint's own lot
+                val minted = step.compensationLot
+                if (minted != null) {
+                    ledger.burnBack(step.from, minted, step.itemKey, step.quantity, SinkKind.ROLLBACK_BURN, txn)
+                } else {
+                    ledger.burn(step.from, step.itemKey, step.quantity, SinkKind.ROLLBACK_BURN, txn)
+                }
                 step.originalLot?.let { ledger.uncompensate(it, lease.job) }
                 listOf(Flow(step.itemKey, step.quantity, step.from, HolderId.Sink(SinkKind.ROLLBACK_BURN), FlowKind.BURN))
             }
 
             is InvolutionStep.Remake -> {
-                ledger.craft(step.ingredients, step.product, txn)
-                craftFlows(step.ingredients, step.product)
+                val holder = step.product.holder
+                ledger.recraft(
+                    holder,
+                    step.outputs.map { it.holder to LotPortion(it.lotId, it.quantity) },
+                    step.inputs.map { it.lotId to it.quantity },
+                    txn,
+                )
+
+                step.inputs.map {
+                    Flow(it.itemKey, it.quantity, holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)
+                } + Flow(step.product.itemKey, step.product.quantity, HolderId.Source(SourceKind.CRAFT), holder, FlowKind.TRANSFORM_OUT)
             }
         }
 

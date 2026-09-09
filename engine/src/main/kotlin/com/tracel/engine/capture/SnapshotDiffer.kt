@@ -51,6 +51,9 @@ public class SnapshotDiffer(
         return deltasBetween(holder, snapshot.totals, current, fromGap = false)
     }
 
+    /** Whether [holder] has a snapshot [diffIfSeeded] would accept. */
+    public fun seeded(holder: HolderId): Boolean = snapshots[holder]?.seeded == true
+
     private fun deltasBetween(
         holder: HolderId,
         previous: Map<ItemKey, Long>,
@@ -93,10 +96,12 @@ public class SnapshotDiffer(
      */
     public fun adjust(holder: HolderId, itemKey: ItemKey, delta: Long) {
         snapshots.compute(holder) { _, current ->
+            val seeded = current?.seeded == true
             val base = current?.totals.orEmpty()
-            val updated = base.getOrDefault(itemKey, 0L) + delta
+            val sum = base.getOrDefault(itemKey, 0L) + delta
+            val updated = if (seeded) sum.coerceAtLeast(0L) else sum
             val totals = if (updated == 0L) base - itemKey else base + (itemKey to updated)
-            Snapshot(totals, seeded = current?.seeded == true)
+            Snapshot(totals, seeded)
         }
     }
 

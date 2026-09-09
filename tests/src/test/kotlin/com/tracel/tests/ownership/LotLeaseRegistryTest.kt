@@ -4,9 +4,9 @@ import com.tracel.engine.ownership.InMemoryLotLeaseRegistry
 import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class LotLeaseRegistryTest {

@@ -32,7 +32,7 @@ import java.util.*
  * | :-------------------------------------- | :-------------------- | :-------------------------- | :------------------------------------------------------------------------------------------------ |
  * | Holder: Block / PlacedBlock             | `0` / `1` / 29        | `+0` tag (u8)               | `+1` world UUID (i64 + i64) / `+17` x (i32) / `+21` y (i32) / `+25` z (i32)                       |
  * | Holder: Player / Entity / ItemEntity    | `2` / `3` / `4` | 17  | `+0` tag (u8)               | `+1` entity UUID (i64 + i64)                                                                      |
- * | Holder: PlacedEntity                    | `8`     / 17          | `+0` tag (u8)               | `+1` entity UUID (i64 + i64)                                                                      |
+ * | Holder: PlacedEntity / EnderChest       | `8` / `9` / 17        | `+0` tag (u8)               | `+1` entity UUID (i64 + i64)                                                                      |
  * | Holder: Escrow                          | `5` / 9               | `+0` tag (u8)               | `+1` jobId (i64)                                                                                  |
  * | Holder: Source / Sink                   | `6` / `7` / 2         | `+0` tag (u8)               | `+1` kind ordinal (u8)                                                                            |
  * | WorldId                                 | —       / 16          | `+0` world UUID (i64 + i64) | —                                                                                                 |
@@ -49,6 +49,7 @@ object Packed {
     private const val SOURCE: Byte = 6
     private const val SINK: Byte = 7
     private const val PLACED_ENTITY: Byte = 8
+    private const val ENDER_CHEST: Byte = 9
 
     /**
      * Encodes a [HolderId] into its compact fixed-size binary representation.
@@ -60,6 +61,7 @@ object Packed {
         is HolderId.Block -> block(BLOCK, holder.world, holder.x, holder.y, holder.z)
         is HolderId.PlacedBlock -> block(PLACED_BLOCK, holder.world, holder.x, holder.y, holder.z)
         is HolderId.Player -> uuid(PLAYER, holder.uuid)
+        is HolderId.EnderChest -> uuid(ENDER_CHEST, holder.uuid)
         is HolderId.Entity -> uuid(ENTITY, holder.uuid)
         is HolderId.PlacedEntity -> uuid(PLACED_ENTITY, holder.uuid)
         is HolderId.ItemEntity -> uuid(ITEM_ENTITY, holder.uuid)
@@ -83,6 +85,7 @@ object Packed {
         BLOCK -> HolderId.Block(WorldId(UUID(v.i64(1), v.i64(9))), v.i32(17), v.i32(21), v.i32(25))
         PLACED_BLOCK -> HolderId.PlacedBlock(WorldId(UUID(v.i64(1), v.i64(9))), v.i32(17), v.i32(21), v.i32(25))
         PLAYER -> HolderId.Player(UUID(v.i64(1), v.i64(9)))
+        ENDER_CHEST -> HolderId.EnderChest(UUID(v.i64(1), v.i64(9)))
         ENTITY -> HolderId.Entity(UUID(v.i64(1), v.i64(9)))
         PLACED_ENTITY -> HolderId.PlacedEntity(UUID(v.i64(1), v.i64(9)))
         ITEM_ENTITY -> HolderId.ItemEntity(UUID(v.i64(1), v.i64(9)))

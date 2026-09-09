@@ -83,13 +83,22 @@ object Records {
     fun pendingItemKeyId(v: MemorySegment) = Job.pendingItemKeyId(v)
     fun pendingDelta(v: MemorySegment) = Job.pendingDelta(v)
     fun pendingJobId(v: MemorySegment) = Job.pendingJobId(v)
-    fun rbJob(restoreToHolderId: Int, stepCount: Int, createCount: Int, destroyCount: Int) =
-        Job.rbJob(restoreToHolderId, stepCount, createCount, destroyCount)
+    fun rbJob(
+        restoreToHolderId: Int,
+        stepCount: Int,
+        createCount: Int,
+        destroyCount: Int,
+        targetTimeMillis: Long,
+        hasTargetTime: Boolean,
+        executedAtMillis: Long,
+    ) = Job.rbJob(restoreToHolderId, stepCount, createCount, destroyCount, targetTimeMillis, hasTargetTime, executedAtMillis)
 
     fun rbJobRestoreTo(v: MemorySegment) = Job.rbJobRestoreTo(v)
     fun rbJobStepCount(v: MemorySegment) = Job.rbJobStepCount(v)
     fun rbJobCreateCount(v: MemorySegment) = Job.rbJobCreateCount(v)
     fun rbJobDestroyCount(v: MemorySegment) = Job.rbJobDestroyCount(v)
+    fun rbJobTargetTime(v: MemorySegment) = Job.rbJobTargetTime(v)
+    fun rbJobExecutedAt(v: MemorySegment) = Job.rbJobExecutedAt(v)
     fun structureStep(
         step: StructureStep,
         worldId: (WorldId) -> Int,

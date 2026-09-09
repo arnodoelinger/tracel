@@ -4,9 +4,10 @@ import com.tracel.engine.capture.SnapshotDiffer
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
+import com.tracel.tests.support.Fixtures.player
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class SnapshotDifferTest {
@@ -188,6 +189,17 @@ class SnapshotDifferTest {
 
         val deltas = differ.diff(player, mapOf(diamond to 6L))
         assertTrue(deltas.isEmpty(), "10 believed, 4 dropped, 6 held")
+    }
+
+    @Test
+    fun `a drop the seeded snapshot never saw arrive does not read back as a gain`() = runTest {
+        val differ = SnapshotDiffer()
+        val steve = player(1)
+        differ.diff(steve, emptyMap())
+        differ.adjust(steve, diamond, -2L)
+
+        val deltas = differ.diff(steve, emptyMap())
+        assertTrue(deltas.isEmpty(), "the stack that just left must not come back as a phantom gain")
     }
 
     @Test

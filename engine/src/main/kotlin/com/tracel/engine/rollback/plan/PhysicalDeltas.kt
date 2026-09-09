@@ -27,20 +27,33 @@ public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, le
 
         fun destinationFor(lotId: LotId): HolderId = target.destinationFor(plan, lotId)
 
+        val taken = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
+        fun takenAdd(holder: HolderId, itemKey: ItemKey, amount: Long) {
+            taken.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
+        }
+
         for (step in plan.steps) {
             when (step) {
                 is RollbackStep.Take -> {
                     val key = ledger.itemKeyOf(step.lotId)
                     add(step.holder, key, -step.quantity.raw)
                     add(destinationFor(step.lotId), key, step.quantity.raw)
+                    takenAdd(destinationFor(step.lotId), key, step.quantity.raw)
                 }
 
-                is RollbackStep.Mint -> add(destinationFor(step.lotId), ledger.itemKeyOf(step.lotId), step.quantity.raw)
+                is RollbackStep.Mint -> {
+                    val key = ledger.itemKeyOf(step.lotId)
+                    val dest = destinationFor(step.lotId)
+                    if ((taken[dest]?.get(key) ?: 0L) > 0L) continue
+                    add(dest, key, step.quantity.raw)
+                }
                 is RollbackStep.Debt -> add(destinationFor(step.lotId), ledger.itemKeyOf(step.lotId), step.quantity.raw)
 
                 is RollbackStep.Unmake -> {
-                    add(step.holder, ledger.itemKeyOf(step.outputLot), -ledger.quantityOf(step.outputLot).raw)
-                    for (input in step.inputs) add(step.holder, ledger.itemKeyOf(input.lotId), input.quantity.raw)
+                    for ((lotId, holder) in step.outputs) {
+                        add(holder, ledger.itemKeyOf(lotId), -ledger.quantityOf(lotId).raw)
+                    }
+                    for ((lotId, quantity) in step.inputs) add(step.holder, ledger.itemKeyOf(lotId), quantity.raw)
                 }
             }
         }
@@ -58,6 +71,9 @@ public fun physicalDeltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map
         deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
     }
 
+    val physicallyReturned = steps.asSequence().filterIsInstance<InvolutionStep.Return>()
+        .mapTo(HashSet()) { it.from to it.itemKey }
+
     for (step in steps) {
         when (step) {
             is InvolutionStep.Return -> {
@@ -65,11 +81,16 @@ public fun physicalDeltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map
                 add(step.to, step.itemKey, step.quantity.raw)
             }
 
-            is InvolutionStep.Retract -> add(step.from, step.itemKey, -step.quantity.raw)
+            is InvolutionStep.Retract -> {
+                if (step.from to step.itemKey in physicallyReturned) continue
+                add(step.from, step.itemKey, -step.quantity.raw)
+            }
 
             is InvolutionStep.Remake -> {
-                for ((holder, itemKey, quantity) in step.ingredients) add(holder, itemKey, -quantity.raw)
-                add(step.product.holder, step.product.itemKey, step.product.quantity.raw)
+                for ((_, itemKey, quantity) in step.inputs) add(step.product.holder, itemKey, -quantity.raw)
+                // Back to the holders the unmake took the pieces off, which for a split output
+                // need not be the one the ingredients came from.
+                for ((_, quantity, holder) in step.outputs) add(holder, step.product.itemKey, quantity.raw)
             }
         }
     }

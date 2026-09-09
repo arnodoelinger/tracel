@@ -29,7 +29,7 @@ public data class RollbackPlan(
                 is RollbackStep.Mint -> add(step.lotId)
                 is RollbackStep.Debt -> add(step.lotId)
                 is RollbackStep.Unmake -> {
-                    add(step.outputLot)
+                    step.outputs.forEach { add(it.lotId) }
                     step.inputs.forEach { add(it.lotId) }
                 }
             }

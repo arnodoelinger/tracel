@@ -72,6 +72,11 @@ public class InvolutionJobCoordinator(
                 if (index in 0..<n) setBit(words, index)
             }
 
+            // Before the first step, over what is actually left to do. A resumed undo has
+            // already spent the withdrawals it journaled, so checking those again would refuse
+            // a job that is merely half finished.
+            executor.checkSatisfiable(lease, steps.filterIndexed { index, _ -> !isSet(words, index) })
+
             val stride = if (crashPoint == CrashPoint.None) batchSize else 1
             var from = 0
             while (from < n) {

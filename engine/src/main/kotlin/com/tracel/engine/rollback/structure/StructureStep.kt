@@ -1,5 +1,6 @@
 package com.tracel.engine.rollback.structure
 
+import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.BlockShape
 import com.tracel.model.world.EntityShape
@@ -7,13 +8,14 @@ import java.util.UUID
 
 /** One stuff a rollback has to do to the world's shape. */
 public sealed interface StructureStep {
+    /** The position. */
     public val at: BlockPos
 
     /**
-     * Put [target] back at [at].
+     * Puts [target] back at [at].
      *
-     * [expected] is what the log says stands there now. Checked before anything is written, so a
-     * coordinate somebody has since rebuilt gets reported instead of silently flattened.
+     * [expected] is the state currently recorded at this position. If it changed since the plan
+     * was created, the step is rejected instead of overwriting somebody else's changes.
      */
     public data class SetBlock(
         override val at: BlockPos,
@@ -22,24 +24,25 @@ public sealed interface StructureStep {
     ) : StructureStep
 
     /**
-     * Make [entity] exist again in [shape].
+     * Spawns [entity] with [shape].
      *
-     * Keyed by the original UUID, so applying this twice leaves one boat rather than two, and an
-     * undo afterwards knows which one to take away again.
+     * [expected] is the entity's current recorded shape, or null if it no longer exists.
+     * It is used to build the inverse step and to detect changes made after the plan was created.
      */
+    @Unstable
     public data class SpawnEntity(
         override val at: BlockPos,
         public val entity: UUID,
         public val shape: EntityShape,
+        public val expected: EntityShape? = null,
     ) : StructureStep
 
     /**
-     * Take [entity] away — it was spawned inside the window being rolled back.
+     * Removes [entity], preserving its [shape] so the step can be undone.
      *
-     * Carries the [shape] it had when it was taken, which is what makes the step reversible: an
-     * undo has to put back the same boat, in the same place, facing the same way, and a step that
-     * only knew a UUID could not.
+     * This is used for entities created inside the rollback window.
      */
+    @Unstable
     public data class RemoveEntity(
         override val at: BlockPos,
         public val entity: UUID,
@@ -48,12 +51,15 @@ public sealed interface StructureStep {
 }
 
 /**
- * The step that puts back what this one changed.
+ * Returns the structural change that undoes this step.
  *
- * Every structural step is reversible.
+ * Applying a step and then its inverse restores the previous structural state.
  */
 public fun StructureStep.inverse(): StructureStep = when (this) {
     is StructureStep.SetBlock -> StructureStep.SetBlock(at, expected, target)
-    is StructureStep.SpawnEntity -> StructureStep.RemoveEntity(at, entity, shape)
+    is StructureStep.SpawnEntity ->
+        if (expected == null) StructureStep.RemoveEntity(at, entity, shape)
+        else StructureStep.SpawnEntity(at, entity, expected, shape)
+
     is StructureStep.RemoveEntity -> StructureStep.SpawnEntity(at, entity, shape)
 }

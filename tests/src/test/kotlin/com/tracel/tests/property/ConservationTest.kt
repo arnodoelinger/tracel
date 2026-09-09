@@ -7,9 +7,9 @@ import com.tracel.model.flow.isBalanced
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class ConservationTest {

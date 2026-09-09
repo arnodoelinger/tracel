@@ -6,18 +6,18 @@ import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
-import com.tracel.engine.rollback.plan.escrowDeliveries
 import com.tracel.engine.rollback.plan.destinationFor
+import com.tracel.engine.rollback.plan.escrowDeliveries
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
+import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
-import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction
 import com.tracel.platform.storage.UnitOfWork
@@ -71,8 +71,8 @@ public class RollbackExecutor(
                 is RollbackStep.Mint -> ids += step.lotId
                 is RollbackStep.Debt -> ids += step.lotId
                 is RollbackStep.Unmake -> {
-                    ids += step.outputLot
-                    for (input in step.inputs) ids += input.lotId
+                    for ((lotId) in step.outputs) ids += lotId
+                    for ((lotId) in step.inputs) ids += lotId
                 }
             }
         }
@@ -106,12 +106,15 @@ public class RollbackExecutor(
             }
 
             is RollbackStep.Unmake -> {
-                val outputKey = ledger.itemKeyOf(step.outputLot)
-                val outputQty = ledger.quantityOf(step.outputLot)
-                ledger.destroy(step.holder, step.outputLot)
+                val outputKey = ledger.itemKeyOf(step.outputs.first().lotId)
+                var outputQty = 0L
+                for (output in step.outputs) {
+                    outputQty += ledger.quantityOf(output.lotId).raw
+                    ledger.destroy(output.holder, output.lotId)
+                }
                 for ((lotId, quantity) in step.inputs) ledger.restore(step.holder, lotId, quantity)
 
-                listOf(Flow(outputKey, outputQty, step.holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)) +
+                listOf(Flow(outputKey, Quantity(outputQty), step.holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)) +
                     step.inputs.map { input ->
                         Flow(ledger.itemKeyOf(input.lotId), input.quantity, HolderId.Source(SourceKind.CRAFT), step.holder, FlowKind.TRANSFORM_OUT)
                     }

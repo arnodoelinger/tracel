@@ -1,3 +1,5 @@
+@file:Suppress("KotlinMisorderedAssertEqualsArguments")
+
 package com.tracel.tests.rollback
 
 import com.tracel.annotations.CauseKind
@@ -12,13 +14,15 @@ import com.tracel.model.world.BlockDataKey
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.BlockShape
 import com.tracel.model.world.ChangeSubject
+import com.tracel.model.world.EntityExtras
 import com.tracel.model.world.EntityShape
+import com.tracel.model.world.vehicle
 import com.tracel.model.world.EntityTypeKey
 import com.tracel.model.world.WorldChange
+import java.util.UUID
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class StructurePlannerTest {
     private val world = WorldId(UUID(0L, 1L))
@@ -28,6 +32,11 @@ class StructurePlannerTest {
     private val stone = BlockShape(BlockDataKey("minecraft:stone"))
     private val cobble = BlockShape(BlockDataKey("minecraft:cobblestone"))
     private val chest = BlockShape(BlockDataKey("minecraft:chest[facing=north]"))
+    private val redstone = BlockShape(BlockDataKey("minecraft:redstone_block"))
+    private val sand = BlockShape(BlockDataKey("minecraft:sand"))
+    private val fire = BlockShape(BlockDataKey("minecraft:fire[age=0,east=false,north=false,south=false,up=false,west=false]"))
+
+    private val tnt = BlockShape(BlockDataKey("minecraft:tnt[unstable=false]"))
 
     private fun block(seq: Long, before: BlockShape, after: BlockShape, at: BlockPos = here) = WorldChange(
         Seq(seq), ActionKind.BLOCK_CHANGE, CauseKind.PLAYER_ACTION, steve, seq, at,
@@ -41,6 +50,43 @@ class StructurePlannerTest {
     )
 
     private fun boat() = EntityShape(EntityTypeKey("minecraft:chest_boat"), 10.5, 70.0, -3.5)
+
+    private val sponge = BlockShape(BlockDataKey("minecraft:sponge"))
+    private val wetSponge = BlockShape(BlockDataKey("minecraft:wet_sponge"))
+    private val water = BlockShape(BlockDataKey("minecraft:water[level=0]"))
+
+    @Test
+    fun `a sponge is removed as the wet sponge it has become, and its lake comes back`() {
+        val drank = BlockPos(world, 11, 70, -3)
+        val (create, destroy) = StructurePlanner().plan(
+            listOf(
+                block(1, BlockShape.AIR, sponge),
+                block(2, sponge, wetSponge),
+                block(3, water, BlockShape.AIR, at = drank),
+            )
+        )
+
+        assertEquals(
+            listOf(StructureStep.SetBlock(here, BlockShape.AIR, wetSponge)),
+            destroy,
+            "the sponge goes, and what stands there now is a wet one",
+        )
+        assertEquals(
+            listOf(StructureStep.SetBlock(drank, water, BlockShape.AIR)),
+            create,
+            "and the water it drank is put back",
+        )
+    }
+
+    @Test
+    fun `a sponge older than the window is dried, not taken away`() {
+        val (create, destroy) = StructurePlanner().plan(
+            listOf(block(1, sponge, wetSponge))
+        )
+
+        assertEquals(listOf(StructureStep.SetBlock(here, sponge, wetSponge)), create)
+        assertTrue(destroy.isEmpty(), "it was not placed in this window, so it is not removed")
+    }
 
     @Test
     @Suppress("KotlinMisorderedAssertEqualsArguments")
@@ -110,7 +156,7 @@ class StructurePlannerTest {
     }
 
     @Test
-    fun `a chest placed then exploded in the same window is put back`() {
+    fun `a chest placed then exploded in the same window is not put back`() {
         val changes = listOf(
             WorldChange(
                 Seq(2), ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, steve, 2, here,
@@ -119,26 +165,288 @@ class StructurePlannerTest {
             block(1, BlockShape.AIR, chest),
         )
         val (create, destroy) = StructurePlanner().plan(changes)
-        assertTrue(destroy.isEmpty())
-        assertEquals(chest, (create.single() as StructureStep.SetBlock).target)
+        assertTrue(create.isEmpty() && destroy.isEmpty(), "ten days ago the chest was not there")
     }
 
     @Test
-    fun `an entity placed then exploded in the same window is spawned back`() {
+    fun `a redstone block placed then exploded in the same window is not put back`() {
+        val changes = listOf(
+            WorldChange(
+                Seq(2), ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, steve, 2, here,
+                ChangeSubject.Block(redstone, BlockShape.AIR),
+            ),
+            block(1, BlockShape.AIR, redstone),
+        )
+        val (create, destroy) = StructurePlanner().plan(changes)
+        assertTrue(create.isEmpty() && destroy.isEmpty())
+        assertEquals(setOf(here), StructurePlanner().cellsAirToAir(changes))
+    }
+
+    @Test
+    fun `sand blown up then lit still restores to sand, even if the list is not newest-first`() {
+        val sandToFire = WorldChange(
+            Seq(1), ActionKind.BLOCK_PLACE, CauseKind.EXPLOSION, null, 1, here,
+            ChangeSubject.Block(sand, fire),
+        )
+        val airToFire = WorldChange(
+            Seq(2), ActionKind.BLOCK_PLACE, CauseKind.EXPLOSION, null, 2, here,
+            ChangeSubject.Block(BlockShape.AIR, fire),
+        )
+        for (order in listOf(listOf(airToFire, sandToFire), listOf(sandToFire, airToFire))) {
+            val (create, destroy) = StructurePlanner().plan(order)
+            assertTrue(destroy.isEmpty(), "putting fire out to air drops the sand")
+            val step = create.single() as StructureStep.SetBlock
+            assertEquals(sand, step.target, "before the blast it was sand")
+            assertEquals(fire, step.expected)
+        }
+    }
+
+    @Test
+    fun `tnt placed then detonated in the same window is not stood back up`() {
+        val changes = listOf(
+            WorldChange(
+                Seq(2), ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, steve, 2, here,
+                ChangeSubject.Block(tnt, BlockShape.AIR),
+            ),
+            block(1, BlockShape.AIR, tnt),
+        )
+        val (create, destroy) = StructurePlanner().plan(changes)
+        assertTrue(create.isEmpty())
+        assertTrue(destroy.isEmpty())
+    }
+
+    @Test
+    fun `tnt that stood there before the window is put back`() {
+        val changes = listOf(
+            WorldChange(
+                Seq(1), ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, steve, 1, here,
+                ChangeSubject.Block(tnt, BlockShape.AIR),
+            ),
+        )
+        val (create, destroy) = StructurePlanner().plan(changes)
+        assertTrue(destroy.isEmpty())
+        assertEquals(tnt, (create.single() as StructureStep.SetBlock).target)
+    }
+
+    @Test
+    fun `a frame hung then exploded in the same window is spawned back`() {
         val uuid = UUID(9, 9)
-        val hull = boat()
+        val hull = EntityShape(EntityTypeKey("minecraft:glow_item_frame"), 10.5, 70.0, -3.5)
         val changes = listOf(
             WorldChange(
                 Seq(2), ActionKind.ENTITY_REMOVE, CauseKind.EXPLOSION, steve, 2, here,
                 ChangeSubject.Entity(uuid, hull.type, hull, null),
             ),
-            entity(1, uuid, null, hull),
+            WorldChange(
+                Seq(1), ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, steve, 1, here,
+                ChangeSubject.Entity(uuid, hull.type, null, hull),
+            ),
         )
         val (create, destroy) = StructurePlanner().plan(changes)
         assertTrue(destroy.isEmpty())
         val step = create.single() as StructureStep.SpawnEntity
         assertEquals(uuid, step.entity)
         assertEquals(hull, step.shape)
+    }
+
+    @Test
+    fun `grass broken to hang a frame is not put back on top of the restored frame`() {
+        val uuid = UUID(15, 15)
+        val hull = EntityShape(EntityTypeKey("minecraft:glow_item_frame"), 10.5, 70.0, -3.5)
+        val grass = BlockShape(BlockDataKey("minecraft:short_grass"))
+        val changes = listOf(
+            WorldChange(
+                Seq(3), ActionKind.ENTITY_REMOVE, CauseKind.EXPLOSION, steve, 3, here,
+                ChangeSubject.Entity(uuid, hull.type, hull, null),
+            ),
+            WorldChange(
+                Seq(2), ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, steve, 2, here,
+                ChangeSubject.Entity(uuid, hull.type, null, hull),
+            ),
+            block(1, grass, BlockShape.AIR),
+        )
+        val (create, destroy) = StructurePlanner().plan(changes)
+        assertTrue(destroy.isEmpty())
+        assertEquals(1, create.size, "grass in the frame's cell would pop it")
+        val step = create.single() as StructureStep.SpawnEntity
+        assertEquals(uuid, step.entity)
+    }
+
+    @Test
+    fun `grass broken over a killed sheep is put back, and the sheep with it`() {
+        val uuid = UUID(16, 16)
+        val sheep = EntityShape(EntityTypeKey("minecraft:sheep"), 10.5, 70.0, -3.5)
+        val grass = BlockShape(BlockDataKey("minecraft:short_grass"))
+        val changes = listOf(
+            WorldChange(
+                Seq(2), ActionKind.ENTITY_REMOVE, CauseKind.EXPLOSION, steve, 2, here,
+                ChangeSubject.Entity(uuid, sheep.type, sheep, null),
+            ),
+            block(1, grass, BlockShape.AIR),
+        )
+        val (create, destroy) = StructurePlanner().plan(changes)
+
+        assertTrue(destroy.isEmpty())
+        assertEquals(2, create.size, "the grass and the sheep both come back")
+        assertTrue(create.any { it is StructureStep.SetBlock && it.target == grass })
+        assertTrue(create.any { it is StructureStep.SpawnEntity && it.shape == sheep })
+    }
+
+    @Test
+    fun `a cow tied up in the window is planned back loose, and the knot goes with it`() {
+        val cow = UUID(21, 21)
+        val knot = UUID(22, 22)
+        val loose = EntityShape(EntityTypeKey("minecraft:cow"), 10.5, 70.0, -3.5)
+        val tied = loose.copy(extras = EntityExtras.Leashed(knot, null))
+        val knotShape = EntityShape(EntityTypeKey("minecraft:leash_knot"), 12.5, 70.0, -3.5)
+        val changes = listOf(
+            WorldChange(
+                Seq(1), ActionKind.ENTITY_CHANGE, CauseKind.PLAYER_ACTION, steve, 1, here,
+                ChangeSubject.Entity(cow, loose.type, loose, tied),
+            ),
+            WorldChange(
+                Seq(2), ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, steve, 2, here,
+                ChangeSubject.Entity(knot, knotShape.type, null, knotShape),
+            ),
+        )
+        val (create, destroy) = StructurePlanner().plan(changes)
+
+        assertEquals(1, create.size)
+        assertTrue(create.any { it is StructureStep.SpawnEntity && it.shape == loose })
+        assertTrue(destroy.any { it is StructureStep.RemoveEntity && it.entity == knot })
+    }
+
+    @Test
+    fun `a cow untied in the window is planned back onto the knot it was on`() {
+        val cow = UUID(23, 23)
+        val knot = UUID(24, 24)
+        val loose = EntityShape(EntityTypeKey("minecraft:cow"), 10.5, 70.0, -3.5)
+        val tied = loose.copy(extras = EntityExtras.Leashed(knot, null))
+        val (create, _) = StructurePlanner().plan(
+            listOf(
+                WorldChange(
+                    Seq(1), ActionKind.ENTITY_CHANGE, CauseKind.PLAYER_ACTION, steve, 1, here,
+                    ChangeSubject.Entity(cow, loose.type, tied, loose),
+                ),
+            ),
+        )
+
+        val step = create.filterIsInstance<StructureStep.SpawnEntity>().single()
+        assertEquals(knot, (step.shape.extras as EntityExtras.Leashed).holder, "the other end has to travel")
+    }
+
+    @Test
+    fun `undoing a change in place puts the shape back rather than deleting the entity`() {
+        val cow = UUID(41, 41)
+        val knot = UUID(42, 42)
+        val loose = EntityShape(EntityTypeKey("minecraft:mooshroom"), 10.5, 70.0, -3.5)
+        val tied = loose.copy(extras = EntityExtras.Leashed(knot, null))
+        val (create, _) = StructurePlanner().plan(
+            listOf(
+                WorldChange(
+                    Seq(1), ActionKind.ENTITY_CHANGE, CauseKind.PLAYER_ACTION, steve, 1, here,
+                    ChangeSubject.Entity(cow, loose.type, loose, tied),
+                ),
+            ),
+        )
+
+        val step = create.single() as StructureStep.SpawnEntity
+        assertEquals(loose, step.shape, "the rollback unties it")
+        assertEquals(tied, step.expected, "and remembers what it found")
+
+        val undone = step.inverse() as StructureStep.SpawnEntity
+        assertEquals(tied, undone.shape, "the undo ties it up again")
+        assertEquals(loose, undone.expected)
+        assertEquals(step, undone.inverse(), "and the pair is a round trip")
+    }
+
+    @Test
+    fun `undoing a resurrection still takes the entity away`() {
+        val uuid = UUID(43, 43)
+        val sheep = EntityShape(EntityTypeKey("minecraft:sheep"), 10.5, 70.0, -3.5)
+        val (create, _) = StructurePlanner().plan(
+            listOf(
+                WorldChange(
+                    Seq(1), ActionKind.ENTITY_REMOVE, CauseKind.PLAYER_ACTION, steve, 1, here,
+                    ChangeSubject.Entity(uuid, sheep.type, sheep, null),
+                ),
+            ),
+        )
+
+        val step = create.single() as StructureStep.SpawnEntity
+        assertEquals(null, step.expected)
+        assertTrue(step.inverse() is StructureStep.RemoveEntity)
+    }
+
+    @Test
+    fun `two pigs thrown out of a boat are planned back into it`() {
+        val boat = UUID(31, 31)
+        val hull = EntityShape(EntityTypeKey("minecraft:boat"), 10.5, 70.0, -3.5)
+        fun pig(id: Long): Pair<UUID, EntityShape> =
+            UUID(id, id) to EntityShape(EntityTypeKey("minecraft:pig"), 10.5, 70.0, -3.5)
+
+        val (first, firstShape) = pig(32)
+        val (second, secondShape) = pig(33)
+        val seated = { it: EntityShape -> it.copy(extras = EntityExtras.Riding(boat, null)) }
+        val changes = listOf(
+            WorldChange(
+                Seq(1), ActionKind.ENTITY_REMOVE, CauseKind.PLAYER_ACTION, steve, 1, here,
+                ChangeSubject.Entity(boat, hull.type, hull, null),
+            ),
+            WorldChange(
+                Seq(2), ActionKind.ENTITY_CHANGE, CauseKind.WORLD, null, 2, here,
+                ChangeSubject.Entity(first, firstShape.type, seated(firstShape), firstShape),
+            ),
+            WorldChange(
+                Seq(3), ActionKind.ENTITY_CHANGE, CauseKind.WORLD, null, 3, here,
+                ChangeSubject.Entity(second, secondShape.type, seated(secondShape), secondShape),
+            ),
+        )
+        val (create, _) = StructurePlanner().plan(changes)
+
+        val spawns = create.filterIsInstance<StructureStep.SpawnEntity>()
+        assertEquals(3, spawns.size, "the boat and both riders")
+        assertEquals(
+            listOf(boat, boat),
+            spawns.filter { it.entity != boat }.map { it.shape.extras.vehicle },
+            "both riders name the boat they sat in",
+        )
+    }
+
+    @Test
+    fun `a frame hung then punched in the same window is not spawned back`() {
+        val uuid = UUID(13, 13)
+        val hull = EntityShape(EntityTypeKey("minecraft:glow_item_frame"), 10.5, 70.0, -3.5)
+        val changes = listOf(
+            WorldChange(
+                Seq(2), ActionKind.ENTITY_REMOVE, CauseKind.PLAYER_ACTION, steve, 2, here,
+                ChangeSubject.Entity(uuid, hull.type, hull, null),
+            ),
+            WorldChange(
+                Seq(1), ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, steve, 1, here,
+                ChangeSubject.Entity(uuid, hull.type, null, hull),
+            ),
+        )
+        val (create, destroy) = StructurePlanner().plan(changes)
+        assertTrue(create.isEmpty() && destroy.isEmpty(), "punching it is not an explosion")
+    }
+
+    @Test
+    fun `primed tnt that exploded is not stood back up even if spawn is in the window`() {
+        val uuid = UUID(11, 11)
+        val hull = EntityShape(EntityTypeKey("minecraft:tnt"), 10.5, 70.0, -3.5)
+        val changes = listOf(
+            WorldChange(
+                Seq(2), ActionKind.ENTITY_REMOVE, CauseKind.EXPLOSION, steve, 2, here,
+                ChangeSubject.Entity(uuid, hull.type, hull, null),
+            ),
+            WorldChange(
+                Seq(1), ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, steve, 1, here,
+                ChangeSubject.Entity(uuid, hull.type, null, hull),
+            ),
+        )
+        val (create, destroy) = StructurePlanner().plan(changes)
+        assertTrue(create.isEmpty() && destroy.isEmpty())
     }
 
     @Test
@@ -201,9 +509,9 @@ class StructurePlannerTest {
 
         assertEquals(emptyList<StructureStep>(), destroy)
         assertEquals(3, create.size)
-        for (step in create.map { it as StructureStep.SetBlock }) {
-            assertEquals(stone, step.target, "${step.at} took the oldest change's before")
-            assertEquals(chest, step.expected, "${step.at} took the newest change's after")
+        for ((at, target, expected) in create.map { it as StructureStep.SetBlock }) {
+            assertEquals(stone, target, "$at took the oldest change's before")
+            assertEquals(chest, expected, "$at took the newest change's after")
         }
         assertEquals(positions.toSet(), create.map { (it as StructureStep.SetBlock).at }.toSet())
     }

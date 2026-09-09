@@ -26,7 +26,13 @@ class RollbackJobPersistenceTest {
         listOf(
             RollbackStep.Take(LotId(1), Quantity(3), block(0, 64, 0)),
             RollbackStep.Mint(LotId(2), Quantity(1), SinkKind.LAVA),
-            RollbackStep.Unmake(LotId(3), listOf(LotContribution(LotId(4), Quantity(9))), TxnId(7), player(1)),
+            RollbackStep.Unmake(listOf(UnmadeOutput(LotId(3), player(1))), listOf(LotContribution(LotId(4), Quantity(9))), TxnId(7), player(1)),
+            RollbackStep.Unmake(
+                listOf(UnmadeOutput(LotId(5), player(1)), UnmadeOutput(LotId(6), player(1))),
+                listOf(LotContribution(LotId(7), Quantity(2))),
+                TxnId(8),
+                player(1),
+            ),
         )
     )
 
@@ -40,6 +46,15 @@ class RollbackJobPersistenceTest {
             at,
             boat,
             EntityShape(EntityTypeKey("minecraft:chest_boat"), 10.5, 70.25, -3.75, 90f, -12.5f),
+        ),
+        StructureStep.SpawnEntity(
+            at,
+            UUID(11, 11),
+            EntityShape(EntityTypeKey("minecraft:mooshroom"), 1.5, 70.0, -3.5, 12f, 4f),
+            EntityShape(
+                EntityTypeKey("minecraft:mooshroom"), 1.75, 70.0, -3.25, 15f, 4f,
+                EntityExtras.Leashed(UUID(12, 12), EntityExtras.Opaque(byteArrayOf(7, 7))),
+            ),
         ),
     )
 
@@ -62,6 +77,53 @@ class RollbackJobPersistenceTest {
             assertEquals(RollbackTarget.Uniform(player(1)), read.target)
             assertEquals(create, read.create)
             assertEquals(destroy, read.destroy)
+        }
+    }
+
+    @Test
+    fun `a job's target and run time round-trip`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val record = RollbackJobRecord(
+                RollbackJobId(20), plan, RollbackTarget.Uniform(player(1)), create, destroy,
+                targetTimeMillis = 12_345L, executedAtMillis = 67_890L,
+            )
+            stack.jobs.save(record)
+
+            val read = stack.jobs.find(RollbackJobId(20))!!
+            assertEquals(12_345L, read.targetTimeMillis)
+            assertEquals(67_890L, read.executedAtMillis)
+        }
+    }
+
+    @Test
+    fun `a job with no lower time bound round-trips a null target time`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val record = RollbackJobRecord(
+                RollbackJobId(21), plan, RollbackTarget.Uniform(player(1)),
+                targetTimeMillis = null, executedAtMillis = 5_000L,
+            )
+            stack.jobs.save(record)
+
+            val read = stack.jobs.find(RollbackJobId(21))!!
+            assertNull(read.targetTimeMillis)
+            assertEquals(5_000L, read.executedAtMillis)
+        }
+    }
+
+    @Test
+    fun `a job written before the timestamps existed reads back as unknown, not broken`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val id = RollbackJobId(22)
+            stack.jobs.save(RollbackJobRecord(id, plan, RollbackTarget.Uniform(player(1)), create, destroy))
+
+            val current = stack.storage.read { get(Keys.rbJob(id.raw))!! }
+            val legacy = ByteArray(16) { i -> current.get(java.lang.foreign.ValueLayout.JAVA_BYTE, i.toLong()) }
+            stack.storage.write { put(Keys.rbJob(id.raw), legacy) }
+
+            val read = stack.jobs.find(id)!!
+            assertNull(read.targetTimeMillis)
+            assertEquals(0L, read.executedAtMillis)
+            assertEquals(create, read.create, "everything else still reads back fine")
         }
     }
 

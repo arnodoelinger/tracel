@@ -15,10 +15,7 @@ import com.tracel.platform.storage.UnitOfWork
 /**
  * Storage port for lots, their edges, and where they currently sit.
  *
- * A lot's identity and its placement (which holder, how much remains, its
- * queue position) are tracked separately on purpose — see
- * [LotLedger] for why a lot can move
- * between holders without ever becoming a "new" lot.
+ * @see LotLedger
  */
 public interface LotRepository : UnitOfWork {
     /** Creates a new lot of [itemKey] with [quantity], and records that it was created by [createdBy]. */
@@ -74,6 +71,11 @@ public interface LotRepository : UnitOfWork {
         val out = HashMap<LotId, List<LotEdge>>(ids.size)
         for (id in ids) out[id] = edgesInto(id)
         return out
+    }
+
+    /** Warms whatever [lot] reads from for every one of [ids], in one pass. */
+    public suspend fun prefetchLots(ids: Collection<LotId>) {
+        for (id in ids) runCatching { lot(id) }
     }
 
     /** [lot] for many ids in one snapshot. */

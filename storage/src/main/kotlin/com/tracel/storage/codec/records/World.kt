@@ -28,7 +28,11 @@ object World {
     private const val EXTRAS_OPAQUE: Byte = 0
     private const val EXTRAS_POSED: Byte = 1
     private const val EXTRAS_FALLING: Byte = 2
+    private const val EXTRAS_LEASHED: Byte = 3
+    private const val EXTRAS_RIDING: Byte = 4
     private const val POSE_BYTES = 33
+
+    const val LINK_BYTES = 17
 
     fun blockExtras(extras: BlockExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
@@ -45,6 +49,18 @@ object World {
         null -> ByteArray(0)
         is EntityExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.nbt)
         is EntityExtras.Falling -> tagged(EXTRAS_FALLING, extras.data.value.toByteArray(Charsets.UTF_8))
+        is EntityExtras.Leashed -> link(EXTRAS_LEASHED, extras.holder, extras.rest)
+        is EntityExtras.Riding -> link(EXTRAS_RIDING, extras.vehicle, extras.rest)
+    }
+
+    private fun link(tag: Byte, target: UUID, rest: EntityExtras?): ByteArray {
+        val nested = entityExtras(rest)
+        return recordBytes(LINK_BYTES + nested.size) {
+            putI8(0, tag)
+            putI64(1, target.mostSignificantBits)
+            putI64(9, target.leastSignificantBits)
+            writeBytes(LINK_BYTES.toLong(), nested)
+        }
     }
 
     fun decodeEntityExtras(bytes: ByteArray): EntityExtras? = when {
@@ -53,7 +69,23 @@ object World {
         bytes[0] == EXTRAS_FALLING ->
             EntityExtras.Falling(BlockDataKey(String(bytes, 1, bytes.size - 1, Charsets.UTF_8)))
 
+        bytes[0] == EXTRAS_LEASHED -> {
+            val (target, rest) = decodeLink(bytes)
+            EntityExtras.Leashed(target, rest)
+        }
+
+        bytes[0] == EXTRAS_RIDING -> {
+            val (target, rest) = decodeLink(bytes)
+            EntityExtras.Riding(target, rest)
+        }
+
         else -> error("unrecognized entity extras tag: ${bytes[0]}")
+    }
+
+    private fun decodeLink(bytes: ByteArray): Pair<UUID, EntityExtras?> {
+        check(bytes.size >= LINK_BYTES) { "linked extras truncated at ${bytes.size} bytes" }
+        val v = MemorySegment.ofArray(bytes)
+        return UUID(v.i64(1), v.i64(9)) to decodeEntityExtras(bytes.copyOfRange(LINK_BYTES, bytes.size))
     }
 
     fun entityShapePayload(shape: EntityShape?): ByteArray {

@@ -10,9 +10,9 @@ import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
-import kotlinx.atomicfu.atomic
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListMap
+import kotlinx.atomicfu.atomic
 
 /** In-memory [WorldLog]. The reference semantics the native one is checked against. */
 @SingleWriter

@@ -22,17 +22,18 @@ import com.tracel.model.lot.Lot
 import com.tracel.model.lot.LotEdge
 import com.tracel.platform.storage.DirectUnitOfWork
 import com.tracel.platform.storage.UnitOfWork
-import kotlinx.atomicfu.atomic
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.min
+import kotlinx.atomicfu.atomic
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentHashMapOf
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
-import kotlin.math.min
 
 /** In-memory [LotRepository]. */
+// TODO: refactor ts
 @SingleWriter
 @RunsOn(ThreadContext.STORAGE)
 public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWork {
@@ -46,7 +47,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
         writer.checkIn()
         val lot = Lot(LotId(nextLotId.getAndIncrement()), itemKey, quantity, createdBy)
         val s = state.get()
-        state.set(s.copy(lots = s.lots.put(lot.id, lot)))
+        state.set(s.copy(lots = s.lots.putting(lot.id, lot)))
         return lot
     }
 
@@ -205,7 +206,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
         var s = state.get()
         val entry = AccountLot(holder, s.lots.getValue(lotId), quantity, Seq(nextSeq.getAndIncrement()))
         s = s.putPlacement(entry)
-        s = s.copy(holderOf = s.holderOf.put(lotId, holder))
+        s = s.copy(holderOf = s.holderOf.putting(lotId, holder))
         state.set(s)
         return entry
     }
@@ -213,7 +214,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
     override suspend fun remove(holder: HolderId, lotId: LotId) {
         writer.checkIn()
         val s = state.get().unplace(holder, lotId)
-        state.set(s.copy(holderOf = s.holderOf.remove(lotId)))
+        state.set(s.copy(holderOf = s.holderOf.removing(lotId)))
     }
 
     override suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId) {
@@ -224,7 +225,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             ?: error("lot $lotId is not currently placed at $from")
         s = s.unplace(from, lotId)
         s = s.putPlacement(entry.copy(holder = to))
-        state.set(s.copy(holderOf = s.holderOf.put(lotId, to)))
+        state.set(s.copy(holderOf = s.holderOf.putting(lotId, to)))
     }
 
     override suspend fun relocate(from: HolderId, to: HolderId) {
@@ -235,14 +236,14 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
         if (items.isEmpty()) return
         val byLot = s.byLot.builder()
         val holderOf = s.holderOf.builder()
-        s = s.copy(itemsAt = s.itemsAt.remove(from))
+        s = s.copy(itemsAt = s.itemsAt.removing(from))
         for (itemKey in items) {
             val fromKey = s.keyOrNull(from, itemKey) ?: continue
             val moved = s.queues[fromKey] ?: continue
             val qty = s.remainingAt[fromKey] ?: 0L
             s = s.copy(
-                queues = s.queues.remove(fromKey),
-                remainingAt = s.remainingAt.remove(fromKey),
+                queues = s.queues.removing(fromKey),
+                remainingAt = s.remainingAt.removing(fromKey),
                 holdersOf = s.dropFromSet(s.holdersOf, itemKey, from),
             )
             if (moved.isEmpty()) continue
@@ -270,8 +271,8 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
         val queue = AccountQueue.from(s.queues[key])
         queue.replaceLot(retiredLotId, replacement)
         s = s.withQueue(key, queue).copy(
-            byLot = s.byLot.remove(retiredLotId).put(newLotId, replacement),
-            holderOf = s.holderOf.remove(retiredLotId).put(newLotId, holder),
+            byLot = s.byLot.removing(retiredLotId).putting(newLotId, replacement),
+            holderOf = s.holderOf.removing(retiredLotId).putting(newLotId, holder),
         )
         state.set(s.addRemaining(key, remaining.raw - old.remaining.raw))
     }
@@ -345,13 +346,13 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
                 holderOf = holderOf.build(),
                 edgesByParent = edgesByParent.build(),
                 edgesByChild = edgesByChild.build(),
-                remainingAt = if (remaining == 0L) base.remainingAt.remove(key) else base.remainingAt.put(key, remaining),
+                remainingAt = if (remaining == 0L) base.remainingAt.removing(key) else base.remainingAt.putting(key, remaining),
             ).withQueue(key, queue).dropIndexIfEmpty(holder, itemKey, key)
         }
 
         private fun putEdge(edge: LotEdge) {
-            val byParent = (edgesByParent[edge.parent] ?: persistentHashMapOf()).put(edge.child, edge)
-            val byChild = (edgesByChild[edge.child] ?: persistentHashMapOf()).put(edge.parent, edge)
+            val byParent = (edgesByParent[edge.parent] ?: persistentHashMapOf()).putting(edge.child, edge)
+            val byChild = (edgesByChild[edge.child] ?: persistentHashMapOf()).putting(edge.parent, edge)
             edgesByParent[edge.parent] = byParent
             edgesByChild[edge.child] = byChild
         }
@@ -391,23 +392,23 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             var s = this
             val h = internedHolders[holder] ?: run {
                 val n = s.nextHolderNo
-                s = s.copy(internedHolders = s.internedHolders.put(holder, n), nextHolderNo = n + 1)
+                s = s.copy(internedHolders = s.internedHolders.putting(holder, n), nextHolderNo = n + 1)
                 n
             }
             val i = s.internedItems[itemKey] ?: run {
                 val n = s.nextItemNo
-                s = s.copy(internedItems = s.internedItems.put(itemKey, n), nextItemNo = n + 1)
+                s = s.copy(internedItems = s.internedItems.putting(itemKey, n), nextItemNo = n + 1)
                 n
             }
             return s to AccountKey.pack(h, i)
         }
 
         fun putEdge(edge: LotEdge): State {
-            val byParent = (edgesByParent[edge.parent] ?: persistentHashMapOf()).put(edge.child, edge)
-            val byChild = (edgesByChild[edge.child] ?: persistentHashMapOf()).put(edge.parent, edge)
+            val byParent = (edgesByParent[edge.parent] ?: persistentHashMapOf()).putting(edge.child, edge)
+            val byChild = (edgesByChild[edge.child] ?: persistentHashMapOf()).putting(edge.parent, edge)
             return copy(
-                edgesByParent = edgesByParent.put(edge.parent, byParent),
-                edgesByChild = edgesByChild.put(edge.child, byChild),
+                edgesByParent = edgesByParent.putting(edge.parent, byParent),
+                edgesByChild = edgesByChild.putting(edge.child, byChild),
             )
         }
 
@@ -423,7 +424,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             val queue = AccountQueue.from(s.queues[key])
             queue.put(entry)
             return s.withQueue(key, queue)
-                .copy(byLot = s.byLot.put(entry.lot.id, entry))
+                .copy(byLot = s.byLot.putting(entry.lot.id, entry))
                 .addRemaining(key, entry.remaining.raw)
                 .indexAdd(entry.holder, entry.lot.itemKey)
         }
@@ -434,24 +435,24 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             val queue = AccountQueue.from(queues[key])
             if (queue.remove(lotId) == null) return this
             return withQueue(key, queue)
-                .copy(byLot = byLot.remove(lotId))
+                .copy(byLot = byLot.removing(lotId))
                 .addRemaining(key, -entry.remaining.raw)
                 .dropIndexIfEmpty(holder, entry.lot.itemKey, key)
         }
 
         fun withQueue(key: AccountKey, queue: AccountQueue): State =
-            copy(queues = if (queue.isEmpty) queues.remove(key) else queues.put(key, queue.toPersistentList()))
+            copy(queues = if (queue.isEmpty) queues.removing(key) else queues.putting(key, queue.toPersistentList()))
 
         fun addRemaining(key: AccountKey, delta: Long): State {
             if (delta == 0L) return this
             val next = (remainingAt[key] ?: 0L) + delta
-            return copy(remainingAt = if (next == 0L) remainingAt.remove(key) else remainingAt.put(key, next))
+            return copy(remainingAt = if (next == 0L) remainingAt.removing(key) else remainingAt.putting(key, next))
         }
 
         fun indexAdd(holder: HolderId, itemKey: ItemKey): State {
-            val items = (itemsAt[holder] ?: persistentSetOf()).add(itemKey)
-            val holders = (holdersOf[itemKey] ?: persistentSetOf()).add(holder)
-            return copy(itemsAt = itemsAt.put(holder, items), holdersOf = holdersOf.put(itemKey, holders))
+            val items = (itemsAt[holder] ?: persistentSetOf()).adding(itemKey)
+            val holders = (holdersOf[itemKey] ?: persistentSetOf()).adding(holder)
+            return copy(itemsAt = itemsAt.putting(holder, items), holdersOf = holdersOf.putting(itemKey, holders))
         }
 
         fun dropIndexIfEmpty(holder: HolderId, itemKey: ItemKey, key: AccountKey): State {
@@ -481,8 +482,8 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             inner: I,
         ): PersistentMap<K, PersistentMap<I, V>> {
             val nested = map[key] ?: return map
-            val next = nested.remove(inner)
-            return if (next.isEmpty()) map.remove(key) else map.put(key, next)
+            val next = nested.removing(inner)
+            return if (next.isEmpty()) map.removing(key) else map.putting(key, next)
         }
 
         fun <K, E> dropFromSet(
@@ -491,8 +492,8 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             element: E,
         ): PersistentMap<K, PersistentSet<E>> {
             val set = map[key] ?: return map
-            val next = set.remove(element)
-            return if (next.isEmpty()) map.remove(key) else map.put(key, next)
+            val next = set.removing(element)
+            return if (next.isEmpty()) map.removing(key) else map.putting(key, next)
         }
     }
 

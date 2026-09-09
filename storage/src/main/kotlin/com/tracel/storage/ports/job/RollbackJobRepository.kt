@@ -110,7 +110,10 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
             // the stack entry exists there is no job to undo.
             put(
                 Keys.rbJob(record.id.raw),
-                Records.rbJob(uniformHolder, record.plan.steps.size, record.create.size, destroy.size),
+                Records.rbJob(
+                    uniformHolder, record.plan.steps.size, record.create.size, destroy.size,
+                    record.targetTimeMillis ?: 0L, record.targetTimeMillis != null, record.executedAtMillis,
+                ),
             )
             // The undo stack
             put(Keys.rbRecent(record.id.raw), EMPTY)
@@ -254,6 +257,8 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
             target,
             structure.take(createCount),
             structure.drop(createCount),
+            Records.rbJobTargetTime(header),
+            Records.rbJobExecutedAt(header),
         )
     }
 }

@@ -14,10 +14,10 @@ import com.tracel.model.world.BlockShape
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.tests.support.Fixtures.player
+import java.util.UUID
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class InMemoryWorldLogTest {
     private val world = WorldId(UUID(0L, 1L))

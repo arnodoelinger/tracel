@@ -121,6 +121,54 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
             portions
         }
 
+    /** Sends [lotId] back to [to], falling back to FIFO for whatever of [quantity] it cannot cover. */
+    public suspend fun moveBack(
+        from: HolderId,
+        to: HolderId,
+        lotId: LotId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId,
+    ): Unit = atomically {
+        val traced = repo.placementOf(from, lotId)?.remaining?.raw ?: 0L
+        if (traced in 1..quantity.raw) {
+            repo.rehome(from, to, lotId)
+            val owed = quantity.raw - traced
+            if (owed > 0L) move(from, to, itemKey, Quantity(owed), txn)
+        } else {
+            move(from, to, itemKey, quantity, txn)
+        }
+    }
+
+    /**
+     * Burns [lotId] where it sits at [from], falling back to FIFO for whatever of [quantity] it
+     * cannot cover — the burn-side twin of [moveBack].
+     */
+    public suspend fun burnBack(
+        from: HolderId,
+        lotId: LotId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        reason: SinkKind,
+        txn: TxnId,
+    ): Unit = atomically {
+        var owed = quantity.raw
+        val frontier = ArrayDeque(listOf(lotId))
+        val seen = HashSet<LotId>()
+        while (owed > 0L && frontier.isNotEmpty()) {
+            val id = frontier.removeFirst()
+            if (!seen.add(id)) continue
+            val placed = repo.placementOf(from, id)?.remaining
+            if (placed == null) {
+                for (edge in repo.edgesFrom(id)) if (edge is LotEdge.Split) frontier += edge.child
+            } else if (placed.raw <= owed) {
+                deposit(HolderId.Sink(reason), listOf(withdrawExact(from, id)))
+                owed -= placed.raw
+            }
+        }
+        if (owed > 0L) burn(from, itemKey, Quantity(owed), reason, txn)
+    }
+
     /** Puts a previously withdrawn lot back. Same lot id, no new history. */
     public suspend fun restore(holder: HolderId, lotId: LotId, quantity: Quantity) {
         repo.place(holder, lotId, quantity)
@@ -138,6 +186,24 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
             repo.recordEdge(LotEdge.Transform(outputLot.id, lotId, quantity, txn, product.holder))
         }
         CraftResult(outputLot, consumed)
+    }
+
+    /** The exact inverse of the [destroy] + [restore] pair an unmake does. */
+    public suspend fun recraft(
+        holder: HolderId,
+        outputs: List<Pair<HolderId, LotPortion>>,
+        inputs: List<Pair<LotId, Quantity>>,
+        txn: TxnId,
+    ): Unit = atomically {
+        for ((lotId, quantity) in inputs) {
+            val placed = repo.placementOf(holder, lotId)
+            if (placed != null && placed.remaining == quantity) {
+                repo.remove(holder, lotId)
+            } else {
+                withdraw(holder, repo.lot(lotId).itemKey, quantity, txn)
+            }
+        }
+        for ((at, portion) in outputs) repo.place(at, portion.lotId, portion.quantity)
     }
 
     /** Mint a stand-in for a lot that is gone, linked with [LotEdge.Compensate]. */

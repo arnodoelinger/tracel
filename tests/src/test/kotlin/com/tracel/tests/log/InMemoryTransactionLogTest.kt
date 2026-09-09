@@ -4,7 +4,6 @@ import com.tracel.annotations.CauseKind
 import com.tracel.engine.log.InMemoryTransactionLog
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
-import com.tracel.model.id.WorldId
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -12,17 +11,18 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
+import com.tracel.model.id.WorldId
 import com.tracel.model.transaction.Transaction
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.assertFails
+import java.util.UUID
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class InMemoryTransactionLogTest {
     @Test
@@ -89,6 +89,30 @@ class InMemoryTransactionLogTest {
             listOf(txn3, txn1),
             log.query(LookupFilter(excludedCauses = setOf(CauseKind.EXPLOSION))),
         )
+    }
+
+    @Test
+    fun `a rollback's own transactions are invisible to every query`() = runTest {
+        val log = InMemoryTransactionLog()
+        val steve = player(1)
+        val chest = block(0, 64, 0)
+
+        fun row(seq: Long, cause: CauseKind) = Transaction(
+            TxnId(seq),
+            Seq(seq),
+            seq * 1_000L,
+            cause,
+            steve,
+            listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE)),
+        )
+
+        val theft = row(1, CauseKind.PLAYER_ACTION)
+        listOf(theft, row(2, CauseKind.ROLLBACK), row(3, CauseKind.INVOLUTION)).forEach { log.append(it) }
+
+        assertEquals(listOf(theft), log.query(LookupFilter()), "an unfiltered query sees the theft and nothing else")
+        assertEquals(listOf(theft), log.query(LookupFilter(holders = setOf(steve))))
+        assertEquals(emptyList<Transaction>(), log.query(LookupFilter(causes = setOf(CauseKind.ROLLBACK))))
+        assertEquals(emptyList<Transaction>(), log.query(LookupFilter(causes = setOf(CauseKind.INVOLUTION))))
     }
 
     @Test

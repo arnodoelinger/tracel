@@ -9,6 +9,7 @@ import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.Drainer
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
+import com.tracel.storage.ports.container.ContainerSlotLog
 import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.job.RollbackJobRepository
 import com.tracel.storage.ports.ledger.LotLeaseRegistry
@@ -26,6 +27,7 @@ class Stack(path: Path, config: LsmConfig = LsmConfig()) : AutoCloseable {
     val ledger: LotLedger = LotLedger(repo)
     val log: TransactionLog = TransactionLog(storage)
     val worldLog: WorldLog = WorldLog(storage)
+    val containerSlots: ContainerSlotLog = ContainerSlotLog(storage, counters)
     val worldCapture: WorldCaptureCoordinator =
         WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
     val leases: LotLeaseRegistry = LotLeaseRegistry(storage)

@@ -25,7 +25,14 @@ public class WorldCaptureCoordinator(
      *
      * @return how many it wrote.
      */
-    public suspend fun record(edits: BlockEdits): Int = log.appendAll(edits, nextSeqRange)
+    public suspend fun record(edits: BlockEdits): Int {
+        val n = log.appendAll(edits, nextSeqRange)
+//        java.util.logging.Logger.getLogger("Tracel Debug").info(
+//            "[Debug] World | $n change(s) ${edits.action} ${edits.cause} by ${edits.causedBy} " +
+//                edits.edits.joinToString { "${it.at.x}, ${it.at.y}, ${it.at.z} ${it.before.data.value} -> ${it.after.data.value}." },
+//        )
+        return n
+    }
 
     /**
      * Appends one entity change.
@@ -45,6 +52,9 @@ public class WorldCaptureCoordinator(
         after: EntityShape?,
     ) {
         val shape = after ?: before ?: error("an entity change with neither a before nor an after says nothing")
+//        java.util.logging.Logger.getLogger("Tracel Debug").info(
+//            "Entity$action $cause $entity ${before?.type} -> ${after?.type} at ${at.x}, ${at.y}, ${at.z}.",
+//        )
         log.append(
             WorldChange(
                 nextSeq(),

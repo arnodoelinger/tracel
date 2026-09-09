@@ -5,6 +5,7 @@ import com.tracel.engine.ledger.Product
 import com.tracel.engine.rollback.plan.LotContribution
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.UnmadeOutput
 import com.tracel.engine.rollback.plan.physicalDeltas
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
@@ -13,8 +14,8 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
-import org.junit.jupiter.api.Assertions.assertEquals
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class PhysicalDeltasTest {
@@ -64,12 +65,35 @@ class PhysicalDeltasTest {
         )
 
         val plan = RollbackPlan(
-            listOf(RollbackStep.Unmake(crafted.output.id, listOf(LotContribution(ingredientLot.id, Quantity(9))), world.nextTxn(), steve))
+            listOf(RollbackStep.Unmake(listOf(UnmadeOutput(crafted.output.id, steve)), listOf(LotContribution(ingredientLot.id, Quantity(9))), world.nextTxn(), steve))
         )
 
         assertEquals(
             mapOf(steve to mapOf(diamondBlock to -1L, diamond to 9L)),
             physicalDeltas(plan, bob, world.ledger),
+        )
+    }
+
+    @Test
+    fun `a Mint of a key a Take already delivers is not a second physical stack`() = runTest {
+        val world = LedgerHarness()
+        val chest = block(0, 64, 0)
+        val ground = com.tracel.tests.support.Fixtures.itemEntity(9)
+        val live = world.ledger.mint(chest, diamond, Quantity(64), world.nextTxn())
+        world.ledger.move(chest, ground, diamond, Quantity(64), world.nextTxn())
+        val burned = world.ledger.mint(chest, diamond, Quantity(64), world.nextTxn())
+        world.ledger.burn(chest, diamond, Quantity(64), SinkKind.UNATTRIBUTED, world.nextTxn())
+
+        val plan = RollbackPlan(
+            listOf(
+                RollbackStep.Take(live.id, Quantity(64), ground),
+                RollbackStep.Mint(burned.id, Quantity(64), SinkKind.UNATTRIBUTED),
+            )
+        )
+
+        assertEquals(
+            mapOf(ground to mapOf(diamond to -64L), chest to mapOf(diamond to 64L)),
+            physicalDeltas(plan, chest, world.ledger),
         )
     }
 

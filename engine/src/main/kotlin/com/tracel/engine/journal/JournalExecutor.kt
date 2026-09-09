@@ -14,18 +14,11 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
 
 /**
- * Runs a [RollbackPlan] step by step, recording progress in a [Journal] as it goes.
+ * Runs a [RollbackPlan] in batches and records completed steps in the [Journal].
  *
- * A batch is also one transaction. It used to be one per step, which for a plan of a thousand
- * steps meant a thousand transaction records, a thousand ids, and ten thousand index rows to
- * describe a single operation — most of the time the ledger phase spent, and none of it ledger
- * work. See [RollbackExecutor.applyAll].
- *
- * Steps commit in batches, not one at a time. A unit of work ends in an `fsync`, so a plan of
- * five thousand steps used to mean five thousand of them, in single file, on one thread — which
- * is where the seconds in a large rollback actually went, and none of it was doing anything.
+ * Completed steps are skipped when a job resumes after a crash. The final journal entry marks
+ * the rollback as released.
  */
-// TODO: document some parts of code (esp. some val words, etc.)
 @RunsOn(ThreadContext.STORAGE)
 public class JournalExecutor(
     private val executor: RollbackExecutor,
@@ -121,6 +114,10 @@ public class JournalExecutor(
         }
     }
 
+    /**
+     * Executes the plan one step at a time so [crashPoint] can interrupt
+     * between steps.
+     */
     private suspend fun runOneByOne(
         job: RollbackJobId,
         plan: RollbackPlan,
@@ -183,6 +180,11 @@ public class JournalExecutor(
     }
 }
 
+/**
+ * A lazy view of the unfinished steps in a range.
+ *
+ * Avoids allocating a new list when a batch contains only a few unfinished steps.
+ */
 private class SparseSteps(
     private val steps: List<RollbackStep>,
     private val words: LongArray,

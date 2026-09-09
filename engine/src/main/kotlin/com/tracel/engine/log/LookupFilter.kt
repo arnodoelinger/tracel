@@ -8,9 +8,8 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 
 /**
- * Lookup query over the [TransactionLog] and the
- * [WorldLog] alike: every non-empty field narrows the result,
- * an empty [LookupFilter] matches everything.
+ * Lookup query over the [TransactionLog] and the [WorldLog] alike: every non-empty field
+ * narrows the result, an empty [LookupFilter] matches everything.
  */
 public data class LookupFilter(
     public val holders: Set<HolderId> = emptySet(),

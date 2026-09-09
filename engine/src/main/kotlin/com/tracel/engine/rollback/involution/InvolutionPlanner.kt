@@ -2,13 +2,13 @@ package com.tracel.engine.rollback.involution
 
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
-import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.LotRepository
 import com.tracel.engine.ledger.Product
 import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackStep
 import com.tracel.engine.rollback.plan.destinationFor
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.model.item.ItemKey
 
@@ -20,15 +20,11 @@ import com.tracel.model.item.ItemKey
  */
 @RunsOn(ThreadContext.ASYNC)
 public class InvolutionPlanner(private val repo: LotRepository) {
-    /**
-     * [vanished] is every [RollbackStep.Take] holder the world no longer has — the ground item a
-     * rollback consumed down to nothing, the frame that got broken again since. Undoing a `Take`
-     * means moving material back into that holder, and a holder that is not there anymore is
-     * not somewhere a rollback can leave anything.
-     */
+    /** [vanished] is every [RollbackStep.Take] holder the world no longer has. */
+    @Suppress("UNUSED_PARAMETER")
     public suspend fun plan(job: RollbackJobRecord, vanished: Set<HolderId> = emptySet()): List<InvolutionStep> = repo.reading {
+        val books = Books(repo)
         job.plan.steps.asReversed().mapNotNull { step ->
-            if (step is RollbackStep.Take && step.holder in vanished) return@mapNotNull null
             val delivered = when (step) {
                 is RollbackStep.Take -> job.target.destinationFor(job.plan, step.lotId)
                 is RollbackStep.Mint -> job.target.destinationFor(job.plan, step.lotId)
@@ -37,7 +33,7 @@ public class InvolutionPlanner(private val repo: LotRepository) {
                 // An unmake never delivered anywhere; the holder in the step is where it happened
                 is RollbackStep.Unmake -> step.holder
             }
-            stepFor(step, delivered)
+            stepFor(books, job, step, delivered)
         }
     }
 
@@ -46,32 +42,74 @@ public class InvolutionPlanner(private val repo: LotRepository) {
      * (hopper, vanished drop credited to a PlacedBlock, entity gone) is not a reason to abort
      * the whole undo — take what is there, skip the rest.
      */
-    private suspend fun stepFor(step: RollbackStep, restoreTo: HolderId): InvolutionStep? = when (step) {
-        is RollbackStep.Take -> payable(restoreTo, repo.lot(step.lotId).itemKey, step.quantity)?.let { qty ->
-            InvolutionStep.Return(repo.lot(step.lotId).itemKey, qty, restoreTo, step.holder)
+    private suspend fun stepFor(books: Books, job: RollbackJobRecord, step: RollbackStep, restoreTo: HolderId): InvolutionStep? = when (step) {
+        is RollbackStep.Take -> {
+            val itemKey = repo.lot(step.lotId).itemKey
+            books.payable(restoreTo, itemKey, step.quantity)?.let { qty ->
+                books.credit(step.holder, itemKey, qty.raw)
+                InvolutionStep.Return(itemKey, qty, restoreTo, step.holder, step.lotId)
+            }
         }
 
-        is RollbackStep.Mint -> payable(restoreTo, repo.lot(step.lotId).itemKey, step.quantity)?.let { qty ->
-            InvolutionStep.Retract(repo.lot(step.lotId).itemKey, qty, restoreTo, step.lotId)
-        }
+        is RollbackStep.Mint -> retract(books, job, step.lotId, step.quantity, restoreTo)
 
-        is RollbackStep.Debt -> payable(restoreTo, repo.lot(step.lotId).itemKey, step.quantity)?.let { qty ->
-            InvolutionStep.Retract(repo.lot(step.lotId).itemKey, qty, restoreTo, step.lotId)
-        }
+        is RollbackStep.Debt -> retract(books, job, step.lotId, step.quantity, restoreTo)
 
         is RollbackStep.Unmake -> {
-            val output = repo.lot(step.outputLot)
-            val ingredients = step.inputs.map { Ingredient(step.holder, repo.lot(it.lotId).itemKey, it.quantity) }
-            if (ingredients.any { repo.totalOf(it.holder, it.itemKey) < it.quantity.raw }) {
+            val wanted = LinkedHashMap<ItemKey, Long>()
+            for ((lotId, quantity) in step.inputs) wanted.merge(repo.lot(lotId).itemKey, quantity.raw, Long::plus)
+
+            if (wanted.any { (itemKey, amount) -> books.available(step.holder, itemKey) < amount }) {
                 null
             } else {
-                InvolutionStep.Remake(ingredients, Product(step.holder, output.itemKey, output.quantity))
+                val outputs = step.outputs.map { RemakeOutput(it.lotId, repo.lot(it.lotId).quantity, it.holder) }
+                val first = repo.lot(outputs.first().lotId)
+                val whole = Quantity(outputs.sumOf { it.quantity.raw })
+                books.credit(step.holder, first.itemKey, whole.raw)
+                InvolutionStep.Remake(
+                    outputs,
+                    Product(step.holder, first.itemKey, whole),
+                    step.inputs.map { RemakeInput(it.lotId, repo.lot(it.lotId).itemKey, it.quantity) },
+                )
             }
         }
     }
 
-    private suspend fun payable(holder: HolderId, itemKey: ItemKey, wanted: Quantity): Quantity? {
-        val have = repo.totalOf(holder, itemKey)
+    /** Undoing a compensation, with the lot the compensation actually minted. */
+    private suspend fun retract(
+        books: Books,
+        job: RollbackJobRecord,
+        originalLot: LotId,
+        quantity: Quantity,
+        restoreTo: HolderId,
+    ): InvolutionStep? {
+        val itemKey = repo.lot(originalLot).itemKey
+        val qty = books.payable(restoreTo, itemKey, quantity) ?: return null
+        val minted = repo.findCompensateEdge(originalLot, job.id)?.child
+        return InvolutionStep.Retract(itemKey, qty, restoreTo, originalLot, minted)
+    }
+}
+
+/**
+ * What an account will hold by the time a step actually runs, counting what the steps above it
+ * are about to put there.
+ */
+private class Books(private val repo: LotRepository) {
+    private val actual = HashMap<Pair<HolderId, ItemKey>, Long>()
+    private val incoming = HashMap<Pair<HolderId, ItemKey>, Long>()
+
+    suspend fun available(holder: HolderId, itemKey: ItemKey): Long {
+        val account = holder to itemKey
+        val have = actual.getOrPut(account) { repo.totalOf(holder, itemKey) }
+        return have + (incoming[account] ?: 0L)
+    }
+
+    fun credit(holder: HolderId, itemKey: ItemKey, amount: Long) {
+        incoming.merge(holder to itemKey, amount, Long::plus)
+    }
+
+    suspend fun payable(holder: HolderId, itemKey: ItemKey, wanted: Quantity): Quantity? {
+        val have = available(holder, itemKey)
         if (have <= 0L) return null
         return if (have >= wanted.raw) wanted else Quantity(have)
     }

@@ -13,17 +13,19 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.Seq
+import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.BlockPos
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.itemEntity
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import com.tracel.tests.support.assertFails
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class CaptureCoordinatorTest {
@@ -104,6 +106,30 @@ class CaptureCoordinatorTest {
         assertEquals(steve, transformOut.destination)
 
         assertEquals(transaction, log.find(transaction.id))
+    }
+
+    @Test
+    fun `a craft carries the place it happened, or no radius query can ever find it`() = runTest {
+        val world = LedgerHarness()
+        val log = InMemoryTransactionLog()
+        val steve = player(1)
+        val stick = ItemKey("minecraft:stick")
+        var nextSeqRaw = 1L
+        val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
+        val bench = BlockPos(WorldId(java.util.UUID(0L, 7L)), 12, 64, -30)
+
+        world.ledger.mint(steve, diamond, Quantity(2), world.nextTxn())
+
+        val transaction = coordinator.recordCraft(
+            ingredients = listOf(Ingredient(steve, diamond, Quantity(2))),
+            product = Product(steve, stick, Quantity(4)),
+            epochMillis = 1_000L,
+            causedBy = steve,
+            at = bench,
+        )
+
+        assertEquals(bench, transaction.at)
+        assertEquals(bench, log.find(transaction.id)?.at)
     }
 
     @Test
@@ -223,6 +249,66 @@ class CaptureCoordinatorTest {
         checkNotNull(transaction)
         assertEquals(5L, world.ledger.totalAt(ground, diamond)?.raw)
         assertNull(world.ledger.totalAt(steve, diamond))
+    }
+
+    @Test
+    fun `a move out of a holder the ledger never credited mints the shortfall rather than failing`() = runTest {
+        val world = LedgerHarness()
+        val log = InMemoryTransactionLog()
+        val steve = player(1)
+        val ground = itemEntity(1)
+        var nextSeqRaw = 1L
+        val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
+
+        val deltas = listOf(InventoryDelta(steve, diamond, -2L), InventoryDelta(ground, diamond, 2L))
+
+        val transaction = coordinator.record(
+            deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve, mintShortfall = { it is HolderId.Player },
+        )
+
+        checkNotNull(transaction)
+        assertEquals(2L, world.ledger.totalAt(ground, diamond)?.raw, "the diamonds end up on the floor")
+        assertNull(world.ledger.totalAt(steve, diamond), "and none of them stay on Steve")
+        val mint = transaction.flows.first()
+        assertEquals(FlowKind.MINT, mint.kind, "the mint is logged, and logged before the move that needs it")
+        assertEquals(SourceKind.UNATTRIBUTED, (mint.source as HolderId.Source).kind)
+        assertEquals(FlowKind.MOVE, transaction.flows.last().kind)
+    }
+
+    @Test
+    fun `a shortfall at a holder the policy excludes is refused, not minted`() = runTest {
+        val world = LedgerHarness()
+        val log = InMemoryTransactionLog()
+        val steve = player(1)
+        val ground = itemEntity(1)
+        var nextSeqRaw = 1L
+        val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
+
+        val deltas = listOf(InventoryDelta(ground, diamond, -2L), InventoryDelta(steve, diamond, 2L))
+
+        assertFails<IllegalStateException> {
+            coordinator.record(
+                deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve,
+                mintShortfall = { it is HolderId.Player },
+            )
+        }
+        assertNull(world.ledger.totalAt(steve, diamond), "nothing was handed over")
+    }
+
+    @Test
+    fun `without the flag that same move is still refused outright`() = runTest {
+        val world = LedgerHarness()
+        val log = InMemoryTransactionLog()
+        val steve = player(1)
+        val ground = itemEntity(1)
+        var nextSeqRaw = 1L
+        val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
+
+        val deltas = listOf(InventoryDelta(steve, diamond, -2L), InventoryDelta(ground, diamond, 2L))
+
+        assertFails<IllegalStateException> {
+            coordinator.record(deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
+        }
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.model.id.WorldId
+import com.tracel.model.item.namesMaterial
 import com.tracel.model.transaction.Transaction
 import java.util.NavigableMap
 import java.util.concurrent.ConcurrentHashMap
@@ -104,7 +105,7 @@ public class InMemoryTransactionLog : TransactionLog {
         if (material != null) {
             var hit = false
             for ((itemKey) in flows) {
-                if (itemKey.material == material) {
+                if (itemKey.material.namesMaterial(material)) {
                     hit = true
                     break
                 }

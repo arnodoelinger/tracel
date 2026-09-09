@@ -43,6 +43,7 @@ import com.tracel.storage.spi.EngineCursor
  * | 1B   | `blockLease / worldId / x / y / z`                                        | jobId, acquiredAt    | point + full scan       |
  * | 1C   | `rbStruct / jobId / stepIndex`                                            | packed structure step| prefix                  |
  * | 1D   | `rbTarget / jobId / rootLotId`                                            | holderId             | prefix                  |
+ * | 21   | `cslot / holderId / ~seq`                                                 | packed slot layout   | prefix, newest first    |
  */
 object Keys {
     const val TXN: Byte = 0x01
@@ -77,6 +78,8 @@ object Keys {
     const val RB_TARGET: Byte = 0x1D
     const val RB_RECENT: Byte = 0x1E
     const val ITEM_FORM: Byte = 0x1F
+    const val CONTAINER_SLOT: Byte = 0x21
+    const val GROUND_AT: Byte = 0x22
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -252,6 +255,13 @@ object Keys {
 
     fun rbTargetPrefix(jobId: Long): ByteArray = KeyWriter(9).tag(RB_TARGET).u64(jobId).done()
 
+    fun cslot(holderId: Int, seq: Long): ByteArray =
+        KeyWriter(13).tag(CONTAINER_SLOT).u32(holderId).u64(invert(seq)).done()
+
+    fun cslotPrefix(holderId: Int): ByteArray = KeyWriter(5).tag(CONTAINER_SLOT).u32(holderId).done()
+
+    fun groundAt(itemEntityId: Int): ByteArray = KeyWriter(5).tag(GROUND_AT).u32(itemEntityId).done()
+
     fun rbRecent(jobId: Long): ByteArray = KeyWriter(9).tag(RB_RECENT).u64(invert(jobId)).done()
 
     fun rbRecentPrefix(): ByteArray = KeyWriter(1).tag(RB_RECENT).done()
@@ -297,6 +307,8 @@ object Keys {
         RB_TARGET,
         RB_RECENT,
         ITEM_FORM,
+        CONTAINER_SLOT,
+        GROUND_AT,
     )
 }
 

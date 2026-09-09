@@ -25,24 +25,38 @@ public class CaptureCoordinator(
     private val nextTxnId: suspend () -> TxnId,
     private val nextSeq: suspend () -> Seq,
 ) {
-    /** Returns `null` when nothing moved — an empty diff is not a transaction. */
+    /**
+     * @return `null` when nothing moved — an empty diff is not a transaction.
+     *
+     * [mintShortfall] is for callers stating physical truth they watched happen. It names
+     * the holders whose ignorance is permanent.
+     *
+     * @see shortfallMints
+     */
     public suspend fun record(
         deltas: List<InventoryDelta>,
         epochMillis: Long,
         cause: CauseKind,
         causedBy: HolderId?,
         at: BlockPos? = null,
+        mintShortfall: ((HolderId) -> Boolean)? = null,
     ): Transaction? {
         val flows = TransactionBalancer().balance(deltas)
         if (flows.isEmpty()) return null
-        return applyAndLog(flows, epochMillis, cause, causedBy, at)
+        return applyAndLog(flows, epochMillis, cause, causedBy, at, mintShortfall)
     }
 
     /**
      * Crafts through the ledger. Ingredients are already resolved, so
      * the balancer is skipped.
      */
-    public suspend fun recordCraft(ingredients: List<Ingredient>, product: Product, epochMillis: Long, causedBy: HolderId?): Transaction =
+    public suspend fun recordCraft(
+        ingredients: List<Ingredient>,
+        product: Product,
+        epochMillis: Long,
+        causedBy: HolderId?,
+        at: BlockPos? = null,
+    ): Transaction =
         ledger.atomically {
             val txn = nextTxnId()
             val crafted = ledger.craft(ingredients, product, txn)
@@ -53,8 +67,11 @@ public class CaptureCoordinator(
                 portions.map { FlowLot(i, it.lotId, it.quantity) }
             } + FlowLot(ingredients.size, crafted.output.id, product.quantity)
 
-            val transaction = Transaction(txn, nextSeq(), epochMillis, CauseKind.CRAFT, causedBy, flows, lots)
+            val transaction = Transaction(txn, nextSeq(), epochMillis, CauseKind.CRAFT, causedBy, flows, lots, at)
             log.append(transaction)
+//            java.util.logging.Logger.getLogger("Tracel Debug").info(
+//                "[Debug] Craft | ID is ${txn.raw} by $causedBy at $at. Product is ${product.itemKey.material} x${product.quantity.raw}.",
+//            )
             transaction
         }
 
@@ -68,9 +85,10 @@ public class CaptureCoordinator(
         cause: CauseKind,
         causedBy: HolderId?,
         at: BlockPos? = null,
+        mintShortfall: ((HolderId) -> Boolean)? = null,
     ): Transaction? {
         if (flows.isEmpty()) return null
-        return applyAndLog(flows, epochMillis, cause, causedBy, at)
+        return applyAndLog(flows, epochMillis, cause, causedBy, at, mintShortfall)
     }
 
     /** Rejects the whole transaction if any withdrawal cannot be satisfied. */
@@ -80,17 +98,24 @@ public class CaptureCoordinator(
         cause: CauseKind,
         causedBy: HolderId?,
         at: BlockPos?,
+        mintShortfall: ((HolderId) -> Boolean)?,
     ): Transaction =
         ledger.atomically {
-            ledger.checkAllWithdrawalsSatisfiable(flows)
+            // Prepended: the mint has to land before the withdrawal that needs it,
+            // and it belongs in the logged flows so the row says where the material came from.
+            val all = if (mintShortfall == null) flows else ledger.shortfallMints(flows, mintShortfall) + flows
+            ledger.checkAllWithdrawalsSatisfiable(all)
 
             val txn = nextTxnId()
-            val lots = flows.flatMapIndexed { i, flow ->
+            val lots = all.flatMapIndexed { i, flow ->
                 ledger.apply(flow, txn).map { FlowLot(i, it.lotId, it.quantity) }
             }
 
-            val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, flows, lots, at)
+            val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, all, lots, at)
             log.append(transaction)
+//            java.util.logging.Logger.getLogger("Tracel Debug").info(
+//                "[Debug] Transaction | ID is ${txn.raw} $cause by $causedBy at $at. Flows: ${all.joinToString { "${it.kind} ${it.itemKey.material} x${it.quantity.raw} ${it.source} -> ${it.destination}." }}",
+//            )
             transaction
         }
 }

@@ -5,19 +5,18 @@ import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.journal.SimulatedCrash
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.job.RollbackJobRecord
-import com.tracel.engine.rollback.plan.RollbackPlanner
-import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.involution.InvolutionExecutor
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.involution.InvolutionOutcome
+import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.plan.RollbackPlanner
+import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
-import com.tracel.tests.property.InvolutionTest
 import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -81,11 +80,6 @@ class InvolutionJobCoordinatorTest {
 
     @Test
     fun `undoing an already-undone job is reported distinctly, and the ledger does not move again`() = runTest {
-        // Caught live: a repeated /tracel rollback undo on an already-undone job kept calling
-        // physical restoration again, which has no memory of its own the way the ledger-level
-        // journal does — the give-back side of a Return step kept re-adding material to a chest on
-        // every repeated call. AlreadyUndone lets a caller tell "just finished" from "already
-        // finished before this call" and skip physical restoration on the latter.
         val world = LedgerHarness()
         val chest = block(0, 64, 0)
         val steve = player(1)
@@ -139,7 +133,6 @@ class InvolutionJobCoordinatorTest {
             .execute(lease, plan, target = RollbackTarget.Uniform(chest))
         world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
-        // A second, unrelated job grabs the same lots before anyone gets around to undoing job 1.
         world.leases.acquire(RollbackJobId(2), plan.touchedLots)
 
         val coordinator = InvolutionJobCoordinator(
@@ -176,8 +169,6 @@ class InvolutionJobCoordinatorTest {
         val stepCount = world.jobs.find(job)!!.plan.steps.size
 
         for (crashAt in 0 until stepCount) {
-            // Undo the same completed rollback fresh each iteration — re-does the forward apply
-            // too, since a crashed-and-resumed undo needs the same pre-crash state each time.
             val iterationWorld = LedgerHarness()
             val iterationChest = block(0, 64, 0)
             val iterationSteve = player(1)
@@ -203,7 +194,6 @@ class InvolutionJobCoordinatorTest {
             val crash = runCatching { coordinator.undo(job, CrashPoint.before(crashAt)) }.exceptionOrNull()
             assertTrue(crash is SimulatedCrash, "crash before undo step $crashAt should actually have fired, got $crash")
 
-            // Resume: same journal, same job id, fresh coordinator instance (as a restart would give).
             val resumed = InvolutionJobCoordinator(
                 iterationWorld.jobs,
                 iterationWorld.repo,

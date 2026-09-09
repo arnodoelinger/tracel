@@ -5,6 +5,7 @@ import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.plan.LotContribution
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.UnmadeOutput
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
@@ -141,7 +142,7 @@ class PortsTest {
                 RollbackPlan(
                     listOf(
                         RollbackStep.Unmake(
-                            LotId(10),
+                            listOf(UnmadeOutput(LotId(10), steve)),
                             listOf(LotContribution(LotId(11), Quantity(4)), LotContribution(LotId(12), Quantity(5))),
                             TxnId(99),
                             steve,

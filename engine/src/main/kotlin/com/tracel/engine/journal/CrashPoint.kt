@@ -1,9 +1,9 @@
 package com.tracel.engine.journal
 
-/**
- * Thrown by [CrashPoint] to simulate the process dying mid-step.
- */
-public class SimulatedCrash(stepIndex: Int) : Exception("simulated crash before step $stepIndex")
+import com.tracel.engine.ownership.KeepsLease
+
+/** Thrown by [CrashPoint] to simulate the process dying mid-step. */
+public class SimulatedCrash(stepIndex: Int) : Exception("simulated crash before step $stepIndex"), KeepsLease
 
 /**
  * A testing hook: makes [JournalExecutor] throw [SimulatedCrash] right before

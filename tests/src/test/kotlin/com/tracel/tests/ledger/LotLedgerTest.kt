@@ -7,10 +7,10 @@ import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import com.tracel.tests.support.assertFails
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class LotLedgerTest {
@@ -92,8 +92,6 @@ class LotLedgerTest {
         val second = player(2)
 
         val oldest = world.ledger.mint(escrow, diamond, Quantity(2), world.nextTxn())
-        val middle = world.ledger.mint(escrow, diamond, Quantity(2), world.nextTxn())
-        val newest = world.ledger.mint(escrow, diamond, Quantity(2), world.nextTxn())
 
         val handed = world.ledger.drain(
             escrow,

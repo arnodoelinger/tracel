@@ -2,14 +2,13 @@ package com.tracel.tests.property
 
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackPlanner
-import com.tracel.engine.rollback.plan.WorldQuery
 import com.tracel.model.id.Quantity
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
-import org.junit.jupiter.api.Assertions.assertEquals
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class DeterminismTest {
@@ -24,7 +23,7 @@ class DeterminismTest {
             world.ledger.move(chest, p1, diamond, Quantity(6), world.nextTxn())
             world.ledger.move(chest, p2, diamond, Quantity(4), world.nextTxn())
             world.ledger.move(p1, p2, diamond, Quantity(2), world.nextTxn())
-            return RollbackPlanner(world.repo, WorldQuery { true }).plan(listOf(root.id))
+            return RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         }
 
         assertEquals(runScenario(), runScenario())
