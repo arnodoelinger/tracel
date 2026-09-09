@@ -59,22 +59,33 @@ class ArchitectureTest {
 
     @Test
     fun `capture listeners do not open a unit of work on the event thread`() {
-        Konsist.scopeFromModule("plugin")
+        val handlers = Konsist.scopeFromModule("plugin")
             .files
             .filter { it.path.contains("/listener/") }
             .flatMap { it.functions() }
-            .filter { it.annotations.any { annotation -> annotation.name == "EventHandler" } }
-            .assertFalse(testName = "no inline unit of work in an event handler") { function ->
-                function.text.contains("atomically") && !function.text.contains("launch")
-            }
+            .filter { it.annotations.any { annotation -> annotation.name == "Observes" } }
+        check(handlers.isNotEmpty()) { "no @Observes handlers in plugin/listener — the filter is wrong" }
+        handlers.assertFalse(testName = "no inline unit of work in an event handler") { function ->
+            function.text.contains("atomically") && !function.text.contains("launch")
+        }
     }
 
     @Test
     fun `Observes functions declare exactly one event parameter`() {
-        Konsist.scopeFromProject()
+        val observed = Konsist.scopeFromProject()
             .functions()
             .withAnnotationOf(Observes::class)
-            .assertTrue(testName = "single event parameter") { it.parameters.size == 1 }
+        check(observed.isNotEmpty()) { "no @Observes functions — the annotation is unused decoration" }
+        observed.assertTrue(testName = "single event parameter") { it.parameters.size == 1 }
+    }
+
+    @Test
+    fun `no handler is registered by reflection any more`() {
+        Konsist.scopeFromModule("plugin")
+            .functions()
+            .assertFalse(testName = "no @EventHandler") { function ->
+                function.annotations.any { it.name == "EventHandler" }
+            }
     }
 
     @Test

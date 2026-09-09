@@ -1,16 +1,22 @@
 package com.tracel.codegen
 
 import com.google.devtools.ksp.processing.CodeGenerator
-import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
-import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.Modifier
-import java.io.Writer
+import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.FileSpec
+import com.squareup.kotlinpoet.FunSpec
+import com.squareup.kotlinpoet.KModifier
+import com.squareup.kotlinpoet.PropertySpec
+import com.squareup.kotlinpoet.STRING
+import com.squareup.kotlinpoet.ksp.addOriginatingKSFile
+import com.squareup.kotlinpoet.ksp.toTypeName
+import com.squareup.kotlinpoet.ksp.writeTo
 
 private const val ASSUMPTION_ANNOTATION = "com.tracel.annotations.Assumption"
 private const val FALLBACK_ANNOTATION = "com.tracel.annotations.Fallback"
@@ -37,101 +43,86 @@ public class AssumptionProcessor(
             }
             generateFor(classDecl, funcsInClass)
         }
-
         return emptyList()
     }
 
     private fun generateFor(classDecl: KSClassDeclaration, functions: List<KSFunctionDeclaration>) {
-        val packageName = classDecl.packageName.asString()
-        val className = classDecl.simpleName.asString()
-        val sourceFile = classDecl.containingFile
+        // val packageName = classDecl.packageName.asString()
+        // val className = classDecl.simpleName.asString()
+        // val sourceFile = classDecl.containingFile
 
-        val dependencies = if (sourceFile != null) {
-            Dependencies(aggregating = false, sourceFile)
-        } else {
-            Dependencies(aggregating = false)
+        val specs = functions.mapNotNull { guardedSpecs(classDecl, it) }
+        if (specs.size != functions.size) return
+
+        val file = FileSpec.builder(classDecl.packageName.asString(), "${classDecl.simpleName.asString()}Assumptions")
+        for ((id, fn) in specs) {
+            file.addProperty(id)
+            file.addFunction(fn)
         }
-
-        val stream = codeGenerator.createNewFile(
-            dependencies,
-            packageName,
-            "${className}Assumptions",
-        )
-
-        stream.bufferedWriter().use { writer ->
-            writer.write("package $packageName\n\n")
-
-            for (function in functions) {
-                if (!renderGuarded(writer, classDecl, function)) return
-            }
-        }
+        // New -> stream.bufferedWriter().use
+        file.build().writeTo(codeGenerator, aggregating = false)
     }
 
-    private fun renderGuarded(writer: Writer, classDecl: KSClassDeclaration, function: KSFunctionDeclaration): Boolean {
+    private fun guardedSpecs(classDecl: KSClassDeclaration, function: KSFunctionDeclaration): Pair<PropertySpec, FunSpec>? {
         val className = classDecl.simpleName.asString()
         val funcName = function.simpleName.asString()
 
         if (Modifier.PRIVATE in function.modifiers) {
-            logger.error(
-                "@Assumption function '$funcName' must be internal, not private — the generated " +
-                    "dispatcher lives in a different file in the same module and can't see private members.",
+            return logger.fail(
+                "@Assumption function '$funcName' must be internal.",
                 function,
             )
-            return false
         }
 
-        val fallbackAnnotation = function.annotations.firstOrNull { it.annotationType.resolve().declaration.qualifiedName?.asString() == FALLBACK_ANNOTATION }
-        if (fallbackAnnotation == null) {
-            logger.error("@Assumption function '$funcName' is missing a paired @Fallback annotation.", function)
-            return false
-        }
+        val fallbackAnnotation = function.annotations.firstOrNull {
+            it.annotationType.resolve().declaration.qualifiedName?.asString() == FALLBACK_ANNOTATION
+        } ?: return logger.fail(
+            "@Assumption function '$funcName' is missing a paired @Fallback annotation.",
+            function,
+        )
+
         val fallback = fallbackAnnotation.arguments.firstOrNull { it.name?.asString() == "to" }?.value as? String
-        if (fallback == null) {
-            logger.error("@Fallback on \"$funcName\" is missing \"to\".", function)
-            return false
-        }
+            ?: return logger.fail("@Fallback on \"$funcName\" is missing \"to\".", function)
 
-        val fallbackFunction = classDecl.declarations
+        val fallbackExists = classDecl.declarations
             .filterIsInstance<KSFunctionDeclaration>()
-            .firstOrNull { it.simpleName.asString() == fallback }
-        if (fallbackFunction == null) {
-            logger.error("@Fallback \"$fallback\" not found as a function on $className.", function)
-            return false
+            .any { it.simpleName.asString() == fallback }
+        if (!fallbackExists) {
+            return logger.fail("@Fallback \"$fallback\" not found as a function on $className.", function)
         }
 
-        val params = function.parameters.map { param ->
-            val name = param.name?.asString() ?: run {
-                logger.error("@Assumption function \"$funcName\" has an unnamed parameter.", function)
-                return false
+        val parameters = function.parameters.map { param ->
+            val name = param.name?.asString() ?: return logger.fail(
+                "@Assumption function \"$funcName\" has an unnamed parameter.",
+                function,
+            )
+            name to param.type.toTypeName()
+        }
+
+        val idName = "${className}_${funcName}AssumptionId"
+        val idValue = "$className.$funcName"
+        val owner = ClassName(classDecl.packageName.asString(), className)
+
+        val id = PropertySpec.builder(idName, STRING)
+            .addModifiers(KModifier.INTERNAL, KModifier.CONST)
+            .initializer("%S", idValue)
+            .apply { classDecl.containingFile?.let(::addOriginatingKSFile) }
+            .build()
+
+        val guarded = FunSpec.builder("${funcName}Guarded")
+            .addModifiers(KModifier.INTERNAL)
+            .receiver(owner)
+            .apply {
+                parameters.forEach { (name, type) -> addParameter(name, type) }
+                classDecl.containingFile?.let(::addOriginatingKSFile)
             }
-            name to renderType(param.type.resolve())
-        }
+            .beginControlFlow("if (services.vanillaAssumptions.isTripped(%N))", idName)
+            .addStatement("%N(%L)", fallback, parameters.joinToString { it.first })
+            .nextControlFlow("else")
+            .addStatement("%N(%L)", funcName, parameters.joinToString { it.first })
+            .endControlFlow()
+            .build()
 
-        val paramList = params.joinToString(", ") { (name, type) -> "$name: $type" }
-        val argList = params.joinToString(", ") { (name, _) -> name }
-        val idConstant = "${className}_${funcName}AssumptionId"
-
-        writer.write("internal const val $idConstant: String = \"$className.$funcName\"\n\n")
-        writer.write("internal fun $className.${funcName}Guarded($paramList) {\n")
-        writer.write("    if (services.vanillaAssumptions.isTripped($idConstant)) {\n")
-        writer.write("        $fallback($argList)\n")
-        writer.write("    } else {\n")
-        writer.write("        $funcName($argList)\n")
-        writer.write("    }\n")
-        writer.write("}\n\n")
-        return true
-    }
-
-    private fun renderType(type: KSType): String {
-        val declaration = type.declaration
-        val qualifiedName = declaration.qualifiedName?.asString() ?: declaration.simpleName.asString()
-        val arguments = type.arguments
-        val argumentsString = if (arguments.isEmpty()) {
-            ""
-        } else {
-            "<" + arguments.joinToString(", ") { arg -> arg.type?.resolve()?.let { renderType(it) } ?: "*" } + ">"
-        }
-        val nullability = if (type.isMarkedNullable) "?" else ""
-        return "$qualifiedName$argumentsString$nullability"
+        return id to guarded
     }
 }
