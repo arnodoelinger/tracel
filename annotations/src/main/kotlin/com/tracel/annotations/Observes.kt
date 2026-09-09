@@ -37,17 +37,11 @@ public enum class Tracked {
 }
 
 /**
- * Marks a function as an event capture point.
- *
- * The generated code covers the `Listener` class, its registration, the
- * cancelled-event filter, marking [tracks] holders dirty, and opening a
- * transaction with [cause]. The annotated function is left with only the part
- * that is actually specific to the event.
+ * Marks a function as an event capture point. Replaces `Bukkit`'s `@EventHandler`.
  *
  * ```
- * @Observes(priority = Priority.LOWEST, cause = CauseKind.PLAYER_ACTION,
- *           tracks = [Tracked.TOP_INVENTORY, Tracked.PLAYER_INVENTORY])
- * fun onClick(event: InventoryClickEvent) { /* Only the specifics */ }
+ * @Observes
+ * fun onPlace(event: BlockPlaceEvent) { /* specifics */ }
  * ```
  */
 @Target(AnnotationTarget.FUNCTION)
