@@ -47,10 +47,6 @@ public class AssumptionProcessor(
     }
 
     private fun generateFor(classDecl: KSClassDeclaration, functions: List<KSFunctionDeclaration>) {
-        // val packageName = classDecl.packageName.asString()
-        // val className = classDecl.simpleName.asString()
-        // val sourceFile = classDecl.containingFile
-
         val specs = functions.mapNotNull { guardedSpecs(classDecl, it) }
         if (specs.size != functions.size) return
 

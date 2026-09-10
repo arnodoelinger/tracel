@@ -1,4 +1,3 @@
-
 plugins {
     id("tracel.kotlin-conventions")
 }

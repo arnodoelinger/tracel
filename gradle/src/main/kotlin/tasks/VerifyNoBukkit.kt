@@ -9,7 +9,7 @@ import org.gradle.api.tasks.TaskAction
 
 /**
  * Fails the build if a Minecraft platform dependency reaches a module that is
- * supposed to stay pure Kotlin.
+ * supposed to stay pure `Kotlin`.
  *
  * Walks the resolved dependency graph rather than the resolved artifacts, so it
  * never forces upstream jars to be built and stays compatible with the
@@ -30,12 +30,7 @@ abstract class VerifyNoBukkit : DefaultTask() {
         val offenders = seen.filter { id -> BANNED.any { it in id.lowercase() } }
         check(offenders.isEmpty()) {
             buildString {
-                appendLine("Module '${moduleName.get()}' must not depend on the Minecraft platform.")
-                appendLine("Found in its compile dependency graph:")
-                offenders.forEach { appendLine("  — $it") }
-                appendLine()
-                append("Move the platform-touching code into \":plugin\" and express ")
-                append("what the engine needs as an SPI in \":platform\" instead.")
+                appendLine("Module '\"{moduleName.get()}\" must not depend on the Minecraft platform.")
             }
         }
     }

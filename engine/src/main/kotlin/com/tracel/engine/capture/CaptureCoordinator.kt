@@ -69,9 +69,6 @@ public class CaptureCoordinator(
 
             val transaction = Transaction(txn, nextSeq(), epochMillis, CauseKind.CRAFT, causedBy, flows, lots, at)
             log.append(transaction)
-//            java.util.logging.Logger.getLogger("Tracel Debug").info(
-//                "[Debug] Craft | ID is ${txn.raw} by $causedBy at $at. Product is ${product.itemKey.material} x${product.quantity.raw}.",
-//            )
             transaction
         }
 
@@ -113,9 +110,6 @@ public class CaptureCoordinator(
 
             val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, all, lots, at)
             log.append(transaction)
-//            java.util.logging.Logger.getLogger("Tracel Debug").info(
-//                "[Debug] Transaction | ID is ${txn.raw} $cause by $causedBy at $at. Flows: ${all.joinToString { "${it.kind} ${it.itemKey.material} x${it.quantity.raw} ${it.source} -> ${it.destination}." }}",
-//            )
             transaction
         }
 }

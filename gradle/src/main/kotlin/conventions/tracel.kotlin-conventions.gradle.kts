@@ -27,7 +27,7 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
-    System.getProperties().forEach { key, value ->
+    System.getProperties().forEach { (key, value) ->
         val name = key.toString()
         if (!name.startsWith("tracel.")) return@forEach
         systemProperty(name, value.toString())
