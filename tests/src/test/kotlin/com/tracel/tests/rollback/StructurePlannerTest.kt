@@ -293,6 +293,45 @@ class StructurePlannerTest {
     }
 
     @Test
+    fun `a painting hung in the window is taken down in the create phase, before the blocks return`() {
+        val painting = UUID(31, 31)
+        val shape = EntityShape(EntityTypeKey("minecraft:painting"), 10.5, 70.0, -3.5)
+        val (create, destroy) = StructurePlanner().plan(
+            listOf(
+                WorldChange(
+                    Seq(1), ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, steve, 1, here,
+                    ChangeSubject.Entity(painting, shape.type, null, shape),
+                ),
+            ),
+        )
+
+        assertTrue(
+            create.any { it is StructureStep.RemoveEntity && it.entity == painting },
+            "left in destroy, the wall is rebuilt around a painting that is still hanging on it — " +
+                "vanilla pops it, the item drops beside the one the ledger is handing back, and the " +
+                "removal that arrives afterwards finds nothing to record",
+        )
+        assertTrue(destroy.none { it is StructureStep.RemoveEntity && it.entity == painting })
+    }
+
+    @Test
+    fun `an item frame stays in the destroy phase, behind the withdrawal that empties it`() {
+        val frame = UUID(32, 32)
+        val shape = EntityShape(EntityTypeKey("minecraft:item_frame"), 10.5, 70.0, -3.5)
+        val (create, destroy) = StructurePlanner().plan(
+            listOf(
+                WorldChange(
+                    Seq(1), ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, steve, 1, here,
+                    ChangeSubject.Entity(frame, shape.type, null, shape),
+                ),
+            ),
+        )
+
+        assertTrue(destroy.any { it is StructureStep.RemoveEntity && it.entity == frame })
+        assertTrue(create.none { it is StructureStep.RemoveEntity && it.entity == frame })
+    }
+
+    @Test
     fun `a cow tied up in the window is planned back loose, and the knot goes with it`() {
         val cow = UUID(21, 21)
         val knot = UUID(22, 22)
