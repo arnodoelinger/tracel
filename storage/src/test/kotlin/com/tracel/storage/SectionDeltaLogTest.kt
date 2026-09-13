@@ -7,6 +7,10 @@ import com.tracel.engine.world.BlockEdit
 import com.tracel.engine.world.BlockEdits
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.*
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.block.BlockExtras
+import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.ActionKind
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
@@ -14,12 +18,15 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
 
 class SectionDeltaLogTest {
-    private val SECTION_FULL = 4096
-    private val SECTION_RING = 2048
+    companion object {
+        private const val SECTION_FULL = 4096
+        private const val SECTION_RING = 2048
+    }
 
     private val world = WorldId(UUID(0L, 1L))
     private val stone = BlockShape(BlockDataKey("minecraft:stone"))
@@ -54,11 +61,11 @@ class SectionDeltaLogTest {
             val read = stack.worldLog.query(LookupFilter(limit = Int.MAX_VALUE))
             assertEquals(SECTION_FULL, read.size)
             assertEquals(edits.map { it.at }.toSet(), read.map { it.at }.toSet())
-            for (change in read) {
-                assertEquals(CauseKind.EXPLOSION, change.cause)
-                assertEquals(steve, change.causedBy)
-                assertEquals(1_700_000_000_000L, change.epochMillis)
-                val subject = change.subject as ChangeSubject.Block
+            for ((_, _, cause, causedBy, epochMillis, _, subject1) in read) {
+                assertEquals(CauseKind.EXPLOSION, cause)
+                assertEquals(steve, causedBy)
+                assertEquals(1_700_000_000_000L, epochMillis)
+                val subject = subject1 as ChangeSubject.Block
                 assertEquals(stone, subject.before)
                 assertEquals(BlockShape.AIR, subject.after)
             }
@@ -123,8 +130,8 @@ class SectionDeltaLogTest {
                 LookupFilter(material = "minecraft:dirt", limit = Int.MAX_VALUE)
             )
             assertEquals(SECTION_FULL / 4, read.size, "every fourth block was dirt")
-            for (change in read) {
-                assertEquals(dirt, (change.subject as ChangeSubject.Block).before)
+            for ((_, _, _, _, _, _, subject) in read) {
+                assertEquals(dirt, (subject as ChangeSubject.Block).before)
             }
         }
     }
@@ -199,7 +206,7 @@ class SectionDeltaLogTest {
 
     @Test
     fun `two blocks in one section already share a record`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
+        Stack(dir).use {
             val pair = dir.resolve("pair")
             val apart = dir.resolve("apart")
             Stack(pair).use { blastDirect(it, section(2)) }
@@ -376,9 +383,9 @@ class SectionDeltaLogTest {
     }
 
     private fun bytesIn(dir: Path): Long =
-        java.nio.file.Files.walk(dir).use { paths ->
-            paths.filter { java.nio.file.Files.isRegularFile(it) }
-                .mapToLong { java.nio.file.Files.size(it) }
+        Files.walk(dir).use { paths ->
+            paths.filter { Files.isRegularFile(it) }
+                .mapToLong { Files.size(it) }
                 .sum()
         }
 }

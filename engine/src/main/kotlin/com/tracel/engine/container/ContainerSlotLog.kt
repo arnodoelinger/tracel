@@ -9,8 +9,8 @@ public data class ContainerSlotEntry(public val slot: Int, public val itemKey: I
 /** What sat in which slot of a container. */
 public interface ContainerSlotLog {
     /** Records [holder]'s full slot layout at [epochMillis]. */
-    public suspend fun record(holder: HolderId.Block, epochMillis: Long, slots: List<ContainerSlotEntry>)
+    public suspend fun record(holder: HolderId, epochMillis: Long, slots: List<ContainerSlotEntry>)
 
     /** The newest layout [holder] had at or before [asOfMillis], or `null` if none qualifies. */
-    public suspend fun layoutAt(holder: HolderId.Block, asOfMillis: Long, limit: Int = 64): List<ContainerSlotEntry>?
+    public suspend fun layoutAt(holder: HolderId, asOfMillis: Long, limit: Int = 64): List<ContainerSlotEntry>?
 }

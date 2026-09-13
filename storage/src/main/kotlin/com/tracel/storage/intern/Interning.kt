@@ -5,8 +5,8 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.EntityTypeKey
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Packed

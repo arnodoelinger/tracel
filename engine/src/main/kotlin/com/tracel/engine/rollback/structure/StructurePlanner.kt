@@ -5,31 +5,15 @@ import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
+import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.EntityShape
+import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.WorldChange
 
-/**
- * Builds the structural changes needed to restore the world state covered by a rollback.
- *
- * Block changes are reduced to their state at the start and end of the rollback window.
- * Entity changes are handled similarly, with special cases for spawning, removal, movement,
- * falling blocks, and hanging entities.
- */
+// TODO: rewrite, this must not exist here
 @RunsOn(ThreadContext.ASYNC)
+@Unstable
 public class StructurePlanner {
-    /**
-     * Splits [changes] into structural changes that must be created and destroyed.
-     *
-     * For each block or entity, only the oldest and newest matching changes matter. The resulting
-     * step restores the state from the beginning of the rollback window while keeping the state
-     * that exists immediately before the rollback as its expected state.
-     *
-     * Entity restoration needs additional handling because some entities occupy block cells,
-     * falling blocks interact with restored terrain, and hanging entities cannot share a cell with
-     * a block.
-     */
     public fun plan(changes: List<WorldChange>): Pair<List<StructureStep>, List<StructureStep>> {
         val create = mutableListOf<StructureStep>()
         val destroy = mutableListOf<StructureStep>()
@@ -85,6 +69,7 @@ public class StructurePlanner {
                     val target = subject.before
                     if (target == expected) continue
                     val step = StructureStep.SetBlock(last.at, target, expected)
+
                     // Restoring to air is a removal, and a removal has to wait until the ledger
                     // has finished emptying whatever stood there.
                     if (target == BlockShape.AIR) destroy += step else create += step
@@ -96,9 +81,8 @@ public class StructurePlanner {
                     val before = subject.before
                     when {
                         now == null -> {
-                            // Existed when the window opened: put it back. Hung then punched:
-                            // it was not there at the start. Leave it gone. Hung then blown:
-                            // spawn the pose it died in (rotation, facing), cargo stripped.
+                            // Lived at window open: put it back. Hung then punched: leave it gone.
+                            // Hung then blown: spawn the pose it died in, cargo stripped.
                             val hungThenBlown = before == null &&
                                 first.cause == CauseKind.EXPLOSION &&
                                 !subject.isPrimedTnt()
@@ -113,23 +97,25 @@ public class StructurePlanner {
                         }
                         before == null -> {
                             val remove = StructureStep.RemoveEntity(last.at, subject.entity, now)
-                            // Falling sand still occupying the coordinate when the block is
-                            // put back drops as an item. Take the entity away in the create
-                            // phase so undo spawns it (!) after the block is gone again.
-                            if (now.isFallingBlock()) create += remove else destroy += remove
+                            // Falling sand still here when the block returns drops as an item.
+                            // Remove it in create so undo spawns it after the block is gone again.
+                            //
+                            // Hangings: same trap, nail included. Removals run before block writes
+                            // *within* a phase — a painting left in `destroy` was still on the wall
+                            // while create rebuilt the block, vanilla popped it (ENTITY_REMOVE WORLD,
+                            // item on the floor), our remove reported [Absent] and never journaled,
+                            // undo had nothing to put back. Don't leave hangings in destroy.
+                            if (now.isFallingBlock() || now.popsWhenABlockReturns()) create += remove else destroy += remove
                         }
                         before != now ->
-                            // Still standing, so "now" travels with it. This is a change in
-                            // place, and its undo puts the newer shape back rather than taking
-                            // the entity away.
+                            // Still standing: change-in-place; undo puts the newer shape back.
                             create += StructureStep.SpawnEntity(last.at, subject.entity, before, now)
                     }
                 }
             }
         }
 
-        // Hanging entities are annoying in every case. They cannot coexist with blocks.
-        // Don't fucking break them.
+        // Hangings cannot share a cell with a block. Don't fucking break them.
         val hangingIn = HashSet<BlockPos>()
         for (step in create) if (step is StructureStep.SpawnEntity && step.shape.hangs()) hangingIn += step.at
         if (hangingIn.isNotEmpty()) {
@@ -139,13 +125,7 @@ public class StructurePlanner {
         return create to destroy
     }
 
-    /**
-     * Finds block positions that were air at both ends of the rollback window.
-     *
-     * These positions may have contained a temporary block during the window, such as a block
-     * that was placed and later destroyed. Callers can use the result to avoid delivering
-     * restored material into a container or block that the structural plan does not recreate.
-     */
+    /** Cells that were air at both window ends — do not dump restored items into a chest that never comes back. */
     @Unstable
     public fun cellsAirToAir(changes: List<WorldChange>): Set<BlockPos> {
         val ends = HashMap<BlockPos, Array<WorldChange>>()
@@ -164,11 +144,6 @@ public class StructurePlanner {
         return out
     }
 
-    /**
-     * Returns the key used to group changes belonging to the same world object.
-     *
-     * Blocks are grouped by position, while entities are grouped by entity identity.
-     */
     private fun WorldChange.key(): Any = when (val subject = subject) {
         is ChangeSubject.Block -> at
         is ChangeSubject.Entity -> subject.entity
@@ -180,25 +155,12 @@ public class StructurePlanner {
     }
 }
 
-/**
- * @return whether this shape represents a falling block entity.
- *
- * Falling blocks are handled differently from normal entities because restoring the block at their
- * position can cause the entity to drop as an item.
- */
 @Unstable
 private fun EntityShape.isFallingBlock(): Boolean {
     val type = type.value
     return type == "minecraft:falling_block" || type.endsWith(":falling_block")
 }
 
-/**
- * @return whether this entity occupies its block position as a hanging decoration.
- *
- * Hanging entities cannot share their position with a block. Restoring such a block first would
- * cause the entity to break and potentially drop items. So the structural plan handles the
- * position specially.
- */
 @Unstable
 private fun EntityShape.hangs(): Boolean {
     val name = type.value.substringAfter(':')
@@ -206,12 +168,12 @@ private fun EntityShape.hangs(): Boolean {
         name == "leash_knot"
 }
 
-/**
- * @return whether this entity shape represents primed TNT.
- *
- * Primed TNT is excluded from the normal explosion entity-restoration rule because restoring the
- * TNT entity itself would recreate an explosive entity that the rollback did not intend to revive.
- */
+/** Painting pops if the supporting block is restored first. */
+@Unstable
+private fun EntityShape.popsWhenABlockReturns(): Boolean =
+    type.value.substringAfter(':') == "painting"
+
+
 @Unstable
 private fun ChangeSubject.Entity.isPrimedTnt(): Boolean {
     val type = this.type.value

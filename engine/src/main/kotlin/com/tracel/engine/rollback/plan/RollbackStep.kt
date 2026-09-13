@@ -42,15 +42,3 @@ public sealed interface RollbackStep {
         public val holder: HolderId,
     ) : RollbackStep
 }
-
-/** Crafted output. */
-public data class UnmadeOutput(
-    public val lotId: LotId,
-    public val holder: HolderId
-)
-
-/** How much of one lot went into a craft. */
-public data class LotContribution(
-    public val lotId: LotId,
-    public val quantity: Quantity
-)

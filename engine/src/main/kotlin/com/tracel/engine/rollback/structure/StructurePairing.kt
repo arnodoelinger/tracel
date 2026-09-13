@@ -2,13 +2,13 @@ package com.tracel.engine.rollback.structure
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
+import com.tracel.model.world.block.BlockShape
 
 /**
  * @return the other half of the two-block object [shape] is part of, or `null`
  * if it stands alone.
  */
-// TODO: refactor
+// TODO: rewrite; this must not exist
 @Unstable
 public fun structuralPartnerOf(at: BlockPos, shape: BlockShape): BlockPos? {
     val value = shape.data.value

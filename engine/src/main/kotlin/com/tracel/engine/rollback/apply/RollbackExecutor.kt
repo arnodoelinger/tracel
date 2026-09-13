@@ -108,16 +108,16 @@ public class RollbackExecutor(
             is RollbackStep.Unmake -> {
                 val outputKey = ledger.itemKeyOf(step.outputs.first().lotId)
                 var outputQty = 0L
-                for (output in step.outputs) {
-                    outputQty += ledger.quantityOf(output.lotId).raw
-                    ledger.destroy(output.holder, output.lotId)
+                for ((lotId, holder) in step.outputs) {
+                    outputQty += ledger.quantityOf(lotId).raw
+                    ledger.destroy(holder, lotId)
                 }
                 for ((lotId, quantity) in step.inputs) ledger.restore(step.holder, lotId, quantity)
 
                 listOf(Flow(outputKey, Quantity(outputQty), step.holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)) +
-                    step.inputs.map { input ->
-                        Flow(ledger.itemKeyOf(input.lotId), input.quantity, HolderId.Source(SourceKind.CRAFT), step.holder, FlowKind.TRANSFORM_OUT)
-                    }
+                        step.inputs.map { input ->
+                            Flow(ledger.itemKeyOf(input.lotId), input.quantity, HolderId.Source(SourceKind.CRAFT), step.holder, FlowKind.TRANSFORM_OUT)
+                        }
             }
         }
     }

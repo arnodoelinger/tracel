@@ -121,31 +121,3 @@ public class RollbackJobCoordinator(
         return RollbackOutcome.Applied(reservation.plan)
     }
 }
-
-/** The answer to "is this rollback going to happen", settled before anything is touched. */
-public sealed interface Reservation {
-    /** The lots are this job's until [RollbackJobCoordinator.apply] gives them back. */
-    public data class Granted(
-        public val job: RollbackJobId,
-        public val lease: LotLease,
-        public val plan: RollbackPlan,
-    ) : Reservation
-
-    /** Another job already holds one or more of the lots this plan needs — nothing was touched. */
-    public data class Blocked(public val conflicts: Map<LotId, RollbackJobId>) : Reservation
-
-    /** The world changed between planning and reserving; [replan] is what the plan looks like now. */
-    public data class Stale(public val replan: RollbackPlan) : Reservation
-}
-
-/** What [RollbackJobCoordinator.run] actually did. */
-public sealed interface RollbackOutcome {
-    /** The plan ran to completion; the lease it held has already been released. */
-    public data class Applied(public val plan: RollbackPlan) : RollbackOutcome
-
-    /** Another job already holds one or more of the lots this plan needs — nothing was touched. */
-    public data class Blocked(public val conflicts: Map<LotId, RollbackJobId>) : RollbackOutcome
-
-    /** The world changed between planning and reserving; [replan] is what the plan looks like now. */
-    public data class Stale(public val replan: RollbackPlan) : RollbackOutcome
-}

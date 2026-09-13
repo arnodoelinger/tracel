@@ -2,6 +2,12 @@ package com.tracel.storage.codec.records
 
 import com.tracel.annotations.CauseKind
 import com.tracel.model.world.*
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.block.BlockExtras
+import com.tracel.model.world.entity.EntityExtras
+import com.tracel.model.world.entity.EntityShape
+import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.model.world.ActionKind
 import com.tracel.storage.ffm.Bytes.i16
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64

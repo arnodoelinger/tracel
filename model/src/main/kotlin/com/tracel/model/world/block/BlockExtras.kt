@@ -1,4 +1,4 @@
-package com.tracel.model.world
+package com.tracel.model.world.block
 
 /**
  * The structural detail a block entity carries beyond its block state (like sign text, spawner mob,

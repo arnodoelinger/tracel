@@ -7,7 +7,7 @@ import com.tracel.engine.world.BlockEdits
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
+import com.tracel.model.world.block.BlockShape
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.intern.Interning

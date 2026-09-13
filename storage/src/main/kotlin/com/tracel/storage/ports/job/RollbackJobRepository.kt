@@ -11,9 +11,9 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.WorldId
-import com.tracel.model.world.BlockDataKey
+import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.EntityTypeKey
+import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader

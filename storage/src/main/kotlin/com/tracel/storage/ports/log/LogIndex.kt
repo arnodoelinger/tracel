@@ -3,7 +3,7 @@ package com.tracel.storage.ports.log
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.isBookkeeping
 import com.tracel.engine.log.LookupRegion
-import com.tracel.model.world.LogKind
+import com.tracel.model.log.LogKind
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys

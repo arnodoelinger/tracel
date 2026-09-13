@@ -17,7 +17,7 @@ class ContainerSlotLog(
     private val storage: TracelStorage,
     private val counters: Counters,
 ) : ContainerSlotLogPort {
-    override suspend fun record(holder: HolderId.Block, epochMillis: Long, slots: List<ContainerSlotEntry>) {
+    override suspend fun record(holder: HolderId, epochMillis: Long, slots: List<ContainerSlotEntry>) {
         val seq = counters.nextSeq().raw
         storage.write {
             val holderId = storage.interning.internHolder(this, holder)
@@ -28,7 +28,7 @@ class ContainerSlotLog(
         }
     }
 
-    override suspend fun layoutAt(holder: HolderId.Block, asOfMillis: Long, limit: Int): List<ContainerSlotEntry>? {
+    override suspend fun layoutAt(holder: HolderId, asOfMillis: Long, limit: Int): List<ContainerSlotEntry>? {
         if (limit <= 0) return null
         return storage.read {
             val holderId = storage.interning.findHolderId(this, holder) ?: return@read null

@@ -10,5 +10,6 @@ package com.tracel.model.id
 public value class Seq(public val raw: Long) : Comparable<Seq> {
     override fun compareTo(other: Seq): Int = raw.compareTo(other.raw)
 
+    /** Increments the sequence number. */
     public operator fun inc(): Seq = Seq(raw + 1)
 }

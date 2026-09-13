@@ -46,6 +46,40 @@ import com.tracel.storage.spi.EngineCursor
  * | 21   | `cslot / holderId / ~seq`                                                 | packed slot layout   | prefix, newest first    |
  */
 object Keys {
+    fun tagName(tag: Byte): String = when (tag) {
+        TXN -> "txn"
+        TXN_BY_ID -> "txnById"
+        ACTOR -> "actor"
+        ITEM -> "item"
+        TIME -> "time"
+        SPATIAL -> "spatial"
+        LOT -> "lot"
+        PLACE -> "place"
+        PLACE_REV -> "placeRev"
+        PLACE_ITEM -> "placeItm"
+        TOTAL -> "total"
+        EDGE_FROM -> "edgeFrom"
+        EDGE_INTO -> "edgeInto"
+        LEASE -> "lease"
+        LEASE_JOB -> "leaseJob"
+        RB_STEP -> "rbStep"
+        RB_JOB -> "rbJob"
+        APPLIED -> "applied"
+        PENDING -> "pending"
+        COUNTER -> "counter"
+        INTERN_FORWARD -> "internFw"
+        INTERN_REVERSE -> "internRv"
+        WCHG -> "wchg"
+        WCHG_AT -> "wchgAt"
+        WCHG_ENTITY -> "wchgEnt"
+        TXN_LOT -> "txnLot"
+        BLOCK_LEASE -> "blockLease"
+        RB_STRUCT -> "rbStruct"
+        RB_TARGET -> "rbTarget"
+        ITEM_FORM -> "itemForm"
+        CONTAINER_SLOT -> "cslot"
+        else -> "tag%02x".format(tag.toInt() and 0xff)
+    }
     const val TXN: Byte = 0x01
     const val TXN_BY_ID: Byte = 0x02
     const val ACTOR: Byte = 0x03

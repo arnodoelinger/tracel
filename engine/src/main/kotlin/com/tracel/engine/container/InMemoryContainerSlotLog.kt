@@ -8,14 +8,14 @@ import java.util.concurrent.atomic.AtomicLong
 /** In-memory [ContainerSlotLog]. */
 public class InMemoryContainerSlotLog : ContainerSlotLog {
     private val seq = AtomicLong(0)
-    private val byHolder = ConcurrentHashMap<HolderId.Block, ConcurrentSkipListMap<Long, Entry>>()
+    private val byHolder = ConcurrentHashMap<HolderId, ConcurrentSkipListMap<Long, Entry>>()
 
-    override suspend fun record(holder: HolderId.Block, epochMillis: Long, slots: List<ContainerSlotEntry>) {
+    override suspend fun record(holder: HolderId, epochMillis: Long, slots: List<ContainerSlotEntry>) {
         val column = byHolder.getOrPut(holder) { ConcurrentSkipListMap() }
         column[descKey(seq.incrementAndGet())] = Entry(epochMillis, slots)
     }
 
-    override suspend fun layoutAt(holder: HolderId.Block, asOfMillis: Long, limit: Int): List<ContainerSlotEntry>? {
+    override suspend fun layoutAt(holder: HolderId, asOfMillis: Long, limit: Int): List<ContainerSlotEntry>? {
         if (limit <= 0) return null
         val column = byHolder[holder] ?: return null
         var seen = 0

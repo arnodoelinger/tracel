@@ -7,8 +7,8 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.EntityTypeKey
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.codec.Packed.BLOCK
 import com.tracel.storage.codec.Packed.ENTITY
 import com.tracel.storage.codec.Packed.ITEM_ENTITY

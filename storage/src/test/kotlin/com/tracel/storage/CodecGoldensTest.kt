@@ -10,9 +10,9 @@ import com.tracel.model.id.WorldId
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockDataKey
-import com.tracel.model.world.EntityTypeKey
-import com.tracel.model.world.LogKind
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.model.log.LogKind
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Records

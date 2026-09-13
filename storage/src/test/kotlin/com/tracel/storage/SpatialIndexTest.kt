@@ -13,6 +13,9 @@ import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.*
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.ActionKind
 import com.tracel.storage.ports.log.QueryProbe
 import com.tracel.storage.support.Stack
 import kotlinx.coroutines.test.runTest

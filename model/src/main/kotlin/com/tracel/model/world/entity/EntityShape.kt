@@ -1,4 +1,4 @@
-package com.tracel.model.world
+package com.tracel.model.world.entity
 
 /** What an entity looks like. */
 public data class EntityShape(

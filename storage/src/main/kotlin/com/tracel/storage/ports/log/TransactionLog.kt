@@ -11,7 +11,7 @@ import com.tracel.model.id.*
 import com.tracel.model.item.namesMaterial
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.LogKind
+import com.tracel.model.log.LogKind
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader

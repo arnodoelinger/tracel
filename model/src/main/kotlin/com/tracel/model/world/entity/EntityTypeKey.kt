@@ -1,4 +1,4 @@
-package com.tracel.model.world
+package com.tracel.model.world.entity
 
 /** An entity type. */
 @JvmInline

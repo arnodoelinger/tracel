@@ -1,4 +1,4 @@
-package com.tracel.model.world
+package com.tracel.model.world.block
 
 /** A block's full serialized state. */
 @JvmInline

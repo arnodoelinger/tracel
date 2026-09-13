@@ -1,5 +1,6 @@
 package com.tracel.storage
 
+import com.tracel.annotations.Unstable
 import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.capture.CaptureRing
@@ -91,24 +92,30 @@ class TracelStorage private constructor(
         StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(block)
     }
 
-    // TODO: unsafe
+    // TODO: rewrite
+    //  unstable and unsafe
+    @Unstable
     private suspend fun <T> unit(block: StorageUnit.() -> T): T = lock.withLock {
         withContext(dispatcher) {
             val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
             open.use {
                 val result = withContext(OpenUnit(open, Thread.currentThread())) { open.block() }
+                WriteLog.dump(open.batch)
                 engine.write(open.batch, durable = true)
                 result
             }
         }
     }
 
-    // TODO: unsafe
+    // TODO: rewrite
+    //  unstable and unsafe
+    @Unstable
     private suspend fun <T> suspendingUnit(block: suspend () -> T): T = lock.withLock {
         withContext(dispatcher) {
             val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
             open.use {
                 val result = withContext(OpenUnit(open, Thread.currentThread())) { block() }
+                WriteLog.dump(open.batch)
                 engine.write(open.batch, durable = true)
                 result
             }

@@ -6,8 +6,9 @@ import com.tracel.model.id.Seq
 
 /**
  * One entry in a holder's FIFO queue for one item key: how much of [lot]
- * currently sits at [holder], and its place in line. Withdrawing always
- * consumes the lowest [fifoSeq] first — see ledger for why FIFO and not some other rule.
+ * currently sits at [holder], and its place in line.
+ *
+ * Withdrawing always consumes the lowest [fifoSeq] first.
  */
 public data class AccountLot(
     public val holder: HolderId,

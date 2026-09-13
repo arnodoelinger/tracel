@@ -14,6 +14,13 @@ import com.tracel.model.id.TxnId
 import com.tracel.model.id.WorldId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.*
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.block.BlockExtras
+import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.entity.EntityExtras
+import com.tracel.model.world.entity.EntityShape
+import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.model.world.ActionKind
 import com.tracel.storage.ports.ops.purgeAll
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.diamond
@@ -388,10 +395,10 @@ class WorldLogTest {
     fun `an entity change round-trips and is findable by its own uuid`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             val boat = UUID(7, 7)
-            val shape = com.tracel.model.world.EntityShape(
-                com.tracel.model.world.EntityTypeKey("minecraft:chest_boat"),
+            val shape = EntityShape(
+                EntityTypeKey("minecraft:chest_boat"),
                 10.5, 64.0, -3.25, 90f, 0f,
-                com.tracel.model.world.EntityExtras.Opaque(byteArrayOf(9, 9, 9)),
+                EntityExtras.Opaque(byteArrayOf(9, 9, 9)),
             )
             val change = WorldChange(
                 Seq(1), ActionKind.ENTITY_REMOVE, CauseKind.PLAYER_ACTION, player(1), 42L,
@@ -415,11 +422,11 @@ class WorldLogTest {
     fun `an entity spawn with no nbt still round-trips a shape the planner can invert`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             val boat = UUID(8, 8)
-            val type = com.tracel.model.world.EntityTypeKey("minecraft:oak_boat")
+            val type = EntityTypeKey("minecraft:oak_boat")
             val change = WorldChange(
                 Seq(1), ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, player(1), 42L,
                 at(4, 70, -2),
-                ChangeSubject.Entity(boat, type, null, com.tracel.model.world.EntityShape(type, 4.5, 70.0, -1.5)),
+                ChangeSubject.Entity(boat, type, null, EntityShape(type, 4.5, 70.0, -1.5)),
             )
             stack.worldLog.append(change)
 
@@ -437,7 +444,7 @@ class WorldLogTest {
     @Test
     fun `a chest boat's shape never carries its cargo`(@TempDir dir: Path) = runTest {
         Stack(dir).use {
-            val fields = com.tracel.model.world.EntityShape::class.java.declaredFields.map { it.type.name } +
+            val fields = EntityShape::class.java.declaredFields.map { it.type.name } +
                     BlockShape::class.java.declaredFields.map { it.type.name }
             assertTrue(
                 fields.none { it.contains("Inventory") || it.contains("ItemStack") || it.contains("ItemKey") },
@@ -592,8 +599,8 @@ class WorldLogTest {
                 BlockExtras.Opaque(byteArrayOf(1, 2, 3)),
             )
             val boat = UUID(7, 7)
-            val boatShape = com.tracel.model.world.EntityShape(
-                com.tracel.model.world.EntityTypeKey("minecraft:chest_boat"),
+            val boatShape = EntityShape(
+                EntityTypeKey("minecraft:chest_boat"),
                 5.5, 70.0, 5.25, 90f, 0f,
             )
             for (seq in 1L..40L) stack.worldLog.append(broke(seq, at(5, 70, (seq % 8).toInt()), epochMillis = seq))

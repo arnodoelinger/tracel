@@ -11,6 +11,10 @@ import com.tracel.model.id.Quantity
 import com.tracel.model.id.TxnId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.*
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.entity.EntityShape
+import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.ffm.Bytes.i16
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64

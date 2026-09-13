@@ -6,6 +6,12 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.*
 import com.tracel.model.world.*
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.block.BlockExtras
+import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.entity.EntityExtras
+import com.tracel.model.world.entity.EntityShape
+import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block

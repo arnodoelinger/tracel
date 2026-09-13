@@ -4,7 +4,7 @@ import com.tracel.annotations.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.BlockShape
+import com.tracel.model.world.block.BlockShape
 
 /** One coordinate going from one shape to another. */
 public data class BlockEdit(

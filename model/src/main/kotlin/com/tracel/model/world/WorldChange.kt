@@ -3,6 +3,9 @@ package com.tracel.model.world
 import com.tracel.annotations.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Seq
+import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.entity.EntityShape
+import com.tracel.model.world.entity.EntityTypeKey
 import java.util.UUID
 
 /**
@@ -32,7 +35,7 @@ public sealed interface ChangeSubject {
      * An entity appearing, going away, or changing in place. Either side is `null` when the
      * entity did not exist on that side of the change.
      *
-     * [at][WorldChange.at] is the block the entity was in, so an entity change lands in the same
+     * [WorldChange.at] is the block the entity was in, so an entity change lands in the same
      * spatial index as a block edit and one region scan finds both.
      */
     public data class Entity(

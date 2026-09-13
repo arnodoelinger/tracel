@@ -4,7 +4,7 @@ import com.tracel.annotations.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.EntityShape
+import com.tracel.model.world.entity.EntityShape
 import com.tracel.platform.storage.UnitOfWork
 import java.util.UUID
 import java.util.logging.Logger

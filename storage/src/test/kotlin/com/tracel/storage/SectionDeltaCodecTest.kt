@@ -1,15 +1,20 @@
 package com.tracel.storage
 
 import com.tracel.annotations.CauseKind
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.entity.EntityExtras
+import com.tracel.model.world.entity.EntityShape
+import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.leashHolder
-import com.tracel.model.world.opaque
-import com.tracel.model.world.vehicle
+import com.tracel.model.world.entity.leashHolder
+import com.tracel.model.world.entity.opaque
+import com.tracel.model.world.entity.vehicle
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.foreign.MemorySegment
+import java.util.UUID
 
 class SectionDeltaCodecTest {
     private class Built(
@@ -156,8 +161,8 @@ class SectionDeltaCodecTest {
 
     @Test
     fun `a falling block keeps its data and nothing else`() {
-        val extras = com.tracel.model.world.EntityExtras.Falling(
-            com.tracel.model.world.BlockDataKey("minecraft:sand")
+        val extras = EntityExtras.Falling(
+            BlockDataKey("minecraft:sand")
         )
         val bytes = Records.entityExtras(extras)
         assertEquals(extras, Records.decodeEntityExtras(bytes))
@@ -167,36 +172,36 @@ class SectionDeltaCodecTest {
 
     @Test
     fun `entity extras still round-trip the opaque kind beside the falling one`() {
-        val opaque = com.tracel.model.world.EntityExtras.Opaque(ByteArray(40) { it.toByte() })
+        val opaque = EntityExtras.Opaque(ByteArray(40) { it.toByte() })
         assertEquals(opaque, Records.decodeEntityExtras(Records.entityExtras(opaque)))
         assertNull(Records.decodeEntityExtras(Records.entityExtras(null)))
     }
 
     @Test
     fun `a leash keeps its holder and the snapshot it wraps`() {
-        val knot = java.util.UUID.fromString("6f3a1f5e-0c11-4f2a-9a3e-2f9e7c1b4d55")
-        val leashed = com.tracel.model.world.EntityExtras.Leashed(
+        val knot = UUID.fromString("6f3a1f5e-0c11-4f2a-9a3e-2f9e7c1b4d55")
+        val leashed = EntityExtras.Leashed(
             knot,
-            com.tracel.model.world.EntityExtras.Opaque(ByteArray(40) { it.toByte() }),
+            EntityExtras.Opaque(ByteArray(40) { it.toByte() }),
         )
         assertEquals(leashed, Records.decodeEntityExtras(Records.entityExtras(leashed)))
     }
 
     @Test
     fun `a leash survives with nothing wrapped in it`() {
-        val bare = com.tracel.model.world.EntityExtras.Leashed(java.util.UUID.randomUUID(), null)
+        val bare = EntityExtras.Leashed(UUID.randomUUID(), null)
         assertEquals(bare, Records.decodeEntityExtras(Records.entityExtras(bare)))
     }
 
     @Test
     fun `a seat keeps its vehicle, and stacks with a leash`() {
-        val boat = java.util.UUID.randomUUID()
-        val knot = java.util.UUID.randomUUID()
-        val both = com.tracel.model.world.EntityExtras.Riding(
+        val boat = UUID.randomUUID()
+        val knot = UUID.randomUUID()
+        val both = EntityExtras.Riding(
             boat,
-            com.tracel.model.world.EntityExtras.Leashed(
+            EntityExtras.Leashed(
                 knot,
-                com.tracel.model.world.EntityExtras.Opaque(ByteArray(12) { it.toByte() }),
+                EntityExtras.Opaque(ByteArray(12) { it.toByte() }),
             ),
         )
         val decoded = Records.decodeEntityExtras(Records.entityExtras(both))
@@ -208,13 +213,13 @@ class SectionDeltaCodecTest {
 
     @Test
     fun `a leashed shape round-trips through the payload the world log stores`() {
-        val type = com.tracel.model.world.EntityTypeKey("minecraft:cow")
+        val type = EntityTypeKey("minecraft:cow")
         val at = com.tracel.model.world.BlockPos(com.tracel.model.id.WorldId(java.util.UUID.randomUUID()), 1, 2, 3)
-        val shape = com.tracel.model.world.EntityShape(
+        val shape = EntityShape(
             type, 1.5, 2.0, 3.5, 90f, -12.5f,
-            com.tracel.model.world.EntityExtras.Leashed(
-                java.util.UUID.randomUUID(),
-                com.tracel.model.world.EntityExtras.Opaque(ByteArray(8) { it.toByte() }),
+            EntityExtras.Leashed(
+                UUID.randomUUID(),
+                EntityExtras.Opaque(ByteArray(8) { it.toByte() }),
             ),
         )
         assertEquals(shape, Records.decodeEntityShape(type, at, Records.entityShapePayload(shape)))

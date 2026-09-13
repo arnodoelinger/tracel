@@ -1,5 +1,7 @@
-package com.tracel.model.world
+package com.tracel.model.world.entity
 
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.block.BlockExtras
 import java.util.UUID
 
 /**

@@ -5,7 +5,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockDataKey
+import com.tracel.model.world.block.BlockDataKey
 import com.tracel.storage.codec.CaptureSlot
 import com.tracel.storage.ffm.OffHeapRing
 import com.tracel.storage.intern.Interning
