@@ -1,131 +1,72 @@
 package com.tracel.plugin
 
-import com.tracel.engine.capture.releaseFlows
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.ledger.LotLedger
-import com.tracel.engine.rollback.RollbackExecutor
-import com.tracel.engine.rollback.RollbackJobCoordinator
-import com.tracel.engine.rollback.WorldQuery
-import com.tracel.engine.rollback.involution.InvolutionExecutor
-import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
-import com.tracel.plugin.command.TracelCommand
-import com.tracel.plugin.listener.capture.BlockPlacementCaptureListener
-import com.tracel.plugin.listener.capture.ContainerBreakListener
-import com.tracel.plugin.listener.capture.CraftCaptureListener
-import com.tracel.plugin.listener.capture.HopperTransferListener
-import com.tracel.plugin.listener.capture.InventoryClickCaptureListener
-import com.tracel.plugin.listener.capture.ItemEntityCaptureListener
-import com.tracel.plugin.listener.delivery.PendingDeliveryListener
-import com.tracel.plugin.listener.explosion.ExplosionCaptureListener
-import com.tracel.plugin.listener.inspect.InspectListener
-import com.tracel.plugin.listener.redstone.RedstoneTriggerListener
-import com.tracel.plugin.scheduler.PaperTracelSchedulers
-import com.tracel.plugin.startup.ItemKeyStabilityCanary
-import com.tracel.storage.TracelStorage
-import com.tracel.storage.capture.CaptureGate
-import com.tracel.storage.capture.Drainer
-import com.tracel.storage.ports.Counters
-import com.tracel.storage.ports.Journal
-import com.tracel.storage.ports.LotLeaseRegistry
-import com.tracel.storage.ports.LotRepository
-import com.tracel.storage.ports.RollbackJobRepository
-import com.tracel.storage.ports.TransactionLog
-import com.tracel.storage.ports.PendingDeliveryRepository
-import kotlinx.coroutines.CoroutineScope
+import com.tracel.plugin.adapter.item.PendingItemForms
+import com.tracel.plugin.startup.TracelRuntime
+import com.tracel.plugin.startup.enableTracel
+import com.tracel.plugin.util.killServer
+import com.tracel.plugin.util.serverIsStopping
+import com.tracel.plugin.util.stopping
+import java.util.logging.Level
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
 
 /**
  * Entry point of `Tracel`.
  */
 class TracelPlugin : JavaPlugin() {
-    private lateinit var storage: TracelStorage
-    private lateinit var services: TracelServices
-    private lateinit var drain: Job
+    private var runtime: TracelRuntime? = null
 
     override fun onEnable() {
-        ItemKeyStabilityCanary.check(this, logger)
-
-        dataFolder.mkdirs()
-        storage = TracelStorage.open(dataFolder.resolve("ledger").toPath())
-
-        // The store's own writer thread is the storage thread
-        val schedulers = PaperTracelSchedulers(this, storage.dispatcher)
-
-        val counters = Counters(storage)
-        val repo = LotRepository(storage, counters)
-        val ledger = LotLedger(repo)
-        val log = TransactionLog(storage)
-        val leases = LotLeaseRegistry(storage)
-        val jobs = RollbackJobRepository(storage)
-        val pendingDeliveries = PendingDeliveryRepository(storage, counters)
-        val journalExecutor = JournalExecutor(
-            RollbackExecutor(ledger, log, counters::nextSeq),
-            Journal.forRollback(storage),
-            leases,
-            counters::nextTxnId,
-        )
-        val involutionCoordinator = InvolutionJobCoordinator(
-            jobs,
-            repo,
-            leases,
-            InvolutionExecutor(ledger, log, counters::nextSeq),
-            Journal.forInvolution(storage),
-            counters::nextTxnId,
-        )
-
-        services = TracelServices(
-            repo = repo,
-            ledger = ledger,
-            log = log,
-            counters = counters,
-            schedulers = schedulers,
-            scope = CoroutineScope(SupervisorJob() + schedulers.async),
-            rollback = RollbackJobCoordinator(repo, WorldQuery { Bukkit.getPlayer(it) != null }, leases, journalExecutor, jobs),
-            jobs = jobs,
-            undo = involutionCoordinator,
-            pendingDeliveries = pendingDeliveries,
-            storage = storage,
-            gate = CaptureGate(storage.ring),
-        )
-
-        // The storage half of the pipeline: drain the ring, apply a whole batch of captures as
-        // one commit. Canceled with the plugin's scope, which is what stops it cleanly.
-        drain = Drainer(
-            storage = storage,
-            ring = storage.ring,
-            interning = storage.interning,
-            sink = { deltas, epochMillis, cause, causedBy ->
-                services.capture.record(deltas, epochMillis, cause, causedBy)
-            },
-            releaseSink = { from, to, epochMillis, cause, causedBy ->
-                val flows = ledger.releaseFlows(from, to)
-                if (flows.isNotEmpty()) services.capture.recordDirect(flows, epochMillis, cause, causedBy)
-            },
-        ).start(services.scope)
-
-        server.pluginManager.registerEvents(HopperTransferListener(services), this)
-        server.pluginManager.registerEvents(PendingDeliveryListener(services), this)
-        server.pluginManager.registerEvents(InventoryClickCaptureListener(services, this), this)
-        server.pluginManager.registerEvents(CraftCaptureListener(services, this), this)
-        server.pluginManager.registerEvents(ContainerBreakListener(services), this)
-        server.pluginManager.registerEvents(ItemEntityCaptureListener(services, this), this)
-        server.pluginManager.registerEvents(BlockPlacementCaptureListener(services), this)
-        server.pluginManager.registerEvents(ExplosionCaptureListener(services), this)
-        server.pluginManager.registerEvents(RedstoneTriggerListener(services), this)
-        server.pluginManager.registerEvents(InspectListener(services), this)
-        registerCommand("tracel", "Tracel's forensics and rollback commands.", TracelCommand(services))
-
-        logger.info("Tracel ${pluginMeta.version} enabled.")
+        try {
+            runtime = enableTracel(this)
+        } catch (failure: Throwable) {
+            logger.log(Level.SEVERE, "Tracel failed to enable. The server cannot run without a ledger.", failure)
+            killServer(this)
+            throw failure
+        }
     }
 
     override fun onDisable() {
-        if (::drain.isInitialized) drain.cancel()
-        if (::services.isInitialized) services.scope.cancel()
-        if (::storage.isInitialized) storage.close()
+        val run = runtime
+        stopping(logger, "the capture drain") { run?.drain?.cancel() }
+        stopping(logger, "the entity drain") { run?.entityDrain?.cancel() }
+        stopping(logger, "the item-form drain") { run?.formDrain?.cancel() }
+        stopping(logger, "the release drain") { run?.releaseDrain?.cancel() }
+        stopping(logger, "background tasks") { run?.services?.scope?.cancel() }
+        stopping(logger, "storage") { run?.storage?.close() }
         logger.info("Tracel disabled.")
+        if (!serverIsStopping()) {
+            logger.severe("Tracel was disabled while the server is still running. The server cannot run without a ledger.")
+            killServer(this)
+        }
+    }
+
+    /** Capture failure. */
+    internal fun captureFailures() = CoroutineExceptionHandler { _, failure ->
+        logger.log(Level.WARNING, "Tracel background task failed: ${failure.message}", failure)
+    }
+
+    /** If capture dies, kill the server. */
+    internal fun haltIfCaptureDies(job: Job, what: String) {
+        job.invokeOnCompletion { failure ->
+            if (!isEnabled || serverIsStopping()) return@invokeOnCompletion
+            if (failure == null) return@invokeOnCompletion
+            logger.log(Level.SEVERE, "Tracel\'s $what died. The server cannot run without a ledger.", failure)
+            killServer(this)
+        }
+    }
+
+    /** Item form writer. */
+    internal suspend fun writeItemForms(services: TracelServices) {
+        val batch = PendingItemForms.drain()
+        if (batch.isEmpty()) return
+        try {
+            services.itemForms.rememberAll(batch)
+        } catch (failure: Throwable) {
+            PendingItemForms.requeue(batch)
+            throw failure
+        }
     }
 }

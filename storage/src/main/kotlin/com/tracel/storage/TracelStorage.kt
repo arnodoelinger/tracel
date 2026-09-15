@@ -150,6 +150,9 @@ class TracelStorage private constructor(
     }
 
     companion object {
+        const val DEFAULT_RING_SLOTS = 1 shl 16
+        const val MAX_READERS = 16
+
         /** Opens (or creates) the store at [path]. */
         fun open(
             path: Path,
@@ -179,8 +182,5 @@ class TracelStorage private constructor(
                 readerPool.asCoroutineDispatcher(),
             )
         }
-
-        const val DEFAULT_RING_SLOTS = 1 shl 16
-        const val MAX_READERS = 16
     }
 }

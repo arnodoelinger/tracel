@@ -245,4 +245,37 @@ class ArchitectureTest {
             it.parameters.firstOrNull()?.type?.name == "LotLease"
         }
     }
+
+    private fun rollbackLayer(layer: String) = Konsist.scopeFromModule("plugin")
+        .files
+        .filter { "/src/main/kotlin/com/tracel/plugin/rollback/$layer/" in it.path }
+
+    private fun importsRollback(text: String, vararg layers: String) = layers.any { layer ->
+        Regex("""^import com\.tracel\.plugin\.rollback\.$layer\.""", RegexOption.MULTILINE).containsMatchIn(text)
+    }
+
+    @Test
+    fun `rollback structure and material halves never import each other`() {
+        rollbackLayer("structure").assertFalse(testName = "structure imports material") { importsRollback(it.text, "material") }
+        rollbackLayer("material").assertFalse(testName = "material imports structure") { importsRollback(it.text, "structure") }
+    }
+
+    @Test
+    fun `rollback planning results and trace stay out of both halves`() {
+        rollbackLayer("planning").assertFalse(testName = "planning imports a half") {
+            importsRollback(it.text, "structure", "material")
+        }
+        (rollbackLayer("result") + rollbackLayer("trace")).assertFalse(testName = "result or trace imports a layer above") {
+            importsRollback(it.text, "structure", "material", "planning")
+        }
+    }
+
+    @Test
+    fun `outside rollback only the wiring touches structure and planning`() {
+        Konsist.scopeFromModule("plugin")
+            .files
+            .filter { "/src/main/kotlin/" in it.path && "/com/tracel/plugin/rollback/" !in it.path }
+            .filterNot { it.name == "TracelServices" }
+            .assertFalse(testName = "rollback internals leak out") { importsRollback(it.text, "structure", "planning") }
+    }
 }

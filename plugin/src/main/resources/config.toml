@@ -1,0 +1,27 @@
+# Tracel configuration
+# Support: https://discord.gg/uwMMZ2KWk6
+
+[rollback]
+# Maximum number of entities restored without confirmation
+# 0 = always ask for confirmation
+entity-restore-limit = 128
+
+[storage]
+# Controls how Tracel saves the history used for queries and rollbacks
+#
+#   every-batch    Save every commit safely before continuing
+#   <duration>     Save at most once per interval, e.g. 500ms, 1s, 5s
+#   never          Never force changes to disk. Not for production
+sync = "every-batch"
+
+# Amount of memory used before history is written to disk
+memtable-size = "16MiB"
+
+# Maximum number of pending writes before Tracel starts slowing down
+# Higher values handle larger bursts but use more memory
+max-pending-flushes = 3
+
+# How many events can be buffered during bursts of activity
+# 65536 is suitable for most servers, but busy or anarchy servers may
+# need more
+capture-ring-slots = 65536

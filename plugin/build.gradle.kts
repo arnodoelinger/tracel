@@ -12,6 +12,8 @@ dependencies {
     implementation(project(":storage"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.caffeine)
+    implementation(libs.semver)
+    implementation(libs.tomlj)
     ksp(project(":codegen"))
 
     compileOnly(libs.paper.api)
@@ -25,6 +27,8 @@ tasks {
         archiveClassifier.set("")
 
         relocate("com.github.benmanes.caffeine", "com.tracel.shaded.caffeine")
+        relocate("io.github.z4kn4fein.semver", "com.tracel.shaded.semver")
+        relocate("org.tomlj", "com.tracel.shaded.tomlj")
         mergeServiceFiles()
     }
 
