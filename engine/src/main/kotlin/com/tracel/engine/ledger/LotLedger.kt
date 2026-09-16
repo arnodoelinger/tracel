@@ -223,6 +223,10 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
             lot
         }
 
+    /** The lot [job] minted in place of [originalLotId], if it minted one. */
+    public suspend fun compensationOf(originalLotId: LotId, job: RollbackJobId): LotId? =
+        repo.findCompensateEdge(originalLotId, job)?.child
+
     /** Drop the Compensate edge for this job, if it exists. */
     public suspend fun uncompensate(originalLotId: LotId, job: RollbackJobId): Unit = atomically {
         val edge = repo.findCompensateEdge(originalLotId, job) ?: return@atomically
@@ -255,7 +259,7 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
     /** Units of [itemKey] on real holders and escrow. Not Source/Sink. */
     public suspend fun census(itemKey: ItemKey): Long = repo.census(itemKey)
 
-    /** Drops this lot's placement. Not a FIFO take — for a known output, e.g. unmake. */
+    /** Drops this lot's placement, silently if there is none. Not a FIFO take. */
     public suspend fun destroy(holder: HolderId, lotId: LotId) {
         repo.remove(holder, lotId)
     }

@@ -7,7 +7,6 @@ import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.destinationFor
-import com.tracel.engine.rollback.plan.escrowDeliveries
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -108,10 +107,9 @@ public class RollbackExecutor(
             is RollbackStep.Unmake -> {
                 val outputKey = ledger.itemKeyOf(step.outputs.first().lotId)
                 var outputQty = 0L
-                for ((lotId, holder) in step.outputs) {
-                    outputQty += ledger.quantityOf(lotId).raw
-                    ledger.destroy(holder, lotId)
-                }
+
+                // Throws for an output that moved since planning, before any ingredient comes back
+                for ((lotId, holder) in step.outputs) outputQty += ledger.withdrawExact(holder, lotId).quantity.raw
                 for ((lotId, quantity) in step.inputs) ledger.restore(step.holder, lotId, quantity)
 
                 listOf(Flow(outputKey, Quantity(outputQty), step.holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)) +
@@ -128,24 +126,26 @@ public class RollbackExecutor(
      */
     public suspend fun release(job: RollbackJobId, plan: RollbackPlan, target: RollbackTarget, txn: TxnId): Unit = atomically {
         val escrow = HolderId.Escrow(job)
-        val flows = mutableListOf<Flow>()
+        val moved = LinkedHashMap<Pair<HolderId, ItemKey>, Long>()
 
-        val owedByItem = LinkedHashMap<ItemKey, MutableList<Pair<HolderId, Long>>>()
-        for ((destination, owed) in escrowDeliveries(plan, target, ledger)) {
-            for ((itemKey, wanted) in owed) {
-                if (wanted <= 0) continue
-                owedByItem.getOrPut(itemKey) { mutableListOf() } += destination to wanted
+        for (step in plan.steps) {
+            val traced = when (step) {
+                is RollbackStep.Take -> step.lotId
+                is RollbackStep.Mint -> step.lotId
+                is RollbackStep.Debt -> step.lotId
+                is RollbackStep.Unmake -> continue
             }
+            val held = if (step is RollbackStep.Take) traced else ledger.compensationOf(traced, job) ?: continue
+
+            // Directly delivered steps never went through escrow
+            if (ledger.currentHolderOf(held) != escrow) continue
+            val destination = target.destinationFor(plan, traced)
+            ledger.moveExact(escrow, destination, held)
+            moved.merge(destination to ledger.itemKeyOf(held), ledger.quantityOf(held).raw, Long::plus)
         }
 
-        for ((itemKey, owed) in owedByItem) {
-            for ((destination, portions) in ledger.drain(escrow, itemKey, owed, txn)) {
-                ledger.deposit(destination, portions)
-                flows += Flow(itemKey, Quantity(portions.sumOf { it.quantity.raw }), escrow, destination, FlowKind.MOVE)
-            }
-        }
-
-        if (flows.isNotEmpty()) {
+        if (moved.isNotEmpty()) {
+            val flows = moved.map { (to, quantity) -> Flow(to.second, Quantity(quantity), escrow, to.first, FlowKind.MOVE) }
             log.append(Transaction(txn, nextSeq(), System.currentTimeMillis(), CauseKind.ROLLBACK, causedBy = null, flows))
         }
     }

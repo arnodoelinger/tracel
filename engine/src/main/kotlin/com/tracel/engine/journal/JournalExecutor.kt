@@ -62,46 +62,50 @@ public class JournalExecutor(
 
             val direct = done.isEmpty()
             val stride = batchSize
-            var from = 0
-            while (from < n) {
-                val rawEnd = from + stride
-                val until = if (rawEnd < n) rawEnd else n
-                var index = from
-                while (index < until && isSet(words, index)) index++
-                val last = until == n
-                val needRelease = last && !isSet(words, n)
-                if (index == until && !needRelease) {
-                    from = until
-                    continue
-                }
 
-                executor.atomically {
-                    if (index < until) {
-                        val slice = pendingSlice(plan.steps, words, from, until)
-                        executor.applyAll(
-                            job,
-                            slice,
-                            nextTxnId(),
-                            nextTxn = nextTxnId,
-                            plan = if (direct) plan else null,
-                            target = if (direct) target else null,
-                        )
-                        var marked = from
-                        while (marked < until) {
-                            if (!isSet(words, marked)) {
-                                journal.markCompleted(job, marked)
-                                setBit(words, marked)
+            // One unit for every batch: a capture landing between two of them strands a half-applied job
+            executor.atomically {
+                var from = 0
+                while (from < n) {
+                    val rawEnd = from + stride
+                    val until = if (rawEnd < n) rawEnd else n
+                    var index = from
+                    while (index < until && isSet(words, index)) index++
+                    val last = until == n
+                    val needRelease = last && !isSet(words, n)
+                    if (index == until && !needRelease) {
+                        from = until
+                        continue
+                    }
+
+                    executor.atomically {
+                        if (index < until) {
+                            val slice = pendingSlice(plan.steps, words, from, until)
+                            executor.applyAll(
+                                job,
+                                slice,
+                                nextTxnId(),
+                                nextTxn = nextTxnId,
+                                plan = if (direct) plan else null,
+                                target = if (direct) target else null,
+                            )
+                            var marked = from
+                            while (marked < until) {
+                                if (!isSet(words, marked)) {
+                                    journal.markCompleted(job, marked)
+                                    setBit(words, marked)
+                                }
+                                marked++
                             }
-                            marked++
+                        }
+                        if (needRelease) {
+                            if (!direct) executor.release(job, plan, target, nextTxnId())
+                            journal.markCompleted(job, n)
+                            setBit(words, n)
                         }
                     }
-                    if (needRelease) {
-                        if (!direct) executor.release(job, plan, target, nextTxnId())
-                        journal.markCompleted(job, n)
-                        setBit(words, n)
-                    }
+                    from = until
                 }
-                from = until
             }
 
             if (n == 0 && !isSet(words, n)) {
