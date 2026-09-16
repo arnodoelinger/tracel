@@ -2,12 +2,14 @@ package com.tracel.plugin
 
 import com.tracel.engine.capture.CaptureCoordinator
 import com.tracel.engine.capture.SnapshotDiffer
+import com.tracel.engine.capture.WearCapture
 import com.tracel.engine.container.ContainerSlotLog
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobRepository
+import com.tracel.engine.wear.WearLog
 import com.tracel.engine.world.EntityCaptureQueue
 import com.tracel.engine.world.WorldCaptureCoordinator
 import com.tracel.engine.world.WorldLog
@@ -60,6 +62,7 @@ import com.tracel.engine.rollback.plan.WorldQuery
  * @param gate fast path for capture events.
  * @param worldLog stores world changes.
  * @param containerSlots stores which slot a container's contents last sat in.
+ * @param wear stores how worn each tool was over time.
  * @param itemForms stores item metadata needed to reconstruct items.
  * @param exportDirectory directory for history exports and imports.
  * @param entityRestoreLimit how many entities one rollback may bring back before it asks.
@@ -82,6 +85,7 @@ class TracelServices(
     val gate: CaptureGate,
     val worldLog: WorldLog,
     val containerSlots: ContainerSlotLog,
+    val wear: WearLog,
     val itemForms: ItemForms,
     val exportDirectory: Path,
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
@@ -92,6 +96,7 @@ class TracelServices(
     val shape: ShapeCapture = ShapeCapture(this)
     val material: MaterialCapture = MaterialCapture(this)
     val capture: CaptureCoordinator = CaptureCoordinator(ledger, log, counters::nextTxnId, counters::nextSeq)
+    val wearCapture: WearCapture = WearCapture(repo, log, wear, counters::nextTxnId, counters::nextSeq)
     val worldCapture: WorldCaptureCoordinator = WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
     val entityCapture: EntityCaptureQueue = EntityCaptureQueue(worldCapture, storage)
     val restorer: MaterialRestorer = MaterialRestorer(this)

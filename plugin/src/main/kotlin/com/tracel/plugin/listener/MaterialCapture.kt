@@ -5,10 +5,12 @@ import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
+import com.tracel.engine.wear.WearMark
 import com.tracel.model.flow.Flow
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Quantity
 import com.tracel.model.item.ItemKey
+import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.entity.toBlockPos
@@ -328,6 +330,15 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         }
     }
 
+    /** A tool lost or regained durability. */
+    fun worn(player: Player, stack: ItemStack, before: Int, after: Int) {
+        val holder = HolderId.Player(player.uniqueId)
+        val itemKey = stack.toItemKey()
+        val at = player.toBlockPos()
+        val epochMillis = System.currentTimeMillis()
+        committing("wear by $holder") { services.wearCapture.record(holder, itemKey, before, after, epochMillis, at) }
+    }
+
     /** Records a crafting action into the material tracking ledger. */
     suspend fun crafted(
         ingredients: List<Ingredient>,
@@ -335,9 +346,7 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         causedBy: HolderId?,
         at: BlockPos?,
         epochMillis: Long = System.currentTimeMillis(),
-    ) {
-        services.capture.recordCraft(ingredients, product, epochMillis, causedBy, at)
-    }
+    ): Transaction = services.capture.recordCraft(ingredients, product, epochMillis, causedBy, at)
 
     /**
      * Player craft in one unit of work: pick the gain the recipe made among [totals], book [ingredients] into it.
@@ -350,6 +359,7 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         ingredients: List<Ingredient>,
         at: BlockPos,
         epochMillis: Long,
+        productDamage: Int?,
         unmatched: (gains: Int) -> Unit,
     ) {
         services.atomically {
@@ -365,7 +375,13 @@ class MaterialCapture internal constructor(private val services: TracelServices)
                 return@atomically
             }
             val product = Product(player, gain.itemKey, Quantity(gain.delta))
-            crafted(ingredients, product, player, at, epochMillis)
+            val transaction = crafted(ingredients, product, player, at, epochMillis)
+
+            // A repaired tool leaves the grid with a damage nothing else wrote down
+            if (productDamage != null) {
+                val output = transaction.lots.last { it.flowIndex == ingredients.size }.lotId
+                services.wear.record(WearMark(output, epochMillis, productDamage, productDamage))
+            }
         }
     }
 

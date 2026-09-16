@@ -86,6 +86,7 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
     return when (outcome) {
         is InvolutionOutcome.Undone -> {
             val material = materialHalf.undoRestore(outcome.steps, job, asOf = record.executedAtMillis)
+            if (record.executedAtMillis > 0L) materialHalf.rewearUndo(outcome.steps, record.executedAtMillis)
             val removed = structureHalf.restore(takeAway, StructurePass(force = true), CargoPolicy(ledgerCargoFor = undoLedgerCargoFor))
 
             // Return-to-vanished-drop from an entity hull

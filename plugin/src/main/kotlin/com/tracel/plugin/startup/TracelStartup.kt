@@ -32,6 +32,7 @@ import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
+import com.tracel.storage.ports.wear.WearLog
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -82,6 +83,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val log = TransactionLog(storage)
     val worldLog = WorldLog(storage)
     val containerSlots = ContainerSlotLog(storage, counters)
+    val wear = WearLog(storage, counters)
     val leases = LotLeaseRegistry(storage)
     val jobs = RollbackJobRepository(storage)
     val pendingDeliveries = PendingDeliveryRepository(storage, counters)
@@ -115,6 +117,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         gate = CaptureGate(storage.ring),
         worldLog = worldLog,
         containerSlots = containerSlots,
+        wear = wear,
         itemForms = ItemForms(storage),
         exportDirectory = plugin.dataFolder.resolve("database").resolve("exports").toPath(),
         entityRestoreLimit = settings.entityRestoreLimit,

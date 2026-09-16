@@ -123,6 +123,9 @@ internal suspend fun RollbackComposer.materialAndContested(
                     settled = if (early) settled else null,
                     asOf = planned.targetTimeMillis,
                 )
+            }.also {
+                val asOf = planned.targetTimeMillis
+                if (asOf != null) planned.trace.span("rewear tools") { materialHalf.rewear(composite.material, planned.target, job, asOf) }
             }
         }
         val removing = if (layout.deferred.isEmpty()) null else async {

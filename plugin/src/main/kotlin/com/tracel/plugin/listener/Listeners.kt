@@ -4,6 +4,7 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.material.inventory.CraftListener
 import com.tracel.plugin.listener.material.inventory.HandMutationListener
 import com.tracel.plugin.listener.material.inventory.InventoryClickListener
+import com.tracel.plugin.listener.material.inventory.WearListener
 import com.tracel.plugin.listener.material.item.DeathListener
 import com.tracel.plugin.listener.material.item.EntityCargoListener
 import com.tracel.plugin.listener.material.item.ItemEntityListener
@@ -58,6 +59,7 @@ private fun materialListeners(services: TracelServices): List<TracelListener> = 
     InventoryClickListener(services),
     HandMutationListener(services),
     CraftListener(services),
+    WearListener(services),
 
     // Machines
     HopperListener(services),

@@ -49,6 +49,11 @@ class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, Wo
     override suspend fun undoRestore(steps: List<InvolutionStep>, job: RollbackJobId, asOf: Long?): RestorationReport =
         restoreUndo(steps, job, asOf)
 
+    override suspend fun rewear(plan: RollbackPlan, target: RollbackTarget, job: RollbackJobId, asOf: Long) =
+        rewearPlan(plan, target, job, asOf)
+
+    override suspend fun rewearUndo(steps: List<InvolutionStep>, asOf: Long) = rewearSteps(steps, asOf)
+
     override suspend fun respawnReturnedDrops(
         steps: List<InvolutionStep>,
         job: RollbackJobId,

@@ -1,5 +1,6 @@
 package com.tracel.plugin.dialog
 
+import com.tracel.annotations.CauseKind
 import com.tracel.engine.provenance.FateNode
 import com.tracel.engine.provenance.ProvenanceNode
 import com.tracel.engine.rollback.structure.StructureStep
@@ -104,9 +105,11 @@ fun lookupResultReport(transaction: Transaction, item: String? = null): ReportNo
     val who = transaction.causedBy?.let { " by ${describeHolder(it)}" }.orEmpty()
     return ReportNode.Section(
         title = "txn ${transaction.id.raw} @ ${transaction.epochMillis}ms — ${transaction.cause.name.lowercase()}$who",
-        children = flows.map { ReportNode.Line(it.describe()) },
+        children = flows.map { ReportNode.Line(if (transaction.cause == CauseKind.WEAR) it.describeWear() else it.describe()) },
     )
 }
+
+private fun Flow.describeWear(): String = "${itemKey.material}: durability changed at ${describeHolder(source)}"
 
 private fun Flow.describe(): String {
     val qty = "${quantity.raw}x ${itemKey.material}"

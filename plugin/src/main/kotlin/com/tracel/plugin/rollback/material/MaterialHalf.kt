@@ -42,6 +42,12 @@ interface MaterialHalf {
     /** After the ledger undid. [asOf] is the original job's run time, not the historical target. */
     suspend fun undoRestore(steps: List<InvolutionStep>, job: RollbackJobId, asOf: Long? = null): RestorationReport
 
+    /** Worn tools the plan reached, back to the damage they had at [asOf]. After [restore]. */
+    suspend fun rewear(plan: RollbackPlan, target: RollbackTarget, job: RollbackJobId, asOf: Long)
+
+    /** The same after an undo: back to the damage they had when the job ran, [asOf]. After [undoRestore]. */
+    suspend fun rewearUndo(steps: List<InvolutionStep>, asOf: Long)
+
     /** Spawn returns onto vanished drops, after the origin container is gone. */
     suspend fun respawnReturnedDrops(
         steps: List<InvolutionStep>,

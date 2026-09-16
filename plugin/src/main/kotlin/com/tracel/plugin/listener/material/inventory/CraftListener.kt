@@ -24,6 +24,7 @@ import org.bukkit.block.Container
 import org.bukkit.entity.Player
 import org.bukkit.event.block.CrafterCraftEvent
 import org.bukkit.event.inventory.CraftItemEvent
+import org.bukkit.inventory.meta.Damageable
 
 /** Craft listener. */
 class CraftListener(services: TracelServices) : TracelListener(services) {
@@ -38,6 +39,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
 
         // Recipe result name, now: a tick later it still exists but we need it to tell craft output from hopper / mob / off-hand gains
         val produced = runCatching { event.recipe.result.type.name }.getOrNull()
+        val productDamage = event.currentItem?.takeIf { it.type.maxDurability > 0 }?.let { (it.itemMeta as? Damageable)?.damage }
 
         // Player holders have no coords; without the bench (or feet for 2 x 2) "scope:" never sees "a:craft"
         val where = event.inventory.location?.block?.toBlockPos() ?: player.toBlockPos()
@@ -54,7 +56,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
 
             owing {
                 try {
-                    material.craftedByPlayer(playerHolder, totals, produced, ingredients, where, epochMillis) { gains ->
+                    material.craftedByPlayer(playerHolder, totals, produced, ingredients, where, epochMillis, productDamage) { gains ->
                         logger.log(
                             Level.FINE,
                             "craft by $playerHolder produced $gains distinct item keys and none " +
