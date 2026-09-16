@@ -13,6 +13,7 @@ import com.tracel.plugin.rollback.material.cargo.applyJukebox
 import com.tracel.plugin.rollback.material.cargo.applyLectern
 import com.tracel.plugin.rollback.material.cargo.syncCargoFlags
 import com.tracel.plugin.rollback.material.item.Moves
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.applyDelta
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.spillInRegion
@@ -39,6 +40,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
     forms: Map<ItemKey, ByteArray>,
     sink: MutableCollection<Spill>,
     asOf: Long? = null,
+    worn: WornStacks? = null,
 ): String? {
     suspend fun fill(): String? = withContext(services.schedulers.region(holder)) {
         val world = worldOf(holder.world) ?: return@withContext "world is not loaded"
@@ -88,7 +90,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
             ?.groupBy { it.itemKey }
             .orEmpty()
         for ((itemKey, delta) in deltas) {
-            applyDelta(itemKey, delta, forms[itemKey], moves, inventory, preferredSlots[itemKey].orEmpty())
+            applyDelta(itemKey, delta, forms[itemKey], moves, inventory, preferredSlots[itemKey].orEmpty(), worn)
         }
         if (state is BrewingStand) primeBrewingStandFuel(state)
         spillInRegion(holder, moves, world, at, sink)

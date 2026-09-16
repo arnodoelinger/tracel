@@ -9,6 +9,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 import org.bukkit.Material
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.Damageable
 import kotlin.time.Duration.Companion.milliseconds
 import com.tracel.plugin.TracelPlugin
 import kotlin.collections.iterator
@@ -21,6 +22,12 @@ fun ItemStack.toItemKey(): ItemKey {
     if (!hasItemMeta()) return ItemKey(type.name)
 
     val normalized = clone().apply { amount = 1 }
+
+    val meta = normalized.itemMeta
+    if (meta is Damageable && meta.hasDamage()) {
+        meta.damage = 0
+        normalized.itemMeta = meta
+    }
     val bytes = normalized.serializeAsBytes()
     if (bytes.contentEquals(plainBytesOf(type))) return ItemKey(type.name)
 

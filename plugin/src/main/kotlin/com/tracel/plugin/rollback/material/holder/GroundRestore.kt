@@ -11,6 +11,7 @@ import com.tracel.plugin.rollback.material.ENTITY_GONE_AT_PLAN
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.census.census
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.stackFor
 import com.tracel.plugin.rollback.material.item.stacksOf
 import com.tracel.plugin.rollback.material.spill.Spill
@@ -34,6 +35,7 @@ internal suspend fun MaterialRestorer.restoreGroundItems(
     forms: Map<ItemKey, ByteArray> = emptyMap(),
     sink: MutableCollection<Spill>? = null,
     respawnAt: Map<HolderId.ItemEntity, HolderId> = emptyMap(),
+    worn: WornStacks? = null,
 ): List<Pair<HolderId, ApplyResult>> {
     val out = ArrayList<Pair<HolderId, ApplyResult>>(work.size)
     val live = LinkedHashMap<HolderId.ItemEntity, Map<ItemKey, Long>>()
@@ -88,7 +90,7 @@ internal suspend fun MaterialRestorer.restoreGroundItems(
                 val at = group.first().at
                 withContext(services.schedulers.region(at)) {
                     group.map { row ->
-                        row.holder to inRegion { takeGroundItem(row.holder, row.deltas) }
+                        row.holder to inRegion { takeGroundItem(row.holder, row.deltas, worn) }
                     }
                 }
             }
@@ -108,7 +110,11 @@ internal suspend inline fun MaterialRestorer.inRegion(work: suspend () -> String
 }
 
 /** Shrinks or removes a live ground item pile by [deltas]. A ground item can only ever be a single-key take. */
-internal fun MaterialRestorer.takeGroundItem(holder: HolderId.ItemEntity, deltas: Map<ItemKey, Long>): String? {
+internal fun MaterialRestorer.takeGroundItem(
+    holder: HolderId.ItemEntity,
+    deltas: Map<ItemKey, Long>,
+    worn: WornStacks? = null,
+): String? {
     val item = Bukkit.getEntity(holder.uuid) as? Item ?: return "ground item no longer exists"
     val entry = deltas.entries.singleOrNull()
         ?: return "a ground item can only ever be a single-item-key Take source, got ${deltas.keys}"
@@ -119,6 +125,9 @@ internal fun MaterialRestorer.takeGroundItem(holder: HolderId.ItemEntity, deltas
     val material = runCatching { Material.valueOf(itemKey.material) }.getOrNull()
         ?: return "unknown material ${itemKey.material}"
     if (material != item.itemStack.type) return "ground item is no longer ${itemKey.material}"
+    if (worn != null && WornStacks.wears(itemKey)) {
+        worn.took(itemKey, item.itemStack.clone().apply { amount = minOf(amount.toLong(), -delta).toInt() })
+    }
 
     val remaining = item.itemStack.amount + delta
     if (remaining > 0) {

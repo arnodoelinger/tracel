@@ -7,6 +7,7 @@ import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.holder.restoreEntityCargo
 import com.tracel.plugin.rollback.material.holder.restoreGroundItems
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.formsFor
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.recordSpills
@@ -56,42 +57,13 @@ internal suspend fun MaterialRestorer.restoreDeltas(
             }
     }
 
-    val ground = LinkedHashMap<HolderId.ItemEntity, Map<ItemKey, Long>>()
-    val cargo = LinkedHashMap<HolderId.Entity, Map<ItemKey, Long>>()
-    val rest = LinkedHashMap<HolderId, Map<ItemKey, Long>>()
-    for ((holder, nonZero) in work) {
-        when (holder) {
-            is HolderId.ItemEntity -> ground[holder] = nonZero
-            is HolderId.Entity -> cargo[holder] = nonZero
-            else -> rest[holder] = nonZero
-        }
-    }
-
-    val outcomes = coroutineScope {
-        val items = async {
-            if (ground.isEmpty()) emptyList()
-            else trace.span("move items / ground items") { restoreGroundItems(ground, gone, census, forms, sink, respawnAt) }
-        }
-        val cargoJob = async {
-            if (cargo.isEmpty()) emptyList()
-            else trace.span("move items / entity cargo") { restoreEntityCargo(cargo, forms, gone, census, sink, asOf) }
-        }
-        val others = rest.entries.groupBy { it.key.regionKey() }.values.map { group ->
-            async {
-                group.map { (holder, nonZero) ->
-                    val taking = nonZero.values.all { it < 0L }
-                    if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
-                    else {
-                        val kind = HolderGroup.of(holder)
-                        holder to trace.span("move items / ${kind.traceName}") { applyTo(holder, nonZero, forms, job, sink, asOf) }
-                    }
-                }
-            }
-        }
-        val holders = others.awaitAll().flatten() + cargoJob.await()
-        settled?.complete(Unit)
-        holders + items.await()
-    }
+    val worn = WornStacks()
+    val early = wornTakes(work)
+    val late = if (early.isEmpty()) work else work
+        .mapValues { (holder, deltas) -> early[holder]?.let { deltas - it.keys } ?: deltas }
+        .filterValues { it.isNotEmpty() }
+    val first = if (early.isEmpty()) emptyList() else fanOut(early, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
+    val outcomes = first + fanOut(late, job, gone, respawnAt, trace, census, forms, sink, settled, asOf, worn)
 
     val failures = mutableMapOf<HolderId, String>()
     val queued = mutableMapOf<HolderId, String>()
@@ -114,4 +86,66 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     recordSpills(sink)
 
     return RestorationReport(failures, queued, sink.size)
+}
+
+private suspend fun MaterialRestorer.fanOut(
+    work: Map<HolderId, Map<ItemKey, Long>>,
+    job: RollbackJobId,
+    gone: Set<HolderId>,
+    respawnAt: Map<HolderId.ItemEntity, HolderId>,
+    trace: RollbackTrace,
+    census: EntityCensus,
+    forms: Map<ItemKey, ByteArray>,
+    sink: MutableCollection<Spill>,
+    settled: CompletableDeferred<Unit>?,
+    asOf: Long?,
+    worn: WornStacks,
+): List<Pair<HolderId, ApplyResult>> {
+    val ground = LinkedHashMap<HolderId.ItemEntity, Map<ItemKey, Long>>()
+    val cargo = LinkedHashMap<HolderId.Entity, Map<ItemKey, Long>>()
+    val rest = LinkedHashMap<HolderId, Map<ItemKey, Long>>()
+    for ((holder, nonZero) in work) {
+        when (holder) {
+            is HolderId.ItemEntity -> ground[holder] = nonZero
+            is HolderId.Entity -> cargo[holder] = nonZero
+            else -> rest[holder] = nonZero
+        }
+    }
+
+    return coroutineScope {
+        val items = async {
+            if (ground.isEmpty()) emptyList()
+            else trace.span("move items / ground items") { restoreGroundItems(ground, gone, census, forms, sink, respawnAt, worn) }
+        }
+        val cargoJob = async {
+            if (cargo.isEmpty()) emptyList()
+            else trace.span("move items / entity cargo") { restoreEntityCargo(cargo, forms, gone, census, sink, asOf, worn) }
+        }
+        val others = rest.entries.groupBy { it.key.regionKey() }.values.map { group ->
+            async {
+                group.map { (holder, nonZero) ->
+                    val taking = nonZero.values.all { it < 0L }
+                    if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
+                    else {
+                        val kind = HolderGroup.of(holder)
+                        holder to trace.span("move items / ${kind.traceName}") { applyTo(holder, nonZero, forms, job, sink, asOf, worn) }
+                    }
+                }
+            }
+        }
+        val holders = others.awaitAll().flatten() + cargoJob.await()
+        settled?.complete(Unit)
+        holders + items.await()
+    }
+}
+
+private fun wornTakes(work: Map<HolderId, Map<ItemKey, Long>>): Map<HolderId, Map<ItemKey, Long>> {
+    val given = HashSet<ItemKey>()
+    for (deltas in work.values) for ((key, delta) in deltas) if (delta > 0L) given += key
+    val out = LinkedHashMap<HolderId, Map<ItemKey, Long>>()
+    for ((holder, deltas) in work) {
+        val taken = deltas.filter { (key, delta) -> delta < 0L && key in given && WornStacks.wears(key) }
+        if (taken.isNotEmpty()) out[holder] = taken
+    }
+    return out
 }

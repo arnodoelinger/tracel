@@ -10,6 +10,7 @@ import com.tracel.plugin.adapter.world.playerOf
 import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.item.Moves
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.applyDelta
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.spillInRegion
@@ -23,6 +24,7 @@ internal suspend fun MaterialRestorer.applyToPlayer(
     forms: Map<ItemKey, ByteArray>,
     job: RollbackJobId,
     sink: MutableCollection<Spill>,
+    worn: WornStacks? = null,
 ): ApplyResult =
     withContext(services.schedulers.entity(holder.uuid)) {
         val player = playerOf(holder.uuid)
@@ -34,7 +36,7 @@ internal suspend fun MaterialRestorer.applyToPlayer(
         }
         val moves = Moves()
         for ((itemKey, delta) in deltas) {
-            applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory)
+            applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory, worn = worn)
         }
         takeFromCursor(player, moves)
         val at = player.location
@@ -50,6 +52,7 @@ internal suspend fun MaterialRestorer.applyToEnderChest(
     forms: Map<ItemKey, ByteArray>,
     job: RollbackJobId,
     sink: MutableCollection<Spill>,
+    worn: WornStacks? = null,
 ): ApplyResult =
     withContext(services.schedulers.entity(holder.uuid)) {
         val player = playerOf(holder.uuid)
@@ -64,7 +67,7 @@ internal suspend fun MaterialRestorer.applyToEnderChest(
         val moves = Moves()
         val enderChest = player.enderChest
         for ((itemKey, delta) in deltas) {
-            applyDelta(itemKey, delta, forms[itemKey], moves, enderChest)
+            applyDelta(itemKey, delta, forms[itemKey], moves, enderChest, worn = worn)
         }
         val at = player.location
         spillInRegion(holder, moves, at.world, at, sink)

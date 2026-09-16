@@ -20,7 +20,7 @@ import org.bukkit.inventory.SaddledMountInventory
 private const val HORSE_STORAGE_FROM = 2
 
 /** Takes [amount] of [itemKey] out of [inventory], matched by key. */
-internal fun takeByKey(inventory: Inventory, itemKey: ItemKey, amount: Long): Long {
+internal fun takeByKey(inventory: Inventory, itemKey: ItemKey, amount: Long, worn: WornStacks? = null): Long {
     if (amount <= 0L) return 0L
     var remaining = amount
     val contents = inventory.contents
@@ -30,6 +30,7 @@ internal fun takeByKey(inventory: Inventory, itemKey: ItemKey, amount: Long): Lo
         if (stack.isEmpty || stack.type.isAir) continue
         if (!stack.matches(itemKey)) continue
         val take = minOf(remaining, stack.amount.toLong()).toInt()
+        worn?.took(itemKey, stack.clone().apply { this.amount = take })
         remaining -= take
         if (take >= stack.amount) {
             inventory.setItem(slot, null)

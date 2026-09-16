@@ -18,16 +18,25 @@ internal fun MaterialRestorer.applyDelta(
     moves: Moves,
     inventory: Inventory,
     preferredSlots: List<ContainerSlotEntry> = emptyList(),
+    worn: WornStacks? = null,
 ) {
     val template = stackFor(itemKey, 1, form)
     if (template == null) {
         moves.problem("unknown material ${itemKey.material}")
         return
     }
+    val carried = worn?.takeIf { WornStacks.wears(itemKey) }
     if (delta > 0) {
-        for (over in giveInto(inventory, itemKey, delta, template, preferredSlots)) moves.overflow += itemKey to over
+        var left = delta
+        while (carried != null && left > 0L) {
+            val real = carried.next(itemKey) ?: break
+            val give = minOf(left, real.amount.toLong())
+            for (over in giveInto(inventory, itemKey, give, real, preferredSlots)) moves.overflow += itemKey to over
+            left -= give
+        }
+        for (over in giveInto(inventory, itemKey, left, template, preferredSlots)) moves.overflow += itemKey to over
     } else {
-        moves.short(itemKey, takeByKey(inventory, itemKey, -delta))
+        moves.short(itemKey, takeByKey(inventory, itemKey, -delta, carried))
     }
 }
 

@@ -8,6 +8,7 @@ import com.tracel.plugin.rollback.material.holder.applyToEnderChest
 import com.tracel.plugin.rollback.material.holder.applyToPlayer
 import com.tracel.plugin.rollback.material.holder.fillEntityCargo
 import com.tracel.plugin.rollback.material.holder.takeGroundItem
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.spill.Spill
 import kotlinx.coroutines.CancellationException
 
@@ -19,7 +20,8 @@ internal suspend fun MaterialRestorer.applyTo(
     job: RollbackJobId,
     sink: MutableCollection<Spill>,
     asOf: Long? = null,
-): ApplyResult = reported { dispatch(holder, deltas, forms, job, sink, asOf) }
+    worn: WornStacks? = null,
+): ApplyResult = reported { dispatch(holder, deltas, forms, job, sink, asOf, worn) }
 
 /** Runs [work] and turns any thrown failure into [ApplyResult.Failed]. */
 internal suspend fun MaterialRestorer.reported(work: suspend () -> ApplyResult): ApplyResult = try {
@@ -38,13 +40,14 @@ internal suspend fun MaterialRestorer.dispatch(
     job: RollbackJobId,
     sink: MutableCollection<Spill>,
     asOf: Long? = null,
+    worn: WornStacks? = null,
 ): ApplyResult = when (holder) {
-    is HolderId.Player -> applyToPlayer(holder, deltas, forms, job, sink)
-    is HolderId.EnderChest -> applyToEnderChest(holder, deltas, forms, job, sink)
-    is HolderId.Block -> applyToContainer(holder, deltas, forms, sink, asOf)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
-    is HolderId.ItemEntity -> takeGroundItem(holder, deltas)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+    is HolderId.Player -> applyToPlayer(holder, deltas, forms, job, sink, worn)
+    is HolderId.EnderChest -> applyToEnderChest(holder, deltas, forms, job, sink, worn)
+    is HolderId.Block -> applyToContainer(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+    is HolderId.ItemEntity -> takeGroundItem(holder, deltas, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
 
     is HolderId.PlacedBlock, is HolderId.PlacedEntity -> ApplyResult.Ok
-    is HolderId.Entity -> fillEntityCargo(holder, deltas, forms, sink, asOf)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+    is HolderId.Entity -> fillEntityCargo(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
     is HolderId.Source, is HolderId.Sink, is HolderId.Escrow -> ApplyResult.Ok
 }

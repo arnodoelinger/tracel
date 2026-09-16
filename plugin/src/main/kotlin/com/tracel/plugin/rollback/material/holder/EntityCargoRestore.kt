@@ -15,6 +15,7 @@ import com.tracel.plugin.rollback.material.cargo.applyItemFrame
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.census.census
 import com.tracel.plugin.rollback.material.item.Moves
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.applyDelta
 import com.tracel.plugin.rollback.material.item.stackFor
 import com.tracel.plugin.rollback.material.item.stacksOf
@@ -43,6 +44,7 @@ internal suspend fun MaterialRestorer.restoreEntityCargo(
     census: EntityCensus,
     sink: MutableCollection<Spill>,
     asOf: Long? = null,
+    worn: WornStacks? = null,
 ): List<Pair<HolderId, ApplyResult>> {
     val out = ArrayList<Pair<HolderId, ApplyResult>>(work.size)
     val live = LinkedHashMap<HolderId.Entity, Map<ItemKey, Long>>()
@@ -92,7 +94,7 @@ internal suspend fun MaterialRestorer.restoreEntityCargo(
                 val at = group.first().at
                 withContext(services.schedulers.region(at)) {
                     group.map { row ->
-                        row.holder to inRegion { fillEntityCargo(row.holder, row.deltas, forms, sink, asOf) }
+                        row.holder to inRegion { fillEntityCargo(row.holder, row.deltas, forms, sink, asOf, worn) }
                     }
                 }
             }
@@ -113,6 +115,7 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
     forms: Map<ItemKey, ByteArray>,
     sink: MutableCollection<Spill>,
     asOf: Long? = null,
+    worn: WornStacks? = null,
 ): String? {
     val entity = Bukkit.getEntity(holder.uuid) ?: return "entity no longer exists"
     val moves = Moves()
@@ -155,7 +158,7 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
                     else -> delta
                 }
                 if (amount != 0L) {
-                    applyDelta(itemKey, amount, forms[itemKey], moves, live, preferredSlots[itemKey].orEmpty())
+                    applyDelta(itemKey, amount, forms[itemKey], moves, live, preferredSlots[itemKey].orEmpty(), worn)
                 }
             }
 
