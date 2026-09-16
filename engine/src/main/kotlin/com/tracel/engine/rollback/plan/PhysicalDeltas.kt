@@ -33,19 +33,23 @@ public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, le
         }
 
         for (step in plan.steps) {
+            if (step is RollbackStep.Take) takenAdd(destinationFor(step.lotId), ledger.itemKeyOf(step.lotId), step.quantity.raw)
+        }
+
+        for (step in plan.steps) {
             when (step) {
                 is RollbackStep.Take -> {
                     val key = ledger.itemKeyOf(step.lotId)
                     add(step.holder, key, -step.quantity.raw)
                     add(destinationFor(step.lotId), key, step.quantity.raw)
-                    takenAdd(destinationFor(step.lotId), key, step.quantity.raw)
                 }
 
                 is RollbackStep.Mint -> {
                     val key = ledger.itemKeyOf(step.lotId)
                     val dest = destinationFor(step.lotId)
-                    if ((taken[dest]?.get(key) ?: 0L) > 0L) continue
-                    add(dest, key, step.quantity.raw)
+                    val covered = minOf(taken[dest]?.get(key) ?: 0L, step.quantity.raw)
+                    if (covered > 0L) takenAdd(dest, key, -covered)
+                    if (step.quantity.raw > covered) add(dest, key, step.quantity.raw - covered)
                 }
                 is RollbackStep.Debt -> add(destinationFor(step.lotId), ledger.itemKeyOf(step.lotId), step.quantity.raw)
 
@@ -71,8 +75,8 @@ public fun physicalDeltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map
         deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
     }
 
-    val physicallyReturned = steps.asSequence().filterIsInstance<InvolutionStep.Return>()
-        .mapTo(HashSet()) { it.from to it.itemKey }
+    val returned = HashMap<Pair<HolderId, ItemKey>, Long>()
+    for (step in steps) if (step is InvolutionStep.Return) returned.merge(step.from to step.itemKey, step.quantity.raw, Long::plus)
 
     for (step in steps) {
         when (step) {
@@ -82,8 +86,10 @@ public fun physicalDeltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map
             }
 
             is InvolutionStep.Retract -> {
-                if (step.from to step.itemKey in physicallyReturned) continue
-                add(step.from, step.itemKey, -step.quantity.raw)
+                val account = step.from to step.itemKey
+                val covered = minOf(returned[account] ?: 0L, step.quantity.raw)
+                if (covered > 0L) returned[account] = returned.getValue(account) - covered
+                if (step.quantity.raw > covered) add(step.from, step.itemKey, covered - step.quantity.raw)
             }
 
             is InvolutionStep.Remake -> {
