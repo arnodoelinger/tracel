@@ -204,6 +204,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
     override suspend fun place(holder: HolderId, lotId: LotId, quantity: Quantity): AccountLot {
         writer.checkIn()
         var s = state.get()
+        s.byLot[lotId]?.let { error("lot $lotId is already placed at ${it.holder}") }
         val entry = AccountLot(holder, s.lots.getValue(lotId), quantity, Seq(nextSeq.getAndIncrement()))
         s = s.putPlacement(entry)
         s = s.copy(holderOf = s.holderOf.putting(lotId, holder))

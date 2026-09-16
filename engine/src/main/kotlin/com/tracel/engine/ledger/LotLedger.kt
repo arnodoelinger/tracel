@@ -152,7 +152,19 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         reason: SinkKind,
         txn: TxnId,
     ): Unit = atomically {
+        deposit(HolderId.Sink(reason), withdrawBack(from, lotId, itemKey, quantity, txn))
+    }
+
+    /** [lotId] and the pieces it split into first, FIFO only for what they cannot cover. */
+    private suspend fun withdrawBack(
+        from: HolderId,
+        lotId: LotId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId,
+    ): List<LotPortion> {
         var owed = quantity.raw
+        val taken = ArrayList<LotPortion>()
         val frontier = ArrayDeque(listOf(lotId))
         val seen = HashSet<LotId>()
         while (owed > 0L && frontier.isNotEmpty()) {
@@ -162,15 +174,17 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
             if (placed == null) {
                 for (edge in repo.edgesFrom(id)) if (edge is LotEdge.Split) frontier += edge.child
             } else if (placed.raw <= owed) {
-                deposit(HolderId.Sink(reason), listOf(withdrawExact(from, id)))
+                taken += withdrawExact(from, id)
                 owed -= placed.raw
             }
         }
-        if (owed > 0L) burn(from, itemKey, Quantity(owed), reason, txn)
+        if (owed > 0L) taken += withdraw(from, itemKey, Quantity(owed), txn)
+        return taken
     }
 
     /** Puts a previously withdrawn lot back. Same lot id, no new history. */
-    public suspend fun restore(holder: HolderId, lotId: LotId, quantity: Quantity) {
+    public suspend fun restore(holder: HolderId, lotId: LotId, quantity: Quantity): Unit = atomically {
+        repo.currentHolderOf(lotId)?.let { error("lot $lotId is already placed at $it") }
         repo.place(holder, lotId, quantity)
     }
 
@@ -188,22 +202,15 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         CraftResult(outputLot, consumed)
     }
 
-    /** The exact inverse of the [destroy] + [restore] pair an unmake does. */
+    /** The exact inverse of the [withdrawExact] + [restore] pair an unmake does. */
     public suspend fun recraft(
         holder: HolderId,
         outputs: List<Pair<HolderId, LotPortion>>,
         inputs: List<Pair<LotId, Quantity>>,
         txn: TxnId,
     ): Unit = atomically {
-        for ((lotId, quantity) in inputs) {
-            val placed = repo.placementOf(holder, lotId)
-            if (placed != null && placed.remaining == quantity) {
-                repo.remove(holder, lotId)
-            } else {
-                withdraw(holder, repo.lot(lotId).itemKey, quantity, txn)
-            }
-        }
-        for ((at, portion) in outputs) repo.place(at, portion.lotId, portion.quantity)
+        for ((lotId, quantity) in inputs) withdrawBack(holder, lotId, repo.lot(lotId).itemKey, quantity, txn)
+        for ((at, portion) in outputs) restore(at, portion.lotId, portion.quantity)
     }
 
     /** Mint a stand-in for a lot that is gone, linked with [LotEdge.Compensate]. */

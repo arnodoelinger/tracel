@@ -412,6 +412,9 @@ class LotRepository(
         val fifoSeq = counters.nextFifoSeq()
         return storage.write {
             val lot = readLot(this, lotId)
+            interning.findHolderId(this, holder)?.let { known ->
+                check(get(Keys.placeRev(lotId.raw, known)) == null) { "lot $lotId is already placed at $holder" }
+            }
             val holderId = interning.internHolder(this, holder)
             val itemKeyId = interning.internItemKey(this, lot.itemKey)
             put(Keys.place(holderId, itemKeyId, fifoSeq.raw), Records.placement(lotId.raw, quantity.raw))
