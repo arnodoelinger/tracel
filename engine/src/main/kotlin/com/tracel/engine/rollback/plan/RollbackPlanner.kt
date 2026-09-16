@@ -27,7 +27,7 @@ public class RollbackPlanner(
     private val structural: Boolean = true,
 ) {
     private val unmakeSteps = linkedMapOf<TxnId, RollbackStep.Unmake>()
-    private val resolved = mutableMapOf<LotId, ResolvedLocation>()
+    private val resolved = mutableMapOf<LotId, Array<ResolvedLocation?>>()
     private val edgeCache = mutableMapOf<LotId, List<LotEdge>>()
     private val intoCache = mutableMapOf<LotId, List<LotEdge>>()
     private val lotCache = mutableMapOf<LotId, Lot>()
@@ -106,12 +106,22 @@ public class RollbackPlanner(
             }
         }
 
+        val unmade = HashSet<LotId>()
         for ((outputs, inputs) in unmakeSteps.values) {
             val root = rootOf[inputs.firstOrNull()?.lotId]
-            for ((lotId) in outputs) rootOf.putIfAbsent(lotId, root ?: lotId)
+            for ((lotId) in outputs) {
+                rootOf.putIfAbsent(lotId, root ?: lotId)
+                unmade += lotId
+            }
         }
 
-        RollbackPlan(unmakeSteps.values.toList() + leafSteps, rootOf, settled)
+        val leaves = if (unmade.isEmpty()) leafSteps else leafSteps.filterNot { it is RollbackStep.Take && it.lotId in unmade }
+        RollbackPlan(unmakeSteps.values.toList() + leaves, rootOf, settled)
+    }
+
+    private suspend fun resolve(lotId: LotId, depth: Int): ResolvedLocation {
+        val known = resolved.getOrPut(lotId) { arrayOfNulls(maxTransformDepth + 1) }
+        return known[depth] ?: locate(lotId, depth).also { known[depth] = it }
     }
 
     /**
@@ -135,12 +145,12 @@ public class RollbackPlanner(
      * gap rather than continuing indefinitely or guessing where the material went.
      */
     @Unstable
-    private suspend fun resolve(lotId: LotId, depth: Int): ResolvedLocation = resolved.getOrPut(lotId) {
+    private suspend fun locate(lotId: LotId, depth: Int): ResolvedLocation {
         val edges = edgeCache[lotId].orEmpty()
 
         // Once a lot has been compensated, its story is over
         val compensate = edges.filterIsInstance<LotEdge.Compensate>().firstOrNull()
-        if (compensate != null) return@getOrPut ResolvedLocation.Settled(lotId, compensate.rollbackJob)
+        if (compensate != null) return ResolvedLocation.Settled(lotId, compensate.rollbackJob)
 
         // Newest craft first, and skip the ones that lead nowhere. A lot ends up with more than
         // one "Transform" edge whenever its craft was unmade and the material was crafted again,
@@ -150,7 +160,7 @@ public class RollbackPlanner(
             // TODO: replace the depth limit with cycle-safe transform resolution or smth like that
             if (depth >= maxTransformDepth) { // TODO: 5 -> 3?
                 val lot = lotOf(lotId)
-                return@getOrPut ResolvedLocation.Holder(lotId, HolderId.Sink(SinkKind.UNTRACKED_GAP), lot.quantity)
+                return ResolvedLocation.Holder(lotId, HolderId.Sink(SinkKind.UNTRACKED_GAP), lot.quantity)
             }
             for (transform in transforms.sortedByDescending { it.craftedBy.raw }) {
                 when (val outputLocation = resolve(transform.child, depth + 1)) {
@@ -167,9 +177,9 @@ public class RollbackPlanner(
                         if (outputLocation.holder.isReclaimable()) {
                             registerUnmake(transform, listOf(UnmadeOutput(outputLocation.lotId, outputLocation.holder)))
                         }
-                        return@getOrPut ResolvedLocation.Holder(lotId, outputLocation.holder, transform.quantity)
+                        return ResolvedLocation.Holder(lotId, outputLocation.holder, transform.quantity)
                     }
-                    is ResolvedLocation.Settled -> return@getOrPut ResolvedLocation.Settled(lotId, outputLocation.byJob)
+                    is ResolvedLocation.Settled -> return ResolvedLocation.Settled(lotId, outputLocation.byJob)
 
                     // The crafted stack did not stay one lot. Spending part of it splits it, and
                     // the pieces are still this craft's output, so gather them and unmake the
@@ -181,9 +191,9 @@ public class RollbackPlanner(
                     // rollback returned planks where it owed logs.
                     is ResolvedLocation.Split -> {
                         val pieces = wholeOutput(transform.child, outputLocation, depth + 1)
-                            ?: return@getOrPut outputLocation
+                            ?: return outputLocation
                         registerUnmake(transform, pieces)
-                        return@getOrPut ResolvedLocation.Holder(lotId, pieces.first().holder, transform.quantity)
+                        return ResolvedLocation.Holder(lotId, pieces.first().holder, transform.quantity)
                     }
 
                     // Dead end: this craft's output was destroyed and never revived under the
@@ -194,22 +204,22 @@ public class RollbackPlanner(
                     is ResolvedLocation.Gone -> Unit
                 }
             }
-            return@getOrPut ResolvedLocation.Gone(lotId)
+            return ResolvedLocation.Gone(lotId)
         }
 
         val splits = edges.filterIsInstance<LotEdge.Split>()
         if (splits.isNotEmpty()) {
-            return@getOrPut ResolvedLocation.Split(splits.map { it.child })
+            return ResolvedLocation.Split(splits.map { it.child })
         }
 
         val lot = lotOf(lotId)
-        val holder = holderCache[lotId] ?: return@getOrPut ResolvedLocation.Gone(lotId)
+        val holder = holderCache[lotId] ?: return ResolvedLocation.Gone(lotId)
         // Standing in the world as itself
         if (!structural && holder.isPlacedThing()) {
             placedLots += lotId
-            return@getOrPut ResolvedLocation.Gone(lotId)
+            return ResolvedLocation.Gone(lotId)
         }
-        ResolvedLocation.Holder(lotId, holder, lot.quantity)
+        return ResolvedLocation.Holder(lotId, holder, lot.quantity)
     }
 
     /**
