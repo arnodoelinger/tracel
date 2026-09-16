@@ -244,13 +244,11 @@ class MaterialCapture internal constructor(private val services: TracelServices)
             val holder = inventory.toHolderId() ?: continue
             if (!ledgered && holder == causedBy) continue
             if (holder is HolderId.Block || holder is HolderId.Entity) captureSlotLayout(holder, inventory)
-            var totals = (inventory as? CraftingInventory)?.matrix?.toItemTotals() ?: inventory.toItemTotals()
-            if (holder == causedBy) {
-                totals = totals.withCursor(player)
-            }
+            val totals = (inventory as? CraftingInventory)?.matrix?.toItemTotals() ?: inventory.toItemTotals()
             val merged = totalsByHolder.getOrPut(holder) { mutableMapOf() }
             for ((key, qty) in totals) merged.merge(key, qty, Long::plus)
         }
+        totalsByHolder[causedBy]?.let { mine -> totalsByHolder[causedBy] = mine.withCursor(player).toMutableMap() }
         for ((holder, totals) in extra) {
             if (!ledgered && holder == causedBy) continue
             val merged = totalsByHolder.getOrPut(holder) { mutableMapOf() }
