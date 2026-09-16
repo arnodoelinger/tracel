@@ -15,6 +15,8 @@ class StorageUnit(
     val batch: MutationBatch,
     val ownerThread: Thread,
 ) : AutoCloseable {
+    private var onCommit: ArrayList<() -> Unit>? = null
+
     fun get(key: ByteArray): MemorySegment? {
         val overlay = batch.lookup(Key(key))
         if (overlay !== MutationBatch.MISSING) return (overlay as ByteArray?)?.let(MemorySegment::ofArray)
@@ -43,6 +45,16 @@ class StorageUnit(
 
     fun release(mark: Int) {
         batch.release(mark)
+    }
+
+    /** Runs [action] once the batch has landed. A unit that throws never does. */
+    fun afterCommit(action: () -> Unit) {
+        (onCommit ?: ArrayList<() -> Unit>().also { onCommit = it }) += action
+    }
+
+    /** What [afterCommit] queued, for whoever just wrote the batch. */
+    fun committed() {
+        onCommit?.forEach { it() }
     }
 
     fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor {

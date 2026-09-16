@@ -102,6 +102,7 @@ class TracelStorage private constructor(
                 val result = withContext(OpenUnit(open, Thread.currentThread())) { open.block() }
                 WriteLog.dump(open.batch)
                 engine.write(open.batch, durable = true)
+                open.committed()
                 result
             }
         }
@@ -117,6 +118,7 @@ class TracelStorage private constructor(
                 val result = withContext(OpenUnit(open, Thread.currentThread())) { block() }
                 WriteLog.dump(open.batch)
                 engine.write(open.batch, durable = true)
+                open.committed()
                 result
             }
         }

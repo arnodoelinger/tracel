@@ -11,6 +11,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Records
+import com.tracel.storage.ffm.Key
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -126,15 +127,15 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
         if (id >= 0) return id
         provisionalToReal[id]?.let { return it }
         val value = provisionalValues[id] ?: return 0
-        val real = when (value) {
-            is HolderId -> holders.intern(unit, value)
-            is ItemKey -> itemKeys.intern(unit, value)
-            is WorldId -> worlds.intern(unit, value)
-            is BlockDataKey -> blockData.intern(unit, value)
-            is EntityTypeKey -> entityTypes.intern(unit, value)
+        val (real, table) = when (value) {
+            is HolderId -> holders.intern(unit, value) to holders
+            is ItemKey -> itemKeys.intern(unit, value) to itemKeys
+            is WorldId -> worlds.intern(unit, value) to worlds
+            is BlockDataKey -> blockData.intern(unit, value) to blockData
+            is EntityTypeKey -> entityTypes.intern(unit, value) to entityTypes
             else -> error("nothing else is ever interned provisionally: ${value::class}")
         }
-        provisionalToReal[id] = real
+        if (table.isPending(unit, real)) unit.afterCommit { provisionalToReal[id] = real } else provisionalToReal[id] = real
         return real
     }
 
@@ -213,14 +214,14 @@ private class Interned<T : Any>(
 
     /** The id [value] has, or null. Reads the store, writes nothing but the cache. */
     fun find(unit: StorageUnit, value: T): Int? =
-        byValue.getIfPresent(value) ?: idOf(unit, pack(value))?.also { remember(value, it) }
+        byValue.getIfPresent(value) ?: idOf(unit, pack(value))?.also { remember(unit, value, it) }
 
     /** The id [value] has, assigning and writing one if it has none. */
     fun intern(unit: StorageUnit, value: T): Int {
         byValue.getIfPresent(value)?.let { return it }
         val packed = pack(value)
         idOf(unit, packed)?.let {
-            remember(value, it)
+            remember(unit, value, it)
             return it
         }
 
@@ -228,7 +229,7 @@ private class Interned<T : Any>(
         unit.putPinned(Keys.internForward(namespace, id), packed)
         unit.putPinned(Keys.internReverse(namespace, packed), Records.int(id))
         unit.putPinned(Keys.counter(COUNTER_BASE + namespace), Records.long(id.toLong()))
-        remember(value, id)
+        unit.afterCommit { remember(value, id) }
         return id
     }
 
@@ -236,7 +237,7 @@ private class Interned<T : Any>(
     fun resolve(unit: StorageUnit, id: Int): T =
         byId.getIfPresent(id) ?: decode(
             unit.get(Keys.internForward(namespace, id)) ?: error("$name id $id was never interned"),
-        ).also { remember(it, id) }
+        ).also { remember(unit, it, id) }
 
     /** Restores the counter from the store. */
     fun restore(unit: StorageUnit) {
@@ -245,6 +246,13 @@ private class Interned<T : Any>(
 
     private fun idOf(unit: StorageUnit, packed: ByteArray): Int? =
         unit.get(Keys.internReverse(namespace, packed))?.let(Records::asInt)
+
+    /** Whether [id] came out of [unit]'s own batch and has not landed yet. */
+    fun isPending(unit: StorageUnit, id: Int): Boolean = unit.batch.touches(Key(Keys.internForward(namespace, id)))
+
+    private fun remember(unit: StorageUnit, value: T, id: Int) {
+        if (isPending(unit, id)) unit.afterCommit { remember(value, id) } else remember(value, id)
+    }
 
     private fun remember(value: T, id: Int) {
         byValue.put(value, id)
