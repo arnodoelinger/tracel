@@ -28,7 +28,7 @@ class CodecGoldensTest {
         assertEquals(
             listOf(
                 "PLAYER_ACTION", "EXPLOSION", "HOPPER", "CRAFT", "BLOCK_BREAK", "ROLLBACK",
-                "INVOLUTION", "ENTITY_ACTION", "WORLD", "PLUGIN", "UNKNOWN",
+                "INVOLUTION", "ENTITY_ACTION", "WORLD", "PLUGIN", "UNKNOWN", "WEAR",
             ),
             CauseKind.entries.map { it.name },
         )

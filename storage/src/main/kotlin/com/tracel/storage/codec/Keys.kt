@@ -44,6 +44,7 @@ import com.tracel.storage.spi.EngineCursor
  * | 1C   | `rbStruct / jobId / stepIndex`                                            | packed structure step| prefix                  |
  * | 1D   | `rbTarget / jobId / rootLotId`                                            | holderId             | prefix                  |
  * | 21   | `cslot / holderId / ~seq`                                                 | packed slot layout   | prefix, newest first    |
+ * | 23   | `wear / lotId / seq`                                                      | epochMillis, damage  | prefix, oldest first    |
  */
 object Keys {
     fun tagName(tag: Byte): String = when (tag) {
@@ -78,6 +79,7 @@ object Keys {
         RB_TARGET -> "rbTarget"
         ITEM_FORM -> "itemForm"
         CONTAINER_SLOT -> "cslot"
+        WEAR -> "wear"
         else -> "tag%02x".format(tag.toInt() and 0xff)
     }
     const val TXN: Byte = 0x01
@@ -114,6 +116,7 @@ object Keys {
     const val ITEM_FORM: Byte = 0x1F
     const val CONTAINER_SLOT: Byte = 0x21
     const val GROUND_AT: Byte = 0x22
+    const val WEAR: Byte = 0x23
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -294,6 +297,10 @@ object Keys {
 
     fun cslotPrefix(holderId: Int): ByteArray = KeyWriter(5).tag(CONTAINER_SLOT).u32(holderId).done()
 
+    fun wear(lotId: Long, seq: Long): ByteArray = KeyWriter(17).tag(WEAR).u64(lotId).u64(seq).done()
+
+    fun wearPrefix(lotId: Long): ByteArray = KeyWriter(9).tag(WEAR).u64(lotId).done()
+
     fun groundAt(itemEntityId: Int): ByteArray = KeyWriter(5).tag(GROUND_AT).u32(itemEntityId).done()
 
     fun rbRecent(jobId: Long): ByteArray = KeyWriter(9).tag(RB_RECENT).u64(invert(jobId)).done()
@@ -343,6 +350,7 @@ object Keys {
         ITEM_FORM,
         CONTAINER_SLOT,
         GROUND_AT,
+        WEAR,
     )
 }
 
