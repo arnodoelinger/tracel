@@ -20,11 +20,22 @@ public class TransactionBalancer {
             .flatMap { (itemKey, sameItem) -> balanceOneItem(itemKey, sameItem) }
 
     private fun balanceOneItem(itemKey: ItemKey, deltas: List<InventoryDelta>): List<Flow> {
-        val gains = deltas.filter { it.delta > 0 }.sortedBy { it.holder.stableSortKey() }
-            .mapTo(ArrayDeque()) { Unpaired(it.holder, it.delta, it.fromGap) }
-        val losses = deltas.filter { it.delta < 0 }.sortedBy { it.holder.stableSortKey() }
-            .mapTo(ArrayDeque()) { Unpaired(it.holder, -it.delta, it.fromGap) }
+        val gainList = deltas.filter { it.delta > 0 }.sortedBy { it.holder.stableSortKey() }
+            .mapTo(ArrayList()) { Unpaired(it.holder, it.delta, it.fromGap) }
+        val lossList = deltas.filter { it.delta < 0 }.sortedBy { it.holder.stableSortKey() }
+            .mapTo(ArrayList()) { Unpaired(it.holder, -it.delta, it.fromGap) }
         val flows = mutableListOf<Flow>()
+
+        val unmatched = gainList.iterator()
+        while (unmatched.hasNext()) {
+            val gain = unmatched.next()
+            val loss = lossList.firstOrNull { it.amount == gain.amount } ?: continue
+            lossList.remove(loss)
+            unmatched.remove()
+            flows += Flow(itemKey, Quantity(gain.amount), loss.holder, gain.holder, FlowKind.MOVE)
+        }
+        val gains = ArrayDeque(gainList)
+        val losses = ArrayDeque(lossList)
 
         while (gains.isNotEmpty() && losses.isNotEmpty()) {
             val gain = gains.removeFirst()

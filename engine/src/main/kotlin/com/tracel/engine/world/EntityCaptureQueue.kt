@@ -39,7 +39,8 @@ public class EntityCaptureQueue(
 ) {
     private val queue = Channel<EntityChange>(capacity)
     private val droppedCount = atomic(0L)
-    private val pending = atomic(0)
+    private val offered = atomic(0L)
+    private val settled = atomic(0L)
 
     public val dropped: Long get() = droppedCount.value
 
@@ -49,9 +50,9 @@ public class EntityCaptureQueue(
      * @return `false` if the queue was full and it was dropped.
      */
     public fun offer(change: EntityChange): Boolean {
-        pending.incrementAndGet()
+        offered.incrementAndGet()
         if (queue.trySend(change).isSuccess) return true
-        pending.decrementAndGet()
+        settled.incrementAndGet()
         val total = droppedCount.incrementAndGet()
         if (total == 1L || total % DROP_REPORT_EVERY == 0L) {
             logger.warning(
@@ -63,17 +64,19 @@ public class EntityCaptureQueue(
     }
 
     /**
-     * Waits until everything [offer] accepted has been written (or dropped by the writer).
+     * Waits until everything [offer] accepted before the call has been written (or dropped by the
+     * writer). What arrives meanwhile is not waited for: a busy server is never quiet.
      *
      * @return whether it all landed. False means whoever reads the log next is reading a window
      * that does not yet have the last few entity changes in it.
      */
     public suspend fun flush(timeoutMs: Long = 2_000): Boolean {
+        val upTo = offered.value
         val deadline = System.currentTimeMillis() + timeoutMs
-        while (pending.value > 0 && System.currentTimeMillis() < deadline) {
+        while (settled.value < upTo && System.currentTimeMillis() < deadline) {
             delay(1.milliseconds)
         }
-        return pending.value <= 0
+        return settled.value >= upTo
     }
 
     /** Runs until [scope] is canceled, writing whatever has piled up as one unit of work at a time. */
@@ -94,7 +97,7 @@ public class EntityCaptureQueue(
             } catch (_: Throwable) {
                 writeOneByOne(batch)
             } finally {
-                pending.addAndGet(-batch.size)
+                settled.addAndGet(batch.size.toLong())
             }
             batch.clear()
         }

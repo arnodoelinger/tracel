@@ -132,14 +132,14 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `adjust on a holder with no prior snapshot still works, starting from empty`() = runTest {
-        val differ = SnapshotDiffer()
+    fun `adjust on a holder with no snapshot leaves it to the ledger, which already has the move`() = runTest {
+        val differ = SnapshotDiffer { mapOf(diamond to 5L) }
         val groundItem = block(0, 64, 0)
 
         differ.adjust(groundItem, diamond, 5L)
 
         val deltas = differ.diff(groundItem, mapOf(diamond to 5L))
-        assertTrue(deltas.isEmpty())
+        assertTrue(deltas.isEmpty(), "counted once, by the ledger baseline, not a second time as pending")
     }
 
     @Test
@@ -181,14 +181,14 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `an adjust booked before the first diff is folded into the ledger baseline`() = runTest {
+    fun `an adjust before the first diff is not counted on top of the ledger that booked it`() = runTest {
         val player = block(0, 64, 0)
-        val differ = SnapshotDiffer { mapOf(diamond to 10L) }
+        val differ = SnapshotDiffer { mapOf(diamond to 6L) }
 
         differ.adjust(player, diamond, -4L)
 
         val deltas = differ.diff(player, mapOf(diamond to 6L))
-        assertTrue(deltas.isEmpty(), "10 believed, 4 dropped, 6 held")
+        assertTrue(deltas.isEmpty(), "10 believed, 4 dropped through the ring, 6 held: no phantom mint")
     }
 
     @Test
