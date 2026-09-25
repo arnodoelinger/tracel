@@ -11,7 +11,13 @@ import com.tracel.storage.util.eachRow
 import java.util.*
 
 /** One unit of material physical restorer owes (or owes back from) a player who was offline at the time. */
-data class PendingDelivery(val id: Long, val itemKey: ItemKey, val delta: Long, val job: RollbackJobId)
+data class PendingDelivery(
+    val id: Long,
+    val itemKey: ItemKey,
+    val delta: Long,
+    val job: RollbackJobId,
+    val enderChest: Boolean = false,
+)
 
 /** A durable queue of [PendingDelivery]s, keyed by the player who is owed. */
 class PendingDeliveryRepository(
@@ -24,13 +30,19 @@ class PendingDeliveryRepository(
      * A crash partway through a multi-item-key restore must not leave some of it queued and the
      * rest silently owed to nobody, which is why this is one unit of work and not a loop of them.
      */
-    suspend fun enqueueAll(player: UUID, deltas: Map<ItemKey, Long>, job: RollbackJobId, nowMillis: Long) {
+    suspend fun enqueueAll(
+        player: UUID,
+        deltas: Map<ItemKey, Long>,
+        job: RollbackJobId,
+        nowMillis: Long,
+        enderChest: Boolean = false,
+    ) {
         val ids = deltas.keys.map { counters.nextPendingDeliveryId() }
         storage.write {
             deltas.entries.forEachIndexed { index, (itemKey, delta) ->
                 put(
                     Keys.pending(player, ids[index]),
-                    Records.pending(storage.interning.internItemKey(this, itemKey), delta, job.raw, nowMillis),
+                    Records.pending(storage.interning.internItemKey(this, itemKey), delta, job.raw, nowMillis, enderChest),
                 )
             }
         }
@@ -47,6 +59,7 @@ class PendingDeliveryRepository(
                 storage.interning.resolveItemKey(this, Records.pendingItemKeyId(value)),
                 Records.pendingDelta(value),
                 RollbackJobId(Records.pendingJobId(value)),
+                Records.pendingEnderChest(value),
             )
             keys += cursor.key()
         }

@@ -16,12 +16,14 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
+import com.tracel.storage.ffm.Key
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.ports.log.QueryProbe
 import com.tracel.storage.ports.log.walkWanted
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
+import java.util.concurrent.atomic.AtomicLong
 import com.tracel.engine.ledger.LotRepository as LotRepositoryPort
 
 /** [LotRepositoryPort] over the packed keyspace. */
@@ -32,13 +34,40 @@ class LotRepository(
     private val interning: Interning get() = storage.interning
     private val lots: Cache<LotId, Lot> = Caffeine.newBuilder().maximumSize(100_000).build()
     private val fifoScratch = FifoScratch()
+    private val version = AtomicLong()
+
+    private val evictedFloor = AtomicLong()
+
+    private val stamps: Cache<LotId, Long> = Caffeine.newBuilder()
+        .maximumSize(2_000_000)
+        .executor(Runnable::run)
+        .removalListener<LotId, Long> { _, stamp, cause -> if (cause.wasEvicted() && stamp != null) evictedFloor.accumulateAndGet(stamp, ::maxOf) }
+        .build()
+
+    override suspend fun version(): Long = version.get()
+
+    override suspend fun changedSince(lots: Collection<LotId>, witness: Long): Boolean {
+        val floor = evictedFloor.get()
+        return lots.any { (stamps.getIfPresent(it) ?: floor) > witness }
+    }
+
+    private fun StorageUnit.changed(vararg lots: Long) = afterCommit {
+        val at = version.incrementAndGet()
+        for (lot in lots) stamps.put(LotId(lot), at)
+    }
+
+    private fun StorageUnit.cache(id: LotId, lot: Lot) {
+        lots.put(id, lot)
+        if (batch.touches(Key(Keys.lot(id.raw)))) afterAbort { lots.invalidate(id) }
+    }
 
     override suspend fun createLot(itemKey: ItemKey, quantity: Quantity, createdBy: TxnId): Lot {
         val id = counters.nextLotId()
         return storage.write {
             val itemKeyId = interning.internItemKey(this, itemKey)
             put(Keys.lot(id.raw), Records.lot(itemKeyId, quantity.raw, createdBy.raw))
-            Lot(id, itemKey, quantity, createdBy).also { lots.put(id, it) }
+            changed(id.raw)
+            Lot(id, itemKey, quantity, createdBy).also { cache(id, it) }
         }
     }
 
@@ -64,6 +93,7 @@ class LotRepository(
             }
             put(Keys.edgeFrom(edge.parent.raw, edge.child.raw), packed)
             put(Keys.edgeInto(edge.child.raw, edge.parent.raw), packed)
+            changed(edge.parent.raw, edge.child.raw)
         }
     }
 
@@ -71,6 +101,7 @@ class LotRepository(
         storage.write {
             delete(Keys.edgeFrom(parent.raw, child.raw))
             delete(Keys.edgeInto(child.raw, parent.raw))
+            changed(parent.raw, child.raw)
         }
     }
 
@@ -139,7 +170,7 @@ class LotRepository(
             QueryProbe.scanned(sorted.size.toLong())
             walkWanted(Keys.LOT, sorted, 0, sorted.size, Keys::lot) { at, cursor ->
                 val id = LotId(at)
-                lots.put(id, decodeLot(this, id, cursor.value()))
+                cache(id, decodeLot(this, id, cursor.value()))
             }
         }
     }
@@ -159,7 +190,7 @@ class LotRepository(
             QueryProbe.scanned(sorted.size.toLong())
             walkWanted(Keys.LOT, sorted, 0, sorted.size, Keys::lot) { at, cursor ->
                 val id = LotId(at)
-                out[id] = decodeLot(this, id, cursor.value()).also { lots.put(id, it) }
+                out[id] = decodeLot(this, id, cursor.value()).also { cache(id, it) }
             }
             for (id in missing) if (id !in out) out[id] = readLot(this, id)
             out
@@ -242,6 +273,7 @@ class LotRepository(
         check(need == 0L) {
             "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, short by $need"
         }
+        changed(*buf.lots.copyOf(buf.n))
         val taken = ArrayList<LotPortion>(buf.n)
         var still = quantity.raw
         var i = 0
@@ -289,6 +321,7 @@ class LotRepository(
                 have += remaining
             }
         }
+        changed(*buf.lots.copyOf(buf.n))
         val out = ArrayList<Pair<HolderId, List<LotPortion>>>(owed.size)
         var slot = 0
         var lotId = if (buf.n == 0) 0L else buf.lots[0]
@@ -412,8 +445,9 @@ class LotRepository(
         val fifoSeq = counters.nextFifoSeq()
         return storage.write {
             val lot = readLot(this, lotId)
-            interning.findHolderId(this, holder)?.let { known ->
-                check(get(Keys.placeRev(lotId.raw, known)) == null) { "lot $lotId is already placed at $holder" }
+            // placed anywhere, not only here: on disk a second place was a silent duplicate
+            scan(Keys.placeRevPrefix(lotId.raw)).use { cursor ->
+                check(!cursor.next()) { "lot $lotId is already placed at ${interning.resolveHolder(this, KeyReader.u32(cursor.key(), 9))}" }
             }
             val holderId = interning.internHolder(this, holder)
             val itemKeyId = interning.internItemKey(this, lot.itemKey)
@@ -421,6 +455,7 @@ class LotRepository(
             put(Keys.placeRev(lotId.raw, holderId), Records.placementRev(itemKeyId, fifoSeq.raw))
             put(Keys.placeItem(itemKeyId, holderId, fifoSeq.raw), EMPTY)
             addToTotal(this, holderId, itemKeyId, quantity.raw)
+            changed(lotId.raw)
             AccountLot(holder, lot, quantity, fifoSeq)
         }
     }
@@ -439,6 +474,7 @@ class LotRepository(
             delete(reverseKey)
             delete(Keys.placeItem(itemKeyId, holderId, fifoSeq))
             addToTotal(this, holderId, itemKeyId, -remaining)
+            changed(lotId.raw)
         }
     }
 
@@ -463,6 +499,7 @@ class LotRepository(
             put(Keys.placeItem(itemKeyId, toId, fifoSeq), EMPTY)
             addToTotal(this, fromId, itemKeyId, -remaining)
             addToTotal(this, toId, itemKeyId, remaining)
+            changed(lotId.raw)
         }
     }
 
@@ -486,6 +523,7 @@ class LotRepository(
                 )
             }
 
+            changed(*LongArray(moving.size) { moving[it].lotId })
             for ((itemKeyId, fifoSeq, lotId, remaining) in moving) {
                 delete(Keys.place(fromId, itemKeyId, fifoSeq))
                 delete(Keys.placeRev(lotId, fromId))
@@ -521,6 +559,7 @@ class LotRepository(
             delete(reverseKey)
             put(Keys.placeRev(newLotId.raw, holderId), Records.placementRev(itemKeyId, fifoSeq))
             addToTotal(this, holderId, itemKeyId, remaining.raw - previous)
+            changed(retiredLotId.raw, newLotId.raw)
         }
     }
 
@@ -585,8 +624,8 @@ class LotRepository(
         val keptQty = Quantity(remaining - take)
         unit.put(Keys.lot(takenId.raw), Records.lot(itemKeyId, takenQty.raw, txn.raw))
         unit.put(Keys.lot(keptId.raw), Records.lot(itemKeyId, keptQty.raw, txn.raw))
-        lots.put(takenId, Lot(takenId, itemKey, takenQty, txn))
-        lots.put(keptId, Lot(keptId, itemKey, keptQty, txn))
+        unit.cache(takenId, Lot(takenId, itemKey, takenQty, txn))
+        unit.cache(keptId, Lot(keptId, itemKey, keptQty, txn))
         val splitTaken = Records.edge(Records.EDGE_SPLIT, takenQty.raw, 0, 0)
         val splitKept = Records.edge(Records.EDGE_SPLIT, keptQty.raw, 0, 0)
         unit.put(Keys.edgeFrom(parentLotId, takenId.raw), splitTaken)
@@ -611,7 +650,7 @@ class LotRepository(
     private fun readLot(unit: StorageUnit, id: LotId): Lot {
         lots.getIfPresent(id)?.let { return it }
         val value = unit.get(Keys.lot(id.raw)) ?: error("lot $id does not exist")
-        return decodeLot(unit, id, value).also { lots.put(id, it) }
+        return decodeLot(unit, id, value).also { unit.cache(id, it) }
     }
 
     private fun decodeLot(unit: StorageUnit, id: LotId, value: MemorySegment): Lot = Lot(

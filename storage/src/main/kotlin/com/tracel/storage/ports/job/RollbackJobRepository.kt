@@ -91,33 +91,38 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                 put(Keys.rbStruct(record.id.raw, index), packed)
                 runsWritten = index + 1
             }
+
+            // The ledger already moved: a crash before finish must still leave something to undo,
+            // even if it cannot put back what the contested pass had yet to remove.
+            putHeader(record, destroyCount = 0)
+            put(Keys.rbRecent(record.id.raw), EMPTY)
+            evictPastDepth()
         }
         return SaveHandle(record, runsWritten)
+    }
+
+    private fun StorageUnit.putHeader(record: RollbackJobRecord, destroyCount: Int) {
+        val uniformHolder = when (val target = record.target) {
+            is RollbackTarget.Uniform -> storage.interning.internHolder(this, target.holder)
+            is RollbackTarget.PerRoot -> 0
+        }
+        put(
+            Keys.rbJob(record.id.raw),
+            Records.rbJob(
+                uniformHolder, record.plan.steps.size, record.create.size, destroyCount,
+                record.targetTimeMillis ?: 0L, record.targetTimeMillis != null, record.executedAtMillis,
+            ),
+        )
     }
 
     override suspend fun finish(handle: SaveHandle, destroy: List<StructureStep>) {
         val record = handle.record
         storage.write {
+            if (!exists(Keys.rbJob(record.id.raw))) return@write
             runs(structureRuns(this, destroy)) { index, packed ->
                 put(Keys.rbStruct(record.id.raw, handle.fromRun + index), packed)
             }
-
-            val uniformHolder = when (val target = record.target) {
-                is RollbackTarget.Uniform -> storage.interning.internHolder(this, target.holder)
-                is RollbackTarget.PerRoot -> 0
-            }
-            // Last, both of them. Until the header exists there is no job to read back, and until
-            // the stack entry exists there is no job to undo.
-            put(
-                Keys.rbJob(record.id.raw),
-                Records.rbJob(
-                    uniformHolder, record.plan.steps.size, record.create.size, destroy.size,
-                    record.targetTimeMillis ?: 0L, record.targetTimeMillis != null, record.executedAtMillis,
-                ),
-            )
-            // The undo stack
-            put(Keys.rbRecent(record.id.raw), EMPTY)
-            evictPastDepth()
+            putHeader(record, destroyCount = destroy.size)
         }
     }
 
@@ -196,7 +201,11 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
 
     private fun StorageUnit.forget(id: RollbackJobId) {
         val doomed = ArrayList<ByteArray>()
-        for (prefix in listOf(Keys.rbStepPrefix(id.raw), Keys.rbStructPrefix(id.raw), Keys.rbTargetPrefix(id.raw))) {
+        val prefixes = listOf(
+            Keys.rbStepPrefix(id.raw), Keys.rbStructPrefix(id.raw), Keys.rbTargetPrefix(id.raw),
+            Keys.appliedPrefix(Keys.PROGRESS_ROLLBACK, id.raw), Keys.appliedPrefix(Keys.PROGRESS_INVOLUTION, id.raw),
+        )
+        for (prefix in prefixes) {
             eachRow(prefix) { cursor -> doomed += cursor.key() }
         }
         doomed.forEach(::delete)

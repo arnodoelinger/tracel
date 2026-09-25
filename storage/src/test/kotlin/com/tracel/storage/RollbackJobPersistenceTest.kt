@@ -246,13 +246,15 @@ class RollbackJobPersistenceTest {
     }
 
     @Test
-    fun `a save that never finished is not a job at all`(@TempDir dir: Path) = runTest {
+    fun `a save that never finished can still be undone, minus what it had yet to destroy`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             val record = RollbackJobRecord(RollbackJobId(6), plan, RollbackTarget.Uniform(player(1)), create, destroy)
             stack.jobs.begin(record)
 
-            assertNull(stack.jobs.find(RollbackJobId(6)))
-            assertFalse(stack.jobs.isUndoable(RollbackJobId(6)))
+            val read = stack.jobs.find(RollbackJobId(6))!!
+            assertEquals(create, read.create)
+            assertTrue(read.destroy.isEmpty())
+            assertTrue(stack.jobs.isUndoable(RollbackJobId(6)))
         }
     }
 
