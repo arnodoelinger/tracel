@@ -1,6 +1,8 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.storage.TracelStorage
+import com.tracel.storage.spi.MutationBatch
+import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
@@ -9,22 +11,19 @@ import com.tracel.storage.util.eachRow
 
 /** Deletes the `Tracel`'s history. */
 suspend fun purgeAll(storage: TracelStorage) {
-    val kept = ArrayList<Pair<ByteArray, ByteArray>>()
-    storage.read {
-        for (family in Keys.KEEPS_ITS_NUMBERING) {
-            eachRow(Keys.tagPrefix(family)) { cursor ->
-                val value = cursor.value()
-                val bytes = value.readBytes(0, value.byteSize().toInt())
-                kept += cursor.key() to bytes
+    storage.alone {
+        val kept = ArrayList<Pair<ByteArray, ByteArray>>()
+        StorageUnit(storage.engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+            for (family in Keys.KEEPS_ITS_NUMBERING) {
+                unit.eachRow(Keys.tagPrefix(family)) { cursor ->
+                    val value = cursor.value()
+                    kept += cursor.key() to value.readBytes(0, value.byteSize().toInt())
+                }
             }
         }
-    }
-
-    storage.engine.wipe()
-
-    if (kept.isEmpty()) return
-    storage.write {
-        for ((key, value) in kept) put(key, value)
+        storage.engine.wipe()
+        if (kept.isNotEmpty()) storage.engine.write(MutationBatch().apply { for ((key, value) in kept) put(key, value) }, durable = true)
+        storage.reloadInterning()
     }
 }
 

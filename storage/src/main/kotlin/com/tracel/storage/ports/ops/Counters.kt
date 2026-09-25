@@ -8,6 +8,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
+import com.tracel.storage.spi.MutationBatch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -60,6 +61,11 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         }
     }
 
+    /** Drops the blocks held in memory: the store they were reserved from was replaced. */
+    fun forget() {
+        lock.withLock { reserved.clear() }
+    }
+
     private suspend fun next(name: Int): Long {
         lock.lock()
         try {
@@ -85,7 +91,8 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     private suspend fun nextRange(name: Int, count: Int): Long = storage.write {
         val key = Keys.counter(name)
         val value = get(key)?.let(Records::asLong) ?: 1L
-        put(key, Records.long(value + count))
+        putPinned(key, Records.long(value + count))
+        keepSpent(this, key, value + count)
         value
     }
 
@@ -95,7 +102,8 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         if (reservation != null && reservation.next < reservation.exhaustedAt) return reservation.next++
         val key = Keys.counter(name)
         val start = unit.get(key)?.let(Records::asLong) ?: 1L
-        unit.put(key, Records.long(start + blockSize))
+        unit.putPinned(key, Records.long(start + blockSize))
+        keepSpent(unit, key, start + blockSize)
         reserved[name] = Reservation(start + 1, start + blockSize)
         start
     }
@@ -103,8 +111,16 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     private suspend fun reserve(name: Int): Long = storage.write {
         val key = Keys.counter(name)
         val value = get(key)?.let(Records::asLong) ?: 1L
-        put(key, Records.long(value + blockSize))
+        putPinned(key, Records.long(value + blockSize))
+        keepSpent(this, key, value + blockSize)
         value
+    }
+
+    private fun keepSpent(unit: StorageUnit, key: ByteArray, until: Long) {
+        unit.afterAbort {
+            val durable = storage.engine.snapshot().use { it.get(key)?.let(Records::asLong) } ?: 1L
+            if (durable < until) storage.engine.write(MutationBatch().apply { put(key, Records.long(until)) }, durable = true)
+        }
     }
 
     companion object {

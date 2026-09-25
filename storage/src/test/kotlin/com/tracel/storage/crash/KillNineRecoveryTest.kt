@@ -21,7 +21,9 @@ class KillNineRecoveryTest {
             "--enable-native-access=ALL-UNNAMED",
             CrashHarness::class.java.name,
             ledgerDir.toString(),
-        ).redirectErrorStream(false).start()
+        )
+            .redirectError(dir.resolve("harness.err").toFile())
+            .start()
 
         var acknowledged = 0L
         try {

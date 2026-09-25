@@ -64,7 +64,33 @@ suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withCont
 suspend fun importFrom(storage: TracelStorage, from: Path): ExportSummary = withContext(Dispatchers.IO) {
     require(Files.exists(from)) { "$from does not exist" }
 
-    val rows = ArrayList<Pair<ByteArray, ByteArray>>()
+    // Checked whole before anything is wiped, then read again straight into the store
+    val rows = eachExportedRow(from) { _, _ -> }
+
+    // Nothing else writes while the store is swapped, and the IDs cached for the old one go with it:
+    // a new holder given an ID the file already uses overwrote history.
+    storage.alone {
+        storage.engine.wipe()
+        var batch = MutationBatch()
+        var inBatch = 0
+        eachExportedRow(from) { key, value ->
+            batch.put(key, value)
+            if (++inBatch >= BATCH_ROWS) {
+                storage.engine.write(batch, durable = false)
+                batch = MutationBatch()
+                inBatch = 0
+            }
+        }
+        if (inBatch > 0) storage.engine.write(batch, durable = false)
+        storage.engine.sync()
+        storage.reloadInterning()
+    }
+    ExportSummary(rows, Files.size(from), from)
+}
+
+/** Streams every row of the export at [from] through [row], and checks the count it ends on. */
+private inline fun eachExportedRow(from: Path, row: (ByteArray, ByteArray) -> Unit): Long {
+    var rows = 0L
     var stated = -1L
     DataInputStream(
         BufferedInputStream(ZstdInputStream(Files.newInputStream(from)), 1 shl 16),
@@ -84,22 +110,10 @@ suspend fun importFrom(storage: TracelStorage, from: Path): ExportSummary = with
             }
             val key = ByteArray(keyLength).also(input::readFully)
             val value = ByteArray(input.readInt()).also(input::readFully)
-            rows += key to value
+            row(key, value)
+            rows++
         }
     }
-    require(stated == rows.size.toLong()) {
-        "$from says it holds $stated rows and holds ${rows.size} — it was truncated"
-    }
-
-    storage.engine.wipe()
-    var written = 0
-    while (written < rows.size) {
-        val batch = MutationBatch()
-        val until = minOf(written + BATCH_ROWS, rows.size)
-        for (i in written until until) batch.put(rows[i].first, rows[i].second)
-        storage.engine.write(batch, durable = false)
-        written = until
-    }
-    storage.engine.sync()
-    ExportSummary(rows.size.toLong(), Files.size(from), from)
+    require(stated == rows) { "$from says it holds $stated rows and holds $rows — it was truncated" }
+    return rows
 }

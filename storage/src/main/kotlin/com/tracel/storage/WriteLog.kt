@@ -9,7 +9,7 @@ import java.util.logging.Logger
 @Unstable
 internal object WriteLog {
     @Volatile
-    var enabled: Boolean = true
+    var enabled: Boolean = System.getProperty("tracel.writeLog") == "true" // -Dtracel.writeLog=true
 
     private val log = Logger.getLogger("Tracel/WriteLog")
 

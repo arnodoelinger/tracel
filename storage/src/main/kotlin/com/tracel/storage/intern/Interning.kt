@@ -102,9 +102,21 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
 
     // Provisional IDs: the hand-off from a region thread to the storage thread
 
-    private val provisionalIds = ConcurrentHashMap<Any, Int>()
-    private val provisionalValues = ConcurrentHashMap<Int, Any>()
-    private val provisionalToReal = ConcurrentHashMap<Int, Int>()
+    @Volatile
+    private var provisionalIds = ConcurrentHashMap<Any, Int>()
+
+    @Volatile
+    private var provisionalValues = ConcurrentHashMap<Int, Any>()
+
+    @Volatile
+    private var provisionalToReal = ConcurrentHashMap<Int, Int>()
+
+    @Volatile
+    private var retiredValues = ConcurrentHashMap<Int, Any>()
+
+    @Volatile
+    private var retiredToReal = ConcurrentHashMap<Int, Int>()
+
     private val nextProvisional = AtomicInteger(0)
     private val drops = AtomicLong(0)
 
@@ -115,9 +127,11 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
             drops.incrementAndGet()
             return 0
         }
-        return provisionalIds.computeIfAbsent(value) { fresh ->
+        val ids = provisionalIds
+        val values = provisionalValues
+        return ids.computeIfAbsent(value) { fresh ->
             val id = -nextProvisional.incrementAndGet()
-            provisionalValues[id] = fresh
+            values[id] = fresh
             id
         }
     }
@@ -125,8 +139,10 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
     /** Resolves a provisional id to a real one, interning the value if it has to. */
     fun canonical(unit: StorageUnit, id: Int): Int {
         if (id >= 0) return id
-        provisionalToReal[id]?.let { return it }
-        val value = provisionalValues[id] ?: return 0
+        val current = provisionalValues[id]
+        val toReal = if (current != null) provisionalToReal else retiredToReal
+        toReal[id]?.let { return it }
+        val value = current ?: retiredValues[id] ?: return 0
         val (real, table) = when (value) {
             is HolderId -> holders.intern(unit, value) to holders
             is ItemKey -> itemKeys.intern(unit, value) to itemKeys
@@ -135,7 +151,7 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
             is EntityTypeKey -> entityTypes.intern(unit, value) to entityTypes
             else -> error("nothing else is ever interned provisionally: ${value::class}")
         }
-        if (table.isPending(unit, real)) unit.afterCommit { provisionalToReal[id] = real } else provisionalToReal[id] = real
+        if (table.isPending(unit, real)) unit.afterCommit { toReal[id] = real } else toReal[id] = real
         return real
     }
 
@@ -147,10 +163,27 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
      * fresh placeholder.
      */
     fun compactProvisional() {
-        if (provisionalValues.size < PROVISIONAL_COMPACT_AT) return
-        provisionalIds.clear()
-        provisionalValues.clear()
-        provisionalToReal.clear()
+        retireProvisional()
+        retireProvisional()
+    }
+
+    /**
+     * Forgets the retired generation and, once the current one is big enough, retires it in turn.
+     * Call only when every event claimed before the previous swap has been applied: that is what
+     * makes the retired ids unreachable.
+     *
+     * @return whether a new generation was retired, so the caller takes a new fence.
+     */
+    fun retireProvisional(): Boolean {
+        retiredValues = ConcurrentHashMap()
+        retiredToReal = ConcurrentHashMap()
+        if (provisionalValues.size < PROVISIONAL_COMPACT_AT) return false
+        retiredValues = provisionalValues
+        retiredToReal = provisionalToReal
+        provisionalIds = ConcurrentHashMap()
+        provisionalValues = ConcurrentHashMap()
+        provisionalToReal = ConcurrentHashMap()
+        return true
     }
 
     // Storage path: the writer thread, inside an open unit
@@ -183,6 +216,17 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
 
     fun restore(unit: StorageUnit) {
         for (table in tables) table.restore(unit)
+    }
+
+    /** Forgets every cached id and reads the counters again: the store under it was replaced. */
+    fun reload(unit: StorageUnit) {
+        for (table in tables) table.forget()
+        provisionalIds = ConcurrentHashMap()
+        provisionalValues = ConcurrentHashMap()
+        provisionalToReal = ConcurrentHashMap()
+        retiredValues = ConcurrentHashMap()
+        retiredToReal = ConcurrentHashMap()
+        restore(unit)
     }
 
     private companion object {
@@ -226,6 +270,7 @@ private class Interned<T : Any>(
         }
 
         val id = counter.incrementAndGet()
+        check(id > 0) { "intern namespace $namespace ran out of ids" }
         unit.putPinned(Keys.internForward(namespace, id), packed)
         unit.putPinned(Keys.internReverse(namespace, packed), Records.int(id))
         unit.putPinned(Keys.counter(COUNTER_BASE + namespace), Records.long(id.toLong()))
@@ -238,6 +283,11 @@ private class Interned<T : Any>(
         byId.getIfPresent(id) ?: decode(
             unit.get(Keys.internForward(namespace, id)) ?: error("$name id $id was never interned"),
         ).also { remember(unit, it, id) }
+
+    fun forget() {
+        byValue.invalidateAll()
+        byId.invalidateAll()
+    }
 
     /** Restores the counter from the store. */
     fun restore(unit: StorageUnit) {

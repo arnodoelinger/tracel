@@ -1,5 +1,7 @@
 package com.tracel.storage
 
+import java.util.logging.Logger
+import java.util.logging.Level
 import com.tracel.storage.ffm.Key
 import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.spi.EngineSnapshot
@@ -16,6 +18,8 @@ class StorageUnit(
     val ownerThread: Thread,
 ) : AutoCloseable {
     private var onCommit: ArrayList<() -> Unit>? = null
+    private var onAbort: ArrayList<() -> Unit>? = null
+    private val hookLogger = Logger.getLogger(StorageUnit::class.java.name)
 
     fun get(key: ByteArray): MemorySegment? {
         val overlay = batch.lookup(Key(key))
@@ -54,7 +58,17 @@ class StorageUnit(
 
     /** What [afterCommit] queued, for whoever just wrote the batch. */
     fun committed() {
-        onCommit?.forEach { it() }
+        onCommit?.forEach { hook -> runCatching(hook).onFailure { hookLogger.log(Level.WARNING, "a commit hook failed", it) } }
+    }
+
+    /** Runs [action] if the batch never lands: whatever was cached off it is a lie. */
+    fun afterAbort(action: () -> Unit) {
+        (onAbort ?: ArrayList<() -> Unit>().also { onAbort = it }) += action
+    }
+
+    /** What [afterAbort] queued, for whoever just dropped the batch. */
+    fun aborted() {
+        onAbort?.forEach { hook -> runCatching(hook).onFailure { hookLogger.log(Level.WARNING, "an abort hook failed", it) } }
     }
 
     fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor {

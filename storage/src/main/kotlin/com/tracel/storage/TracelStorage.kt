@@ -16,6 +16,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.nio.file.Path
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineScope
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -99,9 +106,15 @@ class TracelStorage private constructor(
         withContext(dispatcher) {
             val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
             open.use {
-                val result = withContext(OpenUnit(open, Thread.currentThread())) { open.block() }
-                WriteLog.dump(open.batch)
-                engine.write(open.batch, durable = true)
+                val result = try {
+                    withContext(OpenUnit(open, Thread.currentThread())) { open.block() }.also {
+                        WriteLog.dump(open.batch)
+                        engine.write(open.batch, durable = true)
+                    }
+                } catch (failure: Throwable) {
+                    open.aborted()
+                    throw failure
+                }
                 open.committed()
                 result
             }
@@ -115,13 +128,51 @@ class TracelStorage private constructor(
         withContext(dispatcher) {
             val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
             open.use {
-                val result = withContext(OpenUnit(open, Thread.currentThread())) { block() }
-                WriteLog.dump(open.batch)
-                engine.write(open.batch, durable = true)
+                val result = try {
+                    withContext(OpenUnit(open, Thread.currentThread())) { block() }.also {
+                        WriteLog.dump(open.batch)
+                        engine.write(open.batch, durable = true)
+                    }
+                } catch (failure: Throwable) {
+                    open.aborted()
+                    throw failure
+                }
                 open.committed()
                 result
             }
         }
+    }
+
+    /**
+     * Runs [block] with no unit of work open anywhere, on the storage thread: the drainer and every other
+     * writer wait. For replacing the store wholesale, where one batch landing mid-wipe resurrects old data.
+     */
+    suspend fun <T> alone(block: () -> T): T = lock.withLock { withContext(dispatcher) { block() } }
+
+    /** Re-reads interned ids after the store was replaced under them. Call inside [alone]. */
+    fun reloadInterning() {
+        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::reload)
+    }
+
+    /**
+     * Runs [last] to its end or for [timeoutMillis], whichever comes first, then closes. Blocks the
+     * caller, so shutdown only: that is the one place something has to wait for the last writes.
+     *
+     * @return whether [last] finished in time.
+     */
+    fun closeAfter(timeoutMillis: Long, last: suspend () -> Unit): Boolean {
+        val done = CountDownLatch(1)
+        var finished = false
+        CoroutineScope(SupervisorJob() + dispatcher).launch {
+            try {
+                finished = withTimeoutOrNull(timeoutMillis.milliseconds) { last() } != null
+            } finally {
+                done.countDown()
+            }
+        }
+        done.await(timeoutMillis + CLOSE_GRACE_MILLIS, TimeUnit.MILLISECONDS)
+        close()
+        return finished
     }
 
     private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -154,6 +205,7 @@ class TracelStorage private constructor(
     companion object {
         const val DEFAULT_RING_SLOTS = 1 shl 16
         const val MAX_READERS = 16
+        private const val CLOSE_GRACE_MILLIS = 1_000L
 
         /** Opens (or creates) the store at [path]. */
         fun open(
