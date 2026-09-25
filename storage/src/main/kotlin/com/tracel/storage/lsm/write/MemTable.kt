@@ -72,6 +72,7 @@ class MemTable(capacityBytes: Long) : AutoCloseable {
     private val head: Long = used
 
     var maxSequence: Long = 0; private set
+    var minSequence: Long = Long.MAX_VALUE; private set
 
     var walId: Long = 0
 
@@ -131,6 +132,7 @@ class MemTable(capacityBytes: Long) : AutoCloseable {
 
         entries++
         if (sequence > maxSequence) maxSequence = sequence
+        if (sequence < minSequence) minSequence = sequence
         return true
     }
 
@@ -311,7 +313,8 @@ class MemTable(capacityBytes: Long) : AutoCloseable {
         private val NEXT: VarHandle = ValueLayout.JAVA_LONG.varHandle()
         private val BE_LONG: VarHandle =
             MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.BIG_ENDIAN)
-        const val MAX_ENTRY_OVERHEAD: Long = 16L + MAX_HEIGHT * 8L + InternalKey.TRAILER_BYTES + 7L
+
+        const val MAX_ENTRY_OVERHEAD: Long = 24L + InternalKey.TRAILER_BYTES + 7L
 
         private const val DELETION_MARK = 0xFFFFFFFFL
 

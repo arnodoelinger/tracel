@@ -61,8 +61,6 @@ object SegmentFile {
         private var block = ByteArray(BLOCK_TARGET + 512)
         private var blockUsed = 0
         private var blockFirstKey: ByteArray? = null
-        private val pending = ArrayList<ByteArray>()
-        private val pendingFirst = ArrayList<ByteArray>()
 
         private var dataBytes = 0L
         private var count = 0
@@ -104,10 +102,6 @@ object SegmentFile {
          */
         fun finish(id: Long, level: Int): SegmentMeta {
             flushBlock()
-            for (i in pending.indices) {
-                stageIndex(pendingFirst[i], dataBytes)
-                writeBlock(pending[i])
-            }
 
             val indexOffset = dataBytes
             val indexBytes = indexUsed.toLong()
@@ -147,22 +141,22 @@ object SegmentFile {
         private fun flushBlock() {
             if (blockUsed == 0) return
             val first = blockFirstKey ?: error("a non-empty block has no first key")
-            pending.add(block.copyOf(blockUsed))
-            pendingFirst.add(first)
+            stageIndex(first, dataBytes)
+            writeBlock(block, blockUsed)
             blockUsed = 0
             blockFirstKey = null
         }
 
-        private fun writeBlock(raw: ByteArray) {
-            val bound = Zstd.compressBound(raw.size.toLong()).toInt()
+        private fun writeBlock(raw: ByteArray, length: Int) {
+            val bound = Zstd.compressBound(length.toLong()).toInt()
             val packedBuf = ByteArray(bound)
-            val packed = Zstd.compressByteArray(packedBuf, 0, bound, raw, 0, raw.size, ZSTD_LEVEL).toInt()
-            val worthIt = packed in 1 until raw.size
-            val payload = if (worthIt) packed else raw.size
+            val packed = Zstd.compressByteArray(packedBuf, 0, bound, raw, 0, length, ZSTD_LEVEL).toInt()
+            val worthIt = packed in 1 until length
+            val payload = if (worthIt) packed else length
             val flags = if (worthIt) payload or FLAG_ZSTD else payload
             val body = if (worthIt) packedBuf else raw
 
-            LE_INT.set(header, 0, raw.size)
+            LE_INT.set(header, 0, length)
             LE_INT.set(header, 4, flags)
             out.write(header, 0, 8)
             out.write(body, 0, payload)
@@ -343,7 +337,10 @@ class SegmentReader internal constructor(
         MemorySegment.copy(segment, Bytes.I8, offset + 8, src, 0, payload)
         if (!compressed) return if (payload == uncompressed) src else src.copyOf(uncompressed)
         val dest = ByteArray(uncompressed)
-        Zstd.decompressByteArray(dest, 0, uncompressed, src, 0, payload)
+        val got = Zstd.decompressByteArray(dest, 0, uncompressed, src, 0, payload)
+        check(!Zstd.isError(got) && got == uncompressed.toLong()) {
+            "segment ${path.fileName} block at $offset is corrupt: ${if (Zstd.isError(got)) Zstd.getErrorName(got) else "$got of $uncompressed bytes"}"
+        }
         return dest
     }
 

@@ -3,8 +3,7 @@ package com.tracel.storage.lsm.state
 import com.tracel.storage.lsm.segment.SegmentReader
 import com.tracel.storage.lsm.write.MemTable
 import java.nio.file.Files
-import java.util.concurrent.ConcurrentSkipListMap
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.TreeMap
 
 /**
  * When a segment file may actually be unmapped and deleted, and when an old version of a key may
@@ -17,26 +16,29 @@ import java.util.concurrent.atomic.AtomicInteger
  * So nothing is deleted on publish.
  */
 internal class Retirement {
-    private val generations = ConcurrentSkipListMap<Long, AtomicInteger>()
-    private val sequences = ConcurrentSkipListMap<Long, AtomicInteger>()
+    private val pins = Any()
+    private val generations = TreeMap<Long, Int>()
+    private val sequences = TreeMap<Long, Int>()
 
     private val segments = ArrayList<Pair<SegmentReader, Long>>()
     private val tables = ArrayList<Pair<MemTable, Long>>()
 
     /** Records a reader taking hold of [generation] as of sequence [at]. */
-    fun pin(generation: Long, at: Long) {
-        generations.computeIfAbsent(generation) { AtomicInteger(0) }.incrementAndGet()
-        sequences.computeIfAbsent(at) { AtomicInteger(0) }.incrementAndGet()
+    fun pin(generation: Long, at: Long) = synchronized(pins) {
+        generations.merge(generation, 1, Int::plus)
+        sequences.merge(at, 1, Int::plus)
     }
 
     /** The mirror of [pin]. The caller sweeps afterwards, under the engine's lock. */
-    fun release(generation: Long, at: Long) {
-        generations.computeIfPresent(generation) { _, count -> if (count.decrementAndGet() <= 0) null else count }
-        sequences.computeIfPresent(at) { _, count -> if (count.decrementAndGet() <= 0) null else count }
+    fun release(generation: Long, at: Long) = synchronized(pins) {
+        generations.computeIfPresent(generation) { _, count -> if (count <= 1) null else count - 1 }
+        sequences.computeIfPresent(at) { _, count -> if (count <= 1) null else count - 1 }
     }
 
     /** The oldest sequence any open reader can still see — the horizon a merge collapses to. */
-    fun horizon(): Long = sequences.firstEntry()?.key ?: Long.MAX_VALUE
+    fun horizon(): Long = synchronized(pins) { sequences.firstEntry()?.key ?: Long.MAX_VALUE }
+
+    private fun oldestPinned(): Long = synchronized(pins) { generations.firstEntry()?.key ?: Long.MAX_VALUE }
 
     /** Hands [segment] over, to be unmapped and deleted once nobody is reading generation [at]. */
     fun retire(segment: SegmentReader, at: Long) {
@@ -56,7 +58,7 @@ internal class Retirement {
      */
     fun sweep() {
         if (segments.isEmpty() && tables.isEmpty()) return
-        val oldest = generations.firstEntry()?.key ?: Long.MAX_VALUE
+        val oldest = oldestPinned()
 
         val files = segments.iterator()
         while (files.hasNext()) {

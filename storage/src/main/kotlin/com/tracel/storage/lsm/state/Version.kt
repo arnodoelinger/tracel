@@ -40,15 +40,16 @@ class Version internal constructor(
      * [durableSequence] only moves here, because this is the moment those writes stop depending
      * on the write-ahead log to survive.
      */
-    internal fun flushed(flushedTable: MemTable, segment: SegmentReader, at: Long): Version =
-        Version(
-            active,
-            frozen.filterNot { it === flushedTable },
-            segments + segment,
-            lastSequence,
-            maxOf(durableSequence, flushedTable.maxSequence),
-            at,
-        )
+    internal fun flushed(flushedTable: MemTable, segment: SegmentReader, at: Long): Version {
+        val left = frozen.filterNot { it === flushedTable }
+        val oldestLeft = left.filter { it.entries > 0 }.minOfOrNull { it.minSequence }
+        val durable = when {
+            oldestLeft != null -> oldestLeft - 1
+            active.entries > 0 -> active.minSequence - 1
+            else -> lastSequence
+        }
+        return Version(active, left, segments + segment, lastSequence, maxOf(durableSequence, durable), at)
+    }
 
     /** Several segments became one. Identity comparison: two segments can carry equal metadata. */
     internal fun compacted(inputs: List<SegmentReader>, produced: SegmentReader, at: Long): Version =

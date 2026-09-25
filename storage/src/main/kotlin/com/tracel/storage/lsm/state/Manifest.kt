@@ -132,7 +132,7 @@ data class Manifest(
             directory.resolve("%08d%s".format(id, LOG_SUFFIX))
 
         /** Removes any files in the directory that are not referenced by the manifest. */
-        fun sweep(directory: Path, manifest: Manifest) {
+        fun sweep(directory: Path, manifest: Manifest, writing: Set<Long> = emptySet()) {
             val liveWals = manifest.walIds.mapTo(HashSet()) { walPath(directory, it).fileName }
             Files.newDirectoryStream(directory).use { stream ->
                 for (path in stream) {
@@ -145,6 +145,7 @@ data class Manifest(
             val segments = segmentsDirectory(directory)
             if (!Files.isDirectory(segments)) return
             val live = manifest.segments.mapTo(HashSet()) { segmentPath(directory, it.id).fileName }
+            for (id in writing) live.add(segmentPath(directory, id).fileName)
             Files.newDirectoryStream(segments).use { stream ->
                 for (path in stream) {
                     if (path.fileName.toString().endsWith(SEGMENT_SUFFIX) && path.fileName !in live) {

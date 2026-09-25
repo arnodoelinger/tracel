@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm
 
+import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.read.LsmSnapshot
 import com.tracel.storage.lsm.read.SegmentRun
 import com.tracel.storage.lsm.segment.*
@@ -15,6 +16,7 @@ import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -59,8 +61,15 @@ class LsmEngine(
 
     private val lock = ReentrantLock()
     private val flushed = lock.newCondition()
-    private val maintenance = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "Tracel-Storage-Maintenance").apply { isDaemon = true }
+
+    private val flusher = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "Tracel-Storage-Flush").apply { isDaemon = true }
+    }
+    private val compactor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "Tracel-Storage-Compaction").apply { isDaemon = true }
+    }
+    private val syncer = Executors.newSingleThreadScheduledExecutor { runnable ->
+        Thread(runnable, "Tracel-Storage-Sync").apply { isDaemon = true }
     }
 
     private val sequence = AtomicLong(0)
@@ -75,8 +84,14 @@ class LsmEngine(
 
     private val open = ArrayList<SegmentReader>()
 
+    private val writing = ConcurrentHashMap.newKeySet<Long>()
+
     private var nextFileId: Long = 1
     private var logs: WalSet
+
+    @Volatile
+    private var failure: Throwable? = null
+
     private var closed = false
 
     @Volatile
@@ -112,7 +127,11 @@ class LsmEngine(
         publish()
         // Replay can leave more level-0 segments than the fanout allows. Nothing has been written
         // since, so nothing else will notice until it does.
-        if (recovered.sealed.isNotEmpty()) maintenance.execute { compactWhileNeeded() }
+        if (recovered.sealed.isNotEmpty()) compactor.execute { compactWhileNeeded() }
+        // An interval policy only synced inside a later write: one write and then silence stayed unsynced
+        (config.sync as? SyncPolicy.Interval)?.let { policy ->
+            syncer.scheduleWithFixedDelay({ runCatching { if (!closed) sync() } }, policy.millis, policy.millis, TimeUnit.MILLISECONDS)
+        }
     }
 
     // endregion
@@ -124,6 +143,7 @@ class LsmEngine(
 
         lock.withLock {
             check(!closed) { "storage engine is closed" }
+            check(failure == null) { "storage engine stopped taking writes after an I/O error: ${failure?.message}" }
             if (!fits(version.active, batch)) rotate(batch)
             check(fits(version.active, batch)) {
                 "a ${needs(batch)}-byte batch does not fit a freshly rotated " +
@@ -131,7 +151,12 @@ class LsmEngine(
             }
 
             val seq = sequence.incrementAndGet()
-            logs.append(seq, batch)
+            try {
+                logs.append(seq, batch)
+            } catch (e: Throwable) {
+                failure = e
+                throw e
+            }
 
             // fits() above already reserved room for this exact batch under the same lock, so
             // put() failing here would mean two batches raced into one memtable without a
@@ -146,7 +171,14 @@ class LsmEngine(
             version.lastSequence = seq
             writeCount.incrementAndGet()
 
-            if (durable) logs.syncPerPolicy()
+            if (durable) {
+                try {
+                    logs.syncPerPolicy()
+                } catch (e: Throwable) {
+                    failure = e
+                    throw e
+                }
+            }
 
             // A batch too big for an ordinary memtable got one sized for it. Send that one on its
             // way now rather than letting the server run on an oversized table for however long it
@@ -156,15 +188,25 @@ class LsmEngine(
         }
     }
 
-    override fun snapshot(): EngineSnapshot = lock.withLock {
-        val pinned = version
-        retirement.pin(pinned.generation, pinned.lastSequence)
-        LsmSnapshot(this, pinned, pinned.lastSequence, pinned.generation)
+    override fun snapshot(): EngineSnapshot {
+        while (true) {
+            val pinned = version
+            val at = pinned.lastSequence
+            retirement.pin(pinned.generation, at)
+            if (version === pinned) return LsmSnapshot(this, pinned, at, pinned.generation)
+            retirement.release(pinned.generation, at)
+        }
     }
 
     internal fun releaseSnapshot(generation: Long, at: Long) {
         retirement.release(generation, at)
-        lock.withLock { retirement.sweep() }
+        if (lock.tryLock()) {
+            try {
+                retirement.sweep()
+            } finally {
+                lock.unlock()
+            }
+        }
     }
 
     override fun sync() {
@@ -191,7 +233,7 @@ class LsmEngine(
 
     override fun compactEverything() {
         flushNow()
-        compactWhileNeeded()
+        compactor.submit { compactWhileNeeded() }.get()
         quiesce()
     }
 
@@ -219,7 +261,8 @@ class LsmEngine(
 
     /** Waits out every pending flush and compaction. Tests and shutdown. */
     fun quiesce() {
-        maintenance.submit { }.get()
+        flusher.submit { }.get()
+        compactor.submit { }.get()
     }
 
     /** Flushes the active memtable and waits for it. Tests and shutdown. */
@@ -234,15 +277,18 @@ class LsmEngine(
     internal fun halt() = shutdown(seal = false)
 
     private fun shutdown(seal: Boolean) {
-        // Three sections, and the maintenance thread has to stop between the first two: sealing
+        // Three sections, and the maintenance threads have to stop between the first two: sealing
         // while a flush is still running would publish two versions of the same table.
         lock.withLock {
             if (closed) return
             closed = true
             logs.close()
         }
-        maintenance.shutdown()
-        maintenance.awaitTermination(SHUTDOWN_WAIT_SECONDS, TimeUnit.SECONDS)
+        syncer.shutdownNow()
+        flusher.shutdown()
+        flusher.awaitTermination(SHUTDOWN_WAIT_SECONDS, TimeUnit.SECONDS)
+        compactor.shutdown()
+        compactor.awaitTermination(SHUTDOWN_WAIT_SECONDS, TimeUnit.SECONDS)
         lock.withLock {
             if (seal) runCatching { sealOnShutdown() }
             open.forEach { runCatching { it.close() } }
@@ -263,7 +309,7 @@ class LsmEngine(
             return
         }
         // Oldest first: a later segment has to carry the higher id so it shadows the earlier one
-        val written = pending.asReversed().map { segmentWriter.seal(it, nextFileId++, horizon = Long.MAX_VALUE) }
+        val written = pending.sortedBy { it.minSequence }.map { segmentWriter.seal(it, nextFileId++, horizon = Long.MAX_VALUE) }
         open += written
         logs.clear()
         version = Version(
@@ -300,33 +346,51 @@ class LsmEngine(
         logs.rollTo(fresh.walId)
 
         version = version.freezing(frozen, fresh, generation.incrementAndGet())
-        maintenance.execute { flush(frozen) }
+        Manifest(version.durableSequence, nextFileId, logs.ids, version.segments.map { it.meta }).write(directory)
+        flusher.execute { flush(frozen) }
     }
 
     // endregion
 
-    // region The maintenance thread
+    // region The maintenance threads
 
     private fun flush(frozen: MemTable) {
         try {
-            val id = lock.withLock { nextFileId++ }
-            val reader = segmentWriter.seal(frozen, id, retirement.horizon())
+            val id = reserveSegmentId()
+            try {
+                val reader = segmentWriter.seal(frozen, id, retirement.horizon())
 
-            lock.withLock {
-                open += reader
-                logs.forget(frozen.walId)
-                val at = generation.incrementAndGet()
-                version = version.flushed(frozen, reader, at)
-                retirement.retire(frozen, at)
-                publish()
-                flushed.signalAll()
+                lock.withLock {
+                    if (closed) {
+                        runCatching { reader.close() }
+                        return
+                    }
+                    open += reader
+                    logs.forget(frozen.walId)
+                    val at = generation.incrementAndGet()
+                    version = version.flushed(frozen, reader, at)
+                    retirement.retire(frozen, at)
+                    writing -= id
+                    publish()
+                    flushed.signalAll()
+                }
+            } finally {
+                writing -= id
             }
             flushCount.incrementAndGet()
-            compactWhileNeeded()
+            runCatching { compactor.execute { compactWhileNeeded() } }
         } catch (e: Throwable) {
             // The write-ahead log still holds every one of these writes, so a failed flush costs
-            // memory and a longer recovery, not data.
-            logger.log(Level.SEVERE, "flush failed; the write-ahead log still holds this data", e)
+            // memory and a longer recovery, not data, as long as it is tried again rather than dropped.
+            logger.log(Level.SEVERE, "flush failed; the write-ahead log still holds this data, retrying", e)
+            if (!closed) {
+                runCatching {
+                    flusher.execute {
+                        Thread.sleep(FLUSH_RETRY_MILLIS)
+                        if (!closed) flush(frozen)
+                    }
+                }
+            }
         }
     }
 
@@ -342,22 +406,33 @@ class LsmEngine(
 
     private fun compact(plan: CompactionPlan): Boolean {
         try {
-            val id = lock.withLock { nextFileId++ }
-            val reader = segmentWriter.write(
-                runs = Array(plan.inputs.size) { SegmentRun(plan.inputs[it]) },
-                id = id,
-                level = plan.level + 1,
-                expectedEntries = plan.expectedEntries,
-                horizon = retirement.horizon(),
-                dropTombstones = plan.dropTombstones,
-            )
+            val id = reserveSegmentId()
+            val reader = try {
+                segmentWriter.write(
+                    runs = Array(plan.inputs.size) { SegmentRun(plan.inputs[it]) },
+                    id = id,
+                    level = plan.level + 1,
+                    expectedEntries = plan.expectedEntries,
+                    horizon = retirement.horizon(),
+                    dropTombstones = plan.dropTombstones,
+                )
+            } catch (e: Throwable) {
+                writing -= id
+                throw e
+            }
 
             lock.withLock {
+                if (closed) {
+                    writing -= id
+                    runCatching { reader.close() }
+                    return false
+                }
                 open += reader
                 val at = generation.incrementAndGet()
                 version = version.compacted(plan.inputs, reader, at)
                 open.removeAll(plan.inputs.toSet())
                 plan.inputs.forEach { retirement.retire(it, at) }
+                writing -= id
                 publish()
             }
             compactionCount.incrementAndGet()
@@ -370,6 +445,8 @@ class LsmEngine(
         }
     }
 
+    private fun reserveSegmentId(): Long = lock.withLock { nextFileId++.also { writing += it } }
+
     private fun publish() {
         val manifest = Manifest(
             lastSequence = version.durableSequence,
@@ -379,13 +456,14 @@ class LsmEngine(
         )
         manifest.write(directory)
         retirement.sweep()
-        runCatching { Manifest.sweep(directory, manifest) }
+        runCatching { Manifest.sweep(directory, manifest, writing) }
     }
 
     // endregion
 
     private companion object {
         const val FLUSH_WAIT_MILLIS = 2000
+        const val FLUSH_RETRY_MILLIS = 1000L
         const val FLUSH_POLL_MILLIS = 25
         const val SHUTDOWN_WAIT_SECONDS = 30L
     }
