@@ -2,86 +2,100 @@ package com.tracel.plugin.rollback.structure.fluid
 
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.model.id.WorldId
-import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.isFluidShape
-import com.tracel.plugin.listener.support.FluidProvenance
-import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.packed
 import com.tracel.plugin.util.unpackX
 import com.tracel.plugin.util.unpackY
 import com.tracel.plugin.util.unpackZ
 import org.bukkit.Material
 import org.bukkit.World
+import org.bukkit.block.BlockFace
 
 internal const val FLOW_REACH = 8
 internal const val MAX_DRAINED = 4096
 
+private const val FALLING = 8
+
 // TODO: rewrite this stupid shit
 
 @Unstable
-internal fun drainFlowing(
-    world: World,
-    steps: List<StructureStep.SetBlock>,
-    chunks: Set<Long>,
-): Boolean {
-    val keep = HashSet<Long>(steps.size)
+internal fun drainFlowing(world: World, steps: List<StructureStep.SetBlock>, owns: (Int, Int) -> Boolean): Boolean {
+    val written = HashSet<Long>(steps.size * 2)
     val seeds = ArrayList<Long>()
-    val roots = HashSet<BlockPos>()
-    var minX = Int.MAX_VALUE
-    var maxX = Int.MIN_VALUE
-    var minZ = Int.MAX_VALUE
-    var maxZ = Int.MIN_VALUE
-    var maxY = Int.MIN_VALUE
     for (step in steps) {
-        keep += packed(step.at.x, step.at.y, step.at.z)
-        if (!isFluidShape(step.target) && !isFluidShape(step.expected)) continue
-        seeds += packed(step.at.x, step.at.y, step.at.z)
-        roots += step.at
-        if (step.at.x < minX) minX = step.at.x
-        if (step.at.x > maxX) maxX = step.at.x
-        if (step.at.z < minZ) minZ = step.at.z
-        if (step.at.z > maxZ) maxZ = step.at.z
-        if (step.at.y > maxY) maxY = step.at.y
+        val at = packed(step.at.x, step.at.y, step.at.z)
+        written += at
+        if (isFluidShape(step.expected) && !isFluidShape(step.target)) seeds += at
     }
     if (seeds.isEmpty()) return true
 
-    val fallbackMinX = minX - FLOW_REACH
-    val fallbackMaxX = maxX + FLOW_REACH
-    val fallbackMinZ = minZ - FLOW_REACH
-    val fallbackMaxZ = maxZ + FLOW_REACH
-
-    val worldId = WorldId(world.uid)
-    val seen = HashSet<Long>(seeds.size * 4)
-    val queue = ArrayDeque(seeds)
-    var drained = 0
-    while (queue.isNotEmpty() && drained < MAX_DRAINED) {
+    val reach = HashMap<Long, Int>()
+    val queue = ArrayDeque<Long>()
+    for (seed in seeds) {
+        reach[seed] = 0
+        queue += seed
+    }
+    var complete = true
+    while (queue.isNotEmpty()) {
         val at = queue.removeFirst()
+        val distance = reach.getValue(at)
         for (face in CARDINAL) {
+            if (face == BlockFace.UP) continue
             val x = unpackX(at) + face.modX
             val y = unpackY(at) + face.modY
             val z = unpackZ(at) + face.modZ
-            if (y > maxY) continue
-            if (chunkKey(x, z) !in chunks) continue
             val pos = packed(x, y, z)
-            if (!seen.add(pos) || pos in keep) continue
-            val neighbor = world.getBlockAt(x, y, z)
-            if (!neighbor.holdsFreeFluid()) continue
-            val data = neighbor.blockData
-            if (!isFlowingLiquid(data)) continue
-
-            val blockPos = BlockPos(worldId, x, y, z)
-            val root = FluidProvenance.rootOf(blockPos)
-            val traced = root != null && root in roots
-            if (!traced) {
-                val inFallbackRadius = x in fallbackMinX..fallbackMaxX && z in fallbackMinZ..fallbackMaxZ
-                if (!inFallbackRadius) continue
+            if (pos in reach || pos in written) continue
+            val next = if (face == BlockFace.DOWN) 0 else distance + 1
+            if (next > FLOW_REACH || !owns(x, z)) continue
+            if (!isFlowingLiquid(world.getBlockAt(x, y, z).blockData)) continue
+            if (reach.size >= MAX_DRAINED * 2) {
+                complete = false
+                continue
             }
-
-            neighbor.setType(Material.AIR, false)
-            drained++
-            queue.add(pos)
+            reach[pos] = next
+            queue += pos
         }
     }
-    return queue.isEmpty()
+    for (seed in seeds) reach.remove(seed)
+    if (reach.isEmpty()) return complete
+
+    val drained = HashSet<Long>()
+    var changed = true
+    while (changed) {
+        changed = false
+        for (pos in reach.keys) {
+            if (pos in drained || fed(world, pos, drained)) continue
+            drained += pos
+            changed = true
+        }
+    }
+
+    var left = MAX_DRAINED
+    for (pos in drained) {
+        if (left-- <= 0) return false
+        world.getBlockAt(unpackX(pos), unpackY(pos), unpackZ(pos)).setType(Material.AIR, false)
+    }
+    return complete
+}
+
+private fun fed(world: World, pos: Long, drained: Set<Long>): Boolean {
+    val x = unpackX(pos)
+    val y = unpackY(pos)
+    val z = unpackZ(pos)
+    val block = world.getBlockAt(x, y, z)
+    val fluid = fluidOf(block) ?: return true
+    val level = levelOf(block)
+
+    val above = block.getRelative(BlockFace.UP)
+    if (packed(x, y + 1, z) !in drained && fluidOf(above) == fluid) return true
+    if (level >= FALLING) return false
+
+    for (face in HORIZONTAL) {
+        val side = block.getRelative(face)
+        if (packed(side.x, side.y, side.z) in drained || fluidOf(side) != fluid) continue
+        val feeds = levelOf(side)
+        if (feeds == 0 || feeds >= FALLING || feeds < level) return true
+    }
+    return false
 }

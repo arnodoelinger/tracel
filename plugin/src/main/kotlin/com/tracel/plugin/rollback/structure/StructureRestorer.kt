@@ -24,9 +24,12 @@ class StructureRestorer(internal val services: TracelServices) : StructureHalf {
         cargo: CargoPolicy,
         trace: RollbackTrace,
     ): StructureReport = restoreSteps(
-        steps, pass.force, trace, pass.phase, pass.drain,
-        cargo.keepCargoFor, cargo.ledgerCargoFor, cargo.ledgerHeldBy, pass.dumpHeldCargo,
+        steps, pass.force, trace, pass.phase,
+        cargo.keepCargoFor, cargo.ledgerCargoFor, cargo.ledgerHeldBy, pass.dumpHeldCargo, pass.driftOnly,
     )
+
+    override suspend fun settleFluids(written: List<StructureStep>, drain: Boolean): StructureReport =
+        settleWritten(written, drain)
 
     override suspend fun wakeRedstone(positions: Sequence<BlockPos>) = wakeRedstoneAt(positions)
 }

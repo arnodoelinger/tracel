@@ -3,7 +3,6 @@ package com.tracel.plugin.rollback.structure.entity
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.id.WorldId
-import com.tracel.model.world.entity.EntityShape
 import com.tracel.plugin.adapter.entity.cargoStacks
 import com.tracel.plugin.adapter.entity.emptyCargo
 import com.tracel.plugin.adapter.entity.sittingAt
@@ -34,7 +33,6 @@ internal fun StructureRestorer.despawn(
     ledgerCargoFor: Set<UUID>,
     ledgerHeldBy: Set<UUID>,
 ): Despawn {
-    world.getChunkAt(step.at.x shr 4, step.at.z shr 4)
     val here = services.whereabouts.at(step.entity)
     val loc = if (here != null && here.world == WorldId(world.uid)) {
         Location(world, here.x + 0.5, here.y.toDouble(), here.z + 0.5)
@@ -44,10 +42,17 @@ internal fun StructureRestorer.despawn(
     val entity = Bukkit.getEntity(step.entity)
         ?: step.shape.sittingAt(world, loc, step.entity)
         ?: world.getNearbyEntities(loc, 2.5, 2.5, 2.5).firstOrNull { it.uniqueId == step.entity }
-        ?: return if (takeOffShoulder(step.entity)) Despawn.Removed(step.entity)
-        else if (step.shape.isLeashKnot()) Despawn.Removed(step.entity) else Despawn.Absent
+        ?: return if (step.shape.type.value.endsWith("parrot") && takeOffShoulder(step.entity, loc)) Despawn.Removed(step.entity) else Despawn.Absent
 
-    val cargo = runCatching { entity.cargoStacks() }.getOrDefault(emptyList())
+    // Found anywhere is not ours to touch: another region owns it now, and a removal from here is swallowed
+    if (!Bukkit.isOwnedByCurrentRegion(entity)) {
+        return Despawn.Refused("the ${entity.type.name.lowercase()} has moved into another region since; roll it back from there")
+    }
+
+    // Unreadable is not empty: removing the hull would take whatever it carries along
+    val cargo = runCatching { entity.cargoStacks() }.getOrElse {
+        return Despawn.Refused("could not read what the ${entity.type.name.lowercase()} carries: ${it.message ?: it::class.java.simpleName}")
+    }
     if (cargo.isNotEmpty()) {
         val what = cargo.joinToString(", ") { "${it.type.name.lowercase()} x${it.amount}" }
         if (entity.uniqueId in ledgerCargoFor) {
@@ -80,7 +85,9 @@ internal fun StructureRestorer.despawn(
     entity.emptyCargo()
     clearTrailUnder(entity)
     runCatching { entity.remove() }
-    return Despawn.Removed(entity.uniqueId)
+
+    // Only what really went is journaled: undo respawns every entity recorded as removed
+    return if (entity.isValid) Despawn.Refused("the ${entity.type.name.lowercase()} could not be removed") else Despawn.Removed(entity.uniqueId)
 }
 
 private fun clearTrailUnder(entity: Entity) {
@@ -101,6 +108,3 @@ private fun unsnow(block: Block) {
     data.isSnowy = false
     block.setBlockData(data, false)
 }
-
-private fun EntityShape.isLeashKnot(): Boolean =
-    type.value.substringAfter(':') == "leash_knot"

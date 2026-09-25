@@ -7,14 +7,18 @@ import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
+import com.tracel.plugin.rollback.structure.block.UNSUPPORTED
 import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
+import java.util.logging.Level
 import java.util.concurrent.atomic.AtomicIntegerArray
 
 /** Apply [steps]. Grouped by chunk, all dispatched at once. */
@@ -23,11 +27,11 @@ internal suspend fun StructureRestorer.restoreSteps(
     force: Boolean,
     trace: RollbackTrace, // TODO: remove me
     structurePhase: StructurePhase, // TODO: remove me
-    drain: Boolean,
     keepCargoFor: Set<UUID>,
     ledgerCargoFor: Set<UUID>,
     ledgerHeldBy: Set<UUID>,
     dumpHeldCargo: Boolean,
+    driftOnly: Boolean = false,
 ): StructureReport {
     if (steps.isEmpty()) return StructureReport.EMPTY
 
@@ -38,29 +42,54 @@ internal suspend fun StructureRestorer.restoreSteps(
         }
     }
 
-    val groups = steps.groupBy { dispatchAt(it).regionKey() }.values.toList()
+    suspend fun dispatch(steps: List<StructureStep>): List<StructureReport> {
+        val groups = steps.groupBy { dispatchAt(it).regionKey() }.values.toList()
 
-    // Not a lock
-    val claimed = AtomicIntegerArray(groups.size)
+        // Not a lock
+        val claimed = AtomicIntegerArray(groups.size)
 
-    val reports = coroutineScope {
-        val dispatched = trace.stopwatch("${structurePhase.traceName} / hop")
-        groups.indices.map { index ->
-            async {
-                val anchor = dispatchAt(groups[index].first())
-                withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {
-                    dispatched()
-                    val world = worldOf(anchor.world)
-                    if (world == null) {
-                        StructureReport(emptyList(), groups[index].map { SkippedStep(it.at, "world is not loaded") })
-                    } else {
-                        services.selfManagedWorld.whileRestoring {
-                        applyGroup(world, claim(index, groups, claimed), force, trace, structurePhase, drain, keepCargoFor, ledgerCargoFor, ledgerHeldBy, dumpHeldCargo)
+        return coroutineScope {
+            val dispatched = trace.stopwatch("${structurePhase.traceName} / hop")
+            groups.indices.map { index ->
+                async {
+                    val anchor = dispatchAt(groups[index].first())
+                    // Loaded off the region thread, all at once, before the hop: synchronously on the region
+                    // thread each unloaded chunk stalled its tick, one after another
+                    worldOf(anchor.world)?.let { world ->
+                        val chunks = groups[index].mapTo(HashSet()) { dispatchAt(it).let { at -> (at.x shr 4) to (at.z shr 4) } }
+                        chunks.map { (cx, cz) -> async { runCatching { world.getChunkAtAsync(cx, cz).await() } } }.awaitAll()
                     }
+                    withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {
+                        dispatched()
+                        val world = worldOf(anchor.world)
+                        if (world == null) {
+                            StructureReport(emptyList(), groups[index].map { SkippedStep(it.at, "world is not loaded") })
+                        } else {
+                            val mine = claim(index, groups, claimed)
+                            try {
+                                services.selfManagedWorld.whileRestoring {
+                                    applyGroup(world, mine, force, trace, structurePhase, keepCargoFor, ledgerCargoFor, ledgerHeldBy, dumpHeldCargo, driftOnly)
+                                }.also { report -> services.selfManagedWorld.wrote(report.applied.map { it.at }) }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (failure: Throwable) {
+                                logger.log(Level.WARNING, "a structure group failed; its steps are reported as skipped", failure)
+                                val why = "restore failed here: ${failure.message ?: failure::class.java.simpleName}"
+                                StructureReport(emptyList(), mine.map { SkippedStep(it.at, why) })
+                            }
+                        }
                     }
                 }
-            }
-        }.awaitAll()
+            }.awaitAll()
+        }
+    }
+
+    val first = dispatch(steps)
+
+    val unsupported = first.flatMap { it.skipped }.filter { it.reason == UNSUPPORTED }.mapTo(HashSet()) { it.at }
+    val retry = if (unsupported.isEmpty()) emptyList() else steps.filter { it is StructureStep.SetBlock && it.at in unsupported }
+    val reports = if (retry.isEmpty()) first else {
+        first.map { report -> report.copy(skipped = report.skipped.filterNot { it.reason == UNSUPPORTED }) } + dispatch(retry)
     }
 
     return StructureReport(
@@ -84,4 +113,4 @@ internal fun StructureRestorer.claim(
     index: Int,
     groups: List<List<StructureStep>>,
     claimed: AtomicIntegerArray,
-): List<StructureStep> = claimOwned(index, groups, claimed, ::ownsChunkAt)
+): List<StructureStep> = claimOwned(index, groups, claimed) { ownsChunkAt(dispatchAt(it)) }

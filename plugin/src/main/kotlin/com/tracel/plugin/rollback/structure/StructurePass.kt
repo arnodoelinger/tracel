@@ -8,6 +8,6 @@ package com.tracel.plugin.rollback.structure
 data class StructurePass(
     val force: Boolean = true,
     val phase: StructurePhase = StructurePhase.BLOCKS,
-    val drain: Boolean = false,
     val dumpHeldCargo: Boolean = force,
+    val driftOnly: Boolean = false,
 )

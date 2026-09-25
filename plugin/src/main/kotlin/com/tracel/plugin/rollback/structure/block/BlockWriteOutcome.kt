@@ -10,3 +10,6 @@ internal data class Applied(val step: StructureStep.SetBlock, val differed: Bool
 
 /** The write was skipped outright — nothing landed, [reason] says why. */
 internal data class Refused(val reason: String) : Outcome
+
+/** Already what the rollback wants. */
+internal data object Unchanged : Outcome

@@ -1,6 +1,9 @@
 package com.tracel.plugin.rollback.structure
 
+import com.tracel.annotations.Unstable
+import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
+import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.util.regionKey
@@ -10,12 +13,17 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.bukkit.World
 import org.bukkit.block.Block
-import org.bukkit.block.BlockFace
 import org.bukkit.block.data.AnaloguePowerable
 import org.bukkit.block.data.Lightable
 import org.bukkit.block.data.Powerable
+import org.bukkit.block.data.type.Lectern
+import org.bukkit.block.data.type.Observer
+import org.bukkit.block.data.type.Switch
+import org.bukkit.block.data.type.Tripwire
+import org.bukkit.block.data.type.TripwireHook
 
-/** Update redstone. */
+/** Update redstone around what the restore wrote with physics off. */
+@Unstable
 internal suspend fun StructureRestorer.wakeRedstoneAt(positions: Sequence<BlockPos>) {
     val distinct = positions.distinct().toList()
     if (distinct.isEmpty()) return
@@ -26,22 +34,22 @@ internal suspend fun StructureRestorer.wakeRedstoneAt(positions: Sequence<BlockP
                 withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {
                     val world = worldOf(anchor.world) ?: return@withContext
                     val done = HashSet<Long>(group.size * 4)
-                    for (pos in group) {
-                        wake(world, pos, done)
-                        for (face in NEIGHBOR_FACES) wake(world, pos.relative(face), done)
-                    }
+                    for (pos in group) wake(world, pos, done)
                 }
             }
         }.awaitAll()
     }
 }
 
-private val NEIGHBOR_FACES = arrayOf(
-    BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST,
-)
-
-private fun BlockPos.relative(face: BlockFace): BlockPos =
-    BlockPos(world, x + face.modX, y + face.modY, z + face.modZ)
+internal fun Iterable<StructureStep>.redstoneCells(): Sequence<BlockPos> = asSequence()
+    .filterIsInstance<StructureStep.SetBlock>()
+    .filter { step ->
+        when (BlockDataCache.of(step.target.data)) {
+            is Powerable, is AnaloguePowerable, is Lightable -> true
+            else -> false
+        }
+    }
+    .map { it.at }
 
 private fun BlockPos.packed(): Long =
     (x.toLong() and 0x3FFFFFF) or ((z.toLong() and 0x3FFFFFF) shl 26) or (y.toLong() shl 52)
@@ -53,25 +61,28 @@ private fun wake(world: World, pos: BlockPos, done: MutableSet<Long>) {
 }
 
 private fun wakeIfRedstone(block: Block) {
-    when (val data = block.blockData) {
+    val data = block.blockData
+    if (data is Switch || data is Observer || data is Lectern || data is Tripwire || data is TripwireHook) return
+    if (block.type.name.endsWith("_PRESSURE_PLATE")) return
+    when (data) {
         is Powerable -> {
             val target = data.isPowered
             data.isPowered = !target
-            block.setBlockData(data, true)
+            block.setBlockData(data, false)
             data.isPowered = target
             block.setBlockData(data, true)
         }
         is AnaloguePowerable -> {
             val target = data.power
             data.power = if (target == 0) 1 else 0
-            block.setBlockData(data, true)
+            block.setBlockData(data, false)
             data.power = target
             block.setBlockData(data, true)
         }
         is Lightable -> {
             val target = data.isLit
             data.isLit = !target
-            block.setBlockData(data, true)
+            block.setBlockData(data, false)
             data.isLit = target
             block.setBlockData(data, true)
         }

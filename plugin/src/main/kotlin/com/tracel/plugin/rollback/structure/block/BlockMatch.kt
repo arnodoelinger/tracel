@@ -3,7 +3,6 @@ package com.tracel.plugin.rollback.structure.block
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.BlockLikeness
-import com.tracel.plugin.adapter.block.isFluid
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import org.bukkit.block.Block
 import org.bukkit.block.data.BlockData
@@ -26,18 +25,13 @@ internal fun BlockData.sameState(expected: BlockData): Boolean {
     return matches(expected) || asString == expected.asString
 }
 
-/** Whether it's close enough to [target] to not need writing. */
-internal fun BlockData.onTarget(target: BlockData): Boolean {
-    if (sameState(target)) return true
-    if (material != target.material) return false
-    if (isFluid(this)) return false
-    return BlockLikeness.sameEnough(asString, target.asString)
-}
+/** Whether it already is [target]. */
+internal fun BlockData.onTarget(target: BlockData): Boolean = sameState(target)
 
 /** Whether leaving [standing] alone is fine, even if it isn't a byte-exact [expected]. */
 internal fun StructureRestorer.acceptable(block: Block, standing: BlockShape, expected: BlockShape): Boolean {
     if (standing == expected) return true
     if (BlockLikeness.sameEnough(standing.data.value, expected.data.value)) return true
-    if (expected != BlockShape.AIR) return false
+    if (!expected.isAirLike) return false
     return runCatching { block.isReplaceable }.getOrDefault(false)
 }

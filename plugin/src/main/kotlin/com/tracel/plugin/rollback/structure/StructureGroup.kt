@@ -1,10 +1,14 @@
 package com.tracel.plugin.rollback.structure
 
+import com.tracel.plugin.rollback.structure.block.Unchanged
+import com.tracel.plugin.rollback.structure.block.drifted
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.leashHolder
 import com.tracel.model.world.entity.vehicle
 import com.tracel.plugin.adapter.block.applyTo
+import com.tracel.plugin.adapter.block.toShape
+import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.isFluidShape
 import com.tracel.plugin.adapter.entity.applyLeash
 import com.tracel.plugin.adapter.entity.applyVehicle
@@ -18,25 +22,28 @@ import com.tracel.plugin.rollback.structure.block.Applied
 import com.tracel.plugin.rollback.structure.block.Refused
 import com.tracel.plugin.rollback.structure.block.apply
 import com.tracel.plugin.rollback.structure.block.blockAt
-import com.tracel.plugin.rollback.structure.block.chunksOf
+import com.tracel.plugin.rollback.structure.block.UNSUPPORTED
+import com.tracel.plugin.rollback.structure.block.hangingCells
 import com.tracel.plugin.rollback.structure.block.hasGravity
 import com.tracel.plugin.rollback.structure.block.isAir
 import com.tracel.plugin.rollback.structure.block.isFire
+import com.tracel.plugin.rollback.structure.block.isSolid
 import com.tracel.plugin.rollback.structure.block.loadChunks
 import com.tracel.plugin.rollback.structure.block.overlappingFalling
 import com.tracel.plugin.rollback.structure.block.standsAlone
+import com.tracel.plugin.rollback.structure.block.unsupportedAt
 import com.tracel.plugin.rollback.structure.entity.Despawn
 import com.tracel.plugin.rollback.structure.entity.despawn
-import com.tracel.plugin.rollback.structure.fluid.MAX_DRAINED
-import com.tracel.plugin.rollback.structure.fluid.drainFlowing
 import com.tracel.plugin.rollback.structure.fluid.fixSnowyGround
-import com.tracel.plugin.rollback.structure.fluid.settleFluids
 import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.chunkKey
 import java.util.UUID
 import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.BlockFace
+import org.bukkit.block.data.type.Chest
+import com.tracel.plugin.adapter.block.BlockDataCache
 import org.bukkit.entity.Entity
 
 /** Other region's spawn should be done. */
@@ -49,11 +56,11 @@ internal fun StructureRestorer.applyGroup(
     force: Boolean,
     trace: RollbackTrace, // TODO: remove me
     structurePhase: StructurePhase,
-    drain: Boolean,
     keepCargoFor: Set<UUID>,
     ledgerCargoFor: Set<UUID>,
     ledgerHeldBy: Set<UUID>,
     dumpHeldCargo: Boolean,
+    driftOnly: Boolean = false,
 ): StructureReport {
     val skipped = mutableListOf<SkippedStep>()
     val applied = mutableListOf<StructureStep>()
@@ -62,7 +69,7 @@ internal fun StructureRestorer.applyGroup(
 
     // Folia already owns this region
     val phase = structurePhase.traceName
-    val chunks = chunksOf(steps)
+    val chunks = steps.mapTo(HashSet()) { dispatchAt(it).let { at -> chunkKey(at.x, at.z) } }
     trace.measure("$phase / load chunks") { loadChunks(world, chunks) }
 
     val blocks = steps.filterIsInstance<StructureStep.SetBlock>()
@@ -110,13 +117,17 @@ internal fun StructureRestorer.applyGroup(
     }
 
     // Order: standalone, then attached, then gravity
-    val (standalone, rest) = blocks.partition { it.target.standsAlone() }
+    val hangings = if (blocks.none { it.target.isSolid() }) emptySet() else hangingCells(world, chunks, gone)
+    val (blocked, placeable) = blocks.partition { it.at in hangings && it.target.isSolid() }
+    for ((at) in blocked) skipped += SkippedStep(at, "a painting or item frame hangs in this cell")
+    val (standalone, rest) = placeable.partition { it.target.standsAlone() }
     val (gravity, attached) = rest.partition { it.target.hasGravity() }
 
     trace.measure("$phase / set blocks") {
-        for (step in standalone + attached + gravity) {
+        fun write(step: StructureStep.SetBlock) {
             val block = world.blockAt(step.at)
-            when (val outcome = apply(block, step, force, dumpHeldCargo)) {
+            val forced = force && (!driftOnly || block.drifted(step.expected))
+            when (val outcome = apply(block, step, forced, dumpHeldCargo)) {
                 is Applied -> {
                     applied += outcome.step
                     if (outcome.differed) overwritten++
@@ -125,20 +136,50 @@ internal fun StructureRestorer.applyGroup(
                 is Refused -> {
                     skipped += SkippedStep(step.at, outcome.reason)
                 }
+                Unchanged -> Unit
             }
         }
+
+        val (hanging, held) = attached.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
+        for (step in standalone + hanging + gravity) write(step)
+
+        fun sweep(steps: List<StructureStep.SetBlock>): List<StructureStep.SetBlock> {
+            val left = ArrayList<StructureStep.SetBlock>()
+            for (step in steps) if (step.target.unsupportedAt(world.blockAt(step.at))) left += step else write(step)
+            return left
+        }
+
+        var waiting = sweep(held.sortedBy { it.at.y })
+        if (waiting.isNotEmpty()) waiting = sweep(waiting.sortedByDescending { it.at.y })
+        while (waiting.isNotEmpty()) {
+            val (ready, still) = waiting.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
+            if (ready.isEmpty()) break
+            ready.forEach(::write)
+            waiting = still
+        }
+        for ((at) in waiting) skipped += SkippedStep(at, UNSUPPORTED)
+        val unwritten = waiting.mapTo(HashSet()) { it.at }
+
+        val planned = blocks.associateBy { it.at }
         for ((at, target) in standalone + attached + gravity) {
+            if (at in unwritten) continue
             val block = world.blockAt(at)
             if (block.isFire() && !target.isFire()) {
                 target.applyTo(block, physics = false)
             }
             if (!target.isAir()) {
                 val above = block.getRelative(BlockFace.UP)
-                if (above.isFire()) above.type = Material.AIR
+                val abovePos = at.copy(y = at.y + 1)
+                if (above.isFire() && planned[abovePos]?.target?.isFire() != true && abovePos !in unwritten) {
+                    val burning = above.toShape()
+                    above.setType(Material.AIR, false)
+                    applied += StructureStep.SetBlock(abovePos, BlockShape.AIR, burning)
+                }
             }
         }
     }
     trace.add("${structurePhase.label} with nbt", blockEntities)
+    unpairOrphanedChests(world, applied)
 
     // Second falling sweep: first ran before writes; a gravel wall takes long enough that the
     // world outside (physics is off (!) here) can drop more onto it.
@@ -155,14 +196,6 @@ internal fun StructureRestorer.applyGroup(
     }
 
     trace.measure("$phase / snowy ground") { fixSnowyGround(world, blocks, chunks) }
-    if (drain) {
-        trace.measure("$phase / drain liquid") {
-            if (!drainFlowing(world, blocks, chunks) && blocks.isNotEmpty()) {
-                skipped += SkippedStep(blocks.first().at, "the fluid drain hit its $MAX_DRAINED cell limit")
-            }
-        }
-    }
-    trace.measure("$phase / settle liquid") { settleFluids(world, blocks, chunks) }
 
     val looseEnds = mutableListOf<Pair<Entity, EntityShape>>()
     trace.measure("$phase / spawn") {
@@ -207,4 +240,32 @@ private fun StructureRestorer.reattachLater(
             }
         }, {}, REATTACH_DELAY_TICKS)
     }
+}
+
+private fun unpairOrphanedChests(world: World, applied: List<StructureStep>) {
+    for (step in applied) {
+        if (step !is StructureStep.SetBlock) continue
+        val was = BlockDataCache.of(step.expected.data) as? Chest ?: continue
+        if (was.type == Chest.Type.SINGLE || BlockDataCache.of(step.target.data) is Chest) continue
+        val towards = if (was.type == Chest.Type.LEFT) was.facing.clockwise() else was.facing.counterClockwise()
+        val partner = world.getBlockAt(step.at.x + towards.modX, step.at.y, step.at.z + towards.modZ)
+        val data = partner.blockData as? Chest ?: continue
+        if (data.type == Chest.Type.SINGLE || data.facing != was.facing) continue
+        data.type = Chest.Type.SINGLE
+        partner.setBlockData(data, false)
+    }
+}
+
+private fun BlockFace.clockwise(): BlockFace = when (this) {
+    BlockFace.NORTH -> BlockFace.EAST
+    BlockFace.EAST -> BlockFace.SOUTH
+    BlockFace.SOUTH -> BlockFace.WEST
+    else -> BlockFace.NORTH
+}
+
+private fun BlockFace.counterClockwise(): BlockFace = when (this) {
+    BlockFace.NORTH -> BlockFace.WEST
+    BlockFace.WEST -> BlockFace.SOUTH
+    BlockFace.SOUTH -> BlockFace.EAST
+    else -> BlockFace.NORTH
 }

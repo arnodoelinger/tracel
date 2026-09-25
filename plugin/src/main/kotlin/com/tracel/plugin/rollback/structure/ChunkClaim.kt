@@ -9,11 +9,11 @@ internal fun claimOwned(
     index: Int,
     groups: List<List<StructureStep>>,
     claimed: AtomicIntegerArray,
-    owns: (BlockPos) -> Boolean,
+    owns: (StructureStep) -> Boolean,
 ): List<StructureStep> {
     val mine = ArrayList<StructureStep>()
     for (other in groups.indices) {
-        if (other != index && !owns(groups[other].first().at)) continue
+        if (other != index && (claimed.get(other) != 0 || !owns(groups[other].first()))) continue
         if (!claimed.compareAndSet(other, 0, 1)) continue
         mine += groups[other]
     }

@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.structure.block
 
+import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
@@ -14,11 +15,16 @@ import com.tracel.plugin.adapter.block.takeAll
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import org.bukkit.block.Block
+import org.bukkit.block.BrewingStand
+import org.bukkit.block.Campfire
+import org.bukkit.block.Furnace
 import org.bukkit.block.data.BlockData
 import org.bukkit.inventory.ItemStack
 
 /** Apply [step]; report with the live standing shape. */
+@Unstable
 internal fun StructureRestorer.apply(block: Block, step: StructureStep.SetBlock, force: Boolean, dumpHeldCargo: Boolean): Outcome {
+    if (step.target.data.value.startsWith("minecraft:moving_piston")) return Refused("was caught mid-push by a piston; nothing to put back")
     if (block.mayHaveTile() || step.target.extras != null || step.expected.extras != null) {
         return applyTile(block, step, force, dumpHeldCargo)
     }
@@ -39,18 +45,18 @@ internal fun StructureRestorer.applyPlain(block: Block, step: StructureStep.SetB
         type != targetData.material -> false
         else -> block.blockData.onTarget(targetData)
     }
+    if (alreadyTarget) return Unchanged
     val matchesExpected = matchesExpected(block, step.expected)
 
-    if (alreadyTarget && matchesExpected) return Applied(step)
-
     if (!matchesExpected && !force) {
-        if (step.expected != BlockShape.AIR || !runCatching { block.isReplaceable }.getOrDefault(false)) {
+        if (!step.expected.isAirLike || !runCatching { block.isReplaceable }.getOrDefault(false)) {
             return Refused("is ${block.blockData.asString}, expected ${step.expected.data.value}")
         }
     }
 
-    // Capture standing before setBlockData overwrites it
-    val standing = if (matchesExpected) null else block.blockData.asString
+    val live = block.blockData
+    val exact = BlockDataCache.of(step.expected.data)?.let { live.sameState(it) } ?: (step.expected.isAirLike && block.isEmpty)
+    val standing = if (exact) null else live.asString
 
     if (!alreadyTarget && targetData != null) {
         block.setBlockData(targetData, false)
@@ -59,13 +65,14 @@ internal fun StructureRestorer.applyPlain(block: Block, step: StructureStep.SetB
     }
 
     if (standing == null) return Applied(step)
-    return Applied(step.copy(expected = BlockShape(BlockDataKey(standing))), differed = true)
+    return Applied(step.copy(expected = BlockShape(BlockDataKey(standing))), differed = !matchesExpected)
 }
 
 /** Tile chest / sign / banner, etc. */
 internal fun StructureRestorer.applyTile(block: Block, step: StructureStep.SetBlock, force: Boolean, dumpHeldCargo: Boolean): Outcome {
+    if (block.blockData.asString == step.target.data.value && block.ticksOnly()) return Unchanged
     val standing = block.toShape()
-    if (standing == step.target) return Applied(step.copy(expected = standing))
+    if (standing == step.target) return Unchanged
 
     val differed = !acceptable(block, standing, step.expected)
     if (differed && !force) {
@@ -74,7 +81,7 @@ internal fun StructureRestorer.applyTile(block: Block, step: StructureStep.SetBl
 
     val held = block.cargoSlots()?.takeIf { it.holdsAnything() }
     if (held != null) {
-        if (step.target == BlockShape.AIR) {
+        if (step.target.isAirLike) {
             if (!dumpHeldCargo) return Refused("still holds material nobody withdrew")
             held.takeAll()
             services.selfManagedSpawns.whileSpawning {
@@ -92,13 +99,13 @@ internal fun StructureRestorer.applyTile(block: Block, step: StructureStep.SetBl
         return Applied(step.copy(expected = standing), differed)
     }
 
-    if (step.target == BlockShape.AIR) {
+    if (step.target.isAirLike) {
         services.selfManagedSpawns.whileSpawning {
             step.target.applyTo(block, physics = false)
         }
     } else {
         step.target.applyTo(block, physics = false)
-        if (step.expected == BlockShape.AIR) {
+        if (step.expected.isAirLike) {
             block.cargoSlots()?.takeAll()
             block.resyncCargo()
         }
@@ -114,4 +121,9 @@ internal fun StructureRestorer.carryOver(block: Block, saved: List<ItemStack?>) 
         if (stack != null && !stack.isEmpty) slots.set(slot, stack)
     }
     block.resyncCargo()
+}
+
+private fun Block.ticksOnly(): Boolean = when (runCatching { getState(false) }.getOrNull()) {
+    is Furnace, is BrewingStand, is Campfire -> true
+    else -> false
 }
