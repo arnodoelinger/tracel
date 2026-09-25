@@ -16,6 +16,8 @@ import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.namedByEntity
 import java.util.UUID
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 /**
  * Turns the windowed transactions into a [MaterialSurvey]: where every lot roots,
@@ -26,7 +28,8 @@ internal suspend fun RollbackComposer.planMaterial(
     trace: RollbackTrace,
     keepCargoOn: Set<UUID> = emptySet(),
     structural: Boolean = true,
-): MaterialSurvey {
+    covered: Set<HolderId>? = null,
+): MaterialSurvey = coroutineScope {
 
     // Census candidates from the log + current holders, before the graph walk. Asking after
     // planning serialized a Folia hop behind the walk and then walked twice.
@@ -37,6 +40,9 @@ internal suspend fun RollbackComposer.planMaterial(
             if (destination.namedByEntity()) candidates += destination
         }
     }
+    // Asked now, beside the storage reads below: the hop is a region tick, and it waited for them for nothing
+    val fromLog = candidates.toSet()
+    val early = if (fromLog.isEmpty()) null else async { worldCensus.vanishedEntities(fromLog, trace) }
 
     val byRoot = LinkedHashMap<LotId, HolderId>()
     val needLots = ArrayList<Seq>()
@@ -75,7 +81,7 @@ internal suspend fun RollbackComposer.planMaterial(
         val holders = trace.span("root holders") { services.repo.currentHoldersOf(byRoot.keys) }
         for (holder in holders.values) if (holder.namedByEntity()) candidates += holder
         val parentOf = HashMap<LotId, LotId>()
-        var frontier: Collection<LotId> = byRoot.keys
+        var frontier: Collection<LotId> = byRoot.keys.filter { holders[it] is HolderId.Sink }
         val seenLots = HashSet<LotId>()
         while (frontier.isNotEmpty()) {
             val into = services.repo.edgesIntoAll(frontier.filter { seenLots.add(it) })
@@ -90,16 +96,18 @@ internal suspend fun RollbackComposer.planMaterial(
         byRoot.inheritMintedBurns(holders, parentOf)
     }
 
-    val checked = if (candidates.isEmpty()) emptySet() else {
-        trace.span("find vanished items") { worldCensus.vanishedEntities(candidates, trace) }
+    val checked = trace.span("find vanished items") {
+        val later = candidates - fromLog
+        early?.await().orEmpty() + (if (later.isEmpty()) emptySet() else worldCensus.vanishedEntities(later, trace))
     }
 
     val target = RollbackTarget.PerRoot(byRoot)
     val roots = byRoot.keys.sortedByDescending { it.raw }
-    if (roots.isEmpty()) return MaterialSurvey(RollbackPlan(emptyList()), target, roots, emptySet(), null)
+    if (roots.isEmpty()) return@coroutineScope MaterialSurvey(RollbackPlan(emptyList()), target, roots, emptySet(), null)
 
+    val witness = services.repo.version()
     var vanished = checked
-    var planner = RollbackPlanner(services.repo, services.worldQuery, vanished = vanished, structural = structural)
+    var planner = RollbackPlanner(services.repo, services.worldQuery, vanished = vanished, structural = structural, covered = covered, target = target)
     var plan = trace.span("plan material") { planner.plan(roots) }
 
     // Holders the plan named that the log never mentioned (pre-window drops).
@@ -109,7 +117,7 @@ internal suspend fun RollbackComposer.planMaterial(
         val late = trace.span("find vanished items") { worldCensus.vanishedEntities(unchecked, trace) }
         if (late.isNotEmpty()) {
             vanished = vanished + late
-            planner = RollbackPlanner(services.repo, services.worldQuery, vanished = vanished, structural = structural)
+            planner = RollbackPlanner(services.repo, services.worldQuery, vanished = vanished, structural = structural, covered = covered, target = target)
             plan = trace.span("replan material") { planner.plan(roots) }
         }
     }
@@ -117,8 +125,7 @@ internal suspend fun RollbackComposer.planMaterial(
     trace.note("txns", txns.size)
     trace.note("roots", roots.size)
 
-    // Witness after planning so it covers what the plan saw.
-    return MaterialSurvey(plan, target, roots, vanished, services.counters.peekTxnId(), planner.placedAndUnreachable)
+    MaterialSurvey(plan, target, roots, vanished, witness, planner.placedAndUnreachable)
 }
 
 private fun Flow.isGapCorrection(): Boolean =

@@ -5,6 +5,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.rollback.result.outcome.Planned
+import com.tracel.plugin.rollback.structure.block.standsAlone
 import com.tracel.plugin.util.blockPos
 import java.util.UUID
 
@@ -60,10 +61,24 @@ internal suspend fun RollbackComposer.layoutOf(
 
     // Creates on contested cells too: grass-over-dispenser is a SetBlock while the ledger
     // still empties arrows. Run beside the take and it refuses, then grass never lands.
-    val (createNow, createLater) = composite.create.partition {
-        it !is StructureStep.SetBlock || (it.at !in hangingCells && it.at !in contested)
+    // A cell that only receives is the opposite: the chest has to stand before it can be filled.
+    val emptying = deltas.entries.mapNotNullTo(HashSet<BlockPos>()) { (holder, keys) ->
+        holder.blockPos()?.takeIf { keys.values.any { it < 0L } }
     }
-    val deferred = entityDestroy + deferredBlocks + createLater
+    val (createFirst, createLater) = composite.create.partition {
+        it !is StructureStep.SetBlock || (it.at !in hangingCells && it.at !in emptying)
+    }
+
+    // Whatever hangs on a cell that waits has to wait with it, or it finds nothing to hang on
+    val laterCells = createLater.mapTo(HashSet()) { it.at }
+    val (hangsOnLater, createNow) = createFirst.partition { step ->
+        step is StructureStep.SetBlock && !step.target.standsAlone() && step.at.neighbours().any { it in laterCells }
+    }
+    val deferred = entityDestroy + deferredBlocks + createLater + hangsOnLater
 
     return ApplyLayout(respawning, keepCargoFor, ledgerCargoFor, ledgerHeldBy, entityDestroy, prompt, createNow, deferred)
 }
+
+private fun BlockPos.neighbours(): List<BlockPos> = listOf(
+    copy(x = x + 1), copy(x = x - 1), copy(y = y + 1), copy(y = y - 1), copy(z = z + 1), copy(z = z - 1),
+)

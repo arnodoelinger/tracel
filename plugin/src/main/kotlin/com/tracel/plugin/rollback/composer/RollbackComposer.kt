@@ -11,6 +11,7 @@ import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.structure.StructureHalf
 import com.tracel.plugin.rollback.trace.RollbackTrace
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -31,8 +32,15 @@ class RollbackComposer(
     internal val worldCensus: WorldCensus,
 ) : RollbackGenius {
     private val inFlight = AtomicInteger()
+    private val gate = AtomicBoolean()
 
-    override val isRunning: Boolean get() = inFlight.get() > 0
+    override val isRunning: Boolean get() = gate.get() || inFlight.get() > 0
+
+    override fun claimGate(): Boolean = gate.compareAndSet(false, true)
+
+    override fun releaseGate() {
+        gate.set(false)
+    }
 
     override suspend fun plan(
         filter: LookupFilter,

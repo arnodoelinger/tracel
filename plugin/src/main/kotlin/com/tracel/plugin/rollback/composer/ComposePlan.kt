@@ -5,6 +5,7 @@ import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
 import com.tracel.engine.rollback.structure.StructurePlanner
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.rollback.survey.NO_MATERIAL
 import com.tracel.plugin.rollback.survey.awayFromAirToAir
@@ -81,7 +82,8 @@ internal suspend fun RollbackComposer.planRollback(
         trace.span("plan structure") { StructurePlanner().plan(paired) }
     }
     val keepCargoOn = create.mapNotNullTo(HashSet()) { (it as? StructureStep.SpawnEntity)?.entity }
-    val materials = if (!material) NO_MATERIAL else planMaterial(txns, trace, keepCargoOn, structure)
+    val covered = if (!structure) null else placedCovered(create + destroy)
+    val materials = if (!material) NO_MATERIAL else planMaterial(txns, trace, keepCargoOn, structure, covered)
     val vanishedCells = if (paired.isEmpty()) emptySet() else StructurePlanner().cellsAirToAir(paired)
     val target = materials.target.awayFromAirToAir(vanishedCells)
     return Planned(
@@ -94,5 +96,19 @@ internal suspend fun RollbackComposer.planRollback(
         materials.placedAndUnreachable,
         trace,
         filter.since,
+        structure,
+        covered,
     )
+}
+
+private fun placedCovered(steps: List<StructureStep>): Set<HolderId> {
+    val out = HashSet<HolderId>(steps.size)
+    for (step in steps) {
+        when (step) {
+            is StructureStep.SetBlock -> out += HolderId.PlacedBlock(step.at.world, step.at.x, step.at.y, step.at.z)
+            is StructureStep.RemoveEntity -> out += HolderId.PlacedEntity(step.entity)
+            is StructureStep.SpawnEntity -> out += HolderId.PlacedEntity(step.entity)
+        }
+    }
+    return out
 }

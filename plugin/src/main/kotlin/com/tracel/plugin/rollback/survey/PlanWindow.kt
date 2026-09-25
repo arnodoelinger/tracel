@@ -38,7 +38,6 @@ internal suspend fun RollbackComposer.withTrails(
         val trail = services.worldLog.query(
             windowFilter.copy(
                 holders = setOf(HolderId.Entity(layer)),
-                excludedHolders = emptySet(),
                 region = null,
                 actions = emptySet(),
                 material = null,
@@ -65,17 +64,21 @@ internal suspend fun RollbackComposer.withStructuralPartners(
     }
     if (missing.isEmpty()) return changes
 
+    // One query per chunk, over the box its missing cells span, kept to exactly those cells:
+    // a scope edge through a row of beds was one full query per bed.
     val extra = ArrayList<WorldChange>()
-    for ((world, x, y, z) in missing) {
-        val cell = LookupRegion(
+    for ((chunk, cells) in missing.groupBy { Triple(it.world, it.x shr 4, it.z shr 4) }) {
+        val (world, cx, cz) = chunk
+        val box = LookupRegion(
             world = world,
-            minChunkX = x shr 4, maxChunkX = x shr 4,
-            minChunkZ = z shr 4, maxChunkZ = z shr 4,
-            minX = x, maxX = x,
-            minY = y, maxY = y,
-            minZ = z, maxZ = z,
+            minChunkX = cx, maxChunkX = cx,
+            minChunkZ = cz, maxChunkZ = cz,
+            minX = cells.minOf { it.x }, maxX = cells.maxOf { it.x },
+            minY = cells.minOf { it.y }, maxY = cells.maxOf { it.y },
+            minZ = cells.minOf { it.z }, maxZ = cells.maxOf { it.z },
         )
-        extra += services.worldLog.query(windowFilter.copy(region = cell))
+        val wanted = cells.toHashSet()
+        services.worldLog.query(windowFilter.copy(region = box)).filterTo(extra) { it.at in wanted }
     }
     return if (extra.isEmpty()) changes else changes + extra
 }

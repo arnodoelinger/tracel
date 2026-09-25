@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.composer
 
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.engine.rollback.job.Reservation
 import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.job.RollbackOutcome
@@ -10,6 +11,7 @@ import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.report.RestorationReport
+import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.CargoPolicy
 import com.tracel.plugin.rollback.structure.StructurePass
@@ -18,6 +20,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlin.coroutines.cancellation.CancellationException
 
 /** What the first wait left behind. */
@@ -62,7 +66,7 @@ internal suspend fun RollbackComposer.ledgerAndStructure(
                 structureHalf.restore(
                     layout.createNow,
                     // Forward: un-ledgered cargo in a container is real; refuse, and don't dump
-                    StructurePass(force = !strict, phase = StructurePhase.RESTORE, drain = true, dumpHeldCargo = false),
+                    StructurePass(force = !strict, phase = StructurePhase.RESTORE, dumpHeldCargo = false, driftOnly = true),
                     CargoPolicy(keepCargoFor = layout.keepCargoFor),
                     trace = planned.trace,
                 )
@@ -75,7 +79,7 @@ internal suspend fun RollbackComposer.ledgerAndStructure(
             planned.trace.span("remove blocks") {
                 structureHalf.restore(
                     layout.prompt,
-                    StructurePass(force = !strict, phase = StructurePhase.REMOVE, drain = true, dumpHeldCargo = false),
+                    StructurePass(force = !strict, phase = StructurePhase.REMOVE, dumpHeldCargo = false, driftOnly = true),
                     CargoPolicy(ledgerCargoFor = layout.ledgerCargoFor, ledgerHeldBy = layout.ledgerHeldBy),
                     trace = planned.trace,
                 )
@@ -112,7 +116,19 @@ internal suspend fun RollbackComposer.materialAndContested(
     val early = layout.entityDestroy.none { (it as StructureStep.RemoveEntity).entity in groundGoing }
 
     val contestedReport = coroutineScope {
-        val settled = CompletableDeferred<Unit>()
+        val saving = async {
+            withContext(NonCancellable) {
+                planned.trace.span("save job") {
+                    services.jobs.begin(
+                        RollbackJobRecord(
+                            job, composite.material, planned.target, first.created.applied,
+                            targetTimeMillis = planned.targetTimeMillis, executedAtMillis = startedAtMillis,
+                        )
+                    )
+                }
+            }
+        }
+        val settled = CompletableDeferred<Set<HolderId>>()
         val items = if (first.outcome !is RollbackOutcome.Applied) null else async {
             planned.trace.span("move items") {
                 materialHalf.restore(
@@ -125,19 +141,22 @@ internal suspend fun RollbackComposer.materialAndContested(
                 )
             }.also {
                 val asOf = planned.targetTimeMillis
-                if (asOf != null) planned.trace.span("rewear tools") { materialHalf.rewear(composite.material, planned.target, job, asOf) }
+                val tools = deltas.values.any { moved -> moved.keys.any(WornStacks::wears) }
+                if (asOf != null && tools) planned.trace.span("rewear tools") { materialHalf.rewear(composite.material, planned.target, job, asOf) }
             }
         }
         val removing = if (layout.deferred.isEmpty()) null else async {
-            if (early && items != null) settled.await() else items?.await()
-            planned.trace.span("remove contested") {
+            val failed = if (early && items != null) settled.await() else items?.await()?.failures?.keys.orEmpty()
+            val (stuck, removable) = layout.deferred.partition { it.cargoHolderIn(failed) }
+            val kept = StructureReport(emptyList(), stuck.map { SkippedStep(it.at, "its contents could not be taken out, so it was left in place") })
+            kept + planned.trace.span("remove contested") {
                 structureHalf.restore(
-                    layout.deferred,
+                    removable,
                     StructurePass(
                         force = !strict,
                         phase = StructurePhase.CONTESTED,
-                        drain = true,
-                        dumpHeldCargo = false
+                        dumpHeldCargo = false,
+                        driftOnly = true,
                     ),
                     CargoPolicy(ledgerCargoFor = layout.ledgerCargoFor, ledgerHeldBy = layout.ledgerHeldBy),
                     trace = planned.trace,
@@ -146,23 +165,20 @@ internal suspend fun RollbackComposer.materialAndContested(
         }
         material = items?.await() ?: material
 
-        // begin() under this wait; finish() after destroy; undo stack only once the job is whole
-        val saving = async {
-            planned.trace.span("save job") {
-                services.jobs.begin(
-                    RollbackJobRecord(
-                        job, composite.material, planned.target, first.created.applied,
-                        targetTimeMillis = planned.targetTimeMillis, executedAtMillis = startedAtMillis,
-                    )
-                )
-            }
-        }
         val extra = removing?.await() ?: StructureReport.EMPTY
         val allDestroyed = first.destroyedPrompt + extra
-        planned.trace.span("save job") {
-            services.jobs.finish(saving.await(), allDestroyed.applied)
+        withContext(NonCancellable) {
+            planned.trace.span("save job") {
+                services.jobs.finish(saving.await(), allDestroyed.applied)
+            }
         }
         extra
     }
     return MaterialWait(contestedReport, material)
+}
+
+private fun StructureStep.cargoHolderIn(failed: Set<HolderId>): Boolean = failed.isNotEmpty() && when (this) {
+    is StructureStep.RemoveEntity -> HolderId.Entity(entity) in failed
+    is StructureStep.SetBlock -> target.isAirLike && HolderId.Block(at.world, at.x, at.y, at.z) in failed
+    else -> false
 }

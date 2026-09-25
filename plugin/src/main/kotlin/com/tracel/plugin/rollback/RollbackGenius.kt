@@ -5,7 +5,6 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
-import com.tracel.plugin.rollback.trace.PhaseTimings
 import com.tracel.plugin.rollback.trace.RollbackTrace
 
 /**
@@ -16,7 +15,17 @@ import com.tracel.plugin.rollback.trace.RollbackTrace
  * - [undo] takes a job back.
  */
 interface RollbackGenius {
-    /** In-flight gate: something is mid-apply or mid-undo. */
+    /**
+     * Takes the one rollback-or-undo slot for everything from planning to the report.
+     * Checking [isRunning] and then launching let two admins a second apart both through.
+     *
+     * @return `false` when another one holds it.
+     */
+    fun claimGate(): Boolean
+
+    /** Hands the slot [claimGate] took back. */
+    fun releaseGate()
+
     val isRunning: Boolean
 
     /** Plan only. */
@@ -24,7 +33,7 @@ interface RollbackGenius {
         filter: LookupFilter,
         structure: Boolean = true,
         material: Boolean = true,
-        trace: RollbackTrace = PhaseTimings(), // TODO: remove me
+        trace: RollbackTrace = RollbackTrace.NONE,
     ): Planned
 
     /** Preflight then apply. [strict]: skip cells the world has moved on from. */
