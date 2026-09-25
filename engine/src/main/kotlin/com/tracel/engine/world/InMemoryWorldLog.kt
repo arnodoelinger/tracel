@@ -74,7 +74,8 @@ public class InMemoryWorldLog : WorldLog {
         if (cause.isBookkeeping) return false
         if (filter.since != null && epochMillis < filter.since) return false
         if (filter.until != null && epochMillis > filter.until) return false
-        if (filter.causes.isNotEmpty() && cause !in filter.causes) return false
+        val causes = filter.worldCauses ?: filter.causes
+        if (causes.isNotEmpty() && cause !in causes) return false
         if (filter.excludedCauses.isNotEmpty() && cause in filter.excludedCauses) return false
         if (filter.actions.isNotEmpty() && action !in filter.actions) return false
 
@@ -89,7 +90,7 @@ public class InMemoryWorldLog : WorldLog {
         if (material != null) {
             val subject = subject
             if (subject !is ChangeSubject.Block) return false
-            if (!subject.matchesMaterial(material)) return false
+            if (!subject.matchesMaterial(material) && filter.blockMaterials.none { subject.matchesMaterial(it) }) return false
         }
 
         return true
