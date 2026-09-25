@@ -41,7 +41,14 @@ internal sealed interface RingEvent {
     ) : RingEvent
 }
 
-internal fun CaptureRing.collectPublished(maxBatch: Int): List<RingEvent> {
+/** Events copied out of the ring, and the cursor to release once they are durable. */
+internal class Collected(val events: List<RingEvent>, val end: Long)
+
+/**
+ * Copies up to [maxBatch] published events off the ring without releasing them: a batch that never
+ * commits is read again, not lost. One consumer at a time; the [Drainer] serialises it.
+ */
+internal fun CaptureRing.collectPublished(maxBatch: Int): Collected {
     val out = ArrayList<RingEvent>()
     var cursor = consumerCursor()
     val payload = payload
@@ -113,6 +120,5 @@ internal fun CaptureRing.collectPublished(maxBatch: Int): List<RingEvent> {
         }
     }
 
-    if (out.isNotEmpty()) releaseSlots(cursor)
-    return out
+    return Collected(out, cursor)
 }

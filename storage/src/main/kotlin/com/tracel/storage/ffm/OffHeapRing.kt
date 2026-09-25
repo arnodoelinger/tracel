@@ -105,6 +105,9 @@ class OffHeapRing(capacitySlots: Int) : AutoCloseable {
     fun isPublished(sequence: Long): Boolean =
         getAcquire(slots, (sequence and mask) shl SLOT_SHIFT) == sequence + 1
 
+    /** The producers' cursor — the first sequence nobody has claimed yet. */
+    fun claimCursor(): Long = getVolatile(control, CLAIM_OFFSET)
+
     /** The consumer's cursor — the first sequence it has not yet consumed. */
     fun consumerCursor(): Long = getVolatile(control, RELEASE_OFFSET)
 

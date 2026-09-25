@@ -9,6 +9,8 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.storage.codec.CaptureSlot
 import com.tracel.storage.ffm.OffHeapRing
 import com.tracel.storage.intern.Interning
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 
@@ -44,6 +46,9 @@ import com.tracel.storage.intern.Interning
  */
 class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable {
     private val ring = OffHeapRing(slots)
+
+    private val parked = ConcurrentHashMap<Int, Any>()
+    private val parkTokens = AtomicInteger()
 
     val dropped: Long get() = ring.dropped + interning.droppedForCapacity
 
@@ -142,6 +147,21 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
         return true
     }
 
+    /** Holds [payload] off the ring and puts a one-slot marker in its place/ */
+    fun park(cause: CauseKind, epochMillis: Long, payload: Any): Boolean {
+        var token = parkTokens.incrementAndGet() and Int.MAX_VALUE
+        if (token == 0) token = parkTokens.incrementAndGet() and Int.MAX_VALUE
+        parked[token] = payload
+        val claim = ring.claim(1)
+        if (claim == OffHeapRing.CLAIM_FAILED) {
+            parked.remove(token)
+            return false
+        }
+        CaptureSlot.writeRelease(ring.payload, ring.payloadOffset(claim), cause.ordinal, 0, epochMillis, PARKED, token)
+        ring.publish(claim)
+        return true
+    }
+
     /**
      * Payload first, header last: a published header is a promise that the whole event is there.
      *
@@ -157,6 +177,8 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
 
     internal fun consumerCursor(): Long = ring.consumerCursor()
 
+    internal fun claimCursor(): Long = ring.claimCursor()
+
     internal fun isPublished(sequence: Long): Boolean = ring.isPublished(sequence)
 
     internal fun payloadOffset(sequence: Long): Long = ring.payloadOffset(sequence)
@@ -165,6 +187,12 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
 
     internal fun releaseSlots(upTo: Long) = ring.release(upTo)
 
+    internal fun parked(token: Int): Any? = parked[token]
+
+    internal fun forgetParked(tokens: Collection<Int>) {
+        for (token in tokens) parked.remove(token)
+    }
+
     override fun close() {
         ring.close()
     }
@@ -172,5 +200,7 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
     companion object {
         const val REJECTED = -1L // It must not wait, ever
         const val MAX_DELTAS = 4095
+
+        internal const val PARKED = 0
     }
 }

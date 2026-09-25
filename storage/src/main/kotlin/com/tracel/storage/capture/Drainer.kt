@@ -12,6 +12,8 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.intern.Interning
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -30,11 +32,16 @@ class Drainer(
     private val sink: suspend (List<InventoryDelta>, Long, CauseKind, HolderId?) -> Unit,
     private val releaseSink: suspend (HolderId, HolderId, Long, CauseKind, HolderId?) -> Unit,
     private val worldSink: suspend (BlockEdits) -> Unit,
+    private val placedSink: suspend (PlacedDeltas) -> Unit = { sink(it.deltas, it.epochMillis, it.cause, it.causedBy) },
 ) {
     private val logger = Logger.getLogger(Drainer::class.java.name)
     private val drainedEvents = AtomicLong(0)
     private val drainedBatches = AtomicLong(0)
     private val rejected = AtomicLong(0)
+    private val draining = Mutex()
+
+    @Volatile
+    private var retireFence = 0L
 
     /** Events successfully applied. Together with [CaptureRing.dropped], the whole capture story. */
     val events: Long get() = drainedEvents.get()
@@ -70,15 +77,57 @@ class Drainer(
      *
      * @return how many events it applied. Exposed so tests can drain deterministically.
      */
-    suspend fun drainOnce(): Int {
-        val events = ring.collectPublished(maxBatch)
-        if (events.isEmpty()) {
-            interning.compactProvisional()
-            return 0
-        }
+    suspend fun drainOnce(): Int = draining.withLock {
+        // Whoever else wanted a pass (a flush, the shutdown) waits here: the ring has exactly one
+        // consumer, and two of them applied the same events twice.
+        withContext(NonCancellable) { drainLocked() }
+    }
 
+    /**
+     * Drains until everything claimed before the call has been applied, [timeoutMs] at most.
+     *
+     * @return whether it got that far.
+     */
+    suspend fun drainThrough(timeoutMs: Long = DEFAULT_FLUSH_MILLIS): Boolean {
+        val upTo = ring.claimCursor()
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (ring.consumerCursor() < upTo && System.currentTimeMillis() < deadline) {
+            // Nothing published yet means a producer is between claim and publish: give it a moment
+            if (drainOnce() == 0) delay(1.milliseconds)
+        }
+        return ring.consumerCursor() >= upTo
+    }
+
+    private suspend fun drainLocked(): Int {
+        if (ring.consumerCursor() >= retireFence && interning.retireProvisional()) retireFence = ring.claimCursor()
+        val collected = ring.collectPublished(maxBatch)
+        val events = collected.events
+        if (events.isEmpty()) return 0
+
+        val unparked = ArrayList<Int>()
         storage.batched {
             for (event in events) {
+                if (event is RingEvent.Release && event.fromHolderId == CaptureRing.PARKED) {
+                    unparked += event.toHolderId
+                    val parked = ring.parked(event.toHolderId) ?: continue
+                    val mark = storage.read { mark() }
+                    try {
+                        when (parked) {
+                            is BlockEdits -> worldSink(parked)
+                            is PlacedDeltas -> placedSink(parked)
+                        }
+                        storage.read { release(mark) }
+                        drainedEvents.incrementAndGet()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        storage.read { rollbackTo(mark) }
+                        rejected.incrementAndGet()
+                        val level = if (e is IllegalStateException) Level.FINE else Level.WARNING
+                        logger.log(level, "a parked capture did not apply, skipped", e)
+                    }
+                    continue
+                }
                 // A savepoint per event, so one impossible withdrawal unwinds itself and leaves
                 // the other 9421 events in this batch alone.
                 val mark = storage.read { mark() }
@@ -86,13 +135,19 @@ class Drainer(
                     apply(event)
                     storage.read { release(mark) }
                     drainedEvents.incrementAndGet()
-                } catch (e: IllegalStateException) {
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
                     storage.read { rollbackTo(mark) }
                     rejected.incrementAndGet()
-                    logger.log(Level.FINE, "captured event did not apply to the ledger, skipped", e)
+                    val level = if (e is IllegalStateException) Level.FINE else Level.WARNING
+                    logger.log(level, "captured event did not apply to the ledger, skipped", e)
                 }
             }
         }
+        // Released only now
+        ring.releaseSlots(collected.end)
+        ring.forgetParked(unparked)
         drainedBatches.incrementAndGet()
         return events.size
     }
@@ -172,5 +227,6 @@ class Drainer(
     private companion object {
         const val DEFAULT_MAX_BATCH = 1024
         const val DEFAULT_IDLE_MILLIS = 2L
+        const val DEFAULT_FLUSH_MILLIS = 2_000L
     }
 }
