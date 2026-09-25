@@ -1,5 +1,10 @@
 package com.tracel.plugin.listener.world.entity
 
+import org.bukkit.event.entity.CreatureSpawnEvent
+import org.bukkit.entity.ItemFrame
+import org.bukkit.entity.minecart.ExplosiveMinecart
+import org.bukkit.entity.EnderCrystal
+import com.tracel.plugin.listener.support.HitBy
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
@@ -38,6 +43,7 @@ import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.Item
 import org.bukkit.entity.LeashHitch
 import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.AbstractArrow
 import org.bukkit.entity.Player
 import org.bukkit.entity.TNTPrimed
 import org.bukkit.entity.ZombieVillager
@@ -71,6 +77,14 @@ import org.bukkit.event.vehicle.VehicleMoveEvent
 import org.bukkit.inventory.InventoryHolder
 import org.bukkit.persistence.PersistentDataType
 
+private const val RECENT_MS = 5_000L
+private const val SUMMON_WINDOW_MS = 1_000L
+private const val MILLIS_PER_TICK = 50L
+private const val DYING_KEPT = 4_096
+private const val SUMMON_FRESH_TICKS = 5
+private const val SPAWN_REACH = 2
+private const val SWEEP_REACH = 8.0
+
 /** Entity spawn / remove. */
 @Unstable
 class EntityLifecycleListener(services: TracelServices) : TracelListener(services) {
@@ -80,6 +94,8 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     private val recordedRemove = ExpiringSet<UUID>(RECENT_MS)
 
     private val dying = ExpiringMap<UUID, EntityShape>(RECENT_MS, capacity = DYING_KEPT)
+
+    private val summoner = ExpiringMap<UUID, HolderId>(SUMMON_WINDOW_MS)
 
     private val touchedBy = ExpiringMap<UUID, Blame>(RECENT_MS)
     private val transformedBy = ExpiringMap<UUID, Blame>(RECENT_MS)
@@ -104,8 +120,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val body = if (text.startsWith("/")) text.substring(1) else text
         if (!body.regionMatches(0, "summon", 0, 6, ignoreCase = true)) return
         if (body.length > 6 && body[6] != ' ') return
-        val player = event.player
-        sweepForFreshSpawns(player, HolderId.Player(player.uniqueId))
+        summoner.put(event.player.world.uid, HolderId.Player(event.player.uniqueId))
     }
 
     @Observes
@@ -118,6 +133,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     @Observes
     fun onVehicleCreate(event: VehicleCreateEvent) {
         val vehicle = event.vehicle
+        if (vehicle.ticksLived > 0) return
         record(ActionKind.ENTITY_SPAWN, vehicle, placedBy[vehicle.uniqueId]?.who, after = true)
     }
 
@@ -135,6 +151,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (!entity.logsWorldShape()) return
         if (restoring) return
         if (entity.uniqueId in recordedSpawn) return
+        if (entity.ticksLived > 0) return
         val reason = runCatching { entity.entitySpawnReason }.getOrNull()
         val transformed = transformedBy.remove(entity.uniqueId)
         if (!entity.isScenery() && transformed == null && reason.kind() == SpawnKind.World) return
@@ -146,6 +163,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (transformed != null || reason.kind() == SpawnKind.Immediate) {
             val by = transformed?.who
                 ?: placedBy.remove(uuid)?.who
+                ?: summoner[entity.world.uid]?.takeIf { reason == CreatureSpawnEvent.SpawnReason.COMMAND }
                 ?: RecentColumnActor.playerAt(loc.block)?.let(HolderId::Player)
             markMadeBy(entity, by)
             record(ActionKind.ENTITY_SPAWN, uuid, spawned, at, by, after = true)
@@ -195,6 +213,18 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     fun onDamaged(event: EntityDamageEvent) {
         if (restoring) return
         val entity = event.entity
+        if (entity is ItemFrame) {
+            services.damageBlame(event).who?.let { HitBy.hit(entity, it) }
+            return
+        }
+        if (entity is ArmorStand || entity is EnderCrystal || entity is ExplosiveMinecart) {
+            val who = services.damageBlame(event).who
+            if (who != null) {
+                HitBy.hit(entity, who)
+                if (entity.logsWorldShape() && removedBy[entity.uniqueId]?.who == null) removedBy.put(entity.uniqueId, Blame(who))
+            }
+            if (entity !is ArmorStand) return
+        }
         if (entity !is LivingEntity || entity is Player) return
         if (!entity.logsWorldShape()) return
         if (entity.uniqueId in recordedRemove) return
@@ -231,7 +261,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     }
 
     private fun sweepForFreshSpawns(player: Player, by: HolderId) {
-        later(player.location, ticks = 1L) {
+        later(player, ticks = 1L) {
             for (nearby in player.getNearbyEntities(SWEEP_REACH, SWEEP_REACH, SWEEP_REACH)) {
                 if (nearby.uniqueId in recordedSpawn) continue
                 if (!nearby.logsWorldShape()) continue
@@ -316,8 +346,12 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     fun onRemove(event: EntityRemoveEvent) {
         val entity = event.entity
         if (entity is Item || entity is Player) return
+        if (event.cause != EntityRemoveEvent.Cause.UNLOAD && event.cause != EntityRemoveEvent.Cause.PLAYER_QUIT) {
+            services.whereabouts.forget(entity.uniqueId)
+        }
         val blame = removedBy.remove(entity.uniqueId)
         if (!event.cause.kind().records(entity.isScenery(), blame?.who != null)) return
+        if (entity is AbstractArrow && event.cause == EntityRemoveEvent.Cause.DESPAWN) return
 
         if (entity.isMidDetonation(event.cause)) return
 
@@ -326,6 +360,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val who = blame?.who
             ?: if (exploded) services.redstoneTriggers.recentExplosionNear(entity.location) else null
 
+        bornUnlogged(entity)
         record(
             ActionKind.ENTITY_REMOVE, entity, who, after = false,
             cause = if (exploded) CauseKind.EXPLOSION else null,
@@ -382,6 +417,27 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (!entity.logsWorldShape()) return
         if (entity is InventoryHolder || entity is ArmorStand) return
         reshaped(entity, HolderId.Player(event.player.uniqueId))
+    }
+
+    private fun bornUnlogged(entity: Entity) {
+        if (restoring || entity.isScenery() || entity.uniqueId in recordedSpawn) return
+        if (!entity.logsWorldShape()) return
+        val reason = runCatching { entity.entitySpawnReason }.getOrNull()
+        if (reason.kind() != SpawnKind.World) return
+        val lived = runCatching { entity.ticksLived }.getOrDefault(0).toLong()
+        val looks = dying[entity.uniqueId] ?: entity.toShape()
+        shape.entity(
+            EntityChange(
+                action = ActionKind.ENTITY_SPAWN,
+                cause = CauseKind.WORLD,
+                causedBy = null,
+                epochMillis = System.currentTimeMillis() - lived * MILLIS_PER_TICK,
+                at = looks.blockPos(entity.world.uid),
+                entity = entity.uniqueId,
+                before = null,
+                after = looks,
+            )
+        )
     }
 
     private fun reshaped(entity: Entity, by: HolderId?, why: CauseKind? = null) {
@@ -466,12 +522,6 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         )
     }
 }
-
-private const val RECENT_MS = 5_000L
-private const val DYING_KEPT = 4_096
-private const val SUMMON_FRESH_TICKS = 5
-private const val SPAWN_REACH = 2
-private const val SWEEP_REACH = 8.0
 
 private fun Material.spawnsAnEntity(): Boolean = when {
     name.endsWith("_SPAWN_EGG") -> true

@@ -18,8 +18,15 @@ import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.BlockRelease
 import com.tracel.plugin.listener.support.explosionActor
+import org.bukkit.Material
+import org.bukkit.ExplosionResult
 import org.bukkit.block.Block
+import com.tracel.model.world.block.BlockDataKey
+import org.bukkit.block.data.type.Bed
+import org.bukkit.block.BlockState
+import com.tracel.plugin.listener.support.RecentColumnActor
 import org.bukkit.block.BlockFace
+import org.bukkit.block.ShulkerBox
 import org.bukkit.entity.LivingEntity
 import org.bukkit.event.block.BlockExplodeEvent
 import org.bukkit.event.entity.EntityExplodeEvent
@@ -30,9 +37,11 @@ import org.bukkit.event.entity.EntityExplodeEvent
  * One transaction per blast: shapes, contents, and placement releases share attribution.
  */
 @Unstable
+@Suppress("UnstableApiUsage")
 class ExplosionListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onEntityExplode(event: EntityExplodeEvent) {
+        if (!event.explosionResult.destroys()) return
         val causedBy = services.explosionActor(event.entity)
             ?: (event.entity as? LivingEntity)?.let { HolderId.Entity(it.uniqueId) }
         if (causedBy != null) services.redstoneTriggers.recordExplosion(event.location, causedBy)
@@ -40,22 +49,58 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
     }
 
     @Observes
-    fun onBlockExplode(event: BlockExplodeEvent) = capture(event.blockList(), causedBy = null)
+    fun onBlockExplode(event: BlockExplodeEvent) {
+        if (!event.explosionResult.destroys()) return
+        val exploded = event.explodedBlockState
+        val by = RecentColumnActor.playerAt(exploded.block)?.let(HolderId::Player)
+        val self = explodedCells(exploded)
+        if (self.isNotEmpty()) {
+            shape.edits(
+                action = ActionKind.BLOCK_BREAK,
+                cause = CauseKind.EXPLOSION,
+                causedBy = by,
+                world = WorldId(exploded.world.uid),
+                edits = self,
+            )
+        }
+        if (by != null) services.redstoneTriggers.recordExplosion(exploded.location, by)
+        capture(event.blockList(), causedBy = by)
+    }
+
+    private fun explodedCells(state: BlockState): List<BlockEdit> {
+        if (state.type.isAir) return emptyList()
+        val out = arrayListOf(BlockEdit(state.block.toBlockPos(), state.toShape(), BlockShape.AIR))
+        val bed = state.blockData as? Bed ?: return out
+        val other = bed.clone() as Bed
+        other.part = if (bed.part == Bed.Part.HEAD) Bed.Part.FOOT else Bed.Part.HEAD
+        val towards = if (bed.part == Bed.Part.HEAD) bed.facing.oppositeFace else bed.facing
+        val partner = state.block.getRelative(towards)
+        out += BlockEdit(partner.toBlockPos(), BlockShape(BlockDataKey(other.asString)), BlockShape.AIR)
+        return out
+    }
 
     private fun capture(blocks: List<Block>, causedBy: HolderId?) {
         if (blocks.isEmpty()) return
         val epochMillis = System.currentTimeMillis()
 
+        // TNT in the crater primes, unless a plugin cancels the prime and it stays: read it a tick later
+        val (tnt, broken) = blocks.partition { it.type == Material.TNT }
         shape.edits(
             action = ActionKind.BLOCK_BREAK,
             cause = CauseKind.EXPLOSION,
             causedBy = causedBy,
             world = WorldId(blocks.first().world.uid),
-            edits = blocks.map { BlockEdit(it.toBlockPos(), it.toShape(), BlockShape.AIR) },
+            edits = broken.map { BlockEdit(it.toBlockPos(), it.toShape(), BlockShape.AIR) },
             epochMillis = epochMillis,
         )
+        if (tnt.isNotEmpty()) shape.reread(ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, causedBy, tnt) { it.before != it.after }
 
         for (block in blocks) {
+            if (block.state is ShulkerBox) {
+                val drop = runCatching { block.drops }.getOrNull()?.firstOrNull { it.type == block.type }
+                if (drop != null) material.packedShulker(block, drop, CauseKind.EXPLOSION, causedBy)
+                continue
+            }
             val slots = block.cargoSlots() ?: continue
             val holder = block.toHolderId()
             val at = block.location.add(0.5, 0.5, 0.5)
@@ -98,3 +143,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
         ) { it.after != BlockShape.AIR }
     }
 }
+
+@Suppress("UnstableApiUsage")
+private fun ExplosionResult.destroys(): Boolean =
+    this == ExplosionResult.DESTROY || this == ExplosionResult.DESTROY_WITH_DECAY

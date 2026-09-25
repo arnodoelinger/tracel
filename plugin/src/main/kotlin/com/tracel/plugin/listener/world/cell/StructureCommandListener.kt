@@ -13,6 +13,8 @@ import com.tracel.plugin.util.toCommandOrigin
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.parseBlockPos
 import com.tracel.plugin.util.tokenize
+import com.tracel.plugin.util.Warnings
+import java.util.logging.Logger
 import org.bukkit.Bukkit
 import org.bukkit.GameRules
 import org.bukkit.Location
@@ -32,6 +34,8 @@ import org.bukkit.event.server.ServerCommandEvent
  */
 @Unstable
 class StructureCommandListener(services: TracelServices) : TracelListener(services) {
+    private val logger = Logger.getLogger("StructureCommandListener")
+
     @Observes
     fun onPlayerCommand(event: PlayerCommandPreprocessEvent) {
         val body = bodyOf(event.message) ?: return
@@ -70,13 +74,17 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
 
     private fun handle(body: String, causedBy: HolderId?, cause: CauseKind, origin: CommandOrigin?, world: World) {
         if (restoring) return
-        val effective = stripExecuteRun(body) ?: body
+        val prefix = EXECUTE_RUN.find(body)?.value
+        if (prefix != null && EXECUTE_ELSEWHERE.containsMatchIn(prefix)) return
+        val moved = prefix != null && EXECUTE_MOVES.containsMatchIn(prefix)
+        val effective = if (prefix != null) body.substring(prefix.length) else body
+        val at = if (moved) null else origin
         val nameAndRest = effective.trim().split(Regex("\\s+"), limit = 2)
         val rest = nameAndRest.getOrNull(1) ?: ""
-        when (nameAndRest.getOrNull(0)?.lowercase()) {
-            "setblock" -> handleSetblock(rest, world, causedBy, cause, origin)
-            "fill" -> handleFill(rest, world, causedBy, cause, origin)
-            "clone" -> handleClone(rest, world, causedBy, cause, origin)
+        when (nameAndRest.getOrNull(0)?.lowercase()?.removePrefix("minecraft:")) {
+            "setblock" -> handleSetblock(rest, world, causedBy, cause, at)
+            "fill" -> handleFill(rest, world, causedBy, cause, at)
+            "clone" -> handleClone(rest, world, causedBy, cause, at)
         }
     }
 
@@ -107,6 +115,9 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
         val dstOrigin = parseBlockPos(tokens, POS_TOKENS * 2, origin) ?: return
         val box = cloneDestBox(srcFrom, srcTo, dstOrigin, world.blockModificationLimit()) ?: return
         captureRegion(world, box, causedBy, cause)
+        if (rest.split(Regex("\\s+")).any { it.equals("move", ignoreCase = true) }) {
+            fillBox(srcFrom, srcTo, world.blockModificationLimit())?.let { captureRegion(world, it, causedBy, cause) }
+        }
     }
 
     // Folia: one region scheduler hop per chunk
@@ -131,13 +142,16 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
                     shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, blocks)
                     continue
                 }
-                services.pendingCaptures.owed()
+                Warnings.once(logger, "command-hop") {
+                    "a /fill, /setblock or /clone reached chunks another region owns; they are read after the command ran"
+                }
+                val ticket = services.pendingCaptures.owed()
                 val at = Location(world, x0.toDouble(), ys.first.toDouble(), z0.toDouble())
                 Bukkit.getRegionScheduler().execute(services.plugin, at) {
                     try {
                         shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, blocks)
                     } finally {
-                        services.pendingCaptures.done()
+                        services.pendingCaptures.done(ticket)
                     }
                 }
             }
@@ -146,11 +160,11 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
 
     private fun bodyOf(message: String): String? = if (message.startsWith("/")) message.substring(1) else message
 
-    private fun stripExecuteRun(body: String): String? = EXECUTE_RUN.find(body)?.let { body.substring(it.value.length) }
-
     private companion object {
         const val POS_TOKENS = 3
-        val EXECUTE_RUN = Regex("^execute\\s+run\\s+", RegexOption.IGNORE_CASE)
+        val EXECUTE_RUN = Regex("^(minecraft:)?execute\\b.*?\\brun\\s+", RegexOption.IGNORE_CASE)
+        val EXECUTE_MOVES = Regex("\\b(at|positioned|align|anchored|facing|rotated)\\b", RegexOption.IGNORE_CASE)
+        val EXECUTE_ELSEWHERE = Regex("\\bin\\s+\\S+", RegexOption.IGNORE_CASE)
     }
 }
 

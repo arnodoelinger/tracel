@@ -85,7 +85,7 @@ class RedstoneListener(services: TracelServices) : TracelListener(services) {
     fun onPlayerInteractEntity(event: PlayerInteractEntityEvent) {
         val creeper = event.rightClicked as? Creeper ?: return
         val item = event.player.inventory.getItem(event.hand)
-        if (item.type != Material.FLINT_AND_STEEL) return
+        if (item.type != Material.FLINT_AND_STEEL && item.type != Material.FIRE_CHARGE) return
         services.redstoneTriggers.recordCreeperIgnition(creeper.uniqueId, HolderId.Player(event.player.uniqueId))
     }
 

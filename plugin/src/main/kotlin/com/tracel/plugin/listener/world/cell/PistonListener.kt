@@ -2,6 +2,7 @@ package com.tracel.plugin.listener.world.cell
 
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
+import com.tracel.annotations.Unstable
 import com.tracel.model.world.ActionKind
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toHolderId
@@ -9,10 +10,15 @@ import com.tracel.plugin.adapter.block.toPlacedBlockId
 import com.tracel.plugin.listener.TracelListener
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
+import org.bukkit.block.data.Directional
 import org.bukkit.event.block.BlockPistonExtendEvent
 import org.bukkit.event.block.BlockPistonRetractEvent
 
+@Unstable
+private const val PISTON_SETTLE_TICKS = 3L
+
 /** Piston listener. */
+@Unstable
 class PistonListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onExtend(event: BlockPistonExtendEvent) = moved(event.block, event.blocks, event.direction)
@@ -21,11 +27,12 @@ class PistonListener(services: TracelServices) : TracelListener(services) {
     fun onRetract(event: BlockPistonRetractEvent) = moved(event.block, event.blocks, event.direction)
 
     private fun moved(piston: Block, blocks: List<Block>, direction: BlockFace) {
+        val facing = (piston.blockData as? Directional)?.facing ?: direction
+        val touched = blocks + blocks.map { it.getRelative(direction) } + piston + piston.getRelative(facing)
+        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.WORLD, null, touched.distinct(), delayTicks = PISTON_SETTLE_TICKS) {
+            !it.after.data.value.startsWith("minecraft:moving_piston")
+        }
         if (blocks.isEmpty()) return
-
-        // Reread after the tick instead of simulating piston placement
-        val touched = blocks + blocks.map { it.getRelative(direction) } + piston.getRelative(direction)
-        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.WORLD, null, touched.distinct())
 
         // Farthest first or the near account merges into the still-occupied far one.
         // Relocate same tick as capture: a tick early, rollback looked one block behind.

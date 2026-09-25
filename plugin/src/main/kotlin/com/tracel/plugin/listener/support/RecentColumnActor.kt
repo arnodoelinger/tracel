@@ -13,6 +13,8 @@ internal object RecentColumnActor {
     // Water needs longer than gravel; 5s left streams still spreading unattributed
     private const val TTL_MS = 30_000L
 
+    private const val BAND_SHIFT = 3
+
     private val byColumn = ExpiringMap<Column, UUID>(TTL_MS)
 
     fun remember(player: UUID, block: Block) {
@@ -39,4 +41,23 @@ internal object RecentColumnActor {
     private fun column(block: Block) = Column(block.world.uid, block.x, block.z)
 
     private data class Column(val world: UUID, val x: Int, val z: Int)
+
+    private val byCell = ExpiringMap<Cell, UUID>(TTL_MS)
+
+    private data class Cell(val world: UUID, val x: Int, val band: Int, val z: Int)
+
+    fun rememberFluidAround(player: UUID, block: Block, radius: Int, refresh: Boolean = true) {
+        val world = block.world.uid
+        val band = block.y shr BAND_SHIFT
+        for (dx in -radius..radius) {
+            for (dz in -radius..radius) {
+                for (b in band - 1..band + 1) {
+                    val cell = Cell(world, block.x + dx, b, block.z + dz)
+                    if (refresh) byCell.put(cell, player) else byCell.putIfAbsent(cell, player)
+                }
+            }
+        }
+    }
+
+    fun fluidPlayerAt(block: Block): UUID? = byCell[Cell(block.world.uid, block.x, block.y shr BAND_SHIFT, block.z)]
 }

@@ -10,6 +10,8 @@ import org.bukkit.entity.Explosive
 import org.bukkit.entity.Fireball
 import org.bukkit.entity.Player
 import org.bukkit.entity.TNTPrimed
+import org.bukkit.entity.Wither
+import org.bukkit.entity.minecart.ExplosiveMinecart
 import org.bukkit.event.entity.EntityExplodeEvent
 
 private const val MAX_IGNITION_CHAIN_DEPTH = 16
@@ -29,6 +31,7 @@ fun TracelServices.explosionActor(entity: Entity, depth: Int = 0): HolderId? {
     if (depth >= MAX_IGNITION_CHAIN_DEPTH) return null
     return when (entity) {
         is TNTPrimed -> igniterOf(entity, depth)
+
         // Unlit creepers are absent from the tracker; only flint ignitions are recorded
         is Creeper -> redstoneTriggers.creeperIgnitedBy(entity.uniqueId)
         is Fireball -> when (val shooter = entity.shooter) {
@@ -37,6 +40,8 @@ fun TracelServices.explosionActor(entity: Entity, depth: Int = 0): HolderId? {
             else -> null
         }
         is Player -> HolderId.Player(entity.uniqueId)
+        is EnderCrystal, is ExplosiveMinecart -> HitBy.of(entity) ?: redstoneTriggers.recentExplosionNear(entity.location)
+        is Wither -> HitBy.builderOf(entity)
         else -> null
     }
 }

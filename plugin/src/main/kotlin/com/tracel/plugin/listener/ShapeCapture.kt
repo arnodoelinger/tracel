@@ -16,6 +16,8 @@ import com.tracel.plugin.listener.support.FluidDisturbance
 import com.tracel.plugin.adapter.block.isFluidShape
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.launch
+import com.tracel.model.world.BlockPos
+import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Bukkit
 import org.bukkit.block.Block
 import org.bukkit.block.BlockState
@@ -37,7 +39,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
      *
      * Identical before / after is not a change. Fluid still settling after a restore is the
      * world finishing our write, not new history. Plain blocks go on the 24-byte ring;
-     * signs and tile extras do not fit a slot and take the storage-thread record.
+     * signs and tile extras do not fit a slot, wait beside the ring behind a marker and drain in turn.
      */
     fun edits(
         action: ActionKind,
@@ -57,12 +59,13 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         if (real.none { it.before.extras != null || it.after.extras != null }) {
             if (services.gate.blocks(cause, action, causedBy, epochMillis, world, real)) return
         }
+        val batch = BlockEdits(action, cause, causedBy, epochMillis, real)
+        if (services.gate.parkedBlocks(batch)) return
 
-        services.pendingCaptures.owed()
-
+        val ticket = services.pendingCaptures.owed()
         services.scope.launch {
-            services.atomically { services.worldCapture.record(BlockEdits(action, cause, causedBy, epochMillis, real)) }
-        }.invokeOnCompletion { services.pendingCaptures.done() }
+            services.atomically { services.worldCapture.record(batch) }
+        }.invokeOnCompletion { services.pendingCaptures.done(ticket) }
     }
 
     /** One cell whose [before] and [after] shapes are already known. */
@@ -119,7 +122,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         val snapshots = blocks.map { Triple(it, it.toBlockPos(), it.toShape()) }
         for ((_, group) in snapshots.groupBy { it.second.regionKey() }) {
             val world = group.first().second.world
-            services.pendingCaptures.owed()
+            val ticket = services.pendingCaptures.owed()
             Bukkit.getRegionScheduler().runDelayed(services.plugin, group.first().first.location, {
                 try {
                     edits(
@@ -127,16 +130,52 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
                         cause,
                         causedBy,
                         world,
-                        group.map { (block, at, shape) ->
+                        group.filter { !services.selfManagedWorld.justWrote(it.second) }.map { (block, at, shape) ->
                             BlockEdit(at, shape, block.toShape())
                         }.filter(keep),
                         epochMillis,
                     )
                 } finally {
-                    services.pendingCaptures.done()
+                    services.pendingCaptures.done(ticket)
                 }
             }, delayTicks.coerceAtLeast(1L))
         }
+    }
+
+    private class FlowBatch(val world: WorldId, val epochMillis: Long) {
+        val cells = LinkedHashMap<BlockPos, Pair<Block, BlockShape>>()
+    }
+
+    private val flows = ConcurrentHashMap<Triple<Any, CauseKind, HolderId?>, FlowBatch>()
+
+    /**
+     * [reread] for fluid flow, one task per chunk per tick instead of one per event: an ocean
+     * draining fires tens of thousands a second, each with its own scheduled task.
+     *
+     * Region thread of [block] only, which is also the only thread the batch's task runs on.
+     */
+    fun flowed(block: Block, cause: CauseKind, causedBy: HolderId?) {
+        if (restoring) return
+        val at = block.toBlockPos()
+        val key = Triple(at.regionKey(), cause, causedBy)
+        var batch = flows[key]
+        if (batch == null) {
+            val fresh = FlowBatch(at.world, System.currentTimeMillis())
+            flows[key] = fresh
+            batch = fresh
+            val ticket = services.pendingCaptures.owed()
+            Bukkit.getRegionScheduler().runDelayed(services.plugin, block.location, {
+                try {
+                    flows.remove(key, fresh)
+                    val edits = fresh.cells.filterKeys { !services.selfManagedWorld.justWrote(it) }
+                        .map { (pos, cell) -> BlockEdit(pos, cell.second, cell.first.toShape()) }
+                    edits(ActionKind.BLOCK_CHANGE, cause, causedBy, fresh.world, edits, fresh.epochMillis)
+                } finally {
+                    services.pendingCaptures.done(ticket)
+                }
+            }, 1L)
+        }
+        batch.cells.putIfAbsent(at, block to block.toShape())
     }
 
     /** An entity appeared, changed pose, or vanished. Same restore skip as blocks. */

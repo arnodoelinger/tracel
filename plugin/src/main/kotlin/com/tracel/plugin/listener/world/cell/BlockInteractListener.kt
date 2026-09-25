@@ -16,10 +16,18 @@ import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.listener.support.DragonEggClicks
+import com.tracel.plugin.listener.support.BlockRelease
+import com.tracel.plugin.adapter.block.toBlockPos
 import io.papermc.paper.block.TileStateInventoryHolder
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import org.bukkit.Material
 import org.bukkit.block.Block
+import com.tracel.plugin.listener.support.RecentColumnActor
+import org.bukkit.block.data.type.Bed
+import org.bukkit.block.data.Bisected
+import org.bukkit.block.BlockFace
 import org.bukkit.block.Campfire
 import org.bukkit.block.Jukebox
 import org.bukkit.entity.Player
@@ -38,6 +46,11 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
 
     @Observes(priority = Priority.LOWEST, ignoreCancelled = false)
     fun beforeInteract(event: PlayerInteractEvent) {
+        val clicked = event.clickedBlock
+        if (clicked != null && clicked.type == Material.DRAGON_EGG) DragonEggClicks.clicked(clicked, event.player.uniqueId)
+        if (clicked != null && (clicked.blockData is Bed || clicked.type == Material.RESPAWN_ANCHOR)) {
+            RecentColumnActor.remember(event.player.uniqueId, clicked)
+        }
         if (event.action != Action.RIGHT_CLICK_BLOCK && event.action != Action.PHYSICAL) return
         val block = event.clickedBlock ?: return
         if (event.action == Action.RIGHT_CLICK_BLOCK && block.container() != null) return
@@ -61,7 +74,25 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
         val state = block.getState(false)
         val cargo = event.action == Action.RIGHT_CLICK_BLOCK &&
             (state is TileStateInventoryHolder || state is Campfire)
-        if (cargo) queueCargo(player, block)
+        val ejected = (state as? Jukebox)?.takeIf { it.hasRecord() && event.item?.type?.isRecord != true }?.record
+        if (event.action == Action.RIGHT_CLICK_BLOCK && ejected != null && !ejected.isEmpty) {
+            val holder = block.toHolderId()
+            material.releasing(
+                listOf(BlockRelease(holder, block.world, block.x, block.y, block.z, mapOf(ejected.toItemKey() to ejected.amount.toLong()))),
+                CauseKind.PLAYER_ACTION,
+                HolderId.Player(player.uniqueId),
+                at = block.toBlockPos(),
+            )
+            later(block.location) { services.differ.rebaseline(holder, emptyMap()) }
+        } else if (cargo) {
+            queueCargo(player, block)
+        }
+        val partner = (block.blockData as? Bisected)?.let { half ->
+            block.getRelative(if (half.half == Bisected.Half.TOP) BlockFace.DOWN else BlockFace.UP)
+        }?.takeIf { it.type == block.type && event.action == Action.RIGHT_CLICK_BLOCK }
+        if (partner != null) {
+            shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.PLAYER_ACTION, HolderId.Player(player.uniqueId), listOf(partner)) { it.before != it.after }
+        }
         later(block.location) {
             if (snapshot != null) {
                 val after = block.toShape()

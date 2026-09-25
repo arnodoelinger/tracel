@@ -44,6 +44,15 @@ class BlockDropCorrelator {
         return releases.values.any { it.world == world.uid && distanceSq(it, x, y, z) <= radiusSq }
     }
 
+    /** The window a drop spawning at this point will most likely be claimed by, or `null` if none is open near. */
+    fun nearestToken(world: World, x: Double, y: Double, z: Double): Long? {
+        val radiusSq = MATCH_RADIUS * MATCH_RADIUS
+        return releases.entries
+            .filter { (_, release) -> release.world == world.uid && distanceSq(release, x, y, z) <= radiusSq }
+            .minByOrNull { (_, release) -> distanceSq(release, x, y, z) }
+            ?.key
+    }
+
     /**
      * Prefer a nearby release that believed it held this item over a closer empty one,
      * so chest contents are not credited to the stone beside it.

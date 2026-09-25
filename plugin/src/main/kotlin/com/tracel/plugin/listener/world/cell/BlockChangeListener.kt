@@ -15,14 +15,28 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.adapter.block.toPlacedBlockId
+import com.tracel.plugin.listener.support.BlockRelease
+import com.tracel.plugin.listener.support.FireActor
 import com.tracel.plugin.listener.support.FluidDisturbance
 import com.tracel.plugin.listener.support.RecentColumnActor
 import com.tracel.plugin.listener.support.explosionActor
+import com.destroystokyo.paper.event.block.BlockDestroyEvent
 import io.papermc.paper.event.block.BlockBreakBlockEvent
 import io.papermc.paper.event.block.VaultChangeStateEvent
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
+import org.bukkit.block.data.Directional
+import org.bukkit.block.data.type.Tripwire
+import org.bukkit.block.data.type.RedstoneWire
+import org.bukkit.block.data.type.Stairs
+import org.bukkit.block.data.type.GlassPane
+import org.bukkit.block.data.type.Wall
+import org.bukkit.block.data.type.Fence
+import org.bukkit.block.data.type.Chest
+import org.bukkit.block.data.Waterlogged
+import org.bukkit.event.block.BlockDispenseEvent
 import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.Player
 import org.bukkit.event.block.BlockBreakEvent
@@ -38,21 +52,13 @@ import org.bukkit.event.entity.EntityChangeBlockEvent
 import org.bukkit.event.entity.EntityEnterBlockEvent
 import org.bukkit.event.player.PlayerBucketEmptyEvent
 import org.bukkit.event.player.PlayerBucketFillEvent
-import java.util.Collections
 import java.util.UUID
 
 private const val FLUID_RADIUS = 8
-private const val TRAMPLE_MEMORY = 256
 
 /** World-shape edits listener. */
 @Unstable
 class BlockChangeListener(services: TracelServices) : TracelListener(services) {
-    private val trampleAbove = Collections.synchronizedMap(
-        object : LinkedHashMap<BlockPos, BlockShape>(64, 0.75f, false) {
-            override fun removeEldestEntry(eldest: Map.Entry<BlockPos, BlockShape>) = size > TRAMPLE_MEMORY
-        }
-    )
-
     companion object { }
 
     @Observes
@@ -69,6 +75,19 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         )
         rememberActor(event.player.uniqueId, event.block)
         RecentColumnActor.remember(event.player.uniqueId, event.block.getRelative(BlockFace.DOWN))
+        rereadNeighbours(event.block, player)
+    }
+
+    private fun rereadNeighbours(block: Block, by: HolderId) {
+        val around = BlockFace.entries.filter { it.isCartesian }.map { block.getRelative(it) }
+            .filter { it.isShapedByNeighbours() }
+        if (around.isEmpty()) return
+        shape.reread(
+            action = ActionKind.BLOCK_CHANGE,
+            cause = CauseKind.PLAYER_ACTION,
+            causedBy = by,
+            blocks = around
+        ) { it.before != it.after && !it.after.isAirLike }
     }
 
     @Observes
@@ -88,12 +107,22 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onBreak(event: BlockBreakEvent) {
         val player = HolderId.Player(event.player.uniqueId)
-        shape.removed(
-            block = event.block,
-            cause = CauseKind.PLAYER_ACTION,
-            causedBy = player
-        )
+        if (event.block.leavesWater()) {
+            shape.reread(
+                action = ActionKind.BLOCK_BREAK,
+                cause = CauseKind.PLAYER_ACTION,
+                causedBy = player,
+                blocks = listOf(event.block)
+            )
+        } else {
+            shape.removed(
+                block = event.block,
+                cause = CauseKind.PLAYER_ACTION,
+                causedBy = player
+            )
+        }
         rememberActor(event.player.uniqueId, event.block)
+        rereadNeighbours(event.block, player)
         val falling = gravityAbove(event.block)
         if (falling.isNotEmpty()) {
             shape.reread(
@@ -106,10 +135,53 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     }
 
     @Observes
-    fun onBurn(event: BlockBurnEvent) = shape.removed(event.block)
+    fun onBurn(event: BlockBurnEvent) {
+        val by = FireActor.at(event.ignitingBlock) ?: FireActor.at(event.block)
+        shape.removed(
+            block = event.block,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            causedBy = by?.let(HolderId::Player)
+        )
+    }
 
     @Observes(ignoreCancelled = false)
-    fun onBreakBlock(event: BlockBreakBlockEvent) = shape.removed(event.block)
+    fun onBreakBlock(event: BlockBreakBlockEvent) {
+        val by = RecentColumnActor.fluidPlayerAt(event.source) ?: RecentColumnActor.fluidPlayerAt(event.block)
+        shape.removed(
+            block = event.block,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            causedBy = by?.let(HolderId::Player)
+        )
+    }
+
+    @Observes
+    fun onDestroy(event: BlockDestroyEvent) {
+        val by = RecentColumnActor.playerAt(event.block) ?: RecentColumnActor.fluidPlayerAt(event.block)
+        shape.edit(
+            block = event.block,
+            before = event.block.toShape(),
+            after = BlockShape(BlockDataKey(event.newState.asString)),
+            action = ActionKind.BLOCK_BREAK,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            causedBy = by?.let(HolderId::Player),
+        )
+    }
+
+    @Observes
+    @Unstable
+    fun onDispenseBucket(event: BlockDispenseEvent) {
+        val type = event.item.type
+        if (type != Material.BUCKET && !type.name.endsWith("_BUCKET")) return
+        val facing = (event.block.blockData as? Directional)?.facing ?: return
+        val target = event.block.getRelative(facing)
+        claimFluid(target)
+        shape.reread(
+            action = ActionKind.BLOCK_CHANGE,
+            cause = CauseKind.WORLD,
+            causedBy = null,
+            blocks = listOf(target)
+        )
+    }
 
     @Observes
     fun onVaultState(event: VaultChangeStateEvent) {
@@ -144,10 +216,18 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         val cause = when {
             explosion -> CauseKind.EXPLOSION
             player != null -> CauseKind.PLAYER_ACTION
+            event.cause == BlockIgniteEvent.IgniteCause.SPREAD || event.cause == BlockIgniteEvent.IgniteCause.LAVA ->
+                if (FireActor.at(event.ignitingBlock) != null || event.ignitingBlock?.let { RecentColumnActor.fluidPlayerAt(it) } != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
             else -> CauseKind.WORLD
         }
+        val lighter = player
+            ?: (igniter as? Player)?.uniqueId
+            ?: FireActor.at(event.ignitingBlock).takeIf { event.cause == BlockIgniteEvent.IgniteCause.SPREAD }
+            ?: event.ignitingBlock?.let { RecentColumnActor.fluidPlayerAt(it) }.takeIf { event.cause == BlockIgniteEvent.IgniteCause.LAVA }
+        lighter?.let { FireActor.lit(event.block, it) }
         val by = player?.let(HolderId::Player)
             ?: igniter?.let { services.explosionActor(it) }
+            ?: lighter?.let(HolderId::Player)
 
         // Neighbor air -> fire at a lower seq than the break restored to air; delay
         if (explosion) {
@@ -177,34 +257,39 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onSpongeAbsorb(event: SpongeAbsorbEvent) {
         val touched = (event.blocks.map { it.block } + event.block).distinct()
+        val by = RecentColumnActor.playerAt(event.block)?.let(HolderId::Player)
+        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+        FluidDisturbance.claim(touched.map { it.toBlockPos() })
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
-            cause = CauseKind.WORLD,
-            causedBy = null,
+            cause = cause,
+            causedBy = by,
             blocks = touched
         )
+        val plants = touched.filter { it.type in SPONGE_PLANTS }
+        if (plants.isNotEmpty()) {
+            material.releasing(
+                releases = plants.map { BlockRelease(it.toPlacedBlockId(), it) },
+                cause = cause,
+                causedBy = by,
+                at = event.block.toBlockPos()
+            )
+        }
     }
 
     @Observes
     fun onFade(event: BlockFadeEvent) {
-        val by = RecentColumnActor.playerAt(event.block)
+        val by = RecentColumnActor.fluidPlayerAt(event.block)
         shape.became(
-            event.block, event.newState,
-            if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
-            by?.let { HolderId.Player(it) },
+            block = event.block,
+            newState = event.newState,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            causedBy = by?.let { HolderId.Player(it) },
         )
     }
 
     @Observes
     fun onLeavesDecay(event: LeavesDecayEvent) = shape.removed(event.block)
-
-    @Observes(priority = Priority.LOWEST)
-    fun onEntityChangeBefore(event: EntityChangeBlockEvent) {
-        if (event.entity !is Player) return
-        val above = event.block.getRelative(BlockFace.UP)
-        if (above.type.isAir) return
-        trampleAbove[event.block.toBlockPos()] = above.toShape()
-    }
 
     @Observes
     fun onEntityChangeBlock(event: EntityChangeBlockEvent) {
@@ -213,35 +298,36 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         val fallingBy = (entity as? FallingBlock)?.let { RecentColumnActor.playerWhoDisturbed(it) }
         val by = player?.uniqueId ?: fallingBy
         shape.edit(
-            event.block,
-            event.block.toShape(),
-            BlockShape(BlockDataKey(event.blockData.asString)),
-            ActionKind.BLOCK_CHANGE,
-            if (by != null) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
-            by?.let { HolderId.Player(it) } ?: HolderId.Entity(entity.uniqueId),
+            block = event.block,
+            before = event.block.toShape(),
+            after = BlockShape(BlockDataKey(event.blockData.asString)),
+            action = ActionKind.BLOCK_CHANGE,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
+            causedBy = by?.let { HolderId.Player(it) } ?: HolderId.Entity(entity.uniqueId),
         )
-        if (player != null) {
+        if (event.block.type == Material.FARMLAND) {
             val above = event.block.getRelative(BlockFace.UP)
-            val before = trampleAbove.remove(event.block.toBlockPos())
-            if (before != null && before != above.toShape()) {
-                shape.edit(
-                    above, before, above.toShape(),
-                    ActionKind.BLOCK_CHANGE, CauseKind.PLAYER_ACTION, HolderId.Player(player.uniqueId),
-                )
+            if (!above.type.isAir) {
+                shape.reread(
+                    action = ActionKind.BLOCK_CHANGE,
+                    cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
+                    causedBy = by?.let { HolderId.Player(it) } ?: HolderId.Entity(entity.uniqueId),
+                    blocks = listOf(above),
+                ) { it.before != it.after }
             }
         }
     }
 
     @Observes
     fun onBucketEmpty(event: PlayerBucketEmptyEvent) {
-        RecentColumnActor.rememberAround(event.player.uniqueId, event.block, FLUID_RADIUS)
+        RecentColumnActor.rememberFluidAround(event.player.uniqueId, event.block, FLUID_RADIUS)
         claimFluid(event.block)
         afterTick(event.block, ActionKind.BLOCK_CHANGE, event.player.uniqueId)
     }
 
     @Observes
     fun onBucketFill(event: PlayerBucketFillEvent) {
-        RecentColumnActor.rememberAround(event.player.uniqueId, event.block, FLUID_RADIUS)
+        RecentColumnActor.rememberFluidAround(event.player.uniqueId, event.block, FLUID_RADIUS)
         claimFluid(event.block)
         afterTick(event.block, ActionKind.BLOCK_CHANGE, event.player.uniqueId)
     }
@@ -268,9 +354,14 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         )
 }
 
+private val SPONGE_PLANTS = setOf(Material.KELP, Material.KELP_PLANT, Material.SEAGRASS, Material.TALL_SEAGRASS)
+
+private fun Block.leavesWater(): Boolean =
+    type == Material.ICE || (blockData as? Waterlogged)?.isWaterlogged == true
+
 private fun rememberActor(player: UUID, block: Block) {
-    if (block.type == Material.WATER || block.type == Material.LAVA) {
-        RecentColumnActor.rememberAround(player, block, FLUID_RADIUS)
+    if (block.type == Material.WATER || block.type == Material.LAVA || block.leavesWater()) {
+        RecentColumnActor.rememberFluidAround(player, block, FLUID_RADIUS)
     } else {
         RecentColumnActor.remember(player, block)
     }
@@ -285,4 +376,9 @@ private fun gravityAbove(broken: Block): List<Block> {
         at = at.getRelative(BlockFace.UP)
     }
     return out
+}
+
+private fun Block.isShapedByNeighbours(): Boolean = when (blockData) {
+    is Chest, is Fence, is Wall, is GlassPane, is Stairs, is RedstoneWire, is Tripwire -> true
+    else -> false
 }

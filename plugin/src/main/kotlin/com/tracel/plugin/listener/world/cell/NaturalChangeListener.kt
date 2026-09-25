@@ -2,6 +2,7 @@ package com.tracel.plugin.listener.world.cell
 
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
+import com.tracel.annotations.Unstable
 import com.tracel.engine.world.BlockEdit
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
@@ -12,13 +13,17 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.listener.support.DragonEggClicks
 import com.tracel.plugin.listener.support.FluidDisturbance
-import com.tracel.plugin.listener.support.FluidProvenance
 import com.tracel.plugin.listener.support.RecentColumnActor
+import org.bukkit.Material
+import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
 import org.bukkit.block.data.Snowable
 import org.bukkit.entity.Player
+import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockFertilizeEvent
+import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.event.block.BlockFormEvent
 import org.bukkit.event.block.BlockFromToEvent
 import org.bukkit.event.block.BlockGrowEvent
@@ -26,15 +31,18 @@ import org.bukkit.event.block.BlockSpreadEvent
 import org.bukkit.event.block.EntityBlockFormEvent
 import org.bukkit.event.block.FluidLevelChangeEvent
 import org.bukkit.event.block.MoistureChangeEvent
+import org.bukkit.event.weather.LightningStrikeEvent
 import org.bukkit.event.world.PortalCreateEvent
 import org.bukkit.event.world.StructureGrowEvent
 
 /** World-caused shape edits. */
+@Unstable
 class NaturalChangeListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onForm(event: BlockFormEvent) {
         if (event is BlockSpreadEvent || event is EntityBlockFormEvent) return
-        shape.became(event.block, event.newState)
+        val by = RecentColumnActor.fluidPlayerAt(event.block)?.let(HolderId::Player)
+        shape.became(event.block, event.newState, if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD, by)
     }
 
     @Observes
@@ -66,6 +74,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     @Observes
     fun onStructureGrow(event: StructureGrowEvent) {
         if (event.player != null) return
+        if (event.isFromBonemeal) return
         shape.edits(
             action = ActionKind.BLOCK_CHANGE,
             cause = CauseKind.WORLD,
@@ -100,24 +109,20 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
 
     @Observes
     fun onFromTo(event: BlockFromToEvent) {
-        val by = RecentColumnActor.playerAt(event.block) ?: RecentColumnActor.playerAt(event.toBlock)
-        if (by != null) {
-            RecentColumnActor.rememberAround(by, event.toBlock, 1)
-        }
-        FluidProvenance.onFlow(event.block, event.toBlock)
+        val egg = event.block.type == Material.DRAGON_EGG
+        val by = if (egg) DragonEggClicks.lastAt(event.block)
+        else RecentColumnActor.fluidPlayerAt(event.block) ?: RecentColumnActor.fluidPlayerAt(event.toBlock)
+        if (by != null && !egg) RecentColumnActor.rememberFluidAround(by, event.toBlock, 1, refresh = false)
         FluidDisturbance.onFlow(event.block.toBlockPos(), event.toBlock.toBlockPos())
-        shape.reread(
-            action = ActionKind.BLOCK_CHANGE,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
-            causedBy = by?.let { HolderId.Player(it) },
-            blocks = listOf(event.block, event.toBlock).distinct(),
-        )
+        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+        val causedBy = by?.let { HolderId.Player(it) }
+        if (egg) shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, listOf(event.block, event.toBlock))
+        else shape.flowed(event.toBlock, cause, causedBy)
     }
 
     @Observes
     fun onFluidLevel(event: FluidLevelChangeEvent) {
-        val by = RecentColumnActor.playerAt(event.block)
-        if (by != null) RecentColumnActor.rememberAround(by, event.block, 1)
+        val by = RecentColumnActor.fluidPlayerAt(event.block)
         FluidDisturbance.inherit(
             event.block.toBlockPos(),
             BlockFace.entries.filter { it.isCartesian }.map { event.block.getRelative(it).toBlockPos() },
@@ -134,4 +139,48 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
 
     @Observes
     fun onMoisture(event: MoistureChangeEvent) = shape.became(event.block, event.newState)
+
+    // No event reports these: the world writes them straight in. Read them after instead
+
+    @Observes
+    fun onPlaceUnderWater(event: BlockPlaceEvent) {
+        val block = event.blockPlaced
+        if (block.type == Material.WET_SPONGE && block.world.isUltraWarm) {
+            shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.PLAYER_ACTION, HolderId.Player(event.player.uniqueId), listOf(block))
+        }
+        if (block.type in BUBBLE_MAKERS || event.blockReplacedState.type in BUBBLE_MAKERS) {
+            bubbleColumn(block, HolderId.Player(event.player.uniqueId))
+        }
+    }
+
+    @Observes
+    fun onBreakUnderWater(event: BlockBreakEvent) {
+        if (event.block.type in BUBBLE_MAKERS) bubbleColumn(event.block, HolderId.Player(event.player.uniqueId))
+    }
+
+    private fun bubbleColumn(base: Block, by: HolderId) {
+        val column = ArrayList<Block>()
+        var cell = base.getRelative(BlockFace.UP)
+        while (column.size < MAX_BUBBLE_COLUMN && (cell.type == Material.WATER || cell.type == Material.BUBBLE_COLUMN)) {
+            column += cell
+            cell = cell.getRelative(BlockFace.UP)
+        }
+        if (column.isNotEmpty()) shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.PLAYER_ACTION, by, column, delayTicks = BUBBLE_DELAY_TICKS)
+    }
+
+    @Observes
+    fun onLightning(event: LightningStrikeEvent) {
+        val hit = event.lightning.location.block
+        val near = ArrayList<Block>(LIGHTNING_REACH)
+        for (dx in -1..1) for (dy in -2..0) for (dz in -1..1) near += hit.getRelative(dx, dy, dz)
+        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.WORLD, null, near) { it.before != it.after }
+    }
+
+    private companion object {
+        val BUBBLE_MAKERS = setOf(Material.SOUL_SAND, Material.MAGMA_BLOCK)
+
+        const val MAX_BUBBLE_COLUMN = 64
+        const val BUBBLE_DELAY_TICKS = 5L
+        const val LIGHTNING_REACH = 27
+    }
 }
