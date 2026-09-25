@@ -63,6 +63,9 @@ public class JournalExecutor(
             val direct = done.isEmpty()
             val stride = batchSize
 
+            // The unit below holds the storage lock start to end; what it only reads is read before it opens
+            executor.prefetch(plan.steps)
+
             // One unit for every batch: a capture landing between two of them strands a half-applied job
             executor.atomically {
                 var from = 0

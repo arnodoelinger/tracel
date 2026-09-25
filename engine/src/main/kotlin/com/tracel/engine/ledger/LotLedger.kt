@@ -77,6 +77,11 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         owed: List<Pair<HolderId, Long>>,
         txn: TxnId,
     ): List<Pair<HolderId, List<LotPortion>>> = atomically {
+        val wanted = owed.sumOf { it.second }
+        val available = repo.totalOf(holder, itemKey)
+        check(available >= wanted) {
+            "insufficient balance at $holder for $itemKey: owed $wanted, have $available"
+        }
         repo.drainFifo(holder, itemKey, owed, txn)
     }
 
@@ -93,8 +98,10 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
     }
 
     /** Moves one lot to another holder, same FIFO slot. */
-    public suspend fun moveExact(from: HolderId, to: HolderId, lotId: LotId): Unit = atomically {
+    public suspend fun moveExact(from: HolderId, to: HolderId, lotId: LotId): Quantity = atomically {
+        val placed = repo.placementOf(from, lotId)?.remaining ?: error("lot $lotId is not currently placed at $from")
         if (from != to) repo.rehome(from, to, lotId)
+        placed
     }
 
     /** Puts already-withdrawn portions onto [holder]. */
@@ -131,12 +138,12 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         txn: TxnId,
     ): Unit = atomically {
         val traced = repo.placementOf(from, lotId)?.remaining?.raw ?: 0L
-        if (traced in 1..quantity.raw) {
-            repo.rehome(from, to, lotId)
-            val owed = quantity.raw - traced
-            if (owed > 0L) move(from, to, itemKey, Quantity(owed), txn)
-        } else {
-            move(from, to, itemKey, quantity, txn)
+        when {
+            traced > quantity.raw -> deposit(to, listOf(takeExactly(from, lotId, quantity, txn)))
+            traced == quantity.raw -> repo.rehome(from, to, lotId)
+
+            // Moved or split since: follow its pieces, as a withdrawal does, before any FIFO fallback
+            else -> deposit(to, withdrawBack(from, lotId, itemKey, quantity, txn))
         }
     }
 
@@ -176,11 +183,27 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
             } else if (placed.raw <= owed) {
                 taken += withdrawExact(from, id)
                 owed -= placed.raw
+            } else {
+                taken += takeExactly(from, id, Quantity(owed), txn)
+                owed = 0L
             }
         }
-        if (owed > 0L) taken += withdraw(from, itemKey, Quantity(owed), txn)
+        if (owed > 0L && !from.isPseudo()) taken += withdraw(from, itemKey, Quantity(owed), txn)
         return taken
     }
+
+    private suspend fun takeExactly(holder: HolderId, lotId: LotId, quantity: Quantity, txn: TxnId): LotPortion {
+        val placed = repo.placementOf(holder, lotId) ?: error("lot $lotId is not currently placed at $holder")
+        val left = (placed.remaining - quantity) ?: return withdrawExact(holder, lotId)
+        val taken = repo.createLot(placed.lot.itemKey, quantity, txn)
+        val kept = repo.createLot(placed.lot.itemKey, left, txn)
+        repo.recordEdge(LotEdge.Split(taken.id, lotId, quantity))
+        repo.recordEdge(LotEdge.Split(kept.id, lotId, left))
+        repo.replace(holder, lotId, kept.id, left)
+        return LotPortion(taken.id, quantity)
+    }
+
+    private fun HolderId.isPseudo(): Boolean = this is HolderId.Source || this is HolderId.Sink
 
     /** Puts a previously withdrawn lot back. Same lot id, no new history. */
     public suspend fun restore(holder: HolderId, lotId: LotId, quantity: Quantity): Unit = atomically {
@@ -209,7 +232,17 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         inputs: List<Pair<LotId, Quantity>>,
         txn: TxnId,
     ): Unit = atomically {
-        for ((lotId, quantity) in inputs) withdrawBack(holder, lotId, repo.lot(lotId).itemKey, quantity, txn)
+        val output = outputs.firstOrNull()?.second?.lotId
+        for ((lotId, quantity) in inputs) {
+            val taken = withdrawBack(holder, lotId, repo.lot(lotId).itemKey, quantity, txn)
+            if (output == null) continue
+
+            // A split piece or a FIFO stand-in went into the remade output too: without the edge it just
+            // vanished, and a later rollback of its own history found it gone and put nothing back.
+            for ((piece, amount) in taken) {
+                if (piece != lotId) repo.recordEdge(LotEdge.Transform(output, piece, amount, txn, holder))
+            }
+        }
         for ((at, portion) in outputs) restore(at, portion.lotId, portion.quantity)
     }
 

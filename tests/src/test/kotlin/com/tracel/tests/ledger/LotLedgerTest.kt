@@ -92,6 +92,7 @@ class LotLedgerTest {
         val second = player(2)
 
         val oldest = world.ledger.mint(escrow, diamond, Quantity(2), world.nextTxn())
+        world.ledger.mint(escrow, diamond, Quantity(4), world.nextTxn())
 
         val handed = world.ledger.drain(
             escrow,

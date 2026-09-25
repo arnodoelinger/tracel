@@ -20,7 +20,6 @@ import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.AccountLot
 import com.tracel.model.lot.Lot
 import com.tracel.model.lot.LotEdge
-import com.tracel.platform.storage.DirectUnitOfWork
 import com.tracel.platform.storage.UnitOfWork
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.min
@@ -36,18 +35,42 @@ import kotlinx.collections.immutable.persistentSetOf
 // TODO: refactor ts
 @SingleWriter
 @RunsOn(ThreadContext.STORAGE)
-public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWork {
+public class InMemoryLotRepository : LotRepository, UnitOfWork {
     private val writer = SingleWriterGuard()
 
     private val nextLotId = atomic(1L)
     private val nextSeq = atomic(1L)
     private val state = AtomicReference(State())
+    private val changes = atomic(0L)
+    private var depth = 0
+
+    @Reads
+    override suspend fun version(): Long = changes.value
+
+    override suspend fun <T> atomically(block: suspend () -> T): T {
+        writer.checkIn()
+        val before = state.get()
+        depth++
+        try {
+            return block()
+        } catch (failure: Throwable) {
+            if (depth == 1) state.lazySet(before)
+            throw failure
+        } finally {
+            depth--
+        }
+    }
+
+    private fun commit(next: State) {
+        state.set(next)
+        changes.incrementAndGet()
+    }
 
     override suspend fun createLot(itemKey: ItemKey, quantity: Quantity, createdBy: TxnId): Lot {
         writer.checkIn()
         val lot = Lot(LotId(nextLotId.getAndIncrement()), itemKey, quantity, createdBy)
         val s = state.get()
-        state.set(s.copy(lots = s.lots.putting(lot.id, lot)))
+        commit(s.copy(lots = s.lots.putting(lot.id, lot)))
         return lot
     }
 
@@ -56,12 +79,12 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
 
     override suspend fun recordEdge(edge: LotEdge) {
         writer.checkIn()
-        state.set(state.get().putEdge(edge))
+        commit(state.get().putEdge(edge))
     }
 
     override suspend fun removeEdge(parent: LotId, child: LotId) {
         writer.checkIn()
-        state.set(state.get().removeEdge(parent, child))
+        commit(state.get().removeEdge(parent, child))
     }
 
     @Reads
@@ -111,7 +134,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             }
             stillNeeded -= takeFromHead(draft, holder, queue, entry, stillNeeded, txn, taken)
         }
-        if (key != null) state.set(draft.commit(s, holder, itemKey, key, queue))
+        if (key != null) commit(draft.commit(s, holder, itemKey, key, queue))
         return taken
     }
 
@@ -141,7 +164,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             val got = taken
             if (!got.isNullOrEmpty()) out.add(dest.first to got)
         }
-        state.set(draft.commit(s, holder, itemKey, key, queue))
+        commit(draft.commit(s, holder, itemKey, key, queue))
         return out
     }
 
@@ -168,9 +191,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
 
     @Reads
     override suspend fun placementOf(holder: HolderId, lotId: LotId): AccountLot? {
-        val s = state.get()
-        s.lots.getValue(lotId)
-        return s.byLot[lotId]?.takeIf { it.holder == holder }
+        return state.get().byLot[lotId]?.takeIf { it.holder == holder }
     }
 
     @Reads
@@ -208,14 +229,14 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
         val entry = AccountLot(holder, s.lots.getValue(lotId), quantity, Seq(nextSeq.getAndIncrement()))
         s = s.putPlacement(entry)
         s = s.copy(holderOf = s.holderOf.putting(lotId, holder))
-        state.set(s)
+        commit(s)
         return entry
     }
 
     override suspend fun remove(holder: HolderId, lotId: LotId) {
         writer.checkIn()
         val s = state.get().unplace(holder, lotId)
-        state.set(s.copy(holderOf = s.holderOf.removing(lotId)))
+        commit(s.copy(holderOf = s.holderOf.removing(lotId)))
     }
 
     override suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId) {
@@ -226,7 +247,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             ?: error("lot $lotId is not currently placed at $from")
         s = s.unplace(from, lotId)
         s = s.putPlacement(entry.copy(holder = to))
-        state.set(s.copy(holderOf = s.holderOf.putting(lotId, to)))
+        commit(s.copy(holderOf = s.holderOf.putting(lotId, to)))
     }
 
     override suspend fun relocate(from: HolderId, to: HolderId) {
@@ -259,7 +280,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             }
             s = s.withQueue(toKey, dest).addRemaining(toKey, qty).indexAdd(to, itemKey)
         }
-        state.set(s.copy(byLot = byLot.build(), holderOf = holderOf.build()))
+        commit(s.copy(byLot = byLot.build(), holderOf = holderOf.build()))
     }
 
     override suspend fun replace(holder: HolderId, retiredLotId: LotId, newLotId: LotId, remaining: Quantity) {
@@ -275,7 +296,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork by DirectUnitOfWo
             byLot = s.byLot.removing(retiredLotId).putting(newLotId, replacement),
             holderOf = s.holderOf.removing(retiredLotId).putting(newLotId, holder),
         )
-        state.set(s.addRemaining(key, remaining.raw - old.remaining.raw))
+        commit(s.addRemaining(key, remaining.raw - old.remaining.raw))
     }
 
     private fun takeFromHead(

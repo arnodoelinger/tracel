@@ -27,6 +27,12 @@ public class RollbackExecutor(
     private val log: TransactionLog,
     private val nextSeq: suspend () -> Seq,
 ) : UnitOfWork by ledger {
+    /**
+     * Reads every lot [steps] name ahead, outside any unit: inside one, the whole storage lock waited on
+     * those reads and the drainer with it.
+     */
+    public suspend fun prefetch(steps: List<RollbackStep>): Unit = ledger.prefetchLots(lotsNamedBy(steps))
+
     /** Applies every one of [steps] and logs them as one transaction. */
     public suspend fun applyAll(
         job: RollbackJobId,
@@ -84,12 +90,15 @@ public class RollbackExecutor(
         return when (step) {
             is RollbackStep.Take -> {
                 val itemKey = ledger.itemKeyOf(step.lotId)
-                if (dest != null) {
+                val moved = if (dest != null) {
                     ledger.moveExact(step.holder, dest, step.lotId)
                 } else {
-                    ledger.deposit(escrow, listOf(ledger.withdrawExact(step.holder, step.lotId)))
+                    ledger.withdrawExact(step.holder, step.lotId).also { ledger.deposit(escrow, listOf(it)) }.quantity
                 }
-                listOf(Flow(itemKey, step.quantity, step.holder, escrow, FlowKind.MOVE))
+                check(moved == step.quantity) {
+                    "lot ${step.lotId} holds ${moved.raw} at ${step.holder}, the plan expected ${step.quantity.raw}"
+                }
+                listOf(Flow(itemKey, moved, step.holder, escrow, FlowKind.MOVE))
             }
 
             is RollbackStep.Mint -> {
