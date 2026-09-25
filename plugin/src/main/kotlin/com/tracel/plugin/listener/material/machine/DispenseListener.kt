@@ -2,12 +2,12 @@ package com.tracel.plugin.listener.material.machine
 
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
+import com.tracel.annotations.Priority
+import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
-import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.BlockRelease
@@ -18,6 +18,11 @@ import org.bukkit.event.block.BlockDispenseEvent
 
 /** Dispense listener. */
 class DispenseListener(services: TracelServices) : TracelListener(services) {
+    @Observes(priority = Priority.HIGHEST) // A monitor cannot cancel
+    fun holdWhileRestoring(event: BlockDispenseEvent) {
+        if (services.frozen.isFrozen(event.block.toHolderId())) event.isCancelled = true
+    }
+
     @Observes
     fun onDispense(event: BlockDispenseEvent) {
         val item = event.item
@@ -28,42 +33,38 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
         // CrafterCraftEvent already opened this eject's claim window
         if (block.type == Material.CRAFTER) return
 
+        val dispenser = block.toHolderId()
+        val itemKey = item.toItemKey()
+        val quantity = item.amount.toLong()
+
+        // Straight onto a body
+        val armor = event as? BlockDispenseArmorEvent
+        if (armor != null) {
+            val target = armor.targetEntity
+            val wearer = if (target is Player) HolderId.Player(target.uniqueId) else HolderId.Entity(target.uniqueId)
+            material.adjust(dispenser, itemKey, -quantity)
+            material.adjust(wearer, itemKey, quantity)
+            material.positioned(
+                cause = CauseKind.WORLD,
+                causedBy = null,
+                at = block.location,
+                deltas = listOf(InventoryDelta(dispenser, itemKey, -quantity), InventoryDelta(wearer, itemKey, quantity)),
+                mintShortfallAt = dispenser,
+            )
+            return
+        }
+
         material.releasing(
             releases = listOf(
                 BlockRelease(
-                    holder = block.toHolderId(),
+                    holder = dispenser,
                     world = block.world, x = block.x, y = block.y, z = block.z,
-                    contents = mapOf(item.toItemKey() to item.amount.toLong()),
+                    contents = mapOf(itemKey to quantity),
                 ),
             ),
             cause = CauseKind.WORLD,
             causedBy = null,
             at = block.toBlockPos(),
         )
-
-        val armor = event as? BlockDispenseArmorEvent ?: return
-        val target = armor.targetEntity
-        if (target is Player) {
-            material.scheduleReconcile(
-                player = target,
-                cause = CauseKind.WORLD
-            )
-            return
-        }
-        later(target.location) {
-            val equipment = target.equipment ?: return@later
-            material.reconcile(
-                holder = HolderId.Entity(target.uniqueId),
-                totals = listOf(
-                    equipment.helmet,
-                    equipment.chestplate,
-                    equipment.leggings,
-                    equipment.boots
-                ).toItemTotals(),
-                cause = CauseKind.WORLD,
-                causedBy = null,
-                at = target.toBlockPos(),
-            )
-        }
     }
 }

@@ -13,8 +13,7 @@ fun Iterable<ItemStack?>.toItemTotals(): Map<ItemKey, Long> {
     val totals = mutableMapOf<ItemKey, Long>()
     for (stack in this) {
         if (stack == null || stack.type.isAir || stack.amount <= 0) continue
-        val key = stack.toItemKey()
-        totals[key] = (totals[key] ?: 0L) + stack.amount
+        stack.addTo(totals)
     }
     return totals
 }

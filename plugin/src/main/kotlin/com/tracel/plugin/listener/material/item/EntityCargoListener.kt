@@ -19,8 +19,10 @@ import com.tracel.plugin.adapter.entity.toPlacedEntityId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.isLedgeredHolder
 import com.tracel.plugin.util.ExpiringMap
+import org.bukkit.entity.AbstractVillager
 import org.bukkit.entity.ArmorStand
 import org.bukkit.entity.ChestedHorse
+import org.bukkit.entity.Mob
 import org.bukkit.entity.Entity
 import org.bukkit.entity.ItemFrame
 import org.bukkit.entity.Player
@@ -50,7 +52,8 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         val player = event.player
         if (player != null) {
             byPlayer.put(event.entity.uniqueId, Unit)
-            placed(event.entity, player, player.inventory.itemInMainHand.toItemKey())
+            // the hand it came from: a boat placed from the off hand is not the sword in the main hand
+            placed(event.entity, player, player.inventory.getItem(event.hand).toItemKey())
             return
         }
         dispensed(event.entity)
@@ -167,6 +170,16 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
             )
         }
 
+        if (entity is AbstractVillager) {
+            material.released(
+                cause = CauseKind.ENTITY_ACTION,
+                causedBy = causedBy,
+                from = entity.toCargoHolderId(),
+                to = HolderId.Sink(SinkKind.UNATTRIBUTED),
+                epochMillis = epochMillis,
+            )
+            return
+        }
         val cargo = entity is InventoryHolder || entity is ItemFrame || entity is ArmorStand
         if (!cargo) return
 
@@ -193,9 +206,11 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
     }
 
     @Observes
-    fun onChestedHorse(event: PlayerInteractEntityEvent) {
-        val horse = event.rightClicked as? ChestedHorse ?: return
-        cargoChanged(event.player, horse) { horse.cargoStacks().toItemTotals() }
+    fun onEquipMob(event: PlayerInteractEntityEvent) {
+        val mob = event.rightClicked
+        if (mob !is ChestedHorse && mob !is Mob) return
+        if (mob is ArmorStand) return
+        cargoChanged(event.player, mob) { mob.cargoStacks().toItemTotals() }
     }
 
     @Observes

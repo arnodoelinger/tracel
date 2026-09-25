@@ -12,6 +12,9 @@ import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.BlockRelease
 import com.tracel.plugin.listener.support.CREATIVE_SINK
+import com.tracel.plugin.listener.support.RecentColumnActor
+import com.tracel.plugin.listener.support.ReleasedCells
+import com.destroystokyo.paper.event.block.BlockDestroyEvent
 import com.tracel.plugin.listener.support.CREATIVE_SOURCE
 import com.tracel.plugin.listener.support.isLedgeredHolder
 import io.papermc.paper.event.block.BlockBreakBlockEvent
@@ -61,6 +64,7 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
             return
         }
 
+        ReleasedCells.claim(block)
         material.releasing(
             releases = listOf(BlockRelease(placedHolder, block)),
             cause = CauseKind.BLOCK_BREAK,
@@ -76,15 +80,17 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
     @Observes(ignoreCancelled = false)
     fun onBreakBlock(event: BlockBreakBlockEvent) {
         val block = event.block
+        if (!ReleasedCells.claim(block)) return
         val epochMillis = System.currentTimeMillis()
         val releases = mutableListOf(BlockRelease(block.toPlacedBlockId(), block))
         if (block.cargoSlots() != null) {
             releases += BlockRelease(block.toHolderId(), block)
         }
+        val by = RecentColumnActor.fluidPlayerAt(event.source) ?: RecentColumnActor.fluidPlayerAt(block)
         material.releasing(
             releases = releases,
-            cause = CauseKind.WORLD,
-            causedBy = null,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            causedBy = by?.let(HolderId::Player),
             at = block.toBlockPos(),
             epochMillis = epochMillis
         )
@@ -94,10 +100,31 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onLeavesDecay(event: LeavesDecayEvent) {
         val block = event.block
+        ReleasedCells.claim(block)
         material.releasing(
             releases = listOf(BlockRelease(block.toPlacedBlockId(), block)),
             cause = CauseKind.WORLD,
             causedBy = null,
+            at = block.toBlockPos(),
+        )
+    }
+
+    /**
+     * A block that went because what held it did: e.g. a torch off a broken wall, the rest of a cactus,
+     * the crop on trampled farmland.
+     */
+    @Observes
+    fun onDestroy(event: BlockDestroyEvent) {
+        if (!event.willDrop()) return
+        val block = event.block
+        if (!ReleasedCells.claim(block)) return
+        val by = RecentColumnActor.playerAt(block) ?: RecentColumnActor.fluidPlayerAt(block)
+        val releases = mutableListOf(BlockRelease(block.toPlacedBlockId(), block))
+        if (block.cargoSlots() != null) releases += BlockRelease(block.toHolderId(), block)
+        material.releasing(
+            releases = releases,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            causedBy = by?.let(HolderId::Player),
             at = block.toBlockPos(),
         )
     }

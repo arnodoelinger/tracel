@@ -3,12 +3,15 @@ package com.tracel.plugin.adapter.item
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import java.security.MessageDigest
+import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 import org.bukkit.Material
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.BundleMeta
+import org.bukkit.inventory.meta.CrossbowMeta
 import org.bukkit.inventory.meta.Damageable
 import kotlin.time.Duration.Companion.milliseconds
 import com.tracel.plugin.TracelPlugin
@@ -24,20 +27,42 @@ fun ItemStack.toItemKey(): ItemKey {
     val normalized = clone().apply { amount = 1 }
 
     val meta = normalized.itemMeta
+    var stripped = false
     if (meta is Damageable && meta.hasDamage()) {
         meta.damage = 0
-        normalized.itemMeta = meta
+        stripped = true
     }
-    val bytes = normalized.serializeAsBytes()
-    if (bytes.contentEquals(plainBytesOf(type))) return ItemKey(type.name)
+    if (meta is BundleMeta && meta.hasItems()) {
+        meta.setItems(null)
+        stripped = true
+    }
+    if (meta is CrossbowMeta && meta.hasChargedProjectiles()) {
+        meta.setChargedProjectiles(null)
+        stripped = true
+    }
+    if (stripped) normalized.itemMeta = meta
+    KEYS[normalized]?.let { return it }
 
-    val hash = ContentHash(sha256Hex(bytes))
-    PendingItemForms.remember(hash, bytes)
-    return ItemKey(type.name, hash)
+    val bytes = normalized.serializeAsBytes()
+    val key = if (bytes.contentEquals(plainBytesOf(type))) {
+        ItemKey(type.name)
+    } else {
+        val hash = ContentHash(HEX.formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)))
+        PendingItemForms.remember(hash, bytes)
+        ItemKey(type.name, hash)
+    }
+    if (KEYS.size >= MAX_CACHED_KEYS) KEYS.clear()
+    KEYS[normalized] = key
+    return key
 }
 
-private fun sha256Hex(bytes: ByteArray): String =
-    MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+private val HEX = HexFormat.of()
+private const val MAX_CACHED_KEYS = 16_384
+
+private val KEYS = ConcurrentHashMap<ItemStack, ItemKey>()
+
+/** Keys decided before a purge would skip remembering their forms again. */
+internal fun forgetItemKeys() = KEYS.clear()
 
 private fun plainBytesOf(material: Material): ByteArray? =
     PLAIN_BYTES.computeIfAbsent(material) {
@@ -61,7 +86,9 @@ object PendingItemForms {
 
     /** Remember a decorated stack, waiting for the storage thread. */
     fun remember(hash: ContentHash, bytes: ByteArray) {
-        if (seen.size >= MAX_REMEMBERED || !seen.add(hash.hex)) return
+        // A full memory forgets, never refuses: a write twice costs nothing, a form never written is a plain restore
+        if (seen.size >= MAX_REMEMBERED) seen.clear()
+        if (!seen.add(hash.hex)) return
         pending += hash to bytes
         woken.trySend(Unit)
     }
@@ -105,5 +132,6 @@ object PendingItemForms {
     fun reset() {
         seen.clear()
         pending.clear()
+        forgetItemKeys()
     }
 }

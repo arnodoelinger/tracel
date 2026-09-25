@@ -6,6 +6,7 @@ import com.tracel.annotations.Priority
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.toHolderId
 import com.tracel.plugin.listener.TracelListener
+import org.bukkit.block.Crafter
 import org.bukkit.event.inventory.InventoryMoveItemEvent
 
 /** Hopper transfer listener. */
@@ -14,22 +15,17 @@ class HopperListener(services: TracelServices) : TracelListener(services) {
     fun holdWhileRestoring(event: InventoryMoveItemEvent) {
         val source = event.source.toHolderId()
         val destination = event.destination.toHolderId()
-        if (services.frozen.isFrozen(source ?: return) || services.frozen.isFrozen(destination ?: return)) {
+        if (source != null && services.frozen.isFrozen(source) || destination != null && services.frozen.isFrozen(destination)) {
             event.isCancelled = true
         }
     }
 
     @Observes
     fun onMoveItem(event: InventoryMoveItemEvent) {
+        if (event.source.holder is Crafter) return
         val source = event.source.toHolderId() ?: return
         val destination = event.destination.toHolderId() ?: return
-        // Both snapshots: booked from the event, never diffed
-        material.hopped(
-            cause = CauseKind.HOPPER,
-            causedBy = null,
-            from = source,
-            to = destination,
-            stack = event.item,
-        )
+        val at = event.destination.location ?: event.source.location ?: return
+        material.settleLater(at, CauseKind.HOPPER, mapOf(source to event.source, destination to event.destination))
     }
 }

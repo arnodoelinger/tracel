@@ -3,10 +3,12 @@ package com.tracel.plugin.listener.support
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
+import com.tracel.model.flow.Flow
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
@@ -60,6 +62,41 @@ class BlockReleaseQueue(private val services: TracelServices) {
 
     private val open = ConcurrentLinkedQueue<Batch>()
 
+    private val waitingOn = ConcurrentHashMap<HolderId, Long>()
+    private val followUps = ConcurrentHashMap<Long, ConcurrentLinkedQueue<FollowUp>>()
+    private val outstanding = ConcurrentHashMap<Long, Int>()
+
+    private class FollowUp(val flow: Flow, val cause: CauseKind, val causedBy: HolderId?, val epochMillis: Long)
+
+    /**
+     * [drop] spawned inside the window [token] belongs to; whatever happens to it waits for that window,
+     * and the window waits for its claim ([claimed]) past its time, up to a ceiling: a region at 6 TPS
+     * reached the claim after the window had burned the stock and the drop was minted unattributed.
+     */
+    fun hold(drop: HolderId, token: Long) {
+        waitingOn[drop] = token
+        outstanding.merge(token, 1, Int::plus)
+    }
+
+    /** The claim [hold] promised for [token] is in. */
+    fun claimed(token: Long) {
+        outstanding.computeIfPresent(token) { _, left -> if (left <= 1) null else left - 1 }
+    }
+
+    /**
+     * Queues [flow] behind the window [flow]'s source drop is waiting for.
+     *
+     * A hopper under a farm or a player standing on the block picks the drop up in a tick or two; booked
+     * at once that pickup found no lot and was rejected, and the item went off the books for good.
+     *
+     * @return `false` when the drop waits for nothing and the flow can go straight to the ledger.
+     */
+    fun afterRelease(flow: Flow, cause: CauseKind, causedBy: HolderId?, epochMillis: Long): Boolean {
+        val token = waitingOn[flow.source] ?: return false
+        followUps.computeIfAbsent(token) { ConcurrentLinkedQueue() } += FollowUp(flow, cause, causedBy, epochMillis)
+        return true
+    }
+
     /** Region-thread open: the claim window must exist before the next tick's vanilla spawn. */
     fun open(
         releases: List<BlockRelease>,
@@ -84,12 +121,17 @@ class BlockReleaseQueue(private val services: TracelServices) {
         }
     }
 
-    /** Drain open batches for a lookup / rollback that must see the drops. */
+    /**
+     * Drain the batches already open for a lookup / rollback that must see the drops. Ones opened
+     * after the call are not its business: on a live server the queue is never empty.
+     */
     suspend fun flush(timeoutMs: Long = CLAIM_WINDOW_MILLIS * 2) {
-        val deadline = System.currentTimeMillis() + timeoutMs
+        val now = System.currentTimeMillis()
+        val deadline = now + timeoutMs
+        val opened = now + CLAIM_WINDOW_MILLIS
         while (true) {
             pass()
-            if (open.isEmpty() || System.currentTimeMillis() >= deadline) return
+            if (open.none { it.closesAt <= opened } || System.currentTimeMillis() >= deadline) return
             delay(FLUSH_POLL_MILLIS.milliseconds)
         }
     }
@@ -112,12 +154,14 @@ class BlockReleaseQueue(private val services: TracelServices) {
 
         val now = System.currentTimeMillis()
         val closed = mutableListOf<Batch>()
-        while (true) {
-            val head = open.peek() ?: break
-            if (head.closesAt > now) break
-            closed += open.poll() ?: break
+        for (batch in open) {
+            if (batch.closesAt > now) break
+            val waiting = batch.tokens.any { outstanding.containsKey(it) }
+            if (waiting && now < batch.closesAt + CLAIM_CEILING_MILLIS) continue
+            closed += batch
         }
         if (closed.isEmpty()) return
+        open.removeAll(closed.toSet())
 
         val work = closed.map { batch ->
             val believed = batch.believed
@@ -130,6 +174,12 @@ class BlockReleaseQueue(private val services: TracelServices) {
             }
             batch to flows
         }
+
+        // What waited on these windows goes right after them, in the same commit
+        val tokens = closed.flatMapTo(HashSet()) { it.tokens.asIterable() }
+        waitingOn.entries.removeIf { it.value in tokens }
+        for (token in tokens) outstanding.remove(token)
+        val after = tokens.flatMap { token -> followUps.remove(token).orEmpty() }
 
         services.atomically {
             for ((batch, flows) in work) {
@@ -144,6 +194,16 @@ class BlockReleaseQueue(private val services: TracelServices) {
                     logger.log(Level.FINE, "block release touched untracked material, not recorded", e)
                 }
             }
+            for (follow in after) {
+                val mark = services.storage.read { mark() }
+                try {
+                    services.capture.recordDirect(listOf(follow.flow), follow.epochMillis, follow.cause, follow.causedBy, null)
+                    services.storage.read { release(mark) }
+                } catch (e: IllegalStateException) {
+                    services.storage.read { rollbackTo(mark) }
+                    logger.log(Level.FINE, "a move off a claimed drop found nothing to move, not recorded", e)
+                }
+            }
         }
 
         for ((batch, _) in work) batch.releases.forEach { services.differ.forget(it.holder) }
@@ -151,6 +211,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
 
     private companion object {
         const val CLAIM_WINDOW_MILLIS = 500L
+        const val CLAIM_CEILING_MILLIS = 5_000L
         const val TICK_MILLIS = 200L
         const val FLUSH_POLL_MILLIS = 20L
     }

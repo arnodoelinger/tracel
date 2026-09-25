@@ -2,9 +2,13 @@ package com.tracel.plugin.listener.material.inventory
 
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
+import com.tracel.annotations.Priority
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
 import com.tracel.model.holder.HolderId
+import com.tracel.plugin.adapter.block.container
+import com.tracel.model.flow.FlowKind
+import com.tracel.model.flow.Flow
 import com.tracel.model.id.Quantity
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.lostRelativeTo
@@ -17,12 +21,17 @@ import com.tracel.plugin.adapter.item.withCursor
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.BlockRelease
+import com.tracel.plugin.listener.support.CraftDrops
 import com.tracel.plugin.listener.support.isLedgeredHolder
 import java.util.logging.Level
 import java.util.logging.Logger
 import org.bukkit.block.Container
+import org.bukkit.block.data.type.Crafter
+import org.bukkit.block.BlockFace
+import org.bukkit.block.Block
 import org.bukkit.entity.Player
 import org.bukkit.event.block.CrafterCraftEvent
+import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.CraftItemEvent
 import org.bukkit.inventory.meta.Damageable
 
@@ -43,8 +52,10 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
 
         // Player holders have no coords; without the bench (or feet for 2 x 2) "scope:" never sees "a:craft"
         val where = event.inventory.location?.block?.toBlockPos() ?: player.toBlockPos()
+        if (event.click == ClickType.DROP || event.click == ClickType.CONTROL_DROP) CraftDrops.expect(player.uniqueId)
 
-        later(player.location) {
+        later(player) {
+            val thrown = CraftDrops.take(player.uniqueId)
             val matrix = event.inventory.matrix.toItemTotals()
             val consumed = before.lostRelativeTo(matrix)
             if (consumed.isEmpty()) return@later
@@ -54,9 +65,12 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
             val ingredients = consumed.map { (key, qty) -> Ingredient(playerHolder, key, Quantity(qty)) }
             val epochMillis = System.currentTimeMillis()
 
+            // Diffed here, in click order: on the storage thread a second craft had already moved the snapshot on
+            val seeded = services.differ.diffIfSeeded(playerHolder, totals)
+
             owing {
                 try {
-                    material.craftedByPlayer(playerHolder, totals, produced, ingredients, where, epochMillis, productDamage) { gains ->
+                    material.craftedByPlayer(playerHolder, totals, seeded, produced, ingredients, thrown, where, epochMillis, productDamage) { gains ->
                         logger.log(
                             Level.FINE,
                             "craft by $playerHolder produced $gains distinct item keys and none " +
@@ -76,6 +90,11 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
      * No [CraftItemEvent]. Record into the crafter; claim window for the eject;
      * hopper move stands if unclaimed.
      */
+    @Observes(priority = Priority.HIGHEST)
+    fun holdCrafterWhileRestoring(event: CrafterCraftEvent) {
+        if (services.frozen.isFrozen(event.block.toHolderId())) event.isCancelled = true
+    }
+
     @Observes
     fun onCrafter(event: CrafterCraftEvent) {
         val result = event.result
@@ -89,13 +108,16 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
         val at = block.toBlockPos()
         val epochMillis = System.currentTimeMillis()
 
-        material.releasing(
-            releases = listOf(BlockRelease(holder, block.world, block.x, block.y, block.z, mapOf(productKey to productQty))),
-            cause = CauseKind.CRAFT,
-            causedBy = null,
-            at = at,
-            epochMillis = epochMillis,
-        )
+        val into = crafterFront(block)?.let { front -> block.getRelative(front) }?.takeIf { it.container() != null }?.toHolderId()
+        if (into == null) {
+            material.releasing(
+                releases = listOf(BlockRelease(holder, block.world, block.x, block.y, block.z, mapOf(productKey to productQty))),
+                cause = CauseKind.CRAFT,
+                causedBy = null,
+                at = at,
+                epochMillis = epochMillis,
+            )
+        }
 
         later(block.location) {
             val after = (block.getState(false) as? Container)?.inventory?.toItemTotals().orEmpty()
@@ -112,10 +134,23 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
                         at = at,
                         epochMillis = epochMillis,
                     )
+                    if (into != null) {
+                        material.adjust(into, productKey, productQty)
+                        services.capture.recordDirect(
+                            listOf(Flow(productKey, Quantity(productQty), holder, into, FlowKind.MOVE)),
+                            epochMillis, CauseKind.CRAFT, null, at,
+                        )
+                    }
                 } catch (e: IllegalStateException) {
                     logger.log(Level.FINE, "untracked ingredient material for crafter at $at, not recorded", e)
                 }
             }
         }
     }
+}
+
+/** Which way a crafter ejects: the first half of its orientation, `NORTH_UP` faces north. */
+private fun crafterFront(block: Block): BlockFace? {
+    val data = block.blockData as? Crafter ?: return null
+    return runCatching { BlockFace.valueOf(data.orientation.name.substringBefore('_')) }.getOrNull()
 }

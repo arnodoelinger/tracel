@@ -2,6 +2,7 @@ package com.tracel.plugin.listener.support
 
 import com.tracel.model.holder.HolderId
 import java.util.concurrent.ConcurrentHashMap
+import com.tracel.plugin.listener.session.FreezeGuardListener
 
 /**
  * Holders mid-restore, closed to hoppers / droppers / minecarts.
@@ -9,7 +10,10 @@ import java.util.concurrent.ConcurrentHashMap
  * The lot lease dies when the ledger journals — before `Bukkit` restore. In that gap a hopper
  * under a hopper minecart steals the take, so the world and the books disagree.
  *
- * Players are left alone: freeze-out of a click is worse than a shortfall the differ already sees.
+ * Players and piles too, for the short window a rollback moves them: a click held for a moment beats
+ * a thief keeping stacks the victim was paid for.
+ *
+ * @see [FreezeGuardListener]
  */
 class FrozenHolders {
     private val frozen = ConcurrentHashMap<HolderId, Int>()

@@ -47,8 +47,8 @@ class HarvestListener(services: TracelServices) : TracelListener(services) {
             blocks = listOf(block)
         )
 
-        material.direct(
-            flows = harvestFlows(totals, bush, player),
+        material.releasing(
+            releases = listOf(BlockRelease(bush, block.world, block.x, block.y, block.z, totals)),
             cause = CauseKind.PLAYER_ACTION,
             causedBy = player,
             at = at,

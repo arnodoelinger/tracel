@@ -10,6 +10,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryCreativeEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.inventory.InventoryType
+import org.bukkit.inventory.CraftingInventory
 
 /**
  * Inventory click listener.
@@ -22,8 +23,9 @@ class InventoryClickListener(services: TracelServices) : TracelListener(services
         // Only CraftItemEvent is CraftCaptureListener
         if (event is CraftItemEvent) return
 
-        // Matrix is net-zero for the player; the craft listener reads the grid
-        if (event.slotType == InventoryType.SlotType.CRAFTING) return
+        // Matrix is net-zero for the player; the craft listener reads the grid. Crafting is also a
+        // furnace input or a brewing slot, and those clicks are moves like any other
+        if (event.slotType == InventoryType.SlotType.CRAFTING && event.view.topInventory is CraftingInventory) return
 
         // InventoryCreativeEvent extends InventoryClickEvent; otherwise onCreative double-diffs
         if (event is InventoryCreativeEvent) return

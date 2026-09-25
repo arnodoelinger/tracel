@@ -1,22 +1,31 @@
 package com.tracel.plugin.listener
 
+import com.tracel.storage.capture.PlacedDeltas
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
+import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
 import com.tracel.engine.wear.WearMark
 import com.tracel.model.flow.Flow
 import com.tracel.model.holder.HolderId
+import com.tracel.model.flow.FlowKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices
+import org.bukkit.block.Block
+import com.tracel.plugin.adapter.block.toBlockPos
+import com.tracel.plugin.adapter.block.toPlacedBlockId
+import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.item.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
+import com.tracel.plugin.adapter.item.heldTotals
+import com.tracel.plugin.adapter.item.transientInputs
 import com.tracel.plugin.adapter.item.withCursor
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -26,6 +35,7 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import com.tracel.plugin.adapter.block.CargoSlots
 import com.tracel.plugin.listener.support.BlockRelease
+import com.tracel.plugin.listener.support.CraftDrops
 import com.tracel.plugin.listener.support.ignoranceIsPermanent
 import com.tracel.plugin.listener.support.isLedgeredHolder
 import com.tracel.plugin.listener.support.recordAt
@@ -34,6 +44,9 @@ import com.tracel.plugin.listener.support.worldgenMintFlows
 import com.tracel.plugin.util.carriesCoordinates
 import java.util.logging.Level
 import java.util.logging.Logger
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import org.bukkit.Location
 import org.bukkit.inventory.CraftingInventory
@@ -56,6 +69,8 @@ class MaterialCapture internal constructor(private val services: TracelServices)
 
     private val lastSeenSlots = ConcurrentHashMap<HolderId, List<ContainerSlotEntry>>()
 
+    private const val MAX_COMMIT_BATCH = 256
+
     /** One inventory read per player per tick. */
     fun scheduleReconcile(
         player: Player,
@@ -75,14 +90,21 @@ class MaterialCapture internal constructor(private val services: TracelServices)
 
     private fun armInventoryRead(player: Player) {
         if (!inventoryQueued.add(player.uniqueId)) return
-        services.pendingCaptures.owed()
-        Bukkit.getRegionScheduler().runDelayed(services.plugin, player.location, {
+        val ticket = services.pendingCaptures.owed()
+        val scheduled = player.scheduler.runDelayed(services.plugin, {
             try {
                 flushInventoryRead(player)
             } finally {
-                services.pendingCaptures.done()
+                services.pendingCaptures.done(ticket)
             }
+        }, {
+            inventoryQueued.remove(player.uniqueId)
+            services.pendingCaptures.done(ticket)
         }, 1L)
+        if (scheduled == null) {
+            inventoryQueued.remove(player.uniqueId)
+            services.pendingCaptures.done(ticket)
+        }
     }
 
     private fun flushInventoryRead(player: Player) {
@@ -125,8 +147,103 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         to: HolderId,
         quantity: Long,
         epochMillis: Long = System.currentTimeMillis(),
+        at: BlockPos? = null,
     ) {
-        services.gate.move(cause, causedBy, epochMillis, itemKey, from, to, quantity)
+        if (from is HolderId.ItemEntity) {
+            val flow = Flow(itemKey, Quantity(quantity), from, to, FlowKind.MOVE)
+            if (services.blockReleases.afterRelease(flow, cause, causedBy, epochMillis)) return
+        }
+        if (at != null) {
+            val deltas = listOf(InventoryDelta(from, itemKey, -quantity), InventoryDelta(to, itemKey, quantity))
+            if (services.gate.parkedDeltas(PlacedDeltas(deltas, epochMillis, cause, causedBy, at))) return
+            committing("$cause move $from -> $to") {
+                services.capture.record(deltas, epochMillis, cause, causedBy, at, ::ignoranceIsPermanent)
+            }
+            return
+        }
+        if (services.gate.move(cause, causedBy, epochMillis, itemKey, from, to, quantity)) return
+        committing("$cause move $from -> $to") {
+            services.capture.record(
+                listOf(InventoryDelta(from, itemKey, -quantity), InventoryDelta(to, itemKey, quantity)),
+                epochMillis, cause, causedBy, mintShortfall = ::ignoranceIsPermanent,
+            )
+        }
+    }
+
+    private class SettleBatch(val anchor: Location, val holders: HashMap<HolderId, Inventory>) {
+        var closed = false
+    }
+
+    private val settleBatches = ThreadLocal.withInitial { ArrayList<SettleBatch>() }
+
+    /**
+     * Books what automation really did to [inventories], read a tick later and diffed together.
+     *
+     * `Paper` fires the move event before it knows whether the item fits: a sorter's filter hopper or a
+     * dropper facing a full chest fires it every attempt and moves nothing. Diffing after the fact books
+     * only what moved, and a chain that moved in one tick pairs up as moves, not burns and mints.
+     */
+    fun settleLater(at: Location, cause: CauseKind, inventories: Map<HolderId, Inventory>) {
+        val open = settleBatches.get()
+        open.removeIf { synchronized(it) { it.closed } }
+        for (candidate in open) {
+            if (!runCatching { Bukkit.isOwnedByCurrentRegion(candidate.anchor) }.getOrDefault(false)) continue
+            synchronized(candidate) {
+                if (!candidate.closed) {
+                    candidate.holders.putAll(inventories)
+                    return
+                }
+            }
+        }
+        val batch = SettleBatch(at.clone(), HashMap(inventories))
+        open += batch
+        val ticket = services.pendingCaptures.owed()
+        val scheduled = runCatching {
+            Bukkit.getRegionScheduler().runDelayed(services.plugin, at, {
+                try {
+                    val holders = synchronized(batch) {
+                        batch.closed = true
+                        HashMap(batch.holders)
+                    }
+                    settle(holders, cause)
+                } finally {
+                    services.pendingCaptures.done(ticket)
+                }
+            }, 1L)
+        }.isSuccess
+        if (!scheduled) {
+            open.remove(batch)
+            services.pendingCaptures.done(ticket)
+        }
+    }
+
+    private fun settle(batch: Map<HolderId, Inventory>, cause: CauseKind) {
+        val totals = batch.mapValues { (_, inventory) -> inventory.toItemTotals() }
+        val epochMillis = System.currentTimeMillis()
+        if (totals.keys.all { services.differ.seeded(it) }) {
+            val deltas = totals.entries.flatMap { (holder, now) -> services.differ.diffIfSeeded(holder, now).orEmpty() }
+            many(cause, null, deltas, epochMillis)
+            return
+        }
+        committing("$cause settle of ${totals.size} holders") {
+            val deltas = totals.entries.flatMap { (holder, now) -> services.differ.diff(holder, now) }
+            if (deltas.isNotEmpty()) services.capture.record(deltas, epochMillis, cause, null)
+        }
+    }
+
+    fun packedShulker(block: Block, drop: ItemStack, cause: CauseKind, causedBy: HolderId?) {
+        val product = drop.toItemKey()
+        val contents = block.toHolderId()
+        val placed = block.toPlacedBlockId()
+        val at = block.toBlockPos()
+        val epochMillis = System.currentTimeMillis()
+        committing("shulker packed at $at") {
+            val inside = services.ledger.totalsAt(contents)
+            if (inside.isEmpty()) return@committing
+            val ingredients = inside.map { (key, qty) -> Ingredient(contents, key, qty) } +
+                services.ledger.totalsAt(placed).map { (key, qty) -> Ingredient(placed, key, qty) }
+            services.capture.recordCraft(ingredients, Product(placed, product, Quantity(1)), epochMillis, causedBy, at)
+        }
     }
 
     /**
@@ -161,7 +278,10 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         delta: Long,
         epochMillis: Long = System.currentTimeMillis(),
     ) {
-        services.gate.single(cause, causedBy, epochMillis, itemKey, holder, delta)
+        if (services.gate.single(cause, causedBy, epochMillis, itemKey, holder, delta)) return
+        committing("$cause at $holder") {
+            services.capture.record(listOf(InventoryDelta(holder, itemKey, delta)), epochMillis, cause, causedBy, mintShortfall = ::ignoranceIsPermanent)
+        }
     }
 
     /** Records multiple inventory deltas into the material tracking ledger. */
@@ -172,7 +292,10 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         epochMillis: Long = System.currentTimeMillis(),
     ) {
         if (deltas.isEmpty()) return
-        services.gate.many(cause, causedBy, epochMillis, deltas)
+        if (services.gate.many(cause, causedBy, epochMillis, deltas)) return
+        committing("$cause, ${deltas.size} deltas") {
+            services.capture.record(deltas, epochMillis, cause, causedBy, mintShortfall = ::ignoranceIsPermanent)
+        }
     }
 
     /**
@@ -186,7 +309,11 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         to: HolderId,
         epochMillis: Long = System.currentTimeMillis(),
     ) {
-        services.gate.release(cause, causedBy, epochMillis, from, to)
+        if (services.gate.release(cause, causedBy, epochMillis, from, to)) return
+        committing("$cause release $from -> $to") {
+            val flows = services.ledger.releaseFlows(from, to)
+            if (flows.isNotEmpty()) services.capture.recordDirect(flows, epochMillis, cause, causedBy)
+        }
     }
 
     /**
@@ -237,16 +364,19 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         player: Player,
         cause: CauseKind = CauseKind.PLAYER_ACTION,
         extra: Map<HolderId, Map<ItemKey, Long>> = emptyMap(),
+        anonymous: Boolean = false,
     ) {
         val causedBy = HolderId.Player(player.uniqueId)
+        val blamed = if (anonymous) null else causedBy
         val ledgered = player.isLedgeredHolder()
 
         val totalsByHolder = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
         for (inventory in inventories) {
-            val holder = inventory.toHolderId() ?: continue
+            val transient = inventory.transientInputs()
+            val holder = if (transient != null) causedBy else inventory.toHolderId() ?: continue
             if (!ledgered && holder == causedBy) continue
-            if (holder is HolderId.Block || holder is HolderId.Entity) captureSlotLayout(holder, inventory)
-            val totals = (inventory as? CraftingInventory)?.matrix?.toItemTotals() ?: inventory.toItemTotals()
+            if (transient == null && (holder is HolderId.Block || holder is HolderId.Entity)) captureSlotLayout(holder, inventory)
+            val totals = transient ?: (inventory as? CraftingInventory)?.matrix?.toItemTotals() ?: inventory.toItemTotals()
             val merged = totalsByHolder.getOrPut(holder) { mutableMapOf() }
             for ((key, qty) in totals) merged.merge(key, qty, Long::plus)
         }
@@ -267,18 +397,28 @@ class MaterialCapture internal constructor(private val services: TracelServices)
                 services.differ.diffIfSeeded(holder, totals).orEmpty()
             }
             if (deltas.isEmpty()) return
-            if (placed) many(cause, causedBy, deltas, epochMillis)
+            if (anonymous) {
+                gapped(deltas, epochMillis, cause, at)
+                return
+            }
+            if (placed) many(cause, blamed, deltas, epochMillis)
             else committing("$cause by $causedBy") {
-                services.capture.record(deltas, epochMillis, cause, causedBy, at, ::ignoranceIsPermanent)
+                services.capture.record(deltas, epochMillis, cause, blamed, at, ::ignoranceIsPermanent)
             }
             return
         }
 
         committing("$cause by $causedBy") {
-            val deltas = totalsByHolder.flatMap { (holder, totals) -> services.differ.diff(holder, totals) }
+            val raw = totalsByHolder.flatMap { (holder, totals) -> services.differ.diff(holder, totals) }
+            val deltas = if (anonymous) raw.map { it.copy(fromGap = true) } else raw
             if (deltas.isEmpty()) return@committing
-            services.capture.record(deltas, epochMillis, cause, causedBy, at, ::ignoranceIsPermanent)
+            services.capture.record(deltas, epochMillis, cause, blamed, at, ::ignoranceIsPermanent)
         }
+    }
+
+    private fun gapped(deltas: List<InventoryDelta>, epochMillis: Long, cause: CauseKind, at: BlockPos) {
+        val gaps = deltas.map { it.copy(fromGap = true) }
+        committing("$cause, a gap") { services.capture.record(gaps, epochMillis, cause, null, at, ::ignoranceIsPermanent) }
     }
 
     /**
@@ -349,39 +489,62 @@ class MaterialCapture internal constructor(private val services: TracelServices)
     ): Transaction = services.capture.recordCraft(ingredients, product, epochMillis, causedBy, at)
 
     /**
-     * Player craft in one unit of work: pick the gain the recipe made among [totals], book [ingredients] into it.
-     * No single match books nothing and hands [unmatched] the gain count. Storage work — never the event thread.
+     * Player craft in one unit of work: pick the gain the recipe made, book [ingredients] into it, and
+     * book the rest of the same diff (a cake's buckets, a honey block's bottles) instead of dropping it.
+     *
+     * [seeded] is the diff the region thread already took; without it the diff happens here, against
+     * whatever snapshot the storage thread finds. [thrown] is the product dropped straight from the
+     * result slot. No product at all books the rest and hands [unmatched] the gain count.
      */
-    suspend fun craftedByPlayer(
+    internal suspend fun craftedByPlayer(
         player: HolderId,
         totals: Map<ItemKey, Long>,
+        seeded: List<InventoryDelta>?,
         produced: String?,
         ingredients: List<Ingredient>,
+        thrown: List<CraftDrops.Thrown>,
         at: BlockPos,
         epochMillis: Long,
         productDamage: Int?,
         unmatched: (gains: Int) -> Unit,
     ) {
         services.atomically {
-            val gains = gains(player, totals)
+            val diff = seeded ?: services.differ.diff(player, totals)
+            val gains = diff.filter { it.delta > 0 }
             val gain = when {
                 gains.size == 1 -> gains.single()
                 // Recipe names this craft among other same-tick gains
                 produced != null -> gains.singleOrNull { it.itemKey.material == produced }
                 else -> null
             }
-            if (gain == null) {
-                unmatched(gains.size)
-                return@atomically
+            val (dropped, strays) = thrown.partition { produced != null && it.itemKey.material == produced }
+            val net = LinkedHashMap<ItemKey, Long>()
+            for (delta in diff) net.merge(delta.itemKey, delta.delta, Long::plus)
+            val flows = ArrayList<Flow>()
+            for (stray in strays) {
+                net.merge(stray.itemKey, stray.quantity, Long::plus)
+                flows += Flow(stray.itemKey, Quantity(stray.quantity), player, stray.pile, FlowKind.MOVE)
             }
-            val product = Product(player, gain.itemKey, Quantity(gain.delta))
-            val transaction = crafted(ingredients, product, player, at, epochMillis)
 
-            // A repaired tool leaves the grid with a damage nothing else wrote down
-            if (productDamage != null) {
-                val output = transaction.lots.last { it.flowIndex == ingredients.size }.lotId
-                services.wear.record(WearMark(output, epochMillis, productDamage, productDamage))
+            val productKey = gain?.itemKey ?: dropped.firstOrNull()?.itemKey
+            if (productKey == null) {
+                unmatched(gains.size)
+            } else {
+                val quantity = (gain?.delta ?: 0L) + dropped.filter { it.itemKey == productKey }.sumOf { it.quantity }
+                if (gain != null) net.merge(productKey, -gain.delta, Long::plus)
+                for (ingredient in ingredients) net.merge(ingredient.itemKey, ingredient.quantity.raw, Long::plus)
+                val transaction = crafted(ingredients, Product(player, productKey, Quantity(quantity)), player, at, epochMillis)
+                if (productDamage != null) {
+                    val output = transaction.lots.last { it.flowIndex == ingredients.size }.lotId
+                    services.wear.record(WearMark(output, epochMillis, productDamage, productDamage))
+                }
+                for (pile in dropped) {
+                    if (pile.itemKey == productKey) flows += Flow(productKey, Quantity(pile.quantity), player, pile.pile, FlowKind.MOVE)
+                }
             }
+            if (flows.isNotEmpty()) services.capture.recordDirect(flows, epochMillis, CauseKind.PLAYER_ACTION, player, at, ::ignoranceIsPermanent)
+            val rest = net.filterValues { it != 0L }.map { (key, delta) -> InventoryDelta(player, key, delta) }
+            if (rest.isNotEmpty()) services.capture.record(rest, epochMillis, CauseKind.CRAFT, player, at, ::ignoranceIsPermanent)
         }
     }
 
@@ -421,10 +584,7 @@ class MaterialCapture internal constructor(private val services: TracelServices)
      * This ensures future inventory snapshots are compared against the updated baseline.
      */
     fun rebaseline(player: Player) {
-        val holder = HolderId.Player(player.uniqueId)
-        var totals = player.inventory.toItemTotals()
-        totals = totals.withCursor(player)
-        services.differ.rebaseline(holder, totals)
+        services.differ.rebaseline(HolderId.Player(player.uniqueId), player.heldTotals())
     }
 
     /** Forgets the snapshot associated with the specified holder. */
@@ -476,14 +636,56 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         committing("container slots at $holder") { services.containerSlots.record(holder, epochMillis, slots) }
     }
 
+    private class Commit(val what: String, val ticket: Long, val work: suspend () -> Unit)
+
+    private val commits = Channel<Commit>(Channel.UNLIMITED)
+    private val committer = AtomicBoolean()
+
     private fun committing(what: String, work: suspend () -> Unit) {
-        services.pendingCaptures.owed()
+        val ticket = services.pendingCaptures.owed()
+        if (committer.compareAndSet(false, true)) startCommitter()
+        if (commits.trySend(Commit(what, ticket, work)).isFailure) services.pendingCaptures.done(ticket)
+    }
+
+    private fun startCommitter() {
         services.scope.launch {
-            try {
-                services.atomically { work() }
-            } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked material in $what, not recorded", e)
+            val batch = ArrayList<Commit>(MAX_COMMIT_BATCH)
+            for (first in commits) {
+                batch += first
+                while (batch.size < MAX_COMMIT_BATCH) batch += commits.tryReceive().getOrNull() ?: break
+                try {
+                    commitAll(batch)
+                } finally {
+                    for (commit in batch) services.pendingCaptures.done(commit.ticket)
+                    batch.clear()
+                }
             }
-        }.invokeOnCompletion { services.pendingCaptures.done() }
+        }.invokeOnCompletion {
+            while (true) services.pendingCaptures.done(commits.tryReceive().getOrNull()?.ticket ?: break)
+        }
+    }
+
+    private suspend fun commitAll(batch: List<Commit>) {
+        try {
+            services.atomically {
+                for (commit in batch) {
+                    val mark = services.storage.read { mark() }
+                    try {
+                        commit.work()
+                        services.storage.read { release(mark) }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (e: Exception) {
+                        services.storage.read { rollbackTo(mark) }
+                        val level = if (e is IllegalStateException) Level.FINE else Level.WARNING
+                        logger.log(level, "untracked material in ${commit.what}, not recorded", e)
+                    }
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            logger.log(Level.WARNING, "a batch of ${batch.size} captures failed to commit", e)
+        }
     }
 }

@@ -8,7 +8,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.TracelServices
-import com.tracel.plugin.adapter.entity.kind.hullItemKey
+import com.tracel.plugin.adapter.entity.kind.projectileItemKey
 import com.tracel.plugin.adapter.entity.kind.isReclaimable
 import com.tracel.plugin.adapter.entity.kind.shouldLogProjectile
 import com.tracel.plugin.adapter.entity.toPlacedEntityId
@@ -40,7 +40,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
         if (restoring) return
         val projectile = event.entity
         if (!projectile.shouldLogProjectile()) return
-        val itemKey = projectile.hullItemKey() ?: return
+        val itemKey = projectile.projectileItemKey() ?: return
         val holder = projectile.toPlacedEntityId()
         services.groundWhereabouts.remember(projectile)
 
@@ -77,7 +77,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
         holder: HolderId.PlacedEntity,
     ) {
         val block = shooter.block
-        later(projectile.location, DROP_CLAIM_DELAY_TICKS) {
+        later(projectile, DROP_CLAIM_DELAY_TICKS) {
 
             // Hit in four ticks: release burn is honest; do not mint against nothing
             if (!projectile.isValid) return@later
@@ -94,7 +94,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
 
         // Creative-only arrows were never booked; moving them out would be rejected; fall through to reconcile mint
         if (!arrow.isReclaimable()) return
-        val itemKey = arrow.hullItemKey() ?: return
+        val itemKey = arrow.projectileItemKey() ?: return
         val player = event.player
         val playerHolder = HolderId.Player(player.uniqueId)
         val holder = arrow.toPlacedEntityId()

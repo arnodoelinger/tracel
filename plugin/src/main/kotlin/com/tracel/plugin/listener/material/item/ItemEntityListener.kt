@@ -1,9 +1,17 @@
 package com.tracel.plugin.listener.material.item
 
+import com.tracel.model.id.WorldId
+import org.bukkit.event.block.BlockShearEntityEvent
+import org.bukkit.event.player.PlayerShearEntityEvent
+import com.tracel.plugin.util.ExpiringMap
+import org.bukkit.entity.ItemFrame
+import com.tracel.plugin.adapter.entity.toCargoHolderId
+import com.tracel.plugin.listener.support.HitBy
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.model.holder.HolderId
+import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
@@ -12,6 +20,8 @@ import com.tracel.plugin.adapter.entity.kind.dropsManagedCargo
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.item.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.adapter.item.totalsOf
+import com.tracel.plugin.listener.support.CraftDrops
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.BlockRelease
@@ -24,6 +34,8 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Bukkit
 import org.bukkit.entity.Item
+import org.bukkit.inventory.ItemStack
+import org.bukkit.Location
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityDropItemEvent
 import org.bukkit.event.entity.EntityPickupItemEvent
@@ -41,7 +53,19 @@ import org.bukkit.event.player.PlayerPickupArrowEvent
  * (blast, lava, cactus, void, `/kill`).
  */
 class ItemEntityListener(services: TracelServices) : TracelListener(services) {
-    private val pendingDrops = ConcurrentHashMap<UUID, HolderId>()
+    private val pendingDrops = ExpiringMap<UUID, HolderId>(PENDING_DROP_MS)
+    private val dropBlame = ExpiringMap<UUID, HolderId>(PENDING_DROP_MS)
+    private val sheared = ExpiringMap<UUID, Unit>(SHEAR_DROP_MS)
+
+    @Observes
+    fun onShear(event: PlayerShearEntityEvent) {
+        sheared.put(event.entity.uniqueId, Unit)
+    }
+
+    @Observes
+    fun onDispenserShear(event: BlockShearEntityEvent) {
+        sheared.put(event.entity.uniqueId, Unit)
+    }
 
     @Observes
     fun onSpawn(event: ItemSpawnEvent) {
@@ -56,7 +80,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         val epochMillis = System.currentTimeMillis()
         val credited = pendingDrops.remove(item.uniqueId)
         if (credited != null) {
-            creditDrop(credited, itemKey, qty, groundHolder, epochMillis, item.toBlockPos())
+            creditDrop(credited, itemKey, qty, groundHolder, epochMillis, item.location, dropBlame.remove(item.uniqueId) ?: credited)
             return
         }
         val hull = services.hullDrops.take(item.location, itemKey)
@@ -76,52 +100,55 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         }
 
         val loc = item.location
-        if (thrower == null && services.blockDrops.hasNearbyRelease(loc.world, loc.x, loc.y, loc.z)) {
+        val window = if (thrower == null) services.blockDrops.nearestToken(loc.world, loc.x, loc.y, loc.z) else null
+        if (window != null) {
             // Track before the 4-tick claim. Merge in that window kills the correlator UUID
             services.selfManagedSpawns.track(item.uniqueId)
-            deferToDropClaim(item, itemKey, qty, groundHolder, epochMillis)
+            services.blockReleases.hold(groundHolder, window)
+            deferToDropClaim(item, loc.clone(), itemKey, qty, groundHolder, epochMillis, window)
             return
         }
 
         val throwerPlayer = thrower?.let { Bukkit.getPlayer(it) }
+        if (thrower != null && CraftDrops.expecting(thrower)) {
+            CraftDrops.add(thrower, CraftDrops.Thrown(groundHolder, itemKey, qty))
+            return
+        }
+
+        val stack = item.itemStack
         if (thrower != null && throwerPlayer != null && !throwerPlayer.isLedgeredHolder()) {
-            material.moved(
-                cause = CauseKind.PLAYER_ACTION,
-                causedBy = HolderId.Player(thrower),
-                itemKey = itemKey,
-                from = CREATIVE_SOURCE,
-                to = groundHolder,
-                quantity = qty,
-                epochMillis = epochMillis
-            )
+            movedStack(CauseKind.PLAYER_ACTION, HolderId.Player(thrower), stack, qty, CREATIVE_SOURCE, groundHolder, epochMillis, item.location)
             return
         }
 
         if (thrower != null) {
             val playerHolder = HolderId.Player(thrower)
             // Bypass of diff(); without adjust a later click compares against a stale pre-drop snapshot
-            material.adjust(playerHolder, itemKey, -qty)
-            material.moved(
-                cause = CauseKind.PLAYER_ACTION,
-                causedBy = playerHolder,
-                itemKey = itemKey,
-                from = playerHolder,
-                to = groundHolder,
-                quantity = qty,
-                epochMillis = epochMillis
-            )
+            for ((key, amount) in stack.totalsOf(qty)) material.adjust(playerHolder, key, -amount)
+            movedStack(CauseKind.PLAYER_ACTION, playerHolder, stack, qty, playerHolder, groundHolder, epochMillis, item.location)
         } else {
-            material.single(CauseKind.WORLD, null, itemKey, groundHolder, qty, epochMillis)
+            for ((key, amount) in stack.totalsOf(qty)) material.single(CauseKind.WORLD, null, key, groundHolder, amount, epochMillis)
         }
     }
 
-    private fun deferToDropClaim(item: Item, itemKey: ItemKey, qty: Long, groundHolder: HolderId.ItemEntity, epochMillis: Long) {
-        later(item.location, DROP_CLAIM_DELAY_TICKS) {
-            if (!item.isValid) return@later
-            val loc = item.location
-            val claimed = services.blockDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, qty, groundHolder)
-            val unclaimed = qty - claimed
-            if (unclaimed > 0) material.single(CauseKind.WORLD, null, itemKey, groundHolder, unclaimed, epochMillis)
+    private fun deferToDropClaim(
+        item: Item,
+        spawnedAt: Location,
+        itemKey: ItemKey,
+        qty: Long,
+        groundHolder: HolderId.ItemEntity,
+        epochMillis: Long,
+        window: Long,
+    ) {
+        later(spawnedAt, DROP_CLAIM_DELAY_TICKS) {
+            try {
+                val loc = spawnedAt
+                val claimed = services.blockDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, qty, groundHolder)
+                val unclaimed = qty - claimed
+                if (unclaimed > 0) material.single(CauseKind.WORLD, null, itemKey, groundHolder, unclaimed, epochMillis)
+            } finally {
+                services.blockReleases.claimed(window)
+            }
         }
     }
 
@@ -138,18 +165,10 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             // Mob pickup
             val taken = (item.itemStack.amount - event.remaining).toLong()
             if (taken > 0) {
-                material.moved(
-                    cause = CauseKind.WORLD,
-                    causedBy = null,
-                    itemKey = item.itemStack.toItemKey(),
-                    from = HolderId.ItemEntity(item.uniqueId),
-                    to = HolderId.Entity(event.entity.uniqueId),
-                    quantity = taken,
-                )
+                movedStack(CauseKind.WORLD, null, item.itemStack, taken, HolderId.ItemEntity(item.uniqueId), HolderId.Entity(event.entity.uniqueId))
             }
             return
         }
-        val itemKey = item.itemStack.toItemKey()
         val pickedUp = (item.itemStack.amount - event.remaining).toLong()
         if (pickedUp <= 0) return
 
@@ -157,26 +176,12 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         val playerHolder = HolderId.Player(player.uniqueId)
 
         if (!player.isLedgeredHolder() && !tracked) {
-            material.moved(
-                cause = CauseKind.PLAYER_ACTION,
-                causedBy = playerHolder,
-                itemKey = itemKey,
-                from = groundHolder,
-                to = CREATIVE_SINK,
-                quantity = pickedUp
-            )
+            movedStack(CauseKind.PLAYER_ACTION, playerHolder, item.itemStack, pickedUp, groundHolder, CREATIVE_SINK, at = item.location)
             return
         }
 
-        material.adjust(playerHolder, itemKey, pickedUp)
-        material.moved(
-            cause = CauseKind.PLAYER_ACTION,
-            causedBy = playerHolder,
-            itemKey = itemKey,
-            from = groundHolder,
-            to = playerHolder,
-            quantity = pickedUp
-        )
+        for ((key, amount) in item.itemStack.totalsOf(pickedUp)) material.adjust(playerHolder, key, amount)
+        movedStack(CauseKind.PLAYER_ACTION, playerHolder, item.itemStack, pickedUp, groundHolder, playerHolder, at = item.location)
     }
 
     @Observes
@@ -216,6 +221,8 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
 
     private companion object {
         const val DROP_CLAIM_DELAY_TICKS = 4L
+        const val SHEAR_DROP_MS = 1_000L
+        const val PENDING_DROP_MS = 5_000L
     }
 
     @Observes(priority = Priority.HIGHEST)
@@ -231,26 +238,36 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onHopperPickup(event: InventoryPickupItemEvent) {
         val destination = event.inventory.toHolderId() ?: return
-        services.groundWhereabouts.remember(event.item)
-        val stack = event.item.itemStack
+        val item = event.item
+        services.groundWhereabouts.remember(item)
+        val stack = item.itemStack.clone()
+        val before = stack.amount.toLong()
+        val at = event.inventory.location ?: item.location
 
-        // Booked from the event, never diffed; unadjusted hopper re-reports the swallow
-        material.adjust(destination, stack.toItemKey(), stack.amount.toLong())
-        material.moved(
-            cause = CauseKind.HOPPER,
-            causedBy = null,
-            itemKey = stack.toItemKey(),
-            from = HolderId.ItemEntity(event.item.uniqueId),
-            to = destination,
-            quantity = stack.amount.toLong(),
-        )
+        later(at) {
+            val remaining = if (item.isValid) item.itemStack.amount.toLong() else 0L
+            val taken = before - remaining
+            if (taken <= 0L) return@later
+            for ((key, amount) in stack.totalsOf(taken)) material.adjust(destination, key, amount)
+            movedStack(CauseKind.HOPPER, null, stack, taken, HolderId.ItemEntity(item.uniqueId), destination)
+        }
     }
 
     @Observes(priority = Priority.HIGH)
     fun onEntityDrop(event: EntityDropItemEvent) {
-        if (event.entity is Player) return
-        if (event.entity.dropsManagedCargo()) return
-        pendingDrops[event.itemDrop.uniqueId] = HolderId.Entity(event.entity.uniqueId)
+        val entity = event.entity
+        if (entity is Player) return
+        if (entity is ItemFrame && entity.isValid) {
+            val holder = entity.toCargoHolderId()
+            val stack = event.itemDrop.itemStack
+            material.adjust(holder, stack.toItemKey(), -stack.amount.toLong())
+            pendingDrops.put(event.itemDrop.uniqueId, holder)
+            HitBy.of(entity)?.let { dropBlame.put(event.itemDrop.uniqueId, it) }
+            return
+        }
+        if (entity.dropsManagedCargo()) return
+        if (entity.uniqueId in sheared) return
+        pendingDrops.put(event.itemDrop.uniqueId, HolderId.Entity(event.entity.uniqueId))
     }
 
     @Observes
@@ -296,6 +313,8 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     @Observes(ignoreCancelled = false)
     fun onRemove(event: EntityRemoveEvent) {
         val item = event.entity as? Item ?: return
+        // gone, merged, picked up by a hopper or unloaded: the tracked set only ever grew
+        if (event.cause != EntityRemoveEvent.Cause.UNLOAD) services.selfManagedSpawns.forget(item.uniqueId)
         if (restoring) return
         val sink = sinkFor(event.cause) ?: return
         material.released(
@@ -327,18 +346,36 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         -> null
     }
 
+    private fun movedStack(
+        cause: CauseKind,
+        causedBy: HolderId?,
+        stack: ItemStack,
+        quantity: Long,
+        from: HolderId,
+        to: HolderId,
+        epochMillis: Long = System.currentTimeMillis(),
+        at: Location? = null,
+    ) {
+        val where = at?.takeIf { causedBy is HolderId.Player }?.let { BlockPos(WorldId(it.world.uid), it.blockX, it.blockY, it.blockZ) }
+        for ((key, amount) in stack.totalsOf(quantity)) {
+            material.moved(cause = cause, causedBy = causedBy, itemKey = key, from = from, to = to, quantity = amount, epochMillis = epochMillis, at = where)
+        }
+    }
+
     private fun creditDrop(
         from: HolderId,
         itemKey: ItemKey,
         qty: Long,
         ground: HolderId,
         epochMillis: Long,
-        at: BlockPos,
-    ) = material.direct(
-        flows = harvestFlows(mapOf(itemKey to qty), from, ground),
-        cause = if (from is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
-        causedBy = from,
+        at: Location,
+        causedBy: HolderId = from,
+    ) = material.positioned(
+        cause = if (causedBy is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
+        causedBy = causedBy,
         at = at,
+        deltas = listOf(InventoryDelta(from, itemKey, -qty), InventoryDelta(ground, itemKey, qty)),
         epochMillis = epochMillis,
+        mintShortfallAt = from,
     )
 }

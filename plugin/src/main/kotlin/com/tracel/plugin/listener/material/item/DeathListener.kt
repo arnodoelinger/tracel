@@ -1,6 +1,7 @@
 package com.tracel.plugin.listener.material.item
 
 import com.tracel.annotations.CauseKind
+import com.tracel.plugin.adapter.item.addTo
 import com.tracel.annotations.Observes
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
@@ -17,7 +18,7 @@ import org.bukkit.inventory.ItemStack
 
 /** Death cargo listener. */
 class DeathListener(services: TracelServices) : TracelListener(services) {
-    @Observes(ignoreCancelled = false)
+    @Observes
     fun onPlayerDeath(event: PlayerDeathEvent) {
         val player = event.entity
         if (!player.isLedgeredHolder()) return
@@ -37,7 +38,7 @@ class DeathListener(services: TracelServices) : TracelListener(services) {
         )
     }
 
-    @Observes(ignoreCancelled = false)
+    @Observes
     fun onEntityDeath(event: EntityDeathEvent) {
         if (event.entity is Player) return
         if (event.drops.isEmpty()) return
@@ -56,7 +57,7 @@ class DeathListener(services: TracelServices) : TracelListener(services) {
 
     private fun List<ItemStack>.totals(): Map<ItemKey, Long> {
         val out = HashMap<ItemKey, Long>()
-        for (stack in this) out.merge(stack.toItemKey(), stack.amount.toLong(), Long::plus)
+        for (stack in this) stack.addTo(out)
         return out
     }
 }

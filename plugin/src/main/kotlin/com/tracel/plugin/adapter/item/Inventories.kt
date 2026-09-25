@@ -10,6 +10,7 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.HumanEntity
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryType
+import org.bukkit.inventory.CraftingInventory
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 
@@ -44,8 +45,7 @@ fun Inventory.toItemTotals(): Map<ItemKey, Long> {
     val totals = mutableMapOf<ItemKey, Long>()
     for (stack in contents) {
         if (stack == null || stack.type.isAir) continue
-        val key = stack.toItemKey()
-        totals[key] = (totals[key] ?: 0L) + stack.amount
+        stack.addTo(totals)
     }
     val worn = holderOrNull() as? ChestedHorse
     if (worn != null && runCatching { worn.isCarryingChest }.getOrDefault(false)) {
@@ -66,6 +66,49 @@ private fun Inventory.holderOrNull(): Any? = runCatching { holder }.getOrNull()
 fun Map<ItemKey, Long>.withCursor(player: HumanEntity): Map<ItemKey, Long> {
     val cursor = player.itemOnCursor
     if (cursor.type.isAir) return this
-    val key = cursor.toItemKey()
-    return this + (key to (this[key] ?: 0L) + cursor.amount)
+    val totals = toMutableMap()
+    cursor.addTo(totals)
+    return totals
+}
+
+/** The crafting grid this player has open, a table or their own two by two. */
+fun HumanEntity.openGrid(): CraftingInventory? = runCatching { openInventory.topInventory as? CraftingInventory }.getOrNull()
+
+/**
+ * All a player holds: pockets, cursor, the open grid and an open anvil's (or loom's, or trade's) inputs. Rebaselined without the grid, the next click
+ * found four planks in it and minted them.
+ */
+fun Player.heldTotals(): Map<ItemKey, Long> {
+    val totals = inventory.toItemTotals().withCursor(this).toMutableMap()
+    openGrid()?.matrix?.forEach { it?.addTo(totals) }
+    runCatching { openInventory.topInventory.transientInputs() }.getOrNull()?.forEach { (key, qty) -> totals.merge(key, qty, Long::plus) }
+    return totals
+}
+
+// Input slots of the menus whose contents go back to the player on close; the rest is a result preview
+private val TRANSIENT_INPUTS: Map<InventoryType, IntRange> = mapOf(
+    InventoryType.ANVIL to 0..1,
+    InventoryType.GRINDSTONE to 0..1,
+    InventoryType.STONECUTTER to 0..0,
+    InventoryType.SMITHING to 0..2,
+    InventoryType.LOOM to 0..2,
+    InventoryType.CARTOGRAPHY to 0..1,
+    InventoryType.ENCHANTING to 0..1,
+    InventoryType.BEACON to 0..0,
+    InventoryType.MERCHANT to 0..1,
+)
+
+/**
+ * What sits in the input slots of a menu nobody owns but the player using it.
+ *
+ * @return `null` for an inventory that is somebody's own.
+ */
+fun Inventory.transientInputs(): Map<ItemKey, Long>? {
+    val inputs = TRANSIENT_INPUTS[type] ?: return null
+    val totals = mutableMapOf<ItemKey, Long>()
+    for (slot in inputs) {
+        if (slot >= size) break
+        getItem(slot)?.takeIf { !it.type.isAir && it.amount > 0 }?.addTo(totals)
+    }
+    return totals
 }

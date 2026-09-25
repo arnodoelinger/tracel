@@ -4,6 +4,7 @@ import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
+import org.bukkit.block.ShulkerBox
 import com.tracel.plugin.adapter.block.accountMovesTo
 import com.tracel.plugin.adapter.block.cargoSlots
 import com.tracel.plugin.adapter.block.resyncCargo
@@ -21,6 +22,10 @@ import com.tracel.plugin.listener.world.entity.ExplosionListener
 class ContainerListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onBreak(event: BlockBreakEvent) {
+        if (event.block.state is ShulkerBox) {
+            packShulker(event)
+            return
+        }
         val slots = event.block.cargoSlots() ?: return
         val holder = event.block.toHolderId()
         val causedBy = HolderId.Player(event.player.uniqueId)
@@ -42,5 +47,11 @@ class ContainerListener(services: TracelServices) : TracelListener(services) {
             removed = removed,
             andThen = movesTo?.let { to -> { material.relocate(holder, to) } },
         )
+    }
+
+    private fun packShulker(event: BlockBreakEvent) {
+        val drop = runCatching { event.block.getDrops(event.player.inventory.itemInMainHand, event.player) }.getOrNull()
+            ?.firstOrNull { it.type == event.block.type } ?: return
+        material.packedShulker(event.block, drop, CauseKind.BLOCK_BREAK, HolderId.Player(event.player.uniqueId))
     }
 }
