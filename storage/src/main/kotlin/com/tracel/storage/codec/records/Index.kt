@@ -15,9 +15,17 @@ object Index {
     const val LOG_KIND_POSITION_BYTES: Int = 22
     const val LOG_KIND_INLINE_BYTES: Int = 28
     const val LOG_KIND_SECTION_BYTES: Int = 24
+    const val LOG_KIND_TIMED_BYTES: Int = 10
     const val INLINE_NEEDS_RECORD: Byte = 1
 
     fun logKind(kind: LogKind): ByteArray = recordBytes(1) { putI8(0, kind.ordinal.toByte()) }
+
+    fun logKindTimed(kind: LogKind, epochMillis: Long, cause: CauseKind): ByteArray =
+        recordBytes(LOG_KIND_TIMED_BYTES) {
+            putI8(0, kind.ordinal.toByte())
+            putI64(1, epochMillis)
+            putI8(9, cause.ordinal.toByte())
+        }
 
     fun logKind(kind: LogKind, epochMillis: Long, cause: CauseKind, x: Int, y: Int, z: Int): ByteArray =
         recordBytes(LOG_KIND_POSITION_BYTES) {

@@ -46,6 +46,7 @@ object Records {
     fun int(value: Int) = Packed.int(value)
     fun asInt(v: MemorySegment) = Packed.asInt(v)
     fun logKind(kind: LogKind) = Index.logKind(kind)
+    fun logKindTimed(kind: LogKind, epochMillis: Long, cause: CauseKind) = Index.logKindTimed(kind, epochMillis, cause)
     fun logKind(kind: LogKind, epochMillis: Long, cause: CauseKind, x: Int, y: Int, z: Int) =
         Index.logKind(kind, epochMillis, cause, x, y, z)
 
@@ -84,12 +85,13 @@ object Records {
     fun lease(jobId: Long, acquiredAtMillis: Long) = Job.lease(jobId, acquiredAtMillis)
     fun leaseJobId(v: MemorySegment) = Job.leaseJobId(v)
     fun leaseAcquiredAt(v: MemorySegment) = Job.leaseAcquiredAt(v)
-    fun pending(itemKeyId: Int, delta: Long, jobId: Long, createdMillis: Long) =
-        Job.pending(itemKeyId, delta, jobId, createdMillis)
+    fun pending(itemKeyId: Int, delta: Long, jobId: Long, createdMillis: Long, enderChest: Boolean = false) =
+        Job.pending(itemKeyId, delta, jobId, createdMillis, enderChest)
 
     fun pendingItemKeyId(v: MemorySegment) = Job.pendingItemKeyId(v)
     fun pendingDelta(v: MemorySegment) = Job.pendingDelta(v)
     fun pendingJobId(v: MemorySegment) = Job.pendingJobId(v)
+    fun pendingEnderChest(v: MemorySegment) = Job.pendingEnderChest(v)
     fun rbJob(
         restoreToHolderId: Int,
         stepCount: Int,

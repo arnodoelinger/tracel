@@ -96,8 +96,9 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             put(Keys.txn(seq), record)
             put(Keys.txnById(transaction.id.raw), Records.long(seq))
             if (bookkeeping) return@write
-            for (holderId in holders) put(Keys.actor(holderId, seq), OWN_LOG)
-            for (itemKeyId in itemKeys) put(Keys.item(itemKeyId, seq), OWN_LOG)
+            val timed = Records.logKindTimed(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause)
+            for (holderId in holders) put(Keys.actor(holderId, seq), timed)
+            for (itemKeyId in itemKeys) put(Keys.item(itemKeyId, seq), timed)
             put(Keys.time(transaction.epochMillis, seq), OWN_LOG)
             if (at != null && atWorldId != 0) {
                 put(
@@ -239,35 +240,31 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
     internal fun loadSeqs(unit: StorageUnit, seqs: LongArray, filter: LookupFilter): List<Transaction> {
         val ids = interning.idsFor(unit, filter)
         val materialIds = filter.material?.let { itemKeyIdsFor(unit, it) }
-        val page = pageNewest(seqs, filter.offset, filter.limit)
-        if (page.isEmpty()) return emptyList()
-        QueryProbe.opened(page.size.toLong())
-        val matched = ArrayList<Long>(page.size)
-        val records = ArrayList<MemorySegment>(page.size)
-        if (worthScanning(page)) {
-            QueryProbe.scanned(page.size.toLong())
-            unit.fetchAscending(Keys.TXN, page, Keys::txn) { seq, record ->
-                if (unit.accepts(record, filter, ids, materialIds)) {
-                    matched += seq
-                    records += record
+        if (seqs.isEmpty()) return emptyList()
+        val accepted = pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
+            QueryProbe.opened(slice.size.toLong())
+            if (worthScanning(slice)) {
+                QueryProbe.scanned(slice.size.toLong())
+                unit.fetchAscending(Keys.TXN, slice, Keys::txn) { seq, record ->
+                    if (unit.accepts(record, filter, ids, materialIds)) keep(seq, record)
                 }
+            } else {
+                QueryProbe.pointGot(slice.size.toLong())
+                val hits = arrayOfNulls<MemorySegment>(slice.size)
+                eachIndex(slice.size) { i ->
+                    val record = unit.get(Keys.txn(slice[i]))
+                    if (record != null && unit.accepts(record, filter, ids, materialIds)) hits[i] = record
+                }
+                for (i in slice.indices) keep(slice[i], hits[i] ?: continue)
             }
-            val n = matched.size
-            if (n == 0) return emptyList()
-            val slots = arrayOfNulls<Transaction>(n)
-            eachIndex(n) { i -> slots[i] = decode(unit, matched[i], records[i]) }
-            val out = ArrayList<Transaction>(n)
-            for (i in n - 1 downTo 0) out += slots[i]!!
-            return out
         }
-        QueryProbe.pointGot(page.size.toLong())
-        return collectNewestFirst(page) { seq ->
-            val record = unit.get(Keys.txn(seq)) ?: return@collectNewestFirst null
-            if (!unit.accepts(record, filter, ids, materialIds)) {
-                return@collectNewestFirst null
-            }
-            decode(unit, seq, record)
-        }
+        val n = accepted.seqs.size
+        if (n == 0) return emptyList()
+        val slots = arrayOfNulls<Transaction>(n)
+        eachIndex(n) { i -> slots[i] = decode(unit, accepted.seqs[i], accepted.records[i]) }
+        val out = ArrayList<Transaction>(n)
+        for (i in n - 1 downTo 0) out += slots[i]!!
+        return out
     }
 
     private fun StorageUnit.accepts(
@@ -339,6 +336,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         ) {
             return true
         }
+        if (holderInRegion(Records.txnCausedBy(record), region, regionWorldId)) return true
         for (i in 0 until flowCount) {
             if (holderInRegion(Records.flowSource(record, i), region, regionWorldId)) return true
             if (holderInRegion(Records.flowDestination(record, i), region, regionWorldId)) return true
@@ -348,6 +346,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
 
     private fun StorageUnit.inWorld(record: MemorySegment, flowCount: Int, worldId: Int): Boolean {
         if (Records.txnWorldId(record) == worldId) return true
+        if (holderWorldId(Records.txnCausedBy(record)) == worldId) return true
         for (i in 0 until flowCount) {
             if (holderWorldId(Records.flowSource(record, i)) == worldId) return true
             if (holderWorldId(Records.flowDestination(record, i)) == worldId) return true
@@ -381,7 +380,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
 
     private data class HolderBlock(val worldId: Int, val x: Int, val y: Int, val z: Int)
 
-    private fun itemKeyIdsFor(unit: StorageUnit, material: String): Set<Int> {
+    internal fun itemKeyIdsFor(unit: StorageUnit, material: String): Set<Int> {
         val out = HashSet<Int>()
         unit.eachRow(byteArrayOf(Keys.INTERN_FORWARD, Keys.NS_ITEM_KEY)) { cursor ->
             if (Packed.decodeItemKey(cursor.value()).material.namesMaterial(material)) {

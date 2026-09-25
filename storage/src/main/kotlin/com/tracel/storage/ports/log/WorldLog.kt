@@ -24,7 +24,7 @@ import com.tracel.storage.codec.records.SectionExtras
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.util.ascending
 import com.tracel.storage.util.eachIndex
-import com.tracel.storage.util.pageNewest
+import com.tracel.storage.util.pageAccepted
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
 import com.tracel.engine.world.WorldLog as WorldLogPort
@@ -100,7 +100,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             put(Keys.wchgAt(worldId, x, y, z, seq), NONE)
             if (subject is ChangeSubject.Entity) put(Keys.wchgEntity(subject.entity, seq), NONE)
             if (change.cause.isBookkeeping) return@write
-            if (causedById != 0) put(Keys.actor(causedById, seq), OWN_LOG)
+            if (causedById != 0) put(Keys.actor(causedById, seq), Records.logKindTimed(LogKind.WORLD, change.epochMillis, change.cause))
             put(Keys.time(change.epochMillis, seq), OWN_LOG)
             put(
                 Keys.spatial(worldId, x shr 4, z shr 4, y, seq, change.epochMillis),
@@ -195,7 +195,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             )
             put(Keys.wchgAtSection(worldId, sectionX, sectionY, sectionZ, baseSeq), NONE)
             if (edits.cause.isBookkeeping) return@write
-            if (causedById != 0) put(Keys.actor(causedById, baseSeq), OWN_LOG)
+            if (causedById != 0) put(Keys.actor(causedById, baseSeq), Records.logKindTimed(LogKind.WORLD, edits.epochMillis, edits.cause))
             put(Keys.time(edits.epochMillis, baseSeq), OWN_LOG)
             put(
                 Keys.spatial(worldId, sectionX, sectionZ, first.y, baseSeq, edits.epochMillis),
@@ -318,9 +318,14 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             }
         }
         val worldArr = if (inlineWorld) LongArray(0) else ascending(worldSeqs)
-        val txnArr = ascending(txnSeqs)
-        val unit = this
         val txnLog = transactions as TransactionLog
+        val byItem = if (scans == null && filter.material != null) txnLog.itemKeyIdsFor(this, filter.material!!) else null
+        val txnArr = if (byItem == null) ascending(txnSeqs) else ascending(
+            QueryProbe.phase("item index") {
+                gatherSeqs(LogKind.TRANSACTION, scansOver(byItem.map(Keys::itemPrefix)), filter.since, filter.until, Int.MAX_VALUE, filter.excludedCauses, null)
+            },
+        )
+        val unit = this
         val slot = arrayOfNulls<Any>(2)
         java.util.stream.IntStream.range(0, 2).parallel().forEach { i ->
             if (i == 0) {
@@ -513,7 +518,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val excludedIds = ids.excluded
         val cause = CauseKind.entries[rows.causes[row].toInt() and 0xFF]
         if (cause.isBookkeeping) return false
-        if (filter.causes.isNotEmpty() && cause !in filter.causes) return false
+        val causes = filter.worldCauses ?: filter.causes
+        if (causes.isNotEmpty() && cause !in causes) return false
         if (filter.excludedCauses.isNotEmpty() && cause in filter.excludedCauses) return false
         if (rows.deferred[row]) return true
         if (filter.actions.isNotEmpty() &&
@@ -559,36 +565,29 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         ids: FilterIds,
         structureEnds: Boolean,
     ): List<WorldChange> {
-        val page = pageNewest(seqs, filter.offset, filter.limit)
-        if (page.isEmpty()) return emptyList()
-        QueryProbe.opened(page.size.toLong())
-        val n = page.size
-        val matched = ArrayList<Long>(n)
-        val records = ArrayList<MemorySegment>(n)
-        // Never walk the whole wchg family from min seq to max unconditionally
-        QueryProbe.phase("world records fetch") {
-            if (worthScanning(page)) {
-                QueryProbe.scanned(n.toLong())
-                unit.fetchAscending(Keys.WCHG, page, Keys::wchg) { seq, record ->
-                    if (unit.accepts(record, filter, ids)) {
-                        matched += seq
-                        records += record
+        if (seqs.isEmpty()) return emptyList()
+        val accepted = QueryProbe.phase("world records fetch") {
+            pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
+                QueryProbe.opened(slice.size.toLong())
+                val n = slice.size
+                if (worthScanning(slice)) {
+                    QueryProbe.scanned(n.toLong())
+                    unit.fetchAscending(Keys.WCHG, slice, Keys::wchg) { seq, record ->
+                        if (unit.accepts(record, filter, ids)) keep(seq, record)
                     }
-                }
-            } else {
-                QueryProbe.pointGot(n.toLong())
-                val hits = arrayOfNulls<MemorySegment>(n)
-                eachIndex(n) { i ->
-                    val record = unit.get(Keys.wchg(page[i]))
-                    if (record != null && unit.accepts(record, filter, ids)) hits[i] = record
-                }
-                for (i in 0 until n) {
-                    val record = hits[i] ?: continue
-                    matched += page[i]
-                    records += record
+                } else {
+                    QueryProbe.pointGot(n.toLong())
+                    val hits = arrayOfNulls<MemorySegment>(n)
+                    eachIndex(n) { i ->
+                        val record = unit.get(Keys.wchg(slice[i]))
+                        if (record != null && unit.accepts(record, filter, ids)) hits[i] = record
+                    }
+                    for (i in 0 until n) keep(slice[i], hits[i] ?: continue)
                 }
             }
         }
+        val matched = accepted.seqs
+        val records = accepted.records
         return QueryProbe.phase("world records decode") {
             if (structureEnds) decodeStructureEnds(unit, matched, records, filter)
             else decodeNewestFirst(unit, matched, records, filter)
@@ -689,7 +688,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         if (until != null && epochMillis > until) return false
         val cause = Records.wchgCause(record)
         if (cause.isBookkeeping) return false
-        if (filter.causes.isNotEmpty() && cause !in filter.causes) return false
+        val causes = filter.worldCauses ?: filter.causes
+        if (causes.isNotEmpty() && cause !in causes) return false
         if (filter.excludedCauses.isNotEmpty() && cause in filter.excludedCauses) return false
         if (filter.actions.isNotEmpty() && Records.wchgAction(record) !in filter.actions) return false
         val causedBy = Records.wchgCausedBy(record)
@@ -701,7 +701,13 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val region = filter.region
         if (region != null && (regionWorldId == null || worldId != regionWorldId)) return false
         if (Records.wchgKind(record) == Records.CHANGE_SECTION) {
-            return region == null || sectionMeets(record, region)
+            if (region != null && !sectionMeets(record, region)) return false
+            val material = filter.material ?: return true
+            for (slot in 0 until Records.sectionPaletteSize(record)) {
+                val data = interning.resolveBlockData(unit, Records.sectionPaletteAt(record, slot)).value
+                if (data.matchesAny(material, filter.blockMaterials)) return true
+            }
+            return false
         }
 
         if (region != null &&
@@ -715,7 +721,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             if (Records.wchgKind(record) != Records.CHANGE_BLOCK) return false
             val before = interning.resolveBlockData(unit, Records.blockChangeBefore(record)).value
             val after = interning.resolveBlockData(unit, Records.blockChangeAfter(record)).value
-            if (!before.materialEquals(material) && !after.materialEquals(material)) return false
+            if (!before.matchesAny(material, filter.blockMaterials) && !after.matchesAny(material, filter.blockMaterials)) return false
         }
         return true
     }
@@ -824,7 +830,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             if (material != null) {
                 val before = interning.resolveBlockData(unit, beforeId).value
                 val after = interning.resolveBlockData(unit, afterId).value
-                if (!before.materialEquals(material) && !after.materialEquals(material)) {
+                val aliases = filter?.blockMaterials.orEmpty()
+                if (!before.matchesAny(material, aliases) && !after.matchesAny(material, aliases)) {
                     return@forEachSectionPosition
                 }
             }
@@ -964,6 +971,9 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
         const val INITIAL_CAPACITY = 32
         const val SECTION_DELTA_FROM = 2
+
+        fun String.matchesAny(material: String, aliases: Set<String>): Boolean =
+            materialEquals(material) || aliases.any { materialEquals(it) }
 
         fun String.materialEquals(material: String): Boolean {
             val stored = substringBefore('[')

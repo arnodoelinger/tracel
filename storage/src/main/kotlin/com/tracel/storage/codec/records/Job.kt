@@ -15,12 +15,16 @@ object Job {
     fun leaseJobId(v: MemorySegment): Long = v.i64(0)
     fun leaseAcquiredAt(v: MemorySegment): Long = v.i64(8)
 
-    fun pending(itemKeyId: Int, delta: Long, jobId: Long, createdMillis: Long): ByteArray =
-        recordBytes(28) { putI32(0, itemKeyId); putI64(4, delta); putI64(12, jobId); putI64(20, createdMillis) }
+    fun pending(itemKeyId: Int, delta: Long, jobId: Long, createdMillis: Long, enderChest: Boolean): ByteArray =
+        recordBytes(29) {
+            putI32(0, itemKeyId); putI64(4, delta); putI64(12, jobId); putI64(20, createdMillis)
+            putI8(28, if (enderChest) 1 else 0)
+        }
 
     fun pendingItemKeyId(v: MemorySegment): Int = v.i32(0)
     fun pendingDelta(v: MemorySegment): Long = v.i64(4)
     fun pendingJobId(v: MemorySegment): Long = v.i64(12)
+    fun pendingEnderChest(v: MemorySegment): Boolean = v.byteSize() > 28 && v.i8(28) != 0.toByte()
 
     fun rbJob(
         restoreToHolderId: Int,

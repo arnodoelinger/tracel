@@ -269,12 +269,15 @@ internal fun StorageUnit.walkColumn(
                 LogKind.TRANSACTION -> txnOut
             } ?: continue
             val at = millisOf(cursor, value)
-            if (sinceMillis != null && at != null && at < sinceMillis) continue
+            if (sinceMillis != null && at != null && at < sinceMillis) {
+                if (bound == null && at < sinceMillis - SEQ_TIME_SLACK_MILLIS) break
+                continue
+            }
             if (untilMillis != null && at != null && at > untilMillis) continue
             val cause = Records.logKindCause(value)
             if (cause != null && cause.isBookkeeping) continue
             if (excludedCauses.isNotEmpty() && cause != null && cause in excludedCauses) continue
-            if (region != null) {
+            if (region != null && kind == LogKind.WORLD) {
                 val x = Records.logKindX(value)
                 if (x != null && !region.containsBlock(
                         x,
@@ -499,8 +502,8 @@ internal inline fun StorageUnit.scanDescendingByTime(
     val from = if (until != null) Keys.timeFrom(until) else prefix
     scan(prefix, from).use { cursor ->
         while (cursor.next()) {
-            if (Records.asLogKind(cursor.value()) != want) continue
             if (since != null && Keys.invert(cursor.keyU64(1)) < since) break
+            if (Records.asLogKind(cursor.value()) != want) continue
             if (accept(Keys.invert(cursor.keyU64(9))) >= wanted) break
         }
     }
@@ -578,6 +581,8 @@ internal fun worthScanning(sorted: LongArray): Boolean {
 private const val MIN_SCAN_BATCH = 64
 private const val SKIP_GAP = 64L
 private const val SCAN_DENSITY = 64
+private const val SEQ_TIME_SLACK_MILLIS = 5 * 60_000L
+
 internal const val BATCHED_FROM = 256
 
 /**
@@ -597,7 +602,10 @@ internal fun headOf(
         val value = cursor.value()
         if (Records.asLogKind(value) != want) continue
         val at = millisOf(cursor, value)
-        if (sinceMillis != null && at != null && at < sinceMillis) continue
+        if (sinceMillis != null && at != null && at < sinceMillis) {
+            if (bound == null && at < sinceMillis - SEQ_TIME_SLACK_MILLIS) return -1
+            continue
+        }
         if (untilMillis != null && at != null && at > untilMillis) continue
         val cause = Records.logKindCause(value)
         if (cause != null && cause.isBookkeeping) continue
