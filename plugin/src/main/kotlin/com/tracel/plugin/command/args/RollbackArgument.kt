@@ -58,8 +58,11 @@ object RollbackArgument {
                         "or scope:${ScopeLimits.MAX_CHUNK_RADIUS}c"
         }
 
-        if (parsed.since == null && parsed.until == null && parsed.lot == null) {
+        if (parsed.since == null && parsed.lot == null) {
             reasons += "give a time bound (t:1h) — an unbounded rollback undoes the whole history of the server"
+        }
+        if (parsed.since != null && parsed.until != null && parsed.since > parsed.until) {
+            reasons += "the time flags leave no window: the start is after the end"
         }
 
         if (reasons.isNotEmpty()) {
@@ -70,8 +73,10 @@ object RollbackArgument {
             filter = LookupFilter(
                 holders = users.mapTo(hashSetOf(), HolderId::Player),
                 excludedHolders = excluded.mapTo(hashSetOf(), HolderId::Player),
-                material = parsed.item,
+                material = parsed.item?.let { MaterialAliases.resolve(it).first },
+                blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
                 causes = actions.causes,
+                worldCauses = actions.worldCauses,
                 actions = actions.actions,
                 since = parsed.since,
                 until = parsed.until,

@@ -3,6 +3,7 @@ package com.tracel.plugin.command.action
 import com.tracel.engine.log.LookupFilter
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
+import com.tracel.plugin.command.args.MaterialAliases
 import com.tracel.plugin.command.args.ActionArgument
 import com.tracel.plugin.command.args.ActionFilter
 import com.tracel.plugin.command.args.ParsedLookupArgs
@@ -34,6 +35,15 @@ class LookupAction(private val services: TracelServices) {
         val unresolvedUsers = parsed.users.filter { resolvePlayerUuid(it) == null }
         if (unresolvedUsers.isNotEmpty()) {
             sender.sendMessage("Unknown player(s): ${unresolvedUsers.joinToString(", ")}")
+            return
+        }
+        val unresolvedExcluded = parsed.excludedUsers.filter { resolvePlayerUuid(it) == null }
+        if (unresolvedExcluded.isNotEmpty()) {
+            sender.sendMessage("Unknown player(s) to exclude: ${unresolvedExcluded.joinToString(", ")}")
+            return
+        }
+        if (parsed.lot != null) {
+            sender.sendMessage("Lookup: l: only works with rollback; a lookup cannot list one lot's history.")
             return
         }
         val users = parsed.users.mapNotNull { resolvePlayerUuid(it) }
@@ -76,8 +86,10 @@ class LookupAction(private val services: TracelServices) {
         val filter = LookupFilter(
             holders = users.map(HolderId::Player).toSet(),
             excludedHolders = excludedUsers.map(HolderId::Player).toSet(),
-            material = parsed.item,
+            material = parsed.item?.let { MaterialAliases.resolve(it).first },
+                blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
             causes = actions.causes,
+                worldCauses = actions.worldCauses,
             actions = actions.actions,
             since = parsed.since,
             until = parsed.until,
@@ -100,10 +112,10 @@ class LookupAction(private val services: TracelServices) {
             val (results, worldChanges) = try {
                 coroutineScope {
                     val txns = async {
-                        if (!actions.material) emptyList() else services.reading { services.log.query(filter) }
+                        if (!actions.material || parsed.structureOnly) emptyList() else services.reading { services.log.query(filter) }
                     }
                     val world = async {
-                        if (!actions.structural) emptyList() else services.reading { services.worldLog.query(filter) }
+                        if (!actions.structural || parsed.materialOnly) emptyList() else services.reading { services.worldLog.query(filter) }
                     }
                     Pair(txns.await(), world.await())
                 }

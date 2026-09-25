@@ -1,6 +1,10 @@
 package com.tracel.plugin.command.action
 
+import com.tracel.engine.rollback.structure.inverse
+import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.TracelServices
+import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
+import com.tracel.plugin.command.presenter.RollbackPresenter.resurrections
 import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.UndoResult
@@ -12,23 +16,28 @@ import org.bukkit.command.CommandSender
 /** Action responsible for taking back the most recent rollback. */
 class UndoAction(private val services: TracelServices) {
     /** Undoes rollback. */
-    fun execute(sender: CommandSender) {
-        if (services.composite.isRunning) {
+    fun execute(sender: CommandSender, confirmed: Boolean = false) {
+        if (!services.composite.claimGate()) {
             sender.sendMessage("Rollback: another rollback or undo is currently running — wait for it to finish.")
             return
         }
 
         services.scope.launch {
-            runUndo(sender)
+            try {
+                runUndo(sender, confirmed)
+            } finally {
+                services.composite.releaseGate()
+            }
         }
     }
 
-    private suspend fun runUndo(sender: CommandSender) {
+    private suspend fun runUndo(sender: CommandSender, confirmed: Boolean) {
         val job = services.composite.lastUndoable()
         if (job == null) {
             sender.sendMessage("Undo: nothing to undo — no rollback has run that has not already been taken back.")
             return
         }
+        if (!confirmed && askedAboutEntities(sender, job)) return
 
         val outcome = try {
             services.composite.undo(job)
@@ -73,6 +82,18 @@ class UndoAction(private val services: TracelServices) {
 
             is UndoResult.Failed -> sender.sendMessage("Undo: rollback ${job.raw} could not be taken back — ${outcome.reason}")
         }
+    }
+
+    private suspend fun askedAboutEntities(sender: CommandSender, job: RollbackJobId): Boolean {
+        val record = services.atomically { services.jobs.find(job) } ?: return false
+        val spawns = (record.create + record.destroy).map { it.inverse() }.resurrections()
+        if (spawns.size <= services.entityRestoreLimit) return false
+        sender.sendMessage(
+            "Undo: this would bring ${spawns.size} entities back (${mostly(spawns)}), past the " +
+                "${services.entityRestoreLimit} this server allows in one go."
+        )
+        sender.sendMessage("  Run /tracel undo #confirm to do it anyway.")
+        return true
     }
 
     private companion object {

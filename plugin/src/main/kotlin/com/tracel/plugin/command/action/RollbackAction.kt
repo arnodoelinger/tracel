@@ -16,6 +16,8 @@ import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.args.RollbackArgument
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
+import com.tracel.plugin.rollback.trace.RollbackTrace
+import com.tracel.plugin.rollback.trace.PhaseTimings
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import kotlinx.coroutines.CancellationException
@@ -58,8 +60,16 @@ class RollbackAction(
                 sender.sendMessage("Rollback: l:$lot needs somewhere to put the material — run it as a player.")
                 return
             }
+            if (!services.composite.claimGate()) {
+                sender.sendMessage("Rollback: another rollback or undo is currently running — wait for it to finish.")
+                return
+            }
             services.scope.launch {
-                byLot(sender, LotId(lot), restoreTo, parsed)
+                try {
+                    byLot(sender, LotId(lot), restoreTo, parsed)
+                } finally {
+                    services.composite.releaseGate()
+                }
             }
             return
         }
@@ -70,30 +80,43 @@ class RollbackAction(
                 RollbackPresenter.usage(sender)
             }
 
-            is FilterResult.Ok -> services.scope.launch {
-                val replan: suspend () -> Planned? = {
-                    try {
-                        services.composite.plan(
-                            filter.filter,
-                            structure = !parsed.materialOnly && filter.actions.structural,
-                            material = !parsed.structureOnly && filter.actions.material,
-                        )
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (failure: Throwable) {
-                        sender.sendMessage("Rollback: could not work out what to do — ${failure.message ?: failure::class.java.simpleName}")
-                        null
-                    }
-                }
-                val planned = replan() ?: return@launch
-                val halves = halvesOf(parsed, filter.actions)
-                if (parsed.preview) {
-                    RollbackPresenter.preview(sender, planned, halves, services.entityRestoreLimit)
-                } else if (!askedAboutEntities(sender, planned, parsed.confirmed)) {
-                    runRollback(sender, planned, halves, parsed.strict, replan)
+            is FilterResult.Ok -> if (!services.composite.claimGate()) {
+                sender.sendMessage("Rollback: another rollback or undo is currently running — wait for it to finish.")
+            } else services.scope.launch {
+                try {
+                    rollbackFiltered(sender, parsed, filter)
+                } finally {
+                    services.composite.releaseGate()
                 }
             }
         }
+    }
+
+    private suspend fun rollbackFiltered(sender: CommandSender, parsed: ParsedLookupArgs, filter: FilterResult.Ok) {
+        val trace = if (parsed.trace) PhaseTimings() else RollbackTrace.NONE
+        val replan: suspend () -> Planned? = {
+            try {
+                services.composite.plan(
+                    filter.filter,
+                    structure = !parsed.materialOnly && filter.actions.structural,
+                    material = !parsed.structureOnly && filter.actions.material,
+                    trace = trace,
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                sender.sendMessage("Rollback: could not work out what to do — ${failure.message ?: failure::class.java.simpleName}")
+                null
+            }
+        }
+        val planned = replan() ?: return
+        val halves = halvesOf(parsed, filter.actions)
+        if (parsed.preview) {
+            RollbackPresenter.preview(sender, planned, halves, services.entityRestoreLimit)
+        } else if (!askedAboutEntities(sender, planned, parsed.confirmed)) {
+            runRollback(sender, planned, halves, parsed.strict, replan)
+        }
+        if (parsed.trace) trace.render().forEach(sender::sendMessage)
     }
 
     private fun halvesOf(parsed: ParsedLookupArgs, actions: ActionFilter): String {
@@ -108,8 +131,10 @@ class RollbackAction(
     }
 
     private suspend fun byLot(sender: CommandSender, lot: LotId, restoreTo: HolderId.Player, parsed: ParsedLookupArgs) {
+        val flushed = services.flushCapture()
+        var witness = services.repo.version()
         val outcome = runCatching {
-            RollbackPlanner(services.repo, services.worldQuery, structural = false).plan(listOf(lot))
+            RollbackPlanner(services.repo, services.worldQuery, structural = false, target = RollbackTarget.Uniform(restoreTo)).plan(listOf(lot))
         }
         val plan = outcome.getOrNull()
         if (plan == null) {
@@ -121,12 +146,16 @@ class RollbackAction(
             CompositeRollbackPlan(emptyList(), fresh, emptyList()),
             RollbackTarget.Uniform(restoreTo),
             listOf(lot),
+            witness = witness,
+            flushed = flushed,
+            structural = false,
         )
 
         val planned = rollbackFor(plan)
         val replan: suspend () -> Planned? = {
+            witness = services.repo.version()
             runCatching {
-                RollbackPlanner(services.repo, services.worldQuery, structural = false).plan(listOf(lot))
+                RollbackPlanner(services.repo, services.worldQuery, structural = false, target = RollbackTarget.Uniform(restoreTo)).plan(listOf(lot))
             }.map(::rollbackFor).getOrElse {
                 sender.sendMessage("Rollback: could not plan for lot ${lot.raw} — ${it.message}")
                 null
@@ -195,6 +224,7 @@ class RollbackAction(
                     "${services.entityRestoreLimit} this server allows in one go."
         )
         sender.sendMessage("  Narrow the window or the scope, or run the same line again with #confirm.")
+        sender.sendMessage("  With #confirm, t: counts back from that moment, so the count can shift a little.")
         return true
     }
 

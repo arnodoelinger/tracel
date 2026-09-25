@@ -120,10 +120,10 @@ fun Location.toLookupRegion(
 
     return LookupRegion(
         WorldId(targetWorld.uid),
-        minChunkX = chunkX - chunkRadius,
-        maxChunkX = chunkX + chunkRadius,
-        minChunkZ = chunkZ - chunkRadius,
-        maxChunkZ = chunkZ + chunkRadius,
+        minChunkX = blockRadius?.let { (blockX - it) shr 4 } ?: (chunkX - chunkRadius),
+        maxChunkX = blockRadius?.let { (blockX + it) shr 4 } ?: (chunkX + chunkRadius),
+        minChunkZ = blockRadius?.let { (blockZ - it) shr 4 } ?: (chunkZ - chunkRadius),
+        maxChunkZ = blockRadius?.let { (blockZ + it) shr 4 } ?: (chunkZ + chunkRadius),
         minX = blockRadius?.let { blockX - it } ?: Int.MIN_VALUE,
         maxX = blockRadius?.let { blockX + it } ?: Int.MAX_VALUE,
         minY = minY,

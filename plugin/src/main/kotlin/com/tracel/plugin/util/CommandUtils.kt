@@ -20,8 +20,9 @@ fun CommandSender.requirePlayer(message: String): Player? {
  * @return `null` if no record of a player by that name exists.
  */
 fun resolvePlayerUuid(name: String): UUID? {
-    Bukkit.getPlayer(name)?.let { return it.uniqueId }
-    val offline = Bukkit.getOfflinePlayer(name)
+    if (name.isBlank()) return null
+    Bukkit.getPlayerExact(name)?.let { return it.uniqueId }
+    val offline = Bukkit.getOfflinePlayerIfCached(name) ?: return null
     return if (offline.hasPlayedBefore()) offline.uniqueId else null
 }
 

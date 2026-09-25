@@ -5,6 +5,7 @@ import com.tracel.model.world.ActionKind
 
 data class ActionFilter(
     val causes: Set<CauseKind> = emptySet(),
+    val worldCauses: Set<CauseKind> = emptySet(),
     val actions: Set<ActionKind> = emptySet(),
     val unknown: List<String> = emptyList(),
     val structural: Boolean = true,
@@ -85,6 +86,7 @@ object ActionArgument {
         if (names.isEmpty()) return ActionFilter()
 
         val causes = mutableSetOf<CauseKind>()
+        val worldCauses = mutableSetOf<CauseKind>()
         val actions = mutableSetOf<ActionKind>()
         val unknown = mutableListOf<String>()
         val halves = mutableSetOf<Half>()
@@ -93,6 +95,7 @@ object ActionArgument {
             val alias = ALIAS_BY_NAME[raw.lowercase()]
             if (alias != null) {
                 causes += alias.causes
+                if (alias.half == Half.BOTH) worldCauses += alias.causes
                 actions += alias.actions
                 halves += alias.half
                 continue
@@ -101,22 +104,28 @@ object ActionArgument {
             val cause = raw.toEnumOrNull<CauseKind>()
             val action = raw.toEnumOrNull<ActionKind>()
             when {
-                cause != null -> {
-                    causes += cause
-                    halves += Half.BOTH
-                }
                 action != null -> {
                     actions += action
                     halves += Half.STRUCTURE
+                }
+                cause != null -> {
+                    causes += cause
+                    worldCauses += cause
+                    halves += Half.BOTH
                 }
                 else -> unknown += raw
             }
         }
 
-        if (halves.isEmpty()) return ActionFilter(causes, actions, unknown)
+        if (halves.isEmpty()) return ActionFilter(causes, worldCauses, actions, unknown)
+
+        if (actions.isNotEmpty() && worldCauses.isNotEmpty()) {
+            unknown += "${names.joinToString(",")} (a block or entity alias cannot be combined with a cause; run them one at a time)"
+        }
 
         return ActionFilter(
             causes = causes,
+            worldCauses = worldCauses,
             actions = actions,
             unknown = unknown,
             structural = Half.STRUCTURE in halves || Half.BOTH in halves,

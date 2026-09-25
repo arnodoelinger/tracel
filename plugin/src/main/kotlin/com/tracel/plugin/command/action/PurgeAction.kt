@@ -19,6 +19,7 @@ class PurgeAction(private val services: TracelServices) {
         services.scope.launch {
             purgeAll(services.storage)
             services.repo.forget()
+            services.counters.forget()
             services.differ.forgetAll()
             sender.sendMessage("Tracel history purged.")
         }

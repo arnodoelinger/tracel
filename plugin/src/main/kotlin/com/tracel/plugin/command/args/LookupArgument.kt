@@ -18,6 +18,7 @@ data class ParsedLookupArgs(
     val materialOnly: Boolean = false,
     val strict: Boolean = false,
     val confirmed: Boolean = false,
+    val trace: Boolean = false,
     val errors: List<String> = emptyList(),
 )
 
@@ -63,7 +64,7 @@ internal sealed interface LookupArgument {
     ) : LookupArgument {
         override fun matches(token: String) = token.startsWith(prefix)
         override fun apply(args: ParsedLookupArgs, token: String, nowMillis: Long) =
-            set(args, get(args) + token.removePrefix(prefix).split(","))
+            set(args, get(args) + token.removePrefix(prefix).split(",").filter(String::isNotBlank))
 
         override fun suggest(ctx: LookupSuggestContext) = names(ctx).map { "$prefix$it" }
     }
@@ -96,6 +97,7 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Flag("#strict") { it.copy(strict = true) },
     LookupArgument.Flag("#confirm") { it.copy(confirmed = true) },
     LookupArgument.Flag("#wide") { it.copy(horizontalOnly = true) },
+    LookupArgument.Flag("#trace") { it.copy(trace = true) },
 
     LookupArgument.Multi("-user:", { it.excludedUsers }, { r, v -> r.copy(excludedUsers = v) }, { it.onlinePlayerNames }),
     LookupArgument.Multi("user:", { it.users }, { r, v -> r.copy(users = v) }, { it.onlinePlayerNames }),
@@ -103,9 +105,9 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Value("block:", { r, v -> r.copy(item = v) }, { it.blockNames }),
     LookupArgument.Multi("action:", { it.actions }, { r, v -> r.copy(actions = v) }, { it.causeNames }),
     LookupArgument.Parsed("scope:", { v, _ -> ScopeArgument.parse(v) }, { r, v -> r.withScope(v) }, { ScopeArgument.suggestions(it.worldNames) }),
-    LookupArgument.Parsed("before:", { v, now -> TimeArgument.parseDuration(v)?.let { now - it } }, { r, v -> r.copy(until = v) }, { TimeArgument.durationSuggestions() }),
-    LookupArgument.Parsed("after:", { v, now -> TimeArgument.parseDuration(v)?.let { now - it } }, { r, v -> r.copy(since = v) }, { TimeArgument.durationSuggestions() }),
-    LookupArgument.Parsed("time:", { v, now -> TimeArgument.parseExpr(v, now) }, { r, v -> r.copy(since = v.since, until = v.until) }, { TimeArgument.timeSuggestions() }),
+    LookupArgument.Parsed("before:", { v, now -> TimeArgument.parseDuration(v)?.let { now - it } }, { r, v -> r.copy(until = earlier(r.until, v)) }, { TimeArgument.durationSuggestions() }),
+    LookupArgument.Parsed("after:", { v, now -> TimeArgument.parseDuration(v)?.let { now - it } }, { r, v -> r.copy(since = later(r.since, v)) }, { TimeArgument.durationSuggestions() }),
+    LookupArgument.Parsed("time:", { v, now -> TimeArgument.parseExpr(v, now) }, { r, v -> r.within(v) }, { TimeArgument.timeSuggestions() }),
     LookupArgument.Parsed("lot:", { v, _ -> v.toLongOrNull() }, { r, v -> r.copy(lot = v) }),
 
     // Aliases
@@ -115,7 +117,7 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Value("b:", { r, v -> r.copy(item = v) }, { it.blockNames }),
     LookupArgument.Multi("a:", { it.actions }, { r, v -> r.copy(actions = v) }, { it.causeNames }),
     LookupArgument.Parsed("w:", { v, _ -> v.takeIf(String::isNotBlank) }, { r, v -> r.copy(world = v) }, { it.worldNames }),
-    LookupArgument.Parsed("t:", { v, now -> TimeArgument.parseExpr(v, now) }, { r, v -> r.copy(since = v.since, until = v.until) }, { TimeArgument.timeSuggestions() }),
+    LookupArgument.Parsed("t:", { v, now -> TimeArgument.parseExpr(v, now) }, { r, v -> r.within(v) }, { TimeArgument.timeSuggestions() }),
     LookupArgument.Parsed("l:", { v, _ -> v.toLongOrNull() }, { r, v -> r.copy(lot = v) }),
 )
 
@@ -142,3 +144,10 @@ fun suggestLookupToken(
     itemNames = itemNames,
     blockNames = blockNames,
 ).map { it.text }
+
+private fun ParsedLookupArgs.within(window: TimeExpr): ParsedLookupArgs =
+    copy(since = later(since, window.since), until = earlier(until, window.until))
+
+private fun later(a: Long?, b: Long?): Long? = if (a == null) b else if (b == null) a else maxOf(a, b)
+
+private fun earlier(a: Long?, b: Long?): Long? = if (a == null) b else if (b == null) a else minOf(a, b)

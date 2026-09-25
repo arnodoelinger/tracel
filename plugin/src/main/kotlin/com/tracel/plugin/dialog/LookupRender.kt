@@ -171,8 +171,8 @@ private fun describeBlock(subject: ChangeSubject.Block): String {
     val before = subject.before.data.value.substringBefore('[')
     val after = subject.after.data.value.substringBefore('[')
     return when {
-        subject.after == BlockShape.AIR -> before
-        subject.before == BlockShape.AIR -> after
+        subject.after.isAirLike -> before
+        subject.before.isAirLike -> after
         else -> "$before -> $after"
     }
 }

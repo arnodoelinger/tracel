@@ -44,6 +44,7 @@ class ExportAction(private val services: TracelServices) {
             val done = runCatching { importFrom(services.storage, path) }
             done.onSuccess {
                 services.repo.forget()
+                services.counters.forget()
                 services.differ.forgetAll()
                 sender.sendMessage("Imported ${it.rows} rows from ${it.file.fileName}.")
             }.onFailure { sender.sendMessage("Import failed: ${it.message}") }

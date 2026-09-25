@@ -56,11 +56,11 @@ object RollbackPresenter {
     }
 
     fun report(sender: CommandSender, done: RollbackResult.Done) {
-        sender.sendMessage("Rolled back: ${summary(done.plan)}. /tracel rollback undo to take it back.")
+        sender.sendMessage("Rolled back: ${summary(done)}. /tracel rollback undo to take it back.")
         warnIfShortWindow(sender, done.plan)
 
         val minted = done.plan.composite.material.mintCount
-        if (minted > 0) sender.sendMessage("  $minted item(s) were compensated rather than recovered — /tracel audit")
+        if (minted > 0) sender.sendMessage("  $minted item(s) were compensated rather than recovered")
         reportPlaced(sender, done.plan)
 
         reportProblems(sender, done.material.queued, done.material.failures, done.structure, done.material.spilled)
@@ -120,6 +120,25 @@ object RollbackPresenter {
                     jobs.take(LISTED_JOBS).joinToString(", ") { it.raw.toString() } +
                     (if (jobs.size > LISTED_JOBS) ", ..." else "")
         }
+    }
+
+    /**
+     * What the rollback actually did. Counted from the plan, a second run of the same rollback over a world
+     * that already matched said it restored everything again.
+     */
+    fun summary(done: RollbackResult.Done): String {
+        val applied = done.structure.applied
+        val removed = applied.count { it is StructureStep.RemoveEntity || (it is StructureStep.SetBlock && it.target.isAirLike) }
+        val restored = applied.size - removed
+        val material = done.plan.composite.material
+        val parts = buildList {
+            if (restored > 0) add("$restored restored")
+            if (removed > 0) add("$removed removed")
+            if (material.takeCount > 0) add("${material.takeCount} reclaimed")
+            if (material.unmakeCount > 0) add("${material.unmakeCount} uncrafted")
+            if (material.mintCount > 0) add("${material.mintCount} compensated")
+        }
+        return if (parts.isEmpty()) "nothing, the world already matches" else parts.joinToString(", ")
     }
 
     fun summary(planned: Planned): String {

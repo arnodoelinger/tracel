@@ -54,6 +54,17 @@ object TracelCommand {
 
                 literal("undo") {
                     executesCommand { ctx -> undoAction.execute(ctx.source.sender) }
+                    argument("confirm", StringArgumentType.greedyString()) {
+                        executesCommand { ctx ->
+                            val sender = ctx.source.sender
+                            if (StringArgumentType.getString(ctx, "confirm").trim().lowercase() == "#confirm") {
+                                undoAction.execute(sender, confirmed = true)
+                            } else {
+                                sender.sendMessage("Undo: takes nothing but #confirm — it always undoes the most recent rollback.")
+                                RollbackPresenter.undoUsage(sender)
+                            }
+                        }
+                    }
                 }
 
                 argument("flags", StringArgumentType.greedyString()) {
@@ -65,12 +76,13 @@ object TracelCommand {
 
                         if (tokens.firstOrNull()?.lowercase() == "undo") {
                             val rest = tokens.drop(1)
-                            if (rest.isNotEmpty()) {
-                                sender.sendMessage("Undo: takes no arguments — it always undoes the most recent rollback.")
+                            val confirmed = rest.singleOrNull()?.lowercase() == "#confirm"
+                            if (rest.isNotEmpty() && !confirmed) {
+                                sender.sendMessage("Undo: takes nothing but #confirm — it always undoes the most recent rollback.")
                                 RollbackPresenter.undoUsage(sender)
                                 return@executesCommand
                             }
-                            undoAction.execute(sender)
+                            undoAction.execute(sender, confirmed)
                             return@executesCommand
                         }
 
@@ -84,6 +96,17 @@ object TracelCommand {
             literal("undo") {
                 requiresPermission("tracel.rollback")
                 executesCommand { ctx -> undoAction.execute(ctx.source.sender) }
+                argument("flags", StringArgumentType.greedyString()) {
+                    executesCommand { ctx ->
+                        val sender = ctx.source.sender
+                        if (StringArgumentType.getString(ctx, "flags").trim().lowercase() == "#confirm") {
+                            undoAction.execute(sender, confirmed = true)
+                        } else {
+                            sender.sendMessage("Undo: takes nothing but #confirm — it always undoes the most recent rollback.")
+                            RollbackPresenter.undoUsage(sender)
+                        }
+                    }
+                }
             }
 
             // Restore

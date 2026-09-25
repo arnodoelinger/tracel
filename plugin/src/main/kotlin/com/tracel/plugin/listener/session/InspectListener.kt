@@ -1,7 +1,9 @@
 package com.tracel.plugin.listener.session
 
+import com.tracel.annotations.isBookkeeping
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
+import com.tracel.annotations.Unstable
 import com.tracel.engine.log.LookupFilter
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
@@ -23,7 +25,9 @@ import org.bukkit.event.player.PlayerQuitEvent
 // TODO: rewrite
 
 private const val PAGE_SIZE = 8
+private const val BOOKKEEPING_SLACK = 4
 
+@Unstable
 class InspectListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.LOWEST, ignoreCancelled = false)
     fun onInteract(event: PlayerInteractEvent) {
@@ -45,7 +49,8 @@ class InspectListener(services: TracelServices) : TracelListener(services) {
             val (txns, world) = services.reading {
                 val txns = services.log.query(LookupFilter(holders = setOf(holder), limit = PAGE_SIZE))
                 val pos = holder.blockPos()
-                val world = if (pos == null) emptyList() else services.worldLog.at(pos, PAGE_SIZE)
+                val world = if (pos == null) emptyList() else services.worldLog.at(pos, PAGE_SIZE * BOOKKEEPING_SLACK)
+                    .filterNot { it.cause.isBookkeeping }.take(PAGE_SIZE)
                 txns to world
             }
 
