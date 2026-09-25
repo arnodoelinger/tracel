@@ -229,7 +229,7 @@ class StructurePlannerTest {
     }
 
     @Test
-    fun `a frame hung then exploded in the same window is spawned back`() {
+    fun `a frame hung then exploded in the same window stays gone`() {
         val uuid = UUID(9, 9)
         val hull = EntityShape(EntityTypeKey("minecraft:glow_item_frame"), 10.5, 70.0, -3.5)
         val changes = listOf(
@@ -244,13 +244,11 @@ class StructurePlannerTest {
         )
         val (create, destroy) = StructurePlanner().plan(changes)
         assertTrue(destroy.isEmpty())
-        val step = create.single() as StructureStep.SpawnEntity
-        assertEquals(uuid, step.entity)
-        assertEquals(hull, step.shape)
+        assertTrue(create.isEmpty(), "it did not exist when the window opened; the ledger hands its item back")
     }
 
     @Test
-    fun `grass broken to hang a frame is not put back on top of the restored frame`() {
+    fun `grass broken to hang a frame that was then blown up comes back alone`() {
         val uuid = UUID(15, 15)
         val hull = EntityShape(EntityTypeKey("minecraft:glow_item_frame"), 10.5, 70.0, -3.5)
         val grass = BlockShape(BlockDataKey("minecraft:short_grass"))
@@ -267,9 +265,8 @@ class StructurePlannerTest {
         )
         val (create, destroy) = StructurePlanner().plan(changes)
         assertTrue(destroy.isEmpty())
-        assertEquals(1, create.size, "grass in the frame's cell would pop it")
-        val step = create.single() as StructureStep.SpawnEntity
-        assertEquals(uuid, step.entity)
+        val step = create.single() as StructureStep.SetBlock
+        assertEquals(grass, step.target, "the window opened on grass and no frame")
     }
 
     @Test

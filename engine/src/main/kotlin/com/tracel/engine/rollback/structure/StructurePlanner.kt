@@ -1,6 +1,5 @@
 package com.tracel.engine.rollback.structure
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
 import com.tracel.annotations.Unstable
@@ -72,7 +71,7 @@ public class StructurePlanner {
 
                     // Restoring to air is a removal, and a removal has to wait until the ledger
                     // has finished emptying whatever stood there.
-                    if (target == BlockShape.AIR) destroy += step else create += step
+                    if (target.isAirLike) destroy += step else create += step
                 }
 
                 is ChangeSubject.Entity -> {
@@ -81,18 +80,11 @@ public class StructurePlanner {
                     val before = subject.before
                     when {
                         now == null -> {
-                            // Lived at window open: put it back. Hung then punched: leave it gone.
-                            // Hung then blown: spawn the pose it died in, cargo stripped.
-                            val hungThenBlown = before == null &&
-                                first.cause == CauseKind.EXPLOSION &&
-                                !subject.isPrimedTnt()
-                            val lived = when {
-                                before != null -> before
-                                hungThenBlown -> newest.before ?: subject.after
-                                else -> null
-                            }
-                            if (lived != null && !lived.isFallingBlock()) {
-                                create += StructureStep.SpawnEntity(last.at, subject.entity, lived)
+                            // Lived at window open: put it back. Came and went inside the window, however
+                            // it went: leave it gone, same as a block placed and blown up. Respawning it
+                            // handed the placer the item back and hung the frame too, and re-armed crystals.
+                            if (before != null && !before.isFallingBlock()) {
+                                create += StructureStep.SpawnEntity(last.at, subject.entity, before)
                             }
                         }
                         before == null -> {
@@ -119,7 +111,7 @@ public class StructurePlanner {
         val hangingIn = HashSet<BlockPos>()
         for (step in create) if (step is StructureStep.SpawnEntity && step.shape.hangs()) hangingIn += step.at
         if (hangingIn.isNotEmpty()) {
-            create.removeAll { it is StructureStep.SetBlock && it.at in hangingIn && it.target != BlockShape.AIR }
+            create.removeAll { it is StructureStep.SetBlock && it.at in hangingIn && !it.target.isAirLike }
         }
 
         return create to destroy
@@ -139,7 +131,7 @@ public class StructurePlanner {
         for ((at, slot) in ends) {
             val oldest = (slot[OLDEST].subject as ChangeSubject.Block).before
             val newest = (slot[NEWEST].subject as ChangeSubject.Block).after
-            if (oldest == BlockShape.AIR && newest == BlockShape.AIR) out += at
+            if (oldest.isAirLike && newest.isAirLike) out += at
         }
         return out
     }
@@ -172,10 +164,3 @@ private fun EntityShape.hangs(): Boolean {
 @Unstable
 private fun EntityShape.popsWhenABlockReturns(): Boolean =
     type.value.substringAfter(':') == "painting"
-
-
-@Unstable
-private fun ChangeSubject.Entity.isPrimedTnt(): Boolean {
-    val type = this.type.value
-    return type == "minecraft:tnt" || type.endsWith(":tnt")
-}

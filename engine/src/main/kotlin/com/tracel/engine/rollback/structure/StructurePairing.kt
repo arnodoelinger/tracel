@@ -27,7 +27,10 @@ public fun structuralPartnerOf(at: BlockPos, shape: BlockShape): BlockPos? {
     }
 }
 
-private val DOUBLE_PLANTS = setOf("sunflower", "lilac", "tall_grass", "large_fern", "rose_bush", "peony")
+private val DOUBLE_PLANTS = setOf(
+    "sunflower", "lilac", "tall_grass", "large_fern", "rose_bush", "peony",
+    "pitcher_plant", "pitcher_crop", "tall_seagrass", "small_dripleaf",
+)
 
 private fun chestPartner(at: BlockPos, props: Map<String, String>): BlockPos? {
     val facing = props["facing"] ?: return null
