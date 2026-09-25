@@ -53,7 +53,7 @@ fun TracelServices.releaseAsTrackedDrops(
     val physical = removed?.filter { !it.type.isAir && it.amount > 0 }
 
     // Flush / owed: two region ticks plus storage sit between return and write; untracked flush skips them
-    pendingCaptures.owed()
+    val ticket = pendingCaptures.owed()
     scope.launch {
         try {
             val believed = atomically { ledger.totalsAt(holder) }.mapValues { it.value.raw }
@@ -86,7 +86,7 @@ fun TracelServices.releaseAsTrackedDrops(
         }
         differ.forget(holder)
         andThen?.invoke()
-    }.invokeOnCompletion { pendingCaptures.done() }
+    }.invokeOnCompletion { pendingCaptures.done(ticket) }
 }
 
 private val releaseLogger = Logger.getLogger("SelfManagedDrop")
@@ -113,7 +113,7 @@ fun TracelServices.recordAt(
     if (deltas.isEmpty()) return
     val where = BlockPos(WorldId(at.world.uid), at.blockX, at.blockY, at.blockZ)
     // Owed before launch: click-then-rollback flush used to skip this write
-    pendingCaptures.owed()
+    val ticket = pendingCaptures.owed()
     scope.launch {
         try {
             atomically {
@@ -126,7 +126,7 @@ fun TracelServices.recordAt(
                     "— a rollback cannot put back what was never written down (${e.message})"
             }
         }
-    }.invokeOnCompletion { pendingCaptures.done() }
+    }.invokeOnCompletion { pendingCaptures.done(ticket) }
 }
 
 private suspend fun TracelServices.mintUnseen(

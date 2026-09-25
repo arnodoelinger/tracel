@@ -94,7 +94,12 @@ private class EntityDispatcher(private val plugin: Plugin, private val entityId:
                 if (entity == null) {
                     block.run()
                 } else {
-                    entity.scheduler.execute(plugin, { block.run() }, { block.run() }, 0L)
+                    // Retired between the lookup and here: neither callback would run and the coroutine
+                    // would hang for good, holding the rollback gate and its frozen holders with it.
+                    // The retire callback itself runs mid-removal, where nothing may be touched, so both
+                    // go back to the global thread, which finds the entity gone and lets the work say so.
+                    val global = Runnable { Bukkit.getGlobalRegionScheduler().execute(plugin, block) }
+                    if (!entity.scheduler.execute(plugin, block, global, 1L)) global.run()
                 }
             }
         }

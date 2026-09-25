@@ -36,12 +36,12 @@ abstract class TracelListener(
 
     /** Schedules [work] on the region that owns [at] and makes flush wait for it. */
     protected fun later(at: Location, ticks: Long = 1L, work: () -> Unit) {
-        services.pendingCaptures.owed()
+        val ticket = services.pendingCaptures.owed()
         Bukkit.getRegionScheduler().runDelayed(services.plugin, at, {
             try {
                 work()
             } finally {
-                services.pendingCaptures.done()
+                services.pendingCaptures.done(ticket)
             }
         }, ticks)
     }
@@ -52,19 +52,20 @@ abstract class TracelListener(
      * `Folia` will not let another thread read that entity.
      */
     protected fun later(entity: Entity, ticks: Long = 1L, work: () -> Unit) {
-        services.pendingCaptures.owed()
-        entity.scheduler.runDelayed(services.plugin, {
+        val ticket = services.pendingCaptures.owed()
+        val scheduled = entity.scheduler.runDelayed(services.plugin, {
             try {
                 work()
             } finally {
-                services.pendingCaptures.done()
+                services.pendingCaptures.done(ticket)
             }
-        }, { services.pendingCaptures.done() }, ticks)
+        }, { services.pendingCaptures.done(ticket) }, ticks)
+        if (scheduled == null) services.pendingCaptures.done(ticket)
     }
 
     /** Owing mechanism. Storage-thread work a flush must wait for. */
     protected fun owing(work: suspend () -> Unit) {
-        services.pendingCaptures.owed()
-        services.scope.launch { work() }.invokeOnCompletion { services.pendingCaptures.done() }
+        val ticket = services.pendingCaptures.owed()
+        services.scope.launch { work() }.invokeOnCompletion { services.pendingCaptures.done(ticket) }
     }
 }

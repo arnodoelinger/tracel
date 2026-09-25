@@ -97,14 +97,15 @@ internal class ExpiringMap<K : Any, V : Any>(
     }
 
     private fun store(key: K, value: V, now: Long): Boolean {
+        if (entries.size >= capacity && !entries.containsKey(key)) sweep(now, force = true)
         val room = entries.size < capacity || entries.containsKey(key)
         if (room) entries[key] = Entry(value, now)
         return room
     }
 
-    private fun sweep(now: Long) {
+    private fun sweep(now: Long, force: Boolean = false) {
         val previous = sweptAt.get()
-        if (now - previous < ttlMillis) return
+        if (!force && now - previous < ttlMillis) return
         if (!sweptAt.compareAndSet(previous, now)) return
         entries.values.removeIf { now - it.at > ttlMillis }
     }

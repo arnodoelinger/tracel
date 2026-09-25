@@ -19,7 +19,7 @@ internal data class Settings(
 
 const val MIN_RING_SLOTS = 1024
 const val DEFAULT_ENTITY_RESTORE_LIMIT = 128
-const val DEFAULT_LOG_ENTITY_DAMAGE = true
+const val DEFAULT_LOG_ENTITY_DAMAGE = false
 
 /** `Tracel` settings. */
 internal fun readSettings(
