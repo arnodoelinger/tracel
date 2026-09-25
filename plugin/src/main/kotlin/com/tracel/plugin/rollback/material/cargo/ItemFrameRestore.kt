@@ -25,9 +25,7 @@ internal fun MaterialRestorer.applyItemFrame(
         val held = if (current.isEmpty || current.type.isAir) null else current
         if (delta > 0) {
             when {
-                // Snapshot already put this exact key here; a second copy is the dupe
-                held != null && held.matches(itemKey) -> Unit
-                // Occupied by another key; ledger already credited us, so spill
+                // Occupied, even by the same key: the ledger already credited us, so spill
                 held != null -> for (over in stacksOf(itemKey, delta, template)) moves.overflow += itemKey to over
                 else -> {
                     // Two-arg setItem: one-arg plays the placement sound

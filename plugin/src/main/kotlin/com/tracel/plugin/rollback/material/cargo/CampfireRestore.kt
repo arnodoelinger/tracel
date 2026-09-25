@@ -27,11 +27,8 @@ internal fun MaterialRestorer.applyCampfire(
             for (slot in 0 until campfire.size) {
                 if (remaining <= 0L) break
                 val held = campfire.getItem(slot)
-                if (held != null && !held.isEmpty && !held.type.isAir) {
-                    // Snapshot already matches; count the live slot
-                    if (held.matches(itemKey)) remaining -= held.amount.toLong().coerceAtMost(remaining)
-                    continue
-                }
+                // Cooking already is not delivered
+                if (held != null && !held.isEmpty && !held.type.isAir) continue
                 // One item per slot
                 campfire.setItem(slot, template.clone().apply { amount = 1 })
                 remaining--

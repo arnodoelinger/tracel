@@ -27,7 +27,6 @@ internal fun MaterialRestorer.applyJukebox(
         val held = if (current.isEmpty || current.type.isAir) null else current
         if (delta > 0) {
             when {
-                held != null && held.matches(itemKey) -> Unit
                 held != null -> for (over in stacksOf(itemKey, delta, template)) moves.overflow += itemKey to over
                 else -> {
                     jukebox.setRecord(template)

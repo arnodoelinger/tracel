@@ -1,5 +1,9 @@
 package com.tracel.plugin.rollback.material
 
+import com.tracel.plugin.rollback.material.item.WornStacks
+import com.tracel.plugin.rollback.material.holder.takeFromGrid
+import com.tracel.plugin.rollback.material.holder.takeFromCursor
+import com.tracel.plugin.adapter.item.heldTotals
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
@@ -40,15 +44,27 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
                 return@withContext RestorationReport(emptyMap())
             }
             val moves = Moves()
-            for ((_, itemKey, delta) in claimed) {
-                applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory)
+            val enderMoves = Moves()
+            for ((_, itemKey, delta, _, enderChest) in claimed.sortedBy { it.delta > 0L }) {
+                if (enderChest) {
+                    applyDelta(itemKey, delta, forms[itemKey], enderMoves, player.enderChest)
+                } else {
+                    applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory)
+                }
             }
             // Full inventory on login is ordinary: spill it all
             val at = player.location
+            takeFromCursor(player, moves)
+            takeFromGrid(player, moves)
             spillInRegion(holder, moves, at.world, at, sink)
-            services.differ.rebaseline(holder, player.inventory.toItemTotals().withCursor(player))
+            services.differ.rebaseline(holder, player.heldTotals())
+            if (claimed.any { it.enderChest }) {
+                val ender = HolderId.EnderChest(player.uniqueId)
+                spillInRegion(ender, enderMoves, at.world, at, sink)
+                services.differ.rebaseline(ender, player.enderChest.toItemTotals())
+            }
 
-            val reason = moves.reason
+            val reason = listOfNotNull(moves.reason, enderMoves.reason).joinToString("; ").ifEmpty { null }
             if (reason == null) {
                 RestorationReport(emptyMap(), emptyMap(), sink.size)
             } else {
@@ -65,18 +81,30 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
         RestorationReport(mapOf(holder to (failure.message ?: failure::class.java.simpleName)))
     }
     recordSpills(sink)
+    rewearDelivered(player, claimed)
     return report
 }
 
-/** Puts a claim back on the queue, keeping each entry under the job that owed it. */
+private suspend fun MaterialRestorer.rewearDelivered(player: Player, claimed: List<PendingDelivery>) {
+    if (claimed.none { it.delta > 0L && WornStacks.wears(it.itemKey) }) return
+    val mine = setOf(HolderId.Player(player.uniqueId), HolderId.EnderChest(player.uniqueId))
+    for (job in claimed.mapTo(LinkedHashSet()) { it.job }) {
+        val record = runCatching { services.atomically { services.jobs.find(job) } }.getOrNull() ?: continue
+        val asOf = record.targetTimeMillis ?: continue
+        runCatching { rewearPlan(record.plan, record.target, job, asOf, only = mine) }
+            .onFailure { logger.log(Level.FINE, "tools delivered to ${player.name} kept their damage as they were", it) }
+    }
+}
+
+/** Puts a claim back on the queue, keeping each entry under the job that owed it and the inventory it was owed to. */
 internal suspend fun MaterialRestorer.requeue(player: UUID, claimed: List<PendingDelivery>) {
     val now = System.currentTimeMillis()
     runCatching {
         services.atomically {
-            for ((job, entries) in claimed.groupBy { it.job }) {
+            for ((owed, entries) in claimed.groupBy { it.job to it.enderChest }) {
                 val deltas = LinkedHashMap<ItemKey, Long>()
                 for ((_, itemKey, delta) in entries) deltas.merge(itemKey, delta, Long::plus)
-                services.pendingDeliveries.enqueueAll(player, deltas, job, now)
+                services.pendingDeliveries.enqueueAll(player, deltas, owed.first, now, owed.second)
             }
         }
     }.onFailure {

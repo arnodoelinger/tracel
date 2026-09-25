@@ -23,7 +23,6 @@ internal fun MaterialRestorer.applyBookshelf(
     val block = shelf.block
     val snap = block.getState(true) as? ChiseledBookshelf ?: shelf
     val inv = snap.snapshotInventory
-    val net = deltas.values.sum()
     for ((itemKey, delta) in deltas) {
         val template = stackFor(itemKey, 1, forms[itemKey])
         if (template == null) {
@@ -36,18 +35,7 @@ internal fun MaterialRestorer.applyBookshelf(
                 moves.overflow += itemKey to over
             }
         } else {
-            var remaining = -delta
-            remaining = takeBooks(inv, itemKey, remaining, exact = true)
-            if (remaining > 0) remaining = takeBooks(inv, itemKey, remaining, exact = false)
-            moves.short(itemKey, remaining)
-        }
-    }
-    if (net < 0L) {
-        val materials = deltas.keys.map { it.material }.toSet()
-        for (slot in 0 until inv.size) {
-            val held = inv.getItem(slot) ?: continue
-            if (held.isEmpty || held.type.isAir) continue
-            if (held.type.name in materials) inv.setItem(slot, ItemStack.empty())
+            moves.short(itemKey, takeBooks(inv, itemKey, -delta))
         }
     }
     runCatching { snap.lastInteractedSlot = -1 }
@@ -73,13 +61,7 @@ private fun intoBookshelfSlots(
     fun place(slot: Int): Boolean {
         if (slot !in 0 until inventory.size) return false
         val held = inventory.getItem(slot)
-        if (held != null && !held.isEmpty && !held.type.isAir) {
-            if (held.matches(itemKey) || held.type.name == itemKey.material) {
-                remaining -= 1L
-                return true
-            }
-            return false
-        }
+        if (held != null && !held.isEmpty && !held.type.isAir) return false
         inventory.setItem(slot, template.clone().apply { this.amount = 1 })
         remaining -= 1L
         return true
@@ -100,15 +82,13 @@ private fun takeBooks(
     inventory: Inventory,
     itemKey: ItemKey,
     amount: Long,
-    exact: Boolean,
 ): Long {
     var remaining = amount
     for (slot in 0 until inventory.size) {
         if (remaining <= 0L) break
         val held = inventory.getItem(slot) ?: continue
         if (held.isEmpty || held.type.isAir) continue
-        val ok = if (exact) held.matches(itemKey) else held.type.name == itemKey.material
-        if (!ok) continue
+        if (!held.matches(itemKey)) continue
         inventory.setItem(slot, ItemStack.empty())
         remaining -= 1L
     }

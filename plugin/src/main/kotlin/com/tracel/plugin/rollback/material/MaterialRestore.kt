@@ -13,6 +13,7 @@ import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.trace.RollbackTrace
+import com.tracel.plugin.util.entityUuid
 import com.tracel.plugin.util.namedByEntity
 import com.tracel.plugin.util.regionKey
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -21,6 +22,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 
 @Unstable
 internal const val SAMPLED_FAILURES = 3
@@ -38,7 +40,7 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     respawnAt: Map<HolderId.ItemEntity, HolderId>,
     trace: RollbackTrace,
     census: EntityCensus,
-    settled: CompletableDeferred<Unit>?,
+    settled: CompletableDeferred<Set<HolderId>>?,
     asOf: Long?,
 ): RestorationReport {
     // One spill sink across region threads; recorded once at the end
@@ -49,11 +51,14 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     val forms = trace.span("move items / item forms") { formsFor(work) }
 
     val unchecked = work.keys.filterTo(HashSet()) { it.namedByEntity() && it !in knownGone.orEmpty() }
+    val counted = unchecked.filter { holder -> holder.entityUuid().let { it in census.missing || it in census.at } }
+    val censusGone = counted.filterTo(HashSet()) { it.entityUuid() in census.missing }
+    val unknown = unchecked - counted.toSet()
     val gone = when {
-        unchecked.isEmpty() -> knownGone.orEmpty()
-        else -> knownGone.orEmpty() +
+        unknown.isEmpty() -> knownGone.orEmpty() + censusGone
+        else -> knownGone.orEmpty() + censusGone +
             trace.span("move items / vanished") {
-                vanishedEntities(unchecked, trace)
+                vanishedEntities(unknown, trace)
             }
     }
 
@@ -62,8 +67,24 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     val late = if (early.isEmpty()) work else work
         .mapValues { (holder, deltas) -> early[holder]?.let { deltas - it.keys } ?: deltas }
         .filterValues { it.isNotEmpty() }
-    val first = if (early.isEmpty()) emptyList() else fanOut(early, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
-    val outcomes = first + fanOut(late, job, gone, respawnAt, trace, census, forms, sink, settled, asOf, worn)
+    val outcomes = if (early.isEmpty()) {
+        fanOut(late, job, gone, respawnAt, trace, census, forms, sink, settled, asOf, worn)
+    } else {
+        val wornKeys = early.values.flatMapTo(HashSet()) { it.keys }
+        val (waiting, free) = late.entries.partition { (holder, deltas) ->
+            holder in early || deltas.any { (key, delta) -> delta > 0L && key in wornKeys }
+        }
+        coroutineScope {
+            val freeRun = async {
+                fanOut(free.associate { it.toPair() }, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
+            }
+            val first = fanOut(early, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
+            val second = fanOut(waiting.associate { it.toPair() }, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
+            val all = first + freeRun.await() + second
+            settled?.complete(all.mapNotNullTo(HashSet()) { (holder, result) -> holder.takeIf { result is ApplyResult.Failed } })
+            all
+        }
+    }
 
     val failures = mutableMapOf<HolderId, String>()
     val queued = mutableMapOf<HolderId, String>()
@@ -97,9 +118,10 @@ private suspend fun MaterialRestorer.fanOut(
     census: EntityCensus,
     forms: Map<ItemKey, ByteArray>,
     sink: MutableCollection<Spill>,
-    settled: CompletableDeferred<Unit>?,
+    settled: CompletableDeferred<Set<HolderId>>?,
     asOf: Long?,
     worn: WornStacks,
+    failedEarly: Set<HolderId> = emptySet(),
 ): List<Pair<HolderId, ApplyResult>> {
     val ground = LinkedHashMap<HolderId.ItemEntity, Map<ItemKey, Long>>()
     val cargo = LinkedHashMap<HolderId.Entity, Map<ItemKey, Long>>()
@@ -123,18 +145,25 @@ private suspend fun MaterialRestorer.fanOut(
         }
         val others = rest.entries.groupBy { it.key.regionKey() }.values.map { group ->
             async {
-                group.map { (holder, nonZero) ->
-                    val taking = nonZero.values.all { it < 0L }
-                    if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
-                    else {
-                        val kind = HolderGroup.of(holder)
-                        holder to trace.span("move items / ${kind.traceName}") { applyTo(holder, nonZero, forms, job, sink, asOf, worn) }
+                val each = suspend {
+                    group.map { (holder, nonZero) ->
+                        val taking = nonZero.values.all { it < 0L }
+                        if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
+                        else {
+                            val kind = HolderGroup.of(holder)
+                            holder to trace.span("move items / ${kind.traceName}") { applyTo(holder, nonZero, forms, job, sink, asOf, worn) }
+                        }
                     }
+                }
+                when (val first = group.first().key) {
+                    is HolderId.Block -> withContext(services.schedulers.region(first)) { each() }
+                    is HolderId.PlacedBlock -> withContext(services.schedulers.region(HolderId.Block(first.world, first.x, first.y, first.z))) { each() }
+                    else -> each()
                 }
             }
         }
         val holders = others.awaitAll().flatten() + cargoJob.await()
-        settled?.complete(Unit)
+        settled?.complete(holders.mapNotNullTo(HashSet(failedEarly)) { (holder, result) -> holder.takeIf { result is ApplyResult.Failed } })
         holders + items.await()
     }
 }

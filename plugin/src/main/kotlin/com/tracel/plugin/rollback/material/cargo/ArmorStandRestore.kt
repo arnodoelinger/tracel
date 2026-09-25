@@ -34,11 +34,7 @@ internal fun MaterialRestorer.applyArmorStand(
             for (slot in slotsFor(template)) {
                 if (remaining <= 0L) break
                 val worn = eq.getItem(slot)
-                if (!worn.isEmpty && !worn.type.isAir) {
-                    // Snapshot already wearing this key; skip or we mint a second copy
-                    if (worn.matches(itemKey)) remaining -= worn.amount.toLong().coerceAtMost(remaining)
-                    continue
-                }
+                if (!worn.isEmpty && !worn.type.isAir) continue
                 val take = minOf(remaining, template.maxStackSize.toLong().coerceAtLeast(1L))
                 eq.setItem(slot, template.clone().apply { amount = take.toInt() })
                 remaining -= take
@@ -69,15 +65,12 @@ internal fun MaterialRestorer.slotsFor(stack: ItemStack): List<EquipmentSlot> {
     return listOf(natural) + hands.filter { it != natural }
 }
 
-/** Which equipment slot a stand naturally wears [stack] in, going by its material name. */
-@Unstable
-internal fun MaterialRestorer.armorSlot(stack: ItemStack): EquipmentSlot {
-    val name = stack.type.name
-    return when {
-        name.endsWith("_HELMET") || name == "TURTLE_HELMET" || name == "CARVED_PUMPKIN" -> EquipmentSlot.HEAD
-        name.endsWith("_CHESTPLATE") || name == "ELYTRA" -> EquipmentSlot.CHEST
-        name.endsWith("_LEGGINGS") -> EquipmentSlot.LEGS
-        name.endsWith("_BOOTS") -> EquipmentSlot.FEET
+/**
+ * Which equipment slot a stand naturally wears [stack] in, as the server itself says: guessed from the
+ * name, a player head or a skull came back in the stand's hand.
+ */
+internal fun MaterialRestorer.armorSlot(stack: ItemStack): EquipmentSlot =
+    when (val slot = runCatching { stack.type.equipmentSlot }.getOrNull()) {
+        EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET, EquipmentSlot.OFF_HAND -> slot
         else -> EquipmentSlot.HAND
     }
-}

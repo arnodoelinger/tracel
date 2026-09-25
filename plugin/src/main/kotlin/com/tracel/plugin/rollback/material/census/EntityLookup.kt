@@ -8,6 +8,12 @@ import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.namedByEntity
 import java.util.UUID
 import kotlin.time.TimeSource
+import com.tracel.plugin.adapter.world.worldOf
+import com.tracel.plugin.util.regionKey
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.entity.ArmorStand
@@ -37,7 +43,39 @@ internal suspend fun MaterialRestorer.findVanished(
         }
         trace.addNanos("find vanished items / lookup", scan.elapsedNow().inWholeNanoseconds)
         gone
+    }.let { suspects -> confirmGone(suspects) }
+}
+
+/**
+ * The global thread's word for "gone" is not enough: `Folia` often answers null for an entity two
+ * regions away, and a pile marked vanished is compensated while it still lies there. Ask again where
+ * it was last seen, with its chunk and entities loaded.
+ */
+internal suspend fun MaterialRestorer.confirmGone(suspects: Set<HolderId>): Set<HolderId> {
+    if (suspects.isEmpty()) return suspects
+    val hinted = HashMap<HolderId, HolderId.Block>()
+    val gone = HashSet<HolderId>()
+    for (holder in suspects) {
+        val uuid = (holder as? HolderId.ItemEntity)?.uuid
+        val hint = uuid?.let { services.groundWhereabouts.at(it) }
+        if (hint == null) gone += holder else hinted[holder] = hint
     }
+    val found = coroutineScope {
+        hinted.entries.groupBy { it.value.regionKey() }.values.map { group ->
+            async {
+                val at = group.first().value
+                val world = worldOf(at.world) ?: return@async emptyList()
+                val chunks = group.mapTo(HashSet()) { (it.value.x shr 4) to (it.value.z shr 4) }
+                chunks.map { (cx, cz) -> async { runCatching { world.getChunkAtAsync(cx, cz).await() } } }.awaitAll()
+                withContext(services.schedulers.region(at)) {
+                    for ((cx, cz) in chunks) runCatching { world.getChunkAt(cx, cz).entities }
+                    group.filter { (holder, _) -> Bukkit.getEntity((holder as HolderId.ItemEntity).uuid) is Item }.map { it.key }
+                }
+            }
+        }.awaitAll().flatten()
+    }
+    for ((holder, _) in hinted) if (holder !in found) gone += holder
+    return gone
 }
 
 /**

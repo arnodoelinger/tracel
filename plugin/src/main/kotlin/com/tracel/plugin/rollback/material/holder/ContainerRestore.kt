@@ -15,6 +15,8 @@ import com.tracel.plugin.rollback.material.cargo.syncCargoFlags
 import com.tracel.plugin.rollback.material.item.Moves
 import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.applyDelta
+import com.tracel.plugin.rollback.material.item.stackFor
+import com.tracel.plugin.rollback.material.item.stacksOf
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.spillInRegion
 import io.papermc.paper.block.TileStateInventoryHolder
@@ -92,7 +94,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
         for ((itemKey, delta) in deltas) {
             applyDelta(itemKey, delta, forms[itemKey], moves, inventory, preferredSlots[itemKey].orEmpty(), worn)
         }
-        if (state is BrewingStand) primeBrewingStandFuel(state)
+        if (state is BrewingStand && deltas.any { (key, delta) -> key.material == "BLAZE_POWDER" && delta > 0L }) primeBrewingStandFuel(state)
         spillInRegion(holder, moves, world, at, sink)
         syncCargoFlags(state)
         services.differ.rebaseline(holder, inventory.toItemTotals())
@@ -108,7 +110,28 @@ internal suspend fun MaterialRestorer.applyToContainer(
         val again = fill()
         if (again != NOT_A_CONTAINER) return again
     }
-    return first
+
+    // The ledger already put it here: on the ground beats nowhere
+    return withContext(services.schedulers.region(holder)) {
+        val world = worldOf(holder.world) ?: return@withContext first
+        val moves = Moves()
+        for ((itemKey, delta) in deltas) {
+            if (delta <= 0L) continue
+            var left = delta
+            val carried = worn?.takeIf { WornStacks.wears(itemKey) }
+            while (carried != null && left > 0L) {
+                val real = carried.next(itemKey) ?: break
+                val give = minOf(left, real.amount.toLong())
+                for (stack in stacksOf(itemKey, give, real)) moves.overflow += itemKey to stack
+                left -= give
+            }
+            val template = stackFor(itemKey, 1, forms[itemKey]) ?: continue
+            for (stack in stacksOf(itemKey, left, template)) moves.overflow += itemKey to stack
+        }
+        if (moves.overflow.isEmpty()) return@withContext first
+        spillInRegion(holder, moves, world, Location(world, holder.x + 0.5, holder.y + 1.0, holder.z + 0.5), sink)
+        "$first; what it was owed was dropped on the ground there"
+    }
 }
 
 private fun primeBrewingStandFuel(state: BrewingStand) {

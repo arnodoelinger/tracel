@@ -2,14 +2,19 @@ package com.tracel.plugin.rollback.material.item
 
 import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.adapter.item.canCarry
+import com.tracel.plugin.adapter.item.carried
 import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.adapter.item.withCarried
 import org.bukkit.Bukkit
 import org.bukkit.Material
+import org.bukkit.block.Crafter
 import org.bukkit.inventory.AbstractHorseInventory
 import org.bukkit.inventory.ArmoredHorseInventory
 import org.bukkit.inventory.BrewerInventory
 import org.bukkit.inventory.ChiseledBookshelfInventory
 import org.bukkit.inventory.CookingRecipe
+import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.FurnaceInventory
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
@@ -19,12 +24,24 @@ import org.bukkit.inventory.SaddledMountInventory
 
 private const val HORSE_STORAGE_FROM = 2
 
-/** Takes [amount] of [itemKey] out of [inventory], matched by key. */
-internal fun takeByKey(inventory: Inventory, itemKey: ItemKey, amount: Long, worn: WornStacks? = null): Long {
+/**
+ * Takes [amount] of [itemKey] out of [inventory], matched by key.
+ *
+ * Empty bundles go before full ones, and a full one taken leaves what it held behind in [loose]: the
+ * ledger books that apart from the bundle. Short of loose stacks, it takes from inside bundles.
+ */
+internal fun takeByKey(
+    inventory: Inventory,
+    itemKey: ItemKey,
+    amount: Long,
+    worn: WornStacks? = null,
+    loose: (ItemStack) -> Unit = {},
+): Long {
     if (amount <= 0L) return 0L
     var remaining = amount
     val contents = inventory.contents
-    for (slot in contents.indices) {
+    val order = contents.indices.sortedBy { slot -> contents[slot]?.let { it.canCarry() && it.carried().isNotEmpty() } == true }
+    for (slot in order) {
         if (remaining <= 0L) break
         val stack = contents[slot] ?: continue
         if (stack.isEmpty || stack.type.isAir) continue
@@ -32,12 +49,41 @@ internal fun takeByKey(inventory: Inventory, itemKey: ItemKey, amount: Long, wor
         val take = minOf(remaining, stack.amount.toLong()).toInt()
         worn?.took(itemKey, stack.clone().apply { this.amount = take })
         remaining -= take
+        val inside = stack.carried()
         if (take >= stack.amount) {
             inventory.setItem(slot, null)
         } else {
             stack.amount -= take
             inventory.setItem(slot, stack)
         }
+        for (item in inside) item.clone().apply { this.amount *= take }.let(loose)
+    }
+    if (remaining > 0L) remaining = takeCarried(inventory, itemKey, remaining)
+    return remaining
+}
+
+private fun takeCarried(inventory: Inventory, itemKey: ItemKey, amount: Long): Long {
+    var remaining = amount
+    val contents = inventory.contents
+    for (slot in contents.indices) {
+        if (remaining <= 0L) break
+        val carrier = contents[slot] ?: continue
+        if (!carrier.canCarry() || carrier.amount != 1) continue
+        val inside = carrier.carried()
+        if (inside.isEmpty()) continue
+        var changed = false
+        val kept = ArrayList<ItemStack>(inside.size)
+        for (item in inside) {
+            if (remaining > 0L && item.matches(itemKey)) {
+                val take = minOf(remaining, item.amount.toLong()).toInt()
+                remaining -= take
+                changed = true
+                if (take < item.amount) kept += item.clone().apply { this.amount -= take }
+            } else {
+                kept += item
+            }
+        }
+        if (changed) inventory.setItem(slot, carrier.clone().withCarried(kept))
     }
     return remaining
 }
@@ -60,10 +106,18 @@ internal fun giveInto(
     val over = ArrayList<ItemStack>()
 
     if (inventory.hasSlotsWithRoles()) {
-        for (stack in stacksOf(itemKey, amount, template)) {
+        var roleLeft = amount
+        for ((slot, _, quantity) in preferredSlots) {
+            if (roleLeft <= 0L) break
+            val take = minOf(roleLeft, quantity)
+            if (take <= 0L) continue
+            val left = fill(inventory, slot, template.clone().apply { this.amount = take.toInt() })
+            roleLeft -= take - (left?.amount?.toLong() ?: 0L)
+        }
+        for (stack in stacksOf(itemKey, roleLeft, template)) {
             if (stack.isEmpty || stack.type.isAir) continue
             val left = intoRoleSlot(inventory, stack) ?: continue
-            over += intoStorage(inventory, left)
+            over += if (inventory is AbstractHorseInventory) intoStorage(inventory, left) else listOf(left)
         }
         return over
     }
@@ -74,11 +128,11 @@ internal fun giveInto(
     }
 
     var remaining = amount
-    for (entry in preferredSlots) {
+    for ((slot, _, quantity) in preferredSlots) {
         if (remaining <= 0L) break
-        val take = minOf(remaining, entry.quantity)
+        val take = minOf(remaining, quantity)
         if (take <= 0L) continue
-        val left = fill(inventory, entry.slot, template.clone().apply { this.amount = take.toInt() })
+        val left = fill(inventory, slot, template.clone().apply { this.amount = take.toInt() })
         remaining -= take - (left?.amount?.toLong() ?: 0L)
     }
     if (remaining > 0L) {
@@ -119,10 +173,7 @@ private fun intoSingleItemSlots(
     for (slot in 0 until inventory.size) {
         if (remaining <= 0L) break
         val held = inventory.getItem(slot)
-        if (held != null && !held.isEmpty && !held.type.isAir) {
-            if (held.matches(itemKey)) remaining -= 1L
-            continue
-        }
+        if (held != null && !held.isEmpty && !held.type.isAir) continue
         inventory.setItem(slot, template.clone().apply { this.amount = 1 })
         remaining -= 1L
     }
@@ -150,7 +201,8 @@ private fun intoTack(inventory: SaddledMountInventory, stack: ItemStack): ItemSt
             worn = runCatching { inventory.saddle }.getOrNull()
             wear = { runCatching { inventory.saddle = it } }
         }
-        inventory is ArmoredHorseInventory && (name.endsWith("_HORSE_ARMOR") || name == "HORSE_ARMOR") -> {
+        inventory is ArmoredHorseInventory &&
+            (name.endsWith("_HORSE_ARMOR") || name == "HORSE_ARMOR" || runCatching { stack.type.equipmentSlot }.getOrNull() == EquipmentSlot.BODY) -> {
             worn = runCatching { inventory.armor }.getOrNull()
             wear = { runCatching { inventory.armor = it } }
         }
@@ -168,6 +220,8 @@ private fun intoTack(inventory: SaddledMountInventory, stack: ItemStack): ItemSt
 }
 
 private fun intoStorage(inventory: Inventory, stack: ItemStack): List<ItemStack> {
+    val crafter = runCatching { inventory.holder as? Crafter }.getOrNull()
+    if (crafter != null) return intoCrafter(inventory, crafter, stack)
     if (inventory !is AbstractHorseInventory) return inventory.addItem(stack).values.toList()
     var left: ItemStack? = stack
     for (slot in HORSE_STORAGE_FROM until inventory.size) {
@@ -179,6 +233,20 @@ private fun intoStorage(inventory: Inventory, stack: ItemStack): List<ItemStack>
     for (slot in HORSE_STORAGE_FROM until inventory.size) {
         val current = left ?: break
         left = fill(inventory, slot, current)
+    }
+    return listOfNotNull(left)
+}
+
+private fun intoCrafter(inventory: Inventory, crafter: Crafter, stack: ItemStack): List<ItemStack> {
+    var left: ItemStack? = stack
+    for (pass in 0..1) {
+        for (slot in 0 until inventory.size) {
+            val current = left ?: break
+            if (runCatching { crafter.isSlotDisabled(slot) }.getOrDefault(false)) continue
+            val held = inventory.getItem(slot)
+            if (pass == 0 && (held == null || held.isEmpty || held.type.isAir)) continue
+            left = fill(inventory, slot, current)
+        }
     }
     return listOfNotNull(left)
 }
@@ -200,8 +268,8 @@ private fun fill(inventory: Inventory, slot: Int, stack: ItemStack): ItemStack? 
 }
 
 private fun furnaceSlot(stack: ItemStack): Int = when {
-    isCooked(stack.type) -> 2
     stack.type.isFuel && !isSmeltable(stack.type) -> 1
+    isCooked(stack.type) -> 2
     else -> 0
 }
 

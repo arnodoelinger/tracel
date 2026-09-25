@@ -21,7 +21,14 @@ internal suspend fun MaterialRestorer.applyTo(
     sink: MutableCollection<Spill>,
     asOf: Long? = null,
     worn: WornStacks? = null,
-): ApplyResult = reported { dispatch(holder, deltas, forms, job, sink, asOf, worn) }
+): ApplyResult = reported {
+    val ordered = if (deltas.values.any { it < 0L } && deltas.values.any { it > 0L }) {
+        deltas.entries.sortedBy { it.value > 0L }.associate { it.toPair() }
+    } else {
+        deltas
+    }
+    dispatch(holder, ordered, forms, job, sink, asOf, worn)
+}
 
 /** Runs [work] and turns any thrown failure into [ApplyResult.Failed]. */
 internal suspend fun MaterialRestorer.reported(work: suspend () -> ApplyResult): ApplyResult = try {

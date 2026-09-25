@@ -21,6 +21,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.EquipmentSlot
+import org.bukkit.entity.ItemFrame
+import org.bukkit.entity.ArmorStand
 import org.bukkit.Bukkit
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.InventoryHolder
@@ -30,7 +34,13 @@ private data class Rewear(val lotId: LotId, val itemKey: ItemKey, val holder: Ho
 private data class WearEnd(val history: LotId, val lot: LotId, val holder: HolderId, val fresh: Boolean)
 
 /** Every worn tool a rollback reached, back to the damage it had at [asOf]. */
-internal suspend fun MaterialRestorer.rewearPlan(plan: RollbackPlan, target: RollbackTarget, job: RollbackJobId, asOf: Long) {
+internal suspend fun MaterialRestorer.rewearPlan(
+    plan: RollbackPlan,
+    target: RollbackTarget,
+    job: RollbackJobId,
+    asOf: Long,
+    only: Set<HolderId>? = null,
+) {
     val ends = LinkedHashMap<LotId, WearEnd>()
     val leaving = ArrayList<LotId>()
     services.atomically {
@@ -51,7 +61,8 @@ internal suspend fun MaterialRestorer.rewearPlan(plan: RollbackPlan, target: Rol
             }
         }
     }
-    rewear(ends.values.toList(), leaving, asOf)
+    val wanted = if (only == null) ends.values.toList() else ends.values.filter { it.holder in only }
+    rewear(wanted, if (only == null) leaving else emptyList(), asOf)
 }
 
 /** The same after an undo: back to the damage each tool had when the job ran, [asOf]. */
@@ -123,13 +134,32 @@ private suspend fun MaterialRestorer.rewearAt(
         inventory?.let { rewearIn(it, wanted, produced) }.orEmpty()
     }
     is HolderId.Entity -> withContext(services.schedulers.entity(holder.uuid)) {
-        (Bukkit.getEntity(holder.uuid) as? InventoryHolder)?.let { rewearIn(it.inventory, wanted, produced) }.orEmpty()
+        when (val entity = Bukkit.getEntity(holder.uuid)) {
+            is InventoryHolder -> rewearIn(entity.inventory, wanted, produced)
+            is ArmorStand -> {
+                val slots = EquipmentSlot.entries.filter { runCatching { entity.equipment.getItem(it) }.isSuccess }
+                rewearSlots(
+                    Array(slots.size) { entity.equipment.getItem(slots[it]) },
+                    { i, stack -> entity.equipment.setItem(slots[i], stack) },
+                    wanted, produced,
+                )
+            }
+            is ItemFrame -> rewearSlots(arrayOf(entity.item), { _, stack -> entity.setItem(stack, false) }, wanted, produced)
+            else -> emptyList()
+        }
     }
     else -> emptyList()
 }
 
-private fun rewearIn(inventory: Inventory, wanted: List<Rewear>, produced: Map<ItemKey, Set<Int>>): List<Pair<Rewear, Int>> {
-    val contents = inventory.contents
+private fun rewearIn(inventory: Inventory, wanted: List<Rewear>, produced: Map<ItemKey, Set<Int>>): List<Pair<Rewear, Int>> =
+    rewearSlots(inventory.contents, inventory::setItem, wanted, produced)
+
+private fun rewearSlots(
+    contents: Array<ItemStack?>,
+    write: (Int, ItemStack) -> Unit,
+    wanted: List<Rewear>,
+    produced: Map<ItemKey, Set<Int>>,
+): List<Pair<Rewear, Int>> {
     val used = BooleanArray(contents.size)
     val done = ArrayList<Pair<Rewear, Int>>(wanted.size)
 
@@ -146,7 +176,7 @@ private fun rewearIn(inventory: Inventory, wanted: List<Rewear>, produced: Map<I
             if (before != rewear.target) {
                 meta.damage = rewear.target
                 stack.itemMeta = meta
-                inventory.setItem(slot, stack)
+                write(slot, stack)
                 done += rewear to before
             }
             return true
@@ -155,6 +185,15 @@ private fun rewearIn(inventory: Inventory, wanted: List<Rewear>, produced: Map<I
     }
 
     val loose = wanted.filter { it.current == null || !claim(it, exact = true) }
-    for (rewear in loose) claim(rewear, exact = false)
+    val owed = loose.groupingBy { it.itemKey }.eachCount()
+    for (rewear in loose) {
+        val candidates = contents.indices.count { slot ->
+            val stack = contents[slot]
+            !used[slot] && stack != null && !stack.isEmpty && stack.matches(rewear.itemKey) &&
+                (stack.itemMeta as? Damageable)?.damage in produced[rewear.itemKey].orEmpty()
+        }
+        if (candidates > (owed[rewear.itemKey] ?: 0)) continue
+        claim(rewear, exact = false)
+    }
     return done
 }

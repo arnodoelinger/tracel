@@ -11,6 +11,7 @@ import com.tracel.plugin.rollback.material.ENTITY_GONE_AT_PLAN
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.census.census
+import com.tracel.plugin.rollback.material.census.confirmGone
 import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.stackFor
 import com.tracel.plugin.rollback.material.item.stacksOf
@@ -70,6 +71,14 @@ internal suspend fun MaterialRestorer.restoreGroundItems(
             val where = late.at[holder.uuid]
             if (where == null) missing += holder else found += Located(holder, deltas, where)
         }
+    }
+    if (missing.isNotEmpty()) {
+        val stillGone = confirmGone(missing.toSet())
+        for (holder in missing.filter { it !in stillGone }) {
+            val hint = services.groundWhereabouts.at(holder.uuid) ?: continue
+            found += Located(holder, live.getValue(holder), hint)
+        }
+        missing.retainAll(stillGone)
     }
     val located = Pair(found, missing)
     for (holder in located.second) {

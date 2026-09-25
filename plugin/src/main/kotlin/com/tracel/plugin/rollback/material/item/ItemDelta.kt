@@ -4,8 +4,10 @@ import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.item.PendingItemForms
+import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.util.Warnings
+import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Material
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
@@ -36,14 +38,22 @@ internal fun MaterialRestorer.applyDelta(
         }
         for (over in giveInto(inventory, itemKey, left, template, preferredSlots)) moves.overflow += itemKey to over
     } else {
-        moves.short(itemKey, takeByKey(inventory, itemKey, -delta, carried))
+        moves.short(itemKey, takeByKey(inventory, itemKey, -delta, carried) { left ->
+            for (over in inventory.addItem(left).values) moves.overflow += over.toItemKey() to over
+        })
     }
 }
+
+private val rebuiltForms = ConcurrentHashMap<ByteArray, ItemStack>()
+private const val MAX_REBUILT_FORMS = 4_096
 
 /** [amount] of [itemKey], rebuilt from [form] if there is one and plain if there is not. */
 internal fun MaterialRestorer.stackFor(itemKey: ItemKey, amount: Int, form: ByteArray?): ItemStack? {
     if (form != null) {
-        val rebuilt = runCatching { ItemStack.deserializeBytes(form) }.getOrNull()
+        val rebuilt = rebuiltForms[form]?.clone() ?: runCatching { ItemStack.deserializeBytes(form) }.getOrNull()?.also {
+            if (rebuiltForms.size >= MAX_REBUILT_FORMS) rebuiltForms.clear()
+            rebuiltForms[form] = it.clone()
+        }
         if (rebuilt != null) return rebuilt.apply { this.amount = amount }
         Warnings.once(logger, "form:$itemKey") {
             "stored form of $itemKey no longer deserializes on this server — restoring it plain"

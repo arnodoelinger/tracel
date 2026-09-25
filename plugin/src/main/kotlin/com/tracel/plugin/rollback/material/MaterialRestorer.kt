@@ -4,6 +4,7 @@ import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.TracelServices
@@ -25,7 +26,7 @@ class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, Wo
     override suspend fun deltasFor(plan: RollbackPlan, target: RollbackTarget): Map<HolderId, Map<ItemKey, Long>> =
         planDeltas(plan, target)
 
-    override fun deltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map<ItemKey, Long>> = undoDeltas(steps)
+    override fun deltasForUndo(steps: List<InvolutionStep>, noise: Set<LotId>): Map<HolderId, Map<ItemKey, Long>> = undoDeltas(steps, noise)
 
     override fun preflight(deltas: Map<HolderId, Map<ItemKey, Long>>): PreflightResult = preflightWorlds(deltas)
 
@@ -42,12 +43,12 @@ class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, Wo
         respawnAt: Map<HolderId.ItemEntity, HolderId>,
         trace: RollbackTrace,
         census: EntityCensus,
-        settled: CompletableDeferred<Unit>?,
+        settled: CompletableDeferred<Set<HolderId>>?,
         asOf: Long?,
     ): RestorationReport = restoreDeltas(deltas, job, knownGone, respawnAt, trace, census, settled, asOf)
 
-    override suspend fun undoRestore(steps: List<InvolutionStep>, job: RollbackJobId, asOf: Long?): RestorationReport =
-        restoreUndo(steps, job, asOf)
+    override suspend fun undoRestore(steps: List<InvolutionStep>, job: RollbackJobId, noise: Set<LotId>, asOf: Long?): RestorationReport =
+        restoreUndo(steps, job, noise, asOf)
 
     override suspend fun rewear(plan: RollbackPlan, target: RollbackTarget, job: RollbackJobId, asOf: Long) =
         rewearPlan(plan, target, job, asOf)

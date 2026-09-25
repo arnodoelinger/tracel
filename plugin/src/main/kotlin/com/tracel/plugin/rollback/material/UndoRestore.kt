@@ -1,9 +1,9 @@
 package com.tracel.plugin.rollback.material
 
-import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.engine.rollback.plan.physicalDeltasForUndo
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.material.holder.spawnReturnedDrops
@@ -12,12 +12,18 @@ import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.logging.Level
+import org.bukkit.Material
+import org.bukkit.block.Campfire
+import org.bukkit.inventory.InventoryHolder
+
+private val holdsItems = ConcurrentHashMap<String, Boolean>()
 
 /** Puts material back after the ledger has already undone a job. */
-internal suspend fun MaterialRestorer.restoreUndo(steps: List<InvolutionStep>, job: RollbackJobId, asOf: Long?): RestorationReport {
-    val deltas = physicalDeltasForUndo(steps)
+internal suspend fun MaterialRestorer.restoreUndo(steps: List<InvolutionStep>, job: RollbackJobId, noise: Set<LotId>, asOf: Long?): RestorationReport {
+    val deltas = physicalDeltasForUndo(steps, noise)
 
     // Vanished-drop gives wait until the dest is gone
     val later = deltas.filter { (holder, moved) ->
@@ -66,14 +72,11 @@ internal suspend fun MaterialRestorer.respawnDrops(
     return RestorationReport(failures, spilled = sink.size)
 }
 
-/** Whether [itemKey] is a container placed as a block. */
-@Unstable
-internal fun isContainerBlockItem(itemKey: ItemKey): Boolean {
-    val name = itemKey.material
-    if (name.endsWith("_SHULKER_BOX")) return true
-    return name == "CHEST" || name == "TRAPPED_CHEST" || name == "BARREL" ||
-        name == "HOPPER" || name == "DROPPER" || name == "DISPENSER" ||
-        name == "FURNACE" || name == "BLAST_FURNACE" || name == "SMOKER" ||
-        name == "CRAFTER" || name == "CHISELED_BOOKSHELF" ||
-        name == "LECTERN" || name == "JUKEBOX"
+/** Whether [itemKey] is a container placed as a block. Asks the block itself, so a new one is not missed. */
+internal fun isContainerBlockItem(itemKey: ItemKey): Boolean = holdsItems.computeIfAbsent(itemKey.material) { name ->
+    val material = Material.getMaterial(name)?.takeIf { it.isBlock } ?: return@computeIfAbsent false
+    runCatching {
+        val state = material.createBlockData().createBlockState()
+        state is InventoryHolder || state is Campfire
+    }.getOrDefault(false)
 }

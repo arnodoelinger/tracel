@@ -26,6 +26,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import org.bukkit.Location
+import org.bukkit.World
+import kotlinx.coroutines.future.await
+import com.tracel.plugin.adapter.world.worldOf
+import com.tracel.plugin.rollback.material.item.matches
+import org.bukkit.inventory.EquipmentSlot
+import org.bukkit.entity.Mob
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.ArmorStand
@@ -35,6 +42,11 @@ import org.bukkit.inventory.InventoryHolder
 import org.bukkit.inventory.ItemStack
 
 private val CHEST: ItemKey = ItemStack(Material.CHEST).toItemKey()
+
+private const val CHEST_STORAGE_FROM = 2
+
+private const val NO_HULL = "entity no longer exists"
+private const val ELSEWHERE = "entity is in another region"
 
 /** One global lookup for entity cargo restore. */
 internal suspend fun MaterialRestorer.restoreEntityCargo(
@@ -92,9 +104,22 @@ internal suspend fun MaterialRestorer.restoreEntityCargo(
         grouped.values.map { group ->
             async {
                 val at = group.first().at
+                worldOf(at.world)?.let { world -> runCatching { world.getChunkAtAsync(at.x shr 4, at.z shr 4).await() } }
                 withContext(services.schedulers.region(at)) {
+                    val world = worldOf(at.world)
+                    if (world != null) runCatching { world.getChunkAt(at.x shr 4, at.z shr 4).entities }
                     group.map { row ->
-                        row.holder to inRegion { fillEntityCargo(row.holder, row.deltas, forms, sink, asOf, worn) }
+                        row.holder to inRegion {
+                            val failed = fillEntityCargo(row.holder, row.deltas, forms, sink, asOf, worn)
+                            if (failed == NO_HULL && world != null) spillGives(row.holder, row.deltas, forms, world, row.at, sink)
+                            failed
+                        }
+                    }
+                }.map { (holder, result) ->
+                    if ((result as? ApplyResult.Failed)?.reason != ELSEWHERE) return@map holder to result
+                    val row = group.first { it.holder == holder }
+                    holder to withContext(services.schedulers.entity(holder.uuid)) {
+                        inRegion { fillEntityCargo(row.holder, row.deltas, forms, sink, asOf, worn) }
                     }
                 }
             }
@@ -117,7 +142,8 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
     asOf: Long? = null,
     worn: WornStacks? = null,
 ): String? {
-    val entity = Bukkit.getEntity(holder.uuid) ?: return "entity no longer exists"
+    val entity = Bukkit.getEntity(holder.uuid) ?: return NO_HULL
+    if (!Bukkit.isOwnedByCurrentRegion(entity)) return ELSEWHERE
     val moves = Moves()
     when (entity) {
         is ArmorStand -> {
@@ -162,13 +188,27 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
                 }
             }
 
-            // Detach last: taking the chest off removes the slots
-            if (detach) horse.isCarryingChest = false
+            // Detach last: taking the chest off removes the slots, so whatever still sits in them goes on
+            // the ground first, as vanilla drops it, instead of vanishing with them.
+            if (detach) {
+                for (slot in CHEST_STORAGE_FROM until live.size) {
+                    val left = live.getItem(slot) ?: continue
+                    if (left.isEmpty || left.type.isAir) continue
+                    moves.overflow += left.toItemKey() to left.clone()
+                    live.setItem(slot, null)
+                }
+                horse.isCarryingChest = false
+            }
 
             // Chest flag is metadata the client often misses
             if (attach || detach) entity.resyncCargoViewers(services.plugin)
 
             services.differ.rebaseline(holder, entity.cargoStacks().toItemTotals())
+        }
+        // What a mob holds or wears it picked up or was given: take it out of the slot, give it back into one
+        is Mob -> {
+            applyMobEquipment(entity, deltas, forms, moves)
+            services.differ.forget(holder)
         }
         // Mint-through mob (egg via chicken): no inventory. Spill under the animal rather than vanish
         else -> {
@@ -188,4 +228,58 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
     }
     spillInRegion(holder, moves, entity.world, entity.location, sink)
     return moves.reason
+}
+
+private fun MaterialRestorer.applyMobEquipment(mob: Mob, deltas: Map<ItemKey, Long>, forms: Map<ItemKey, ByteArray>, moves: Moves) {
+    val equipment = mob.equipment
+    for ((itemKey, delta) in deltas.entries.sortedBy { it.value > 0L }) {
+        if (delta < 0L) {
+            var left = -delta
+            for (slot in EquipmentSlot.entries) {
+                if (left <= 0L) break
+                val held = runCatching { equipment.getItem(slot) }.getOrNull() ?: continue
+                if (held.isEmpty || !held.matches(itemKey)) continue
+                val take = minOf(left, held.amount.toLong())
+                equipment.setItem(slot, if (take >= held.amount) ItemStack.empty() else held.clone().apply { amount -= take.toInt() })
+                left -= take
+            }
+            moves.short(itemKey, left)
+            continue
+        }
+        val template = stackFor(itemKey, 1, forms[itemKey])
+        if (template == null) {
+            moves.problem("${itemKey.material} is not an item this server can build")
+            continue
+        }
+        var left = delta
+        val natural = runCatching { template.type.equipmentSlot }.getOrNull()
+        for (slot in listOfNotNull(natural, EquipmentSlot.HAND).distinct()) {
+            if (left <= 0L) break
+            if (!runCatching { mob.canUseEquipmentSlot(slot) }.getOrDefault(false)) continue
+            val held = runCatching { equipment.getItem(slot) }.getOrNull()
+            if (held != null && !held.isEmpty) continue
+            val give = if (slot == EquipmentSlot.HAND) minOf(left, template.maxStackSize.toLong()) else 1L
+            equipment.setItem(slot, template.clone().apply { amount = give.toInt() })
+            runCatching { equipment.setDropChance(slot, 1f) }
+            left -= give
+        }
+        for (over in stacksOf(itemKey, left, template)) moves.overflow += itemKey to over
+    }
+}
+
+private fun MaterialRestorer.spillGives(
+    holder: HolderId.Entity,
+    deltas: Map<ItemKey, Long>,
+    forms: Map<ItemKey, ByteArray>,
+    world: World,
+    at: HolderId.Block,
+    sink: MutableCollection<Spill>,
+) {
+    val moves = Moves()
+    for ((itemKey, delta) in deltas) {
+        if (delta <= 0L) continue
+        val template = stackFor(itemKey, 1, forms[itemKey]) ?: continue
+        for (stack in stacksOf(itemKey, delta, template)) moves.overflow += itemKey to stack
+    }
+    if (moves.overflow.isNotEmpty()) spillInRegion(holder, moves, world, Location(world, at.x + 0.5, at.y + 1.0, at.z + 0.5), sink)
 }

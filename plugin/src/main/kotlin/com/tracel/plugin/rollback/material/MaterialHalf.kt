@@ -4,6 +4,7 @@ import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.material.census.EntityCensus
@@ -19,7 +20,7 @@ interface MaterialHalf {
     suspend fun deltasFor(plan: RollbackPlan, target: RollbackTarget): Map<HolderId, Map<ItemKey, Long>>
 
     /** The same for undo, which needs no ledger read at all. */
-    fun deltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map<ItemKey, Long>>
+    fun deltasForUndo(steps: List<InvolutionStep>, noise: Set<LotId>): Map<HolderId, Map<ItemKey, Long>>
 
     /** Abort only if a world is unloaded. Everything else is per-holder. */
     fun preflight(deltas: Map<HolderId, Map<ItemKey, Long>>): PreflightResult
@@ -35,12 +36,12 @@ interface MaterialHalf {
         respawnAt: Map<HolderId.ItemEntity, HolderId> = emptyMap(),
         trace: RollbackTrace = RollbackTrace.NONE,
         census: EntityCensus = EntityCensus.EMPTY,
-        settled: CompletableDeferred<Unit>? = null,
+        settled: CompletableDeferred<Set<HolderId>>? = null,
         asOf: Long? = null,
     ): RestorationReport
 
     /** After the ledger undid. [asOf] is the original job's run time, not the historical target. */
-    suspend fun undoRestore(steps: List<InvolutionStep>, job: RollbackJobId, asOf: Long? = null): RestorationReport
+    suspend fun undoRestore(steps: List<InvolutionStep>, job: RollbackJobId, noise: Set<LotId>, asOf: Long? = null): RestorationReport
 
     /** Worn tools the plan reached, back to the damage they had at [asOf]. After [restore]. */
     suspend fun rewear(plan: RollbackPlan, target: RollbackTarget, job: RollbackJobId, asOf: Long)
