@@ -32,10 +32,11 @@ public class RollbackJobCoordinator(
     private val journalExecutor: JournalExecutor,
     private val jobs: RollbackJobRepository,
     private val ledgerVersion: (suspend () -> Long)? = null,
+    private val changedSince: (suspend (Collection<LotId>, Long) -> Boolean)? = null,
 ) {
     /**
      * @param prepared a plan the caller has already worked out, with [preparedAt] the ledger
-     * version read immediately after working it out. Both or neither: the witness is what makes
+     * version read just before working it out. Both or neither: the witness is what makes
      * handing in a plan as safe as computing one here, and a plan without one would skip the
      * staleness check rather than pass it.
      */
@@ -48,7 +49,9 @@ public class RollbackJobCoordinator(
         recordsOwnJob: Boolean = true,
         prepared: RollbackPlan? = null,
         preparedAt: Long? = null,
-    ): RollbackOutcome = when (val reservation = reserve(job, rootLots, target, vanished, prepared, preparedAt)) {
+        structural: Boolean = true,
+        covered: Set<HolderId>? = null,
+    ): RollbackOutcome = when (val reservation = reserve(job, rootLots, target, vanished, prepared, preparedAt, structural, covered)) {
         is Reservation.Blocked -> RollbackOutcome.Blocked(reservation.conflicts)
         is Reservation.Stale -> RollbackOutcome.Stale(reservation.replan)
         is Reservation.Granted -> apply(reservation, target, crashPoint, recordsOwnJob)
@@ -63,7 +66,7 @@ public class RollbackJobCoordinator(
      * halves at the same time is to settle the question first.
      *
      * @param prepared a plan the caller has already worked out, with [preparedAt] the ledger
-     * version read immediately after working it out. Both or neither: the witness is what makes
+     * version read just before working it out. Both or neither: the witness is what makes
      * handing in a plan as safe as computing one here, and a plan without one would skip the
      * staleness check rather than pass it.
      */
@@ -74,16 +77,18 @@ public class RollbackJobCoordinator(
         vanished: Set<HolderId> = emptySet(),
         prepared: RollbackPlan? = null,
         preparedAt: Long? = null,
+        structural: Boolean = true,
+        covered: Set<HolderId>? = null,
     ): Reservation {
-        val planner = RollbackPlanner(repo, worldQuery, vanished = vanished)
+        val planner = RollbackPlanner(repo, worldQuery, vanished = vanished, structural = structural, covered = covered, target = target)
         val plan: RollbackPlan
         val planned: Long?
         if (prepared != null && preparedAt != null) {
             plan = prepared
             planned = preparedAt
         } else {
-            plan = planner.plan(rootLots)
             planned = ledgerVersion?.invoke()
+            plan = planner.plan(rootLots)
         }
 
         val lease = when (val acquisition = leases.acquire(job, plan.touchedLots)) {
@@ -91,8 +96,11 @@ public class RollbackJobCoordinator(
             is LeaseAcquisition.Granted -> acquisition.lease
         }
 
-        // Only worth replanning if something could have changed while the lease was being taken
-        if (planned == null || ledgerVersion?.invoke() != planned) {
+        // Only worth replanning if one of its own lots changed: on a live server something always did
+        val moved = planned == null ||
+            (changedSince?.invoke(plan.touchedLots, planned) ?: (ledgerVersion?.invoke() != planned))
+        if (moved) {
+            val verifiedAt = ledgerVersion?.invoke()
             val verified = try {
                 planner.plan(rootLots)
             } catch (failure: Throwable) {
@@ -101,11 +109,16 @@ public class RollbackJobCoordinator(
             }
             if (verified != plan) {
                 leases.release(job)
-                return Reservation.Stale(verified)
+                return Reservation.Stale(verified, verifiedAt)
             }
         }
 
         return Reservation.Granted(job, lease, plan)
+    }
+
+    /** Gives back what [reserve] leased when [apply] never ran: a structure pass failing first left the lots leased till restart. */
+    public suspend fun cancel(reservation: Reservation.Granted) {
+        leases.release(reservation.job)
     }
 
     /** Runs what [reserve] granted. Nothing here can refuse; the refusing was done up there. */

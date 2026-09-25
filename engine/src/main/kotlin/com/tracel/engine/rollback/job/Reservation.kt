@@ -20,7 +20,8 @@ public sealed interface Reservation {
     /**
      * Journal moved between plan and lease;
      *
-     * [replan] is current.
+     * [replan] is current, as of ledger version [replannedAt]: handed back in with it, the next
+     * reserve only checks again rather than planning a third time.
      */
-    public data class Stale(public val replan: RollbackPlan) : Reservation
+    public data class Stale(public val replan: RollbackPlan, public val replannedAt: Long? = null) : Reservation
 }

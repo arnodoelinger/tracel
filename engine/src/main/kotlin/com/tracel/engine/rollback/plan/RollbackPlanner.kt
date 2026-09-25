@@ -22,9 +22,11 @@ import com.tracel.model.lot.LotEdge
 public class RollbackPlanner(
     private val repo: LotRepository,
     private val worldQuery: WorldQuery,
-    private val maxTransformDepth: Int = 3,
+    private val maxTransformDepth: Int = 32,
     private val vanished: Set<HolderId> = emptySet(),
     private val structural: Boolean = true,
+    private val covered: Set<HolderId>? = null,
+    private val target: RollbackTarget? = null,
 ) {
     private val unmakeSteps = linkedMapOf<TxnId, RollbackStep.Unmake>()
     private val resolved = mutableMapOf<LotId, Array<ResolvedLocation?>>()
@@ -45,6 +47,7 @@ public class RollbackPlanner(
      */
     public suspend fun plan(rootLots: List<LotId>): RollbackPlan = repo.reading {
         unmakeSteps.clear()
+        sharedOut.clear()
         placedLots.clear()
         resolved.clear()
         edgeCache.clear()
@@ -88,7 +91,8 @@ public class RollbackPlanner(
         val seenLeaf = mutableSetOf<LotId>()
         val rootOf = mutableMapOf<LotId, LotId>()
         val settled = mutableSetOf<LotId>()
-        val stack = ArrayDeque(rootLots.map { it to it })
+        val stack = ArrayDeque<Pair<LotId, LotId>>()
+        for (root in rootLots.distinct().sortedByDescending { it.raw }) stack.addLast(root to root)
 
         while (stack.isNotEmpty()) {
             val (lotId, root) = stack.removeLast()
@@ -115,8 +119,27 @@ public class RollbackPlanner(
             }
         }
 
-        val leaves = if (unmade.isEmpty()) leafSteps else leafSteps.filterNot { it is RollbackStep.Take && it.lotId in unmade }
-        RollbackPlan(unmakeSteps.values.toList() + leaves, rootOf, settled)
+        val leaves = leafSteps.filterNot { step ->
+            step is RollbackStep.Take && (step.lotId in unmade || step.holder == homeOf(rootOf[step.lotId]))
+        }
+        RollbackPlan(stillConsumed(unmakeSteps.values.toList()) + leaves, rootOf, settled)
+    }
+
+    private fun homeOf(root: LotId?): HolderId? = when (val to = target) {
+        null -> null
+        is RollbackTarget.Uniform -> to.holder
+        is RollbackTarget.PerRoot -> root?.let { to.byRoot[it] }
+    }
+
+    private suspend fun stillConsumed(unmakes: List<RollbackStep.Unmake>): List<RollbackStep.Unmake> {
+        if (unmakes.isEmpty()) return unmakes
+        val inputs = unmakes.flatMapTo(LinkedHashSet()) { step -> step.inputs.map { it.lotId } }
+        val unknown = inputs.filter { it !in holderCache }
+        if (unknown.isNotEmpty()) holderCache.putAll(repo.currentHoldersOf(unknown))
+        return unmakes.map { step ->
+            val consumed = step.inputs.filter { holderCache[it.lotId] == null }
+            if (consumed.size == step.inputs.size) step else step.copy(inputs = consumed)
+        }
     }
 
     private suspend fun resolve(lotId: LotId, depth: Int): ResolvedLocation {
@@ -158,7 +181,7 @@ public class RollbackPlanner(
         val transforms = edges.filterIsInstance<LotEdge.Transform>()
         if (transforms.isNotEmpty()) {
             // TODO: replace the depth limit with cycle-safe transform resolution or smth like that
-            if (depth >= maxTransformDepth) { // TODO: 5 -> 3?
+            if (depth >= maxTransformDepth) {
                 val lot = lotOf(lotId)
                 return ResolvedLocation.Holder(lotId, HolderId.Sink(SinkKind.UNTRACKED_GAP), lot.quantity)
             }
@@ -176,8 +199,10 @@ public class RollbackPlanner(
                         // for the very same ingredients.
                         if (outputLocation.holder.isReclaimable()) {
                             registerUnmake(transform, listOf(UnmadeOutput(outputLocation.lotId, outputLocation.holder)))
+                            return ResolvedLocation.Holder(lotId, outputLocation.holder, transform.quantity)
                         }
-                        return ResolvedLocation.Holder(lotId, outputLocation.holder, transform.quantity)
+                        val gone = outputLocation.holder as? HolderId.Sink ?: HolderId.Sink(SinkKind.UNTRACKED_GAP)
+                        return ResolvedLocation.Holder(lotId, gone, transform.quantity)
                     }
                     is ResolvedLocation.Settled -> return ResolvedLocation.Settled(lotId, outputLocation.byJob)
 
@@ -191,7 +216,7 @@ public class RollbackPlanner(
                     // rollback returned planks where it owed logs.
                     is ResolvedLocation.Split -> {
                         val pieces = wholeOutput(transform.child, outputLocation, depth + 1)
-                            ?: return outputLocation
+                            ?: return shareOf(transform, outputLocation)
                         registerUnmake(transform, pieces)
                         return ResolvedLocation.Holder(lotId, pieces.first().holder, transform.quantity)
                     }
@@ -215,7 +240,7 @@ public class RollbackPlanner(
         val lot = lotOf(lotId)
         val holder = holderCache[lotId] ?: return ResolvedLocation.Gone(lotId)
         // Standing in the world as itself
-        if (!structural && holder.isPlacedThing()) {
+        if (holder.isPlacedThing() && !holder.reclaimedByStructure()) {
             placedLots += lotId
             return ResolvedLocation.Gone(lotId)
         }
@@ -238,7 +263,10 @@ public class RollbackPlanner(
      * no longer be recovered.
      */
     private fun HolderId.isReclaimable(): Boolean =
-        this !is HolderId.Sink && this !is HolderId.Source && this !is HolderId.Escrow && this !in vanished
+        this !is HolderId.Sink && this !is HolderId.Source && this !is HolderId.Escrow && this !in vanished &&
+            (!isPlacedThing() || reclaimedByStructure())
+
+    private fun HolderId.reclaimedByStructure(): Boolean = structural && (covered == null || this in covered)
 
     /**
      * All lots used by the planner are loaded before resolution starts.
@@ -286,10 +314,10 @@ public class RollbackPlanner(
                 is ResolvedLocation.Holder -> {
                     if (!at.holder.isReclaimable()) return null
                     pieces += UnmadeOutput(at.lotId, at.holder)
-                    // The lot's own size. A piece resolved through a further
-                    // craft reports how much of it went into that craft, and
-                    // an unmake destroys the whole lot.
-                    covered += lotOf(at.lotId).quantity.raw
+                    // What sits there now. A piece resolved through a further craft is not placed at all,
+                    // and an unmake destroys that whole lot.
+                    // the engine places whole lots, so the preloaded quantity is what sits there: no read per piece
+                    covered += lotCache[at.lotId]?.quantity?.raw ?: repo.placementOf(at.holder, at.lotId)?.remaining?.raw ?: 0L
                 }
                 is ResolvedLocation.Split -> frontier += at.children
                 is ResolvedLocation.Settled, is ResolvedLocation.Gone -> return null
@@ -297,9 +325,32 @@ public class RollbackPlanner(
         }
         if (pieces.isEmpty()) return null
         if (pieces.any { it.holder != pieces.first().holder }) return null
+
         // TODO: add more regression tests for partially lost crafted outputs
         if (covered != lotOf(output).quantity.raw) return null
         return pieces
+    }
+
+    private val sharedOut = HashMap<LotId, MutableSet<LotId>>()
+
+    private fun shareOf(transform: LotEdge.Transform, split: ResolvedLocation.Split): ResolvedLocation {
+        val inputs = intoCache[transform.child].orEmpty().filterIsInstance<LotEdge.Transform>()
+        val total = inputs.sumOf { it.quantity.raw }
+        if (inputs.size <= 1 || total <= 0L) return split
+        val made = lotCache[transform.child]?.quantity?.raw ?: return split
+        var owed = made * transform.quantity.raw / total
+        val taken = sharedOut.getOrPut(transform.child) { HashSet() }
+        val mine = ArrayList<LotId>()
+        for (piece in split.children.sortedByDescending { lotCache[it]?.quantity?.raw ?: 0L }) {
+            if (owed <= 0L) break
+            if (piece in taken) continue
+            val size = lotCache[piece]?.quantity?.raw ?: continue
+            if (size > owed) continue
+            taken += piece
+            mine += piece
+            owed -= size
+        }
+        return ResolvedLocation.Split(mine)
     }
 
     /**

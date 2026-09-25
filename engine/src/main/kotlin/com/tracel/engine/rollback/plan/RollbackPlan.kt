@@ -19,7 +19,14 @@ public data class RollbackPlan(
 
     public val holders: Set<HolderId>
         get() = buildSet {
-            for (step in steps) if (step is RollbackStep.Take) add(step.holder)
+            for (step in steps) when (step) {
+                is RollbackStep.Take -> add(step.holder)
+                is RollbackStep.Unmake -> {
+                    add(step.holder)
+                    for ((_, holder) in step.outputs) add(holder)
+                }
+                is RollbackStep.Mint, is RollbackStep.Debt -> Unit
+            }
         }
 
     public val touchedLots: Set<LotId>
