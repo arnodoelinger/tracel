@@ -1,5 +1,6 @@
 package com.tracel.plugin
 
+import org.bukkit.Bukkit
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.startup.TracelRuntime
 import com.tracel.plugin.startup.enableTracel
@@ -9,7 +10,6 @@ import com.tracel.plugin.util.stopping
 import java.util.logging.Level
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import org.bukkit.plugin.java.JavaPlugin
 
 /**
@@ -17,6 +17,8 @@ import org.bukkit.plugin.java.JavaPlugin
  */
 class TracelPlugin : JavaPlugin() {
     private var runtime: TracelRuntime? = null
+
+    private val SHUTDOWN_WAIT_MILLIS = 5_000L
 
     override fun onEnable() {
         try {
@@ -30,12 +32,21 @@ class TracelPlugin : JavaPlugin() {
 
     override fun onDisable() {
         val run = runtime
-        stopping(logger, "the capture drain") { run?.drain?.cancel() }
-        stopping(logger, "the entity drain") { run?.entityDrain?.cancel() }
-        stopping(logger, "the item-form drain") { run?.formDrain?.cancel() }
-        stopping(logger, "the release drain") { run?.releaseDrain?.cancel() }
-        stopping(logger, "background tasks") { run?.services?.scope?.cancel() }
-        stopping(logger, "storage") { run?.storage?.close() }
+        stopping(logger, "storage") {
+            val live = run ?: return@stopping
+            val clean = live.storage.closeAfter(SHUTDOWN_WAIT_MILLIS) {
+                stopping(logger, "the last captures") { live.lastCaptures() }
+                live.drain.cancel()
+                live.entityDrain.cancel()
+                live.formDrain.cancel()
+                live.releaseDrain.cancel()
+                live.services.scope.coroutineContext[Job]?.let {
+                    it.cancel()
+                    it.join()
+                }
+            }
+            if (!clean) logger.warning("Tracel stopped waiting for its last writes after $SHUTDOWN_WAIT_MILLIS ms; the rest still goes")
+        }
         logger.info("Tracel disabled.")
         if (!serverIsStopping()) {
             logger.severe("Tracel was disabled while the server is still running. The server cannot run without a ledger.")

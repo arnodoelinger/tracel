@@ -18,8 +18,11 @@ import com.tracel.plugin.listener.material.place.ContainerListener
 import com.tracel.plugin.listener.material.place.HarvestListener
 import com.tracel.plugin.listener.material.recipe.CauldronListener
 import com.tracel.plugin.listener.material.recipe.CompostListener
+import com.tracel.plugin.listener.session.FreezeGuardListener
+import com.tracel.plugin.listener.session.GapCommandListener
 import com.tracel.plugin.listener.session.InspectListener
 import com.tracel.plugin.listener.session.PendingDeliveryListener
+import com.tracel.plugin.listener.session.SnapshotEvictionListener
 import com.tracel.plugin.listener.world.cell.BlockChangeListener
 import com.tracel.plugin.listener.world.cell.BlockInteractListener
 import com.tracel.plugin.listener.world.cell.NaturalChangeListener
@@ -78,8 +81,11 @@ private fun materialListeners(services: TracelServices): List<TracelListener> = 
     CompostListener(services),
 )
 
-/** Not a log: inspect wand, offline rollback deliveries. */
+/** Not a log: inspect wand, offline rollback deliveries, snapshot eviction. */
 private fun sessionListeners(services: TracelServices): List<TracelListener> = listOf(
     InspectListener(services),
     PendingDeliveryListener(services),
+    SnapshotEvictionListener(services),
+    FreezeGuardListener(services),
+    GapCommandListener(services),
 )

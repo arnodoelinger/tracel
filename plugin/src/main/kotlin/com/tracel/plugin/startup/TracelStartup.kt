@@ -1,5 +1,6 @@
 package com.tracel.plugin.startup
 
+import org.bukkit.Bukkit
 import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
@@ -43,6 +44,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.tomlj.Toml
 
+private const val LAST_CAPTURE_WAIT_MILLIS = 500L
+
 /** Wired plugin after a successful [enable]. */
 internal class TracelRuntime(
     val storage: TracelStorage,
@@ -51,6 +54,7 @@ internal class TracelRuntime(
     val entityDrain: Job,
     val formDrain: Job,
     val releaseDrain: Job,
+    val lastCaptures: suspend () -> Unit,
 )
 
 /** Run startup sequence. */
@@ -93,12 +97,13 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         leases,
         counters::nextTxnId,
     )
+    val undoJournal = Journal.forInvolution(storage)
     val involutionCoordinator = InvolutionJobCoordinator(
         jobs,
         repo,
         leases,
         InvolutionExecutor(ledger, log, counters::nextSeq),
-        Journal.forInvolution(storage),
+        undoJournal,
         counters::nextTxnId,
     )
     val services = TracelServices(
@@ -109,9 +114,10 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         counters = counters,
         schedulers = schedulers,
         scope = CoroutineScope(SupervisorJob() + schedulers.async + plugin.captureFailures()),
-        rollback = RollbackJobCoordinator(repo, WorldQuery(::playerIsOnline), leases, journalExecutor, jobs, ledgerVersion = counters::peekTxnId),
+        rollback = RollbackJobCoordinator(repo, WorldQuery(::playerIsOnline), leases, journalExecutor, jobs, ledgerVersion = repo::version, changedSince = repo::changedSince),
         jobs = jobs,
         undo = involutionCoordinator,
+        undoJournal = undoJournal,
         pendingDeliveries = pendingDeliveries,
         storage = storage,
         gate = CaptureGate(storage.ring),
@@ -124,6 +130,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         logEntityDamage = settings.logEntityDamage,
         forwardCompatible = forwardCompatible,
     )
+    Bukkit.getAsyncScheduler().runNow(plugin) { services.warmRollback() }
     val drainer = Drainer(
         storage = storage,
         ring = storage.ring,
@@ -136,19 +143,38 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             if (flows.isNotEmpty()) services.capture.recordDirect(flows, epochMillis, cause, causedBy)
         },
         worldSink = { edits -> services.worldCapture.record(edits) },
+        placedSink = { placed ->
+            services.capture.record(placed.deltas, placed.epochMillis, placed.cause, placed.causedBy, placed.at, ::ignoranceIsPermanent)
+        },
     )
+    services.scope.launch {
+        val freed = leases.reapAbandoned(System.currentTimeMillis(), 0L)
+        if (freed.isNotEmpty()) {
+            plugin.logger.warning("released lot leases of ${freed.size} rollback job(s) that did not finish before shutdown: ${freed.joinToString { it.raw.toString() }}")
+        }
+    }
+
     val drain = drainer.start(services.scope)
     plugin.haltIfCaptureDies(drain, "capture drain")
 
     services.flushCapture = {
         val first = services.pendingCaptures.await()
         services.blockReleases.flush()
-        drainer.drainOnce()
+        val drained = drainer.drainThrough()
         val second = services.pendingCaptures.await()
         val entities = services.entityCapture.flush()
         plugin.writeItemForms(services)
         services.groundWhereabouts.flush()
-        first && second && entities
+        first && second && entities && drained
+    }
+
+    val lastCaptures: suspend () -> Unit = {
+        services.pendingCaptures.await(LAST_CAPTURE_WAIT_MILLIS)
+        services.blockReleases.flush()
+        drainer.drainThrough()
+        services.entityCapture.flush(LAST_CAPTURE_WAIT_MILLIS)
+        plugin.writeItemForms(services)
+        services.groundWhereabouts.flush()
     }
 
     val entityDrain = services.entityCapture.start(services.scope)
@@ -184,10 +210,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         TracelCommand.register(event.registrar(), services)
     }
 
-    // Cancel all jobs
-    Job().cancel()
-
     plugin.logger.info("Tracel ${plugin.pluginMeta.version} enabled.")
 
-    return TracelRuntime(storage, services, drain, entityDrain, formDrain, releaseDrain)
+    return TracelRuntime(storage, services, drain, entityDrain, formDrain, releaseDrain, lastCaptures)
 }

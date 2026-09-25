@@ -1,5 +1,6 @@
 package com.tracel.plugin
 
+import com.tracel.plugin.rollback.structure.fluid.warmFluidShapes
 import com.tracel.engine.capture.CaptureCoordinator
 import com.tracel.engine.capture.SnapshotDiffer
 import com.tracel.engine.capture.WearCapture
@@ -37,12 +38,15 @@ import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
+import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
 import org.bukkit.plugin.Plugin
 import java.nio.file.Path
 import com.tracel.engine.rollback.plan.WorldQuery
+
+private const val WHEREABOUTS_KEPT = 200_000
 
 /**
  * Shared services used by `Tracel` listeners and commands.
@@ -57,6 +61,7 @@ import com.tracel.engine.rollback.plan.WorldQuery
  * @param rollback coordinates rollback jobs.
  * @param jobs stores rollback jobs.
  * @param undo coordinates involution jobs.
+ * @param undoJournal which undo steps already ran, plus whether their items went back.
  * @param pendingDeliveries stores pending item deliveries.
  * @param storage provides access to plugin's storage.
  * @param gate fast path for capture events.
@@ -80,6 +85,7 @@ class TracelServices(
     val rollback: RollbackJobCoordinator,
     val jobs: RollbackJobRepository,
     val undo: InvolutionJobCoordinator,
+    val undoJournal: Journal,
     val pendingDeliveries: PendingDeliveryRepository,
     val storage: TracelStorage,
     val gate: CaptureGate,
@@ -104,7 +110,7 @@ class TracelServices(
     val structureRestorer: StructureRestorer = StructureRestorer(this)
     val composite: RollbackGenius = RollbackComposer(this, structureRestorer, restorer, restorer)
     val redstoneTriggers: RedstoneTriggerTracker = RedstoneTriggerTracker()
-    val whereabouts: EntityWhereabouts = EntityWhereabouts()
+    val whereabouts: EntityWhereabouts = EntityWhereabouts(capacity = WHEREABOUTS_KEPT)
     val groundWhereabouts: GroundWhereabouts = GroundWhereabouts(GroundPositions(storage))
     val selfManagedSpawns: SelfManagedSpawnGuard = SelfManagedSpawnGuard()
     val blockDrops: BlockDropCorrelator = BlockDropCorrelator()
@@ -115,4 +121,7 @@ class TracelServices(
     val frozen: FrozenHolders = FrozenHolders()
     val worldQuery: WorldQuery = WorldQuery(::playerIsOnline)
     var flushCapture: suspend () -> Boolean = { true }
+
+    /** Tables the rollback path would otherwise build on a region thread the first time it needs them. */
+    fun warmRollback() = warmFluidShapes()
 }
