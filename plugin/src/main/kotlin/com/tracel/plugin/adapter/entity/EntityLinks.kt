@@ -1,10 +1,12 @@
 package com.tracel.plugin.adapter.entity
 
+import org.bukkit.Location
 import com.tracel.annotations.Unstable
 import com.tracel.plugin.adapter.entity.special.ShoulderAdapter
 import io.papermc.paper.entity.Leashable
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
+import org.bukkit.entity.Player
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -60,7 +62,8 @@ internal object SelfManagedLink {
 internal fun Entity.applyLeash(holder: UUID?): Boolean {
     if (this !is Leashable) return holder == null
     if (holder == null) {
-        unleash()
+        val heldByPlayer = runCatching { isLeashed && leashHolder is Player }.getOrDefault(false)
+        if (!heldByPlayer) unleash()
         return true
     }
     val wanted = EntityAliases.resolve(holder)
@@ -138,4 +141,4 @@ internal fun Entity.unleashHeld() {
 }
 
 /** Clears [uuid] off any online player's shoulder so a restore can spawn the bird in the world. */
-internal fun takeOffShoulder(uuid: UUID): Boolean = ShoulderAdapter.takeOff(uuid)
+internal fun takeOffShoulder(uuid: UUID, near: Location): Boolean = ShoulderAdapter.takeOff(uuid, near)

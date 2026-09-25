@@ -1,5 +1,7 @@
 package com.tracel.plugin.adapter.block
 
+import com.tracel.annotations.Unstable
+import java.nio.ByteBuffer
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
@@ -10,6 +12,7 @@ import com.tracel.plugin.adapter.block.capability.cargo.CargoSnapshot
 import com.tracel.plugin.adapter.block.capability.extras.BlockStateMetaExtras
 import com.tracel.plugin.adapter.block.capability.extras.NameableExtras
 import com.tracel.plugin.adapter.block.special.BannerExtras
+import com.tracel.plugin.adapter.block.special.SkullExtras
 import com.tracel.plugin.adapter.block.special.ChiseledBookshelfCapture
 import com.tracel.plugin.util.Warnings
 import java.util.concurrent.ConcurrentHashMap
@@ -24,10 +27,17 @@ import org.bukkit.block.TileState
 import org.bukkit.block.data.BlockData
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BannerMeta
+import org.bukkit.inventory.meta.SkullMeta
+import org.bukkit.block.Skull
 import org.bukkit.inventory.meta.BlockStateMeta
 
 private val logger = Logger.getLogger("BlockShape")
 private val hasBlockEntity = ConcurrentHashMap<Material, Boolean>()
+
+private val rebuiltExtras = ConcurrentHashMap<ByteBuffer, ItemStack>()
+
+@Unstable
+private const val MAX_REBUILT_EXTRAS = 2_048
 
 /** World-log coordinate of this block. */
 fun Block.toBlockPos(): BlockPos = BlockPos(WorldId(world.uid), x, y, z)
@@ -83,12 +93,21 @@ internal fun captureShape(state: BlockState): BlockShape {
     )
 }
 
-/** Banner patterns or BlockStateMeta NBT, or `null` if capture failed. */
+/** Banner patterns or `BlockStateMeta` NBT, or `null` if capture failed. */
 private fun tileExtras(state: BlockState): BlockExtras? = runCatching {
-    BannerExtras.of(state) ?: BlockStateMetaExtras.of(state)
+    BannerExtras.of(state) ?: SkullExtras.of(state) ?: BlockStateMetaExtras.of(state)
 }.getOrElse {
     logger.log(Level.FINE, "block entity at ${state.location} could not be captured, keeping its state only", it)
     null
+}
+
+private fun rebuilt(nbt: ByteArray): ItemStack {
+    val key = ByteBuffer.wrap(nbt)
+    rebuiltExtras[key]?.let { return it }
+    val item = ItemStack.deserializeBytes(nbt)
+    if (rebuiltExtras.size >= MAX_REBUILT_EXTRAS) rebuiltExtras.clear()
+    rebuiltExtras[key] = item
+    return item
 }
 
 /**
@@ -96,6 +115,7 @@ private fun tileExtras(state: BlockState): BlockExtras? = runCatching {
  *
  * Failure leaves the block data already written.
  */
+@Suppress("DEPRECATION")
 private fun applyBlockEntityExtras(
     block: Block,
     extras: BlockExtras.Opaque,
@@ -103,13 +123,23 @@ private fun applyBlockEntityExtras(
     data: BlockData,
 ) {
     runCatching {
-        val item = ItemStack.deserializeBytes(extras.nbt)
+        val item = rebuilt(extras.nbt)
         val bannerMeta = item.itemMeta as? BannerMeta
         if (bannerMeta != null) {
             val banner = block.getState(false) as? Banner ?: return
             banner.patterns = bannerMeta.patterns
+            if (bannerMeta.hasCustomName()) banner.customName(bannerMeta.customName())
             banner.blockData = data
             banner.update(true, physics)
+            return
+        }
+        val skullMeta = item.itemMeta as? SkullMeta
+        if (skullMeta != null) {
+            val skull = block.getState(false) as? Skull ?: return
+            skull.ownerProfile = skullMeta.ownerProfile
+            skull.noteBlockSound = skullMeta.noteBlockSound
+            skull.blockData = data
+            skull.update(true, physics)
             return
         }
         val meta = item.itemMeta as? BlockStateMeta

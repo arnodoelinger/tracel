@@ -10,6 +10,7 @@ internal object CargoSurfaces {
     private val all: List<CargoSurface> = listOf(
         InventoryCargo,
         EquipmentAsCargo,
+        MobEquipmentCargo,
         ItemFrameCargo,
         ChestedCargo,
     )

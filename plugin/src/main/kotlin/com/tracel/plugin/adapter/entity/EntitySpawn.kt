@@ -63,7 +63,7 @@ private fun EntityShape.putHullBack(
     val knot = if (LeashKnotAdapter.isType(type.value)) LeashKnotAdapter.at(world, loc) else null
     if (knot != null && expected != null && knot.uniqueId != expected) EntityAliases.remember(expected, knot.uniqueId)
     val self = knot
-        ?: expected?.let { Bukkit.getEntity(it) }?.takeIf { it.isValid }
+        ?: expected?.let { Bukkit.getEntity(it) }?.takeIf { it.isValid && Bukkit.isOwnedByCurrentRegion(it) }
         ?: sittingAt(world, loc, expected)
     if (self != null && (expected == null || self.uniqueId == expected || self === knot)) {
         val drifted = runCatching {
@@ -72,7 +72,6 @@ private fun EntityShape.putHullBack(
         if (drifted && self !is Hanging) {
             runCatching { self.teleportAsync(loc) }
         }
-        if (!keepCargo) stripCargo(self)
         self.setRotation(yaw, pitch)
         if (self is Hanging) {
             runCatching { self.setFacingDirection(facingFromPose(yaw, pitch), true) }
@@ -81,7 +80,7 @@ private fun EntityShape.putHullBack(
         return self
     }
     if (!resurrect) return null
-    if (expected != null) ShoulderAdapter.takeOff(expected)
+    if (expected != null && type.value.endsWith("parrot")) ShoulderAdapter.takeOff(expected, loc)
     val falling = extras as? EntityExtras.Falling
     if (falling != null) return FallingBlockAdapter.spawnFromExtras(world, loc, falling, logger)
 
@@ -100,7 +99,7 @@ private fun EntityShape.putHullBack(
             FallingBlockAdapter.spawn(world, loc, restored.blockData, logger)?.let { return it }
         }
     }
-    spawnByType(world, loc)?.let {
+    if (opaque == null) spawnByType(world, loc)?.let {
         if (expected != null) warnLostIdentity(type.value, expected)
         return it
     }

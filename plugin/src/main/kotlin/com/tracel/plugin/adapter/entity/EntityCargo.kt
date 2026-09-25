@@ -3,6 +3,7 @@ package com.tracel.plugin.adapter.entity
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.entity.capability.cargo.CargoSurface
 import com.tracel.plugin.adapter.entity.capability.cargo.CargoSurfaces
+import com.tracel.plugin.adapter.entity.capability.cargo.ChestedCargo
 import org.bukkit.entity.Entity
 import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.Plugin
@@ -34,6 +35,9 @@ internal fun Entity.saveCargoSurfaces() = CargoSurfaces.save(this)
 internal fun Entity.restoreCargoSurfaces(saved: Map<CargoSurface, Any?>) {
     CargoSurfaces.restore(this, saved)
 }
+
+/** Surfaces a pose snapshot strips. */
+internal fun Entity.shapeCargoSurfaces(): List<CargoSurface> = CargoSurfaces.matching(this).filter { it !== ChestedCargo }
 
 fun Entity.toPlacedEntityId(): HolderId.PlacedEntity = HolderId.PlacedEntity(uniqueId)
 

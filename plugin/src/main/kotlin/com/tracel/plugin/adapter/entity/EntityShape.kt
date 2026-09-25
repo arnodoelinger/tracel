@@ -62,10 +62,12 @@ private fun entityExtras(entity: Entity): EntityExtras? {
  * hull restores without detail rather than truncating.
  */
 private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): EntityExtras? = runCatching {
-    val cargo = entity.saveCargoSurfaces()
+    val surfaces = entity.shapeCargoSurfaces()
+    val cargo = surfaces.associateWith { it.save(entity) }
     try {
-        entity.emptyCargo()
-        if (entity.cargoStacks().isNotEmpty()) {
+        for (surface in surfaces) surface.empty(entity)
+        val left = buildList { for (surface in surfaces) surface.collect(entity) { if (it != null && !it.isEmpty) add(it) } }
+        if (left.isNotEmpty()) {
             Warnings.once(logger, "cargo:${entity.type}") {
                 "a ${entity.type} could not be emptied before being captured — its pose is not recorded, " +
                     "because recording it would carry its contents into the world log"

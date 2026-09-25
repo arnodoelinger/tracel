@@ -3,6 +3,8 @@ package com.tracel.plugin.adapter.entity.capability.state
 import com.tracel.plugin.adapter.entity.capability.cargo.EquipmentAsCargo
 import org.bukkit.entity.Entity
 import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Mob
+import com.tracel.plugin.adapter.entity.capability.cargo.MobEquipmentCargo
 import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.InventoryHolder
 
@@ -18,7 +20,9 @@ internal object WornEquipmentState : InPlaceState {
         if (live !is LivingEntity || ghost !is LivingEntity) return
         val worn = ghost.equipment ?: return
         val wearing = live.equipment ?: return
+        val owned = (live as? Mob)?.let { MobEquipmentCargo.owned(it) }.orEmpty().toSet()
         for (slot in EquipmentSlot.entries) {
+            if (slot in owned) continue
             runCatching { wearing.setItem(slot, worn.getItem(slot)) }
         }
     }
