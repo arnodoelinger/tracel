@@ -4,7 +4,6 @@ import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
 import com.tracel.model.world.WorldChange
 
@@ -23,5 +22,5 @@ public interface StructurePlanning {
 
 /** Ledger steps that reverse an applied job. */
 public interface InvolutionPlanning {
-    public suspend fun plan(job: RollbackJobRecord, vanished: Set<HolderId>): List<InvolutionStep>
+    public suspend fun plan(job: RollbackJobRecord): List<InvolutionStep>
 }

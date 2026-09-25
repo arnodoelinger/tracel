@@ -19,6 +19,7 @@ public class InMemoryRollbackJobRepository : RollbackJobRepository {
         writer.checkIn()
         records[record.id] = record
         if (record.id !in stack) stack.addLast(record.id)
+        while (stack.size > RollbackJobRepository.UNDO_DEPTH) records.remove(stack.removeFirst())
     }
 
     @Reads
@@ -33,5 +34,6 @@ public class InMemoryRollbackJobRepository : RollbackJobRepository {
     override suspend fun markUndone(id: RollbackJobId) {
         writer.checkIn()
         stack.remove(id)
+        records.remove(id)
     }
 }

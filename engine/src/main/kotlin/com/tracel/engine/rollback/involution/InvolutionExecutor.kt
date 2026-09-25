@@ -38,9 +38,7 @@ public class InvolutionExecutor(
      * The check is done before applying anything. Otherwise, a failed step could leave the undo only
      * partially applied. We don't want that.
      *
-     * [InvolutionStep.Remake] is skipped because its ingredient ownership cannot be determined here.
-     * The original craft logic already knows which holder supplied them, so trying to guess it here
-     * would reject valid, real undos.
+     * [InvolutionStep.Remake] spends its ingredients where [LotLedger.recraft] takes them: at the product's holder.
      */
     @RequiresLease
     public suspend fun checkSatisfiable(lease: LotLease, steps: List<InvolutionStep>): Unit = atomically {
@@ -70,7 +68,10 @@ public class InvolutionExecutor(
                     pending.merge(step.to to step.itemKey, step.quantity.raw, Long::plus)
                 }
                 is InvolutionStep.Retract -> debit(step.from, step.itemKey, step.quantity.raw)
-                is InvolutionStep.Remake -> Unit
+                is InvolutionStep.Remake -> {
+                    for ((_, itemKey, quantity) in step.inputs) debit(step.product.holder, itemKey, quantity.raw)
+                    for ((_, quantity, holder) in step.outputs) pending.merge(holder to step.product.itemKey, quantity.raw, Long::plus)
+                }
             }
         }
     }
@@ -86,12 +87,10 @@ public class InvolutionExecutor(
 
             is InvolutionStep.Retract -> {
                 // The mint's own lot
-                val minted = step.compensationLot
-                if (minted != null) {
-                    ledger.burnBack(step.from, minted, step.itemKey, step.quantity, SinkKind.ROLLBACK_BURN, txn)
-                } else {
-                    ledger.burn(step.from, step.itemKey, step.quantity, SinkKind.ROLLBACK_BURN, txn)
+                val minted = checkNotNull(step.compensationLot) {
+                    "the lot job ${lease.job} minted for ${step.originalLot} is gone; burning by FIFO would be a guess"
                 }
+                ledger.burnBack(step.from, minted, step.itemKey, step.quantity, SinkKind.ROLLBACK_BURN, txn)
                 step.originalLot?.let { ledger.uncompensate(it, lease.job) }
                 listOf(Flow(step.itemKey, step.quantity, step.from, HolderId.Sink(SinkKind.ROLLBACK_BURN), FlowKind.BURN))
             }

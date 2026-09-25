@@ -3,6 +3,7 @@ package com.tracel.engine.rollback.plan
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
 
@@ -47,7 +48,7 @@ public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, le
                 is RollbackStep.Mint -> {
                     val key = ledger.itemKeyOf(step.lotId)
                     val dest = destinationFor(step.lotId)
-                    val covered = minOf(taken[dest]?.get(key) ?: 0L, step.quantity.raw)
+                    val covered = if (step.reason != SinkKind.UNATTRIBUTED) 0L else minOf(taken[dest]?.get(key) ?: 0L, step.quantity.raw)
                     if (covered > 0L) takenAdd(dest, key, -covered)
                     if (step.quantity.raw > covered) add(dest, key, step.quantity.raw - covered)
                 }
@@ -69,7 +70,7 @@ public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, le
  * Net physical change per real holder undoing [steps] implies — the involution-side mirror of
  * [physicalDeltas].
  */
-public fun physicalDeltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map<ItemKey, Long>> {
+public fun physicalDeltasForUndo(steps: List<InvolutionStep>, noise: Set<LotId>? = null): Map<HolderId, Map<ItemKey, Long>> {
     val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
     fun add(holder: HolderId, itemKey: ItemKey, amount: Long) {
         deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
@@ -87,7 +88,8 @@ public fun physicalDeltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map
 
             is InvolutionStep.Retract -> {
                 val account = step.from to step.itemKey
-                val covered = minOf(returned[account] ?: 0L, step.quantity.raw)
+                val coverable = noise == null || step.originalLot in noise
+                val covered = if (!coverable) 0L else minOf(returned[account] ?: 0L, step.quantity.raw)
                 if (covered > 0L) returned[account] = returned.getValue(account) - covered
                 if (step.quantity.raw > covered) add(step.from, step.itemKey, covered - step.quantity.raw)
             }
@@ -102,3 +104,7 @@ public fun physicalDeltasForUndo(steps: List<InvolutionStep>): Map<HolderId, Map
     }
     return deltas
 }
+
+/** Mints the rollback folded into a delivery of the same key: the ones [physicalDeltasForUndo] may fold back. */
+public fun RollbackPlan.noiseMints(): Set<LotId> =
+    steps.mapNotNullTo(HashSet()) { step -> (step as? RollbackStep.Mint)?.takeIf { it.reason == SinkKind.UNATTRIBUTED }?.lotId }

@@ -5,11 +5,11 @@ import com.tracel.engine.journal.CrashPoint
 import com.tracel.engine.journal.Journal
 import com.tracel.engine.ledger.LotRepository
 import com.tracel.engine.ownership.LeaseAcquisition
+import com.tracel.engine.ownership.LotLease
 import com.tracel.engine.ownership.LotLeaseRegistry
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.job.RollbackJobRepository
-import com.tracel.model.holder.HolderId
 import com.tracel.model.id.LotId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
@@ -32,7 +32,6 @@ public class InvolutionJobCoordinator(
     public suspend fun undo(
         job: RollbackJobId,
         crashPoint: CrashPoint = CrashPoint.None,
-        vanished: Set<HolderId> = emptySet(),
     ): InvolutionOutcome {
         val record = jobs.find(job) ?: return InvolutionOutcome.NotFound
 
@@ -43,7 +42,8 @@ public class InvolutionJobCoordinator(
 
         // holdingFor must wrap the rest
         return leases.holdingFor(job) {
-            val steps = InvolutionPlanner(repo).plan(record, vanished)
+            val resuming = journal.completed(job, Int.MAX_VALUE).isNotEmpty()
+            val steps = InvolutionPlanner(repo).plan(record, resuming)
             val n = steps.size
             if (n == 0) {
                 val prior = journal.completed(job, 1)
@@ -67,31 +67,50 @@ public class InvolutionJobCoordinator(
             executor.checkSatisfiable(lease, steps.filterIndexed { index, _ -> !isSet(words, index) })
 
             val stride = if (crashPoint == CrashPoint.None) batchSize else 1
-            var from = 0
-            while (from < n) {
-                val end = from + stride
-                val until = if (end < n) end else n
-                var index = from
-                while (index < until && isSet(words, index)) index++
-                if (index == until) {
-                    from = until
-                    continue
-                }
-                executor.atomically {
-                    while (index < until) {
-                        if (!isSet(words, index)) {
-                            crashPoint.checkBefore(index)
-                            executor.apply(lease, steps[index], nextTxnId())
-                            journal.markCompleted(job, index)
-                            setBit(words, index)
-                        }
-                        index++
-                    }
-                }
-                from = until
+
+            // One unit for the whole undo, as a rollback's journal run is: a failure after the first batch
+            // left the ledger half-undone while the world was put back untouched.
+            if (crashPoint == CrashPoint.None) {
+                executor.atomically { runSteps(lease, steps, words, n, stride, crashPoint, job) }
+            } else {
+                runSteps(lease, steps, words, n, stride, crashPoint, job)
             }
 
             InvolutionOutcome.Undone(steps)
+        }
+    }
+
+    private suspend fun runSteps(
+        lease: LotLease,
+        steps: List<InvolutionStep>,
+        words: LongArray,
+        n: Int,
+        stride: Int,
+        crashPoint: CrashPoint,
+        job: RollbackJobId,
+    ) {
+        var from = 0
+        while (from < n) {
+            val end = from + stride
+            val until = if (end < n) end else n
+            var index = from
+            while (index < until && isSet(words, index)) index++
+            if (index == until) {
+                from = until
+                continue
+            }
+            executor.atomically {
+                while (index < until) {
+                    if (!isSet(words, index)) {
+                        crashPoint.checkBefore(index)
+                        executor.apply(lease, steps[index], nextTxnId())
+                        journal.markCompleted(job, index)
+                        setBit(words, index)
+                    }
+                    index++
+                }
+            }
+            from = until
         }
     }
 

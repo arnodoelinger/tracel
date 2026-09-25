@@ -131,7 +131,7 @@ class InvolutionTest {
 
         assertEquals(13L, world.ledger.totalAt(chest, diamond)?.raw)
 
-        val steps = InvolutionPlanner(world.repo).plan(jobs.find(job)!!, vanished = setOf(drop))
+        val steps = InvolutionPlanner(world.repo).plan(jobs.find(job)!!)
         val returned = steps.filterIsInstance<InvolutionStep.Return>().single()
         assertEquals(chest, returned.from)
         assertEquals(drop, returned.to)

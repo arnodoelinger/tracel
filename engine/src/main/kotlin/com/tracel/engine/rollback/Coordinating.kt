@@ -22,6 +22,8 @@ public interface RollbackCoordinating {
         recordsOwnJob: Boolean,
         prepared: RollbackPlan?,
         preparedAt: Long?,
+        structural: Boolean,
+        covered: Set<HolderId>?,
     ): RollbackOutcome
 
     /** Reserve rollback job. */
@@ -32,6 +34,8 @@ public interface RollbackCoordinating {
         vanished: Set<HolderId>,
         prepared: RollbackPlan?,
         preparedAt: Long?,
+        structural: Boolean,
+        covered: Set<HolderId>?,
     ): Reservation
 
     /** Apply rollback. */
@@ -48,6 +52,5 @@ public interface InvolutionCoordinating {
     public suspend fun undo(
         job: RollbackJobId,
         crashPoint: CrashPoint,
-        vanished: Set<HolderId>,
     ): InvolutionOutcome
 }

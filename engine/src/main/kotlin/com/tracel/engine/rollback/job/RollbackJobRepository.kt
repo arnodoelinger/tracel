@@ -31,7 +31,7 @@ public interface RollbackJobRepository {
         save(handle.record.copy(destroy = destroy))
     }
 
-    /** Job by [id], including ones already [markUndone]. */
+    /** Job by [id], while its record is kept: [markUndone] and eviction past [UNDO_DEPTH] forget it. */
     public suspend fun find(id: RollbackJobId): RollbackJobRecord?
 
     /** Newest-first IDs still on the undo stack, at most [limit] (capped by [UNDO_DEPTH] in storage). */
@@ -40,6 +40,6 @@ public interface RollbackJobRepository {
     /** Whether [id] is still on the undo stack. */
     public suspend fun isUndoable(id: RollbackJobId): Boolean
 
-    /** Drop [id] from the undo stack. The record stays for [find] / involution. */
+    /** Drop [id] from the undo stack and forget its record. An undone job has nothing left to undo. */
     public suspend fun markUndone(id: RollbackJobId)
 }
