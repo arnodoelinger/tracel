@@ -54,6 +54,8 @@ import org.bukkit.inventory.ItemStack
 
 private val logger = Logger.getLogger("MaterialCapture")
 
+private const val MAX_COMMIT_BATCH = 256
+
 /**
  * Transaction log only.
  *
@@ -68,8 +70,6 @@ class MaterialCapture internal constructor(private val services: TracelServices)
     private val pendingRebaseline = ConcurrentHashMap.newKeySet<UUID>()
 
     private val lastSeenSlots = ConcurrentHashMap<HolderId, List<ContainerSlotEntry>>()
-
-    private const val MAX_COMMIT_BATCH = 256
 
     /** One inventory read per player per tick. */
     fun scheduleReconcile(
