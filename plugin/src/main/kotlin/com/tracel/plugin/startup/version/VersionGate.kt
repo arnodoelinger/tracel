@@ -21,8 +21,14 @@ data class MinecraftVersion(val major: Int, val minor: Int) : Comparable<Minecra
 
         /** Check if the version is supported. */
         fun check(raw: String, plugin: Plugin): Boolean {
-            val version = parse(raw) ?: fail(plugin, "Tracel could not read Minecraft version \"$raw\". Oldest supported is $oldest.")
-            if (version < oldest) fail(plugin, "Tracel does not run on Minecraft $version. Versions below $oldest are not supported.")
+            val version = parse(raw) ?: fail(
+                plugin,
+                "Tracel could not read Minecraft version \"$raw\". Oldest supported is $oldest."
+            )
+            if (version < oldest) fail(
+                plugin,
+                "Tracel does not run on Minecraft $version. Versions below $oldest are not supported."
+            )
             return (version !in SUPPORTED_VERSIONS).also { if (it) plugin.logger.warning("Tracel has not been tested on Minecraft $version. Use with caution!") }
         }
     }

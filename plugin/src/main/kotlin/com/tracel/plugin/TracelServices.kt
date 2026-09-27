@@ -103,7 +103,8 @@ class TracelServices(
     val material: MaterialCapture = MaterialCapture(this)
     val capture: CaptureCoordinator = CaptureCoordinator(ledger, log, counters::nextTxnId, counters::nextSeq)
     val wearCapture: WearCapture = WearCapture(repo, log, wear, counters::nextTxnId, counters::nextSeq)
-    val worldCapture: WorldCaptureCoordinator = WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
+    val worldCapture: WorldCaptureCoordinator =
+        WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
     val entityCapture: EntityCaptureQueue = EntityCaptureQueue(worldCapture, storage)
     val restorer: MaterialRestorer = MaterialRestorer(this)
     val selfManagedWorld: SelfManagedWorldGuard = SelfManagedWorldGuard()

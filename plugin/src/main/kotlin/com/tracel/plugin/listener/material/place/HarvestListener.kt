@@ -51,7 +51,8 @@ class HarvestListener(services: TracelServices) : TracelListener(services) {
             cause = CauseKind.PLAYER_ACTION,
             causedBy = player,
             at = at,
-            epochMillis = epochMillis)
+            epochMillis = epochMillis
+        )
     }
 
     @Observes

@@ -31,7 +31,12 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                InMemoryJournal(),
+                world.leases,
+                world::nextTxn
+            ),
             world.jobs,
         )
 
@@ -41,8 +46,16 @@ class RollbackJobCoordinatorTest {
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw)
 
         val plan = (outcome as RollbackOutcome.Applied).plan
-        assertEquals(plan.steps.size, world.log.all().sumOf { it.flows.size }, "direct delivery logs one flow per step, no escrow round-trip")
-        assertEquals(world.log.all().size, world.log.all().map { it.id }.toSet().size, "every logged transaction must have gotten a distinct TxnId")
+        assertEquals(
+            plan.steps.size,
+            world.log.all().sumOf { it.flows.size },
+            "direct delivery logs one flow per step, no escrow round-trip"
+        )
+        assertEquals(
+            world.log.all().size,
+            world.log.all().map { it.id }.toSet().size,
+            "every logged transaction must have gotten a distinct TxnId"
+        )
     }
 
     @Test
@@ -57,7 +70,12 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                InMemoryJournal(),
+                world.leases,
+                world::nextTxn
+            ),
             world.jobs,
         )
         val before = world.log.all().size
@@ -88,7 +106,12 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                InMemoryJournal(),
+                world.leases,
+                world::nextTxn
+            ),
             world.jobs,
         )
         val outcome = coordinator.run(RollbackJobId(1), listOf(root.id), target = RollbackTarget.Uniform(chest))
@@ -121,13 +144,22 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                InMemoryJournal(),
+                world.leases,
+                world::nextTxn
+            ),
             world.jobs,
         )
         val outcome = coordinator.run(RollbackJobId(2), listOf(rootB.id), target = RollbackTarget.Uniform(chestB))
 
         assertInstanceOf(RollbackOutcome.Applied::class.java, outcome)
-        assertEquals(5L, world.ledger.totalAt(chestB, diamond)?.raw, "B's non-overlapping territory rolled back fine while A is still active")
+        assertEquals(
+            5L,
+            world.ledger.totalAt(chestB, diamond)?.raw,
+            "B's non-overlapping territory rolled back fine while A is still active"
+        )
     }
 
     @Test
@@ -152,7 +184,12 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                InMemoryJournal(),
+                world.leases,
+                world::nextTxn
+            ),
             world.jobs,
             ledgerVersion = witness,
         )
@@ -174,7 +211,12 @@ class RollbackJobCoordinatorTest {
             world.repo,
             { true },
             world.leases,
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn),
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                InMemoryJournal(),
+                world.leases,
+                world::nextTxn
+            ),
             world.jobs,
             ledgerVersion = { readings++; 7L },
         )

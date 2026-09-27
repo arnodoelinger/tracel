@@ -62,7 +62,7 @@ class InspectListener(services: TracelServices) : TracelListener(services) {
 
             player.sendMessage("History at $where:")
             val lines = txns.map { it.seq.raw to renderLookupResult(it) } +
-                world.map { it.seq.raw to listOf(renderWorldChange(it)) }
+                    world.map { it.seq.raw to listOf(renderWorldChange(it)) }
             lines.sortedByDescending { it.first }
                 .take(PAGE_SIZE)
                 .flatMap { it.second }

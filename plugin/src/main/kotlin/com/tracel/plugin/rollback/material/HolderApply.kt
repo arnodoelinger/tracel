@@ -51,19 +51,27 @@ internal suspend fun MaterialRestorer.dispatch(
 ): ApplyResult = when (holder) {
     is HolderId.Player -> applyToPlayer(holder, deltas, forms, job, sink, worn)
     is HolderId.EnderChest -> applyToEnderChest(holder, deltas, forms, job, sink, worn)
-    is HolderId.Block -> applyToContainer(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+    is HolderId.Block -> applyToContainer(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed)
+        ?: ApplyResult.Ok
+
     is HolderId.ItemEntity -> takeGroundItem(holder, deltas, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
 
     is HolderId.PlacedEntity -> takeProjectile(holder, deltas)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
     is HolderId.PlacedBlock -> ApplyResult.Ok
-    is HolderId.Entity -> fillEntityCargo(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+    is HolderId.Entity -> fillEntityCargo(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed)
+        ?: ApplyResult.Ok
+
     is HolderId.Source, is HolderId.Sink, is HolderId.Escrow -> ApplyResult.Ok
 }
 
-private suspend fun MaterialRestorer.takeProjectile(holder: HolderId.PlacedEntity, deltas: Map<ItemKey, Long>): String? {
+private suspend fun MaterialRestorer.takeProjectile(
+    holder: HolderId.PlacedEntity,
+    deltas: Map<ItemKey, Long>
+): String? {
     if (holder.uuid !in LiveProjectile || deltas.values.any { it > 0L }) return null
     return withContext(services.schedulers.entity(holder.uuid)) {
-        val projectile = Bukkit.getEntity(holder.uuid) as? Projectile ?: return@withContext "the projectile is no longer there"
+        val projectile =
+            Bukkit.getEntity(holder.uuid) as? Projectile ?: return@withContext "the projectile is no longer there"
         LiveProjectile.remove(holder.uuid)
         services.selfManagedWorld.whileRestoring { projectile.remove() }
         null

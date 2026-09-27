@@ -43,6 +43,7 @@ fun SpawnReason?.kind(): SpawnKind = when (this) {
     SpawnReason.CURED,
     SpawnReason.SHEARED,
         -> SpawnKind.Immediate
+
     else -> SpawnKind.World
 }
 

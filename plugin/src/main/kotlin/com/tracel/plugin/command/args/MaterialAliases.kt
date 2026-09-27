@@ -23,9 +23,11 @@ internal object MaterialAliases {
         val material = Material.matchMaterial(name) ?: return name to emptySet()
         val item = when {
             material.isItem -> material
-            else -> runCatching { material.createBlockData().placementMaterial }.getOrNull()?.takeIf { it.isItem } ?: material
+            else -> runCatching { material.createBlockData().placementMaterial }.getOrNull()?.takeIf { it.isItem }
+                ?: material
         }
-        val blocks = blocksByItem[item].orEmpty() + (if (material.isBlock) setOf(material.key.toString()) else emptySet())
+        val blocks =
+            blocksByItem[item].orEmpty() + (if (material.isBlock) setOf(material.key.toString()) else emptySet())
         return item.name to blocks
     }
 }

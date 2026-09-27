@@ -114,9 +114,11 @@ internal fun StructureRestorer.applyGroup(
                     if (outcome.differed) overwritten++
                     if (outcome.step.expected.extras != null) blockEntities++
                 }
+
                 is Refused -> {
                     skipped += SkippedStep(step.at, outcome.reason)
                 }
+
                 Unchanged -> Unit
             }
         }
@@ -189,7 +191,8 @@ internal fun StructureRestorer.applyGroup(
                 services.whereabouts.remember(hull)
                 if (!hull.linkedAsRecorded(step.shape)) looseEnds += hull to step.shape
             } else {
-                val why = if (inPlace) "entity is no longer here — a change to it is not a resurrection" else "entity could not be restored"
+                val why =
+                    if (inPlace) "entity is no longer here — a change to it is not a resurrection" else "entity could not be restored"
                 skipped += SkippedStep(step.at, why)
             }
         }
@@ -218,7 +221,7 @@ private fun StructureRestorer.reattachLater(
             Warnings.once(logger, "link:${hull.type}") {
                 val holder = shape.extras.leashHolder ?: shape.extras.vehicle
                 "restored a ${hull.type.name.lowercase()} whose leash holder or vehicle " +
-                    "($holder) was not put back in time — it keeps whatever link it has"
+                        "($holder) was not put back in time — it keeps whatever link it has"
             }
         }, {}, REATTACH_DELAY_TICKS)
     }

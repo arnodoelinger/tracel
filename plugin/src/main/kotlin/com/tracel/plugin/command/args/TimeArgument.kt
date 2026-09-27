@@ -54,9 +54,11 @@ object TimeArgument {
                 }
                 if (from == null || to == null) null else TimeExpr(minOf(from, to), maxOf(from, to))
             }
+
             DATE_ONLY.matches(value) -> runCatching { LocalDate.parse(value) }.getOrNull()?.let {
                 TimeExpr(startOfDay(it, zone), startOfDay(it.plusDays(1), zone) - 1)
             }
+
             else -> parseDuration(value)?.let { TimeExpr(nowMillis - it, nowMillis) }
         }
     }
@@ -67,8 +69,10 @@ object TimeArgument {
     private fun parseTimePoint(text: String, nowMillis: Long, zone: ZoneId): Long? = when {
         DATE_TIME.matches(text) ->
             runCatching { LocalDateTime.parse(text).atZone(zone).toInstant().toEpochMilli() }.getOrNull()
+
         DATE_ONLY.matches(text) ->
             runCatching { startOfDay(LocalDate.parse(text), zone) }.getOrNull()
+
         else -> parseDuration(text)?.let { nowMillis - it }
     }
 }

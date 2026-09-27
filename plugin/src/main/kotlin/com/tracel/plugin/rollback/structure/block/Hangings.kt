@@ -20,15 +20,28 @@ internal fun hangingCells(world: World, chunks: Set<Long>, gone: Set<UUID>): Set
     val out = HashSet<BlockPos>()
     val id = WorldId(world.uid)
     val around = HashSet<Long>()
-    for (key in chunks) for (dx in -1..1) for (dz in -1..1) around += chunkKey((chunkKeyX(key) + dx) shl 4, (chunkKeyZ(key) + dz) shl 4)
+    for (key in chunks) for (dx in -1..1) for (dz in -1..1) around += chunkKey(
+        (chunkKeyX(key) + dx) shl 4,
+        (chunkKeyZ(key) + dz) shl 4
+    )
     for (key in around) {
-        if (!world.isChunkLoaded(chunkKeyX(key), chunkKeyZ(key)) || !ownsChunkAt(world, chunkKeyX(key) shl 4, chunkKeyZ(key) shl 4)) continue
+        if (!world.isChunkLoaded(chunkKeyX(key), chunkKeyZ(key)) || !ownsChunkAt(
+                world,
+                chunkKeyX(key) shl 4,
+                chunkKeyZ(key) shl 4
+            )
+        ) continue
         for (entity in world.getChunkAt(chunkKeyX(key), chunkKeyZ(key)).entities) {
             if (entity !is Hanging || entity is LeashHitch || entity.uniqueId in gone) continue
             val box = entity.boundingBox
             for (x in floor(box.minX + INSET).toInt()..floor(box.maxX - INSET).toInt()) {
                 for (y in floor(box.minY + INSET).toInt()..floor(box.maxY - INSET).toInt()) {
-                    for (z in floor(box.minZ + INSET).toInt()..floor(box.maxZ - INSET).toInt()) out += BlockPos(id, x, y, z)
+                    for (z in floor(box.minZ + INSET).toInt()..floor(box.maxZ - INSET).toInt()) out += BlockPos(
+                        id,
+                        x,
+                        y,
+                        z
+                    )
                 }
             }
         }

@@ -40,8 +40,15 @@ class FrameCargoRestoreTest {
 
         world.rollback(job = 1, roots = listOf(lot.id), target = RollbackTarget.PerRoot(mapOf(lot.id to steve)))
 
-        assertEquals(1L, world.ledger.totalAt(steve, sword)?.raw, "the sword is back where the window started: the player")
-        assertNull(world.ledger.totalAt(frame, sword), "the frame is empty, because putting it in is part of what was undone")
+        assertEquals(
+            1L,
+            world.ledger.totalAt(steve, sword)?.raw,
+            "the sword is back where the window started: the player"
+        )
+        assertNull(
+            world.ledger.totalAt(frame, sword),
+            "the frame is empty, because putting it in is part of what was undone"
+        )
         assertNull(world.ledger.totalAt(ground, sword), "and nothing is left on the floor")
     }
 

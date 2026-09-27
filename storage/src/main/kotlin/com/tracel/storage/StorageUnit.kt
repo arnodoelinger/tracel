@@ -58,7 +58,15 @@ class StorageUnit(
 
     /** What [afterCommit] queued, for whoever just wrote the batch. */
     fun committed() {
-        onCommit?.forEach { hook -> runCatching(hook).onFailure { hookLogger.log(Level.WARNING, "a commit hook failed", it) } }
+        onCommit?.forEach { hook ->
+            runCatching(hook).onFailure {
+                hookLogger.log(
+                    Level.WARNING,
+                    "a commit hook failed",
+                    it
+                )
+            }
+        }
     }
 
     /** Runs [action] if the batch never lands: whatever was cached off it is a lie. */
@@ -68,7 +76,15 @@ class StorageUnit(
 
     /** What [afterAbort] queued, for whoever just dropped the batch. */
     fun aborted() {
-        onAbort?.forEach { hook -> runCatching(hook).onFailure { hookLogger.log(Level.WARNING, "an abort hook failed", it) } }
+        onAbort?.forEach { hook ->
+            runCatching(hook).onFailure {
+                hookLogger.log(
+                    Level.WARNING,
+                    "an abort hook failed",
+                    it
+                )
+            }
+        }
     }
 
     fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor {

@@ -134,7 +134,8 @@ object RollbackPresenter {
      */
     fun summary(done: RollbackResult.Done): String {
         val applied = done.structure.applied
-        val removed = applied.count { it is StructureStep.RemoveEntity || (it is StructureStep.SetBlock && it.target.isAirLike) }
+        val removed =
+            applied.count { it is StructureStep.RemoveEntity || (it is StructureStep.SetBlock && it.target.isAirLike) }
         val restored = applied.size - removed
         val material = done.plan.composite.material
         val parts = buildList {

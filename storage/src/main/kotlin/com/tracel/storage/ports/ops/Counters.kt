@@ -119,7 +119,10 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     private fun keepSpent(unit: StorageUnit, key: ByteArray, until: Long) {
         unit.afterAbort {
             val durable = storage.engine.snapshot().use { it.get(key)?.let(Records::asLong) } ?: 1L
-            if (durable < until) storage.engine.write(MutationBatch().apply { put(key, Records.long(until)) }, durable = true)
+            if (durable < until) storage.engine.write(
+                MutationBatch().apply { put(key, Records.long(until)) },
+                durable = true
+            )
         }
     }
 

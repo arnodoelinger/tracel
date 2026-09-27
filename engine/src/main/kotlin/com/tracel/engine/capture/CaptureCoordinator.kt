@@ -118,4 +118,10 @@ public class CaptureCoordinator(
 public fun craftFlows(ingredients: List<Ingredient>, product: Product): List<Flow> =
     ingredients.map {
         Flow(it.itemKey, it.quantity, it.holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)
-    } + Flow(product.itemKey, product.quantity, HolderId.Source(SourceKind.CRAFT), product.holder, FlowKind.TRANSFORM_OUT)
+    } + Flow(
+        product.itemKey,
+        product.quantity,
+        HolderId.Source(SourceKind.CRAFT),
+        product.holder,
+        FlowKind.TRANSFORM_OUT
+    )

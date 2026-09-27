@@ -42,7 +42,13 @@ class PendingDeliveryRepository(
             deltas.entries.forEachIndexed { index, (itemKey, delta) ->
                 put(
                     Keys.pending(player, ids[index]),
-                    Records.pending(storage.interning.internItemKey(this, itemKey), delta, job.raw, nowMillis, enderChest),
+                    Records.pending(
+                        storage.interning.internItemKey(this, itemKey),
+                        delta,
+                        job.raw,
+                        nowMillis,
+                        enderChest
+                    ),
                 )
             }
         }

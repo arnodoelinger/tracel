@@ -30,7 +30,7 @@ fun interface ReportSink {
 object ChatReportSink : ReportSink {
     fun render(node: ReportNode): List<String> = flatten(node, indent = 0, edge = null)
 
-    override fun emit(node: ReportNode) { }
+    override fun emit(node: ReportNode) {}
 
     private fun flatten(node: ReportNode, indent: Int, edge: String?): List<String> {
         val pad = "  ".repeat(indent)
@@ -39,6 +39,7 @@ object ChatReportSink : ReportSink {
             is ReportNode.Line -> listOf("$pad$mark${node.text}")
             is ReportNode.Section ->
                 listOf("$pad$mark${node.title}") + node.children.flatMap { flatten(it, indent + 1, null) }
+
             is ReportNode.Tree ->
                 listOf("$pad$mark${node.label}") + node.children.flatMap { flatten(it, indent + 1, edge = "-> ") }
         }
@@ -51,11 +52,17 @@ fun describeHolder(holder: HolderId): String = when (holder) {
         val y: Int
         val z: Int
         when (holder) {
-            is HolderId.Block -> { x = holder.x; y = holder.y; z = holder.z }
-            is HolderId.PlacedBlock -> { x = holder.x; y = holder.y; z = holder.z }
+            is HolderId.Block -> {
+                x = holder.x; y = holder.y; z = holder.z
+            }
+
+            is HolderId.PlacedBlock -> {
+                x = holder.x; y = holder.y; z = holder.z
+            }
         }
         "block $x,$y,$z"
     }
+
     is HolderId.Player -> "player ${playerName(holder.uuid)}"
     is HolderId.EnderChest -> "ender chest of ${playerName(holder.uuid)}"
     is HolderId.Entity -> "entity ${holder.uuid}"
@@ -77,6 +84,7 @@ fun structureStepReport(step: StructureStep): ReportNode {
             val to = step.target.data.value.substringBefore('[')
             "$at: $from -> $to"
         }
+
         is StructureStep.SpawnEntity -> "spawn ${step.shape.type.value} at $at"
         is StructureStep.RemoveEntity -> "remove ${step.shape.type.value} at $at"
     }
@@ -130,6 +138,7 @@ fun worldChangeReport(change: WorldChange): ReportNode {
             if (trampled != null) "$who trampled $trampled at $at"
             else "$who ${verbFor(change.action)} ${describeBlock(subject)} at $at"
         }
+
         is ChangeSubject.Entity ->
             "$who ${leashVerb(subject) ?: verbFor(change.action)} ${subject.type.value} at $at"
     }

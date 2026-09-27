@@ -44,7 +44,7 @@ private const val FLUID_RADIUS = 8
 /** World-shape edits listener. */
 @Unstable
 class BlockChangeListener(services: TracelServices) : TracelListener(services) {
-    companion object { }
+    companion object {}
 
     @Observes
     fun onPlace(event: BlockPlaceEvent) {
@@ -196,7 +196,8 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             BlockIgniteEvent.IgniteCause.FIREBALL,
             BlockIgniteEvent.IgniteCause.EXPLOSION,
             BlockIgniteEvent.IgniteCause.ENDER_CRYSTAL,
-            -> true
+                -> true
+
             else -> false
         }
         val cause = when {
@@ -204,12 +205,14 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             player != null -> CauseKind.PLAYER_ACTION
             event.cause == BlockIgniteEvent.IgniteCause.SPREAD || event.cause == BlockIgniteEvent.IgniteCause.LAVA ->
                 if (FireCell.at(event.ignitingBlock) != null || event.ignitingBlock?.let { ColumnCell.fluidPlayerAt(it) } != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+
             else -> CauseKind.WORLD
         }
         val lighter = player
             ?: (igniter as? Player)?.uniqueId
             ?: FireCell.at(event.ignitingBlock).takeIf { event.cause == BlockIgniteEvent.IgniteCause.SPREAD }
-            ?: event.ignitingBlock?.let { ColumnCell.fluidPlayerAt(it) }.takeIf { event.cause == BlockIgniteEvent.IgniteCause.LAVA }
+            ?: event.ignitingBlock?.let { ColumnCell.fluidPlayerAt(it) }
+                .takeIf { event.cause == BlockIgniteEvent.IgniteCause.LAVA }
         lighter?.let { FireCell.lit(event.block, it) }
         val by = player?.let(HolderId::Player)
             ?: igniter?.let { services.explosionActor(it) }

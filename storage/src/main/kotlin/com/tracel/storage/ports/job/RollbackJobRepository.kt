@@ -178,7 +178,8 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
             }
         }
         val createCount = Records.rbJobCreateCount(header)
-        val by = get(Keys.rbRecent(id.raw))?.let(::ownerOf)?.takeIf { it > CONSOLE }?.let { storage.interning.resolveHolder(this, it) }
+        val by = get(Keys.rbRecent(id.raw))?.let(::ownerOf)?.takeIf { it > CONSOLE }
+            ?.let { storage.interning.resolveHolder(this, it) }
 
         RollbackJobRecord(
             id,
@@ -265,7 +266,8 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
     private fun StorageUnit.ownerValue(by: HolderId?): ByteArray =
         Records.int(if (by == null) CONSOLE else storage.interning.internHolder(this, by))
 
-    private fun ownerOf(value: MemorySegment): Int = if (value.byteSize() < Int.SIZE_BYTES) UNOWNED else Records.asInt(value)
+    private fun ownerOf(value: MemorySegment): Int =
+        if (value.byteSize() < Int.SIZE_BYTES) UNOWNED else Records.asInt(value)
 
     private fun StorageUnit.forget(id: RollbackJobId) {
         val doomed = ArrayList<ByteArray>()

@@ -30,7 +30,14 @@ import org.bukkit.inventory.InventoryHolder
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.Damageable
 
-private data class Rewear(val lotId: LotId, val itemKey: ItemKey, val holder: HolderId, val current: Int?, val target: Int)
+private data class Rewear(
+    val lotId: LotId,
+    val itemKey: ItemKey,
+    val holder: HolderId,
+    val current: Int?,
+    val target: Int
+)
+
 private data class WearEnd(val history: LotId, val lot: LotId, val holder: HolderId, val fresh: Boolean)
 
 /** Every worn tool a rollback reached, back to the damage it had at [asOf]. */
@@ -47,13 +54,21 @@ internal suspend fun MaterialRestorer.rewearPlan(
         for (step in plan.steps) {
             when (step) {
                 is RollbackStep.Take -> ends[step.lotId] =
-                    WearEnd(step.lotId, step.lotId, target.destinationFor(plan, step.lotId), fresh = ends[step.lotId]?.fresh == true)
+                    WearEnd(
+                        step.lotId,
+                        step.lotId,
+                        target.destinationFor(plan, step.lotId),
+                        fresh = ends[step.lotId]?.fresh == true
+                    )
+
                 is RollbackStep.Mint -> services.ledger.compensationOf(step.lotId, job)?.let {
                     ends[it] = WearEnd(step.lotId, it, target.destinationFor(plan, step.lotId), fresh = true)
                 }
+
                 is RollbackStep.Debt -> services.ledger.compensationOf(step.lotId, job)?.let {
                     ends[it] = WearEnd(step.lotId, it, target.destinationFor(plan, step.lotId), fresh = true)
                 }
+
                 is RollbackStep.Unmake -> {
                     for ((lotId) in step.inputs) ends[lotId] = WearEnd(lotId, lotId, step.holder, fresh = true)
                     for ((lotId) in step.outputs) leaving += lotId
@@ -76,6 +91,7 @@ internal suspend fun MaterialRestorer.rewearSteps(steps: List<InvolutionStep>, a
                 for ((lotId, _, holder) in step.outputs) ends += WearEnd(lotId, lotId, holder, fresh = true)
                 for ((lotId) in step.inputs) leaving += lotId
             }
+
             is InvolutionStep.Retract -> Unit
         }
     }
@@ -125,14 +141,17 @@ private suspend fun MaterialRestorer.rewearAt(
     is HolderId.Player -> withContext(services.schedulers.entity(holder.uuid)) {
         playerOf(holder.uuid)?.let { rewearIn(it.inventory, wanted, produced) }.orEmpty()
     }
+
     is HolderId.EnderChest -> withContext(services.schedulers.entity(holder.uuid)) {
         playerOf(holder.uuid)?.let { rewearIn(it.enderChest, wanted, produced) }.orEmpty()
     }
+
     is HolderId.Block -> withContext(services.schedulers.region(holder)) {
         val state = worldOf(holder.world)?.getBlockAt(holder.x, holder.y, holder.z)?.getState(false)
         val inventory = (state as? TileStateInventoryHolder)?.inventory ?: (state as? InventoryHolder)?.inventory
         inventory?.let { rewearIn(it, wanted, produced) }.orEmpty()
     }
+
     is HolderId.Entity -> withContext(services.schedulers.entity(holder.uuid)) {
         when (val entity = Bukkit.getEntity(holder.uuid)) {
             is InventoryHolder -> rewearIn(entity.inventory, wanted, produced)
@@ -144,14 +163,26 @@ private suspend fun MaterialRestorer.rewearAt(
                     wanted, produced,
                 )
             }
-            is ItemFrame -> rewearSlots(arrayOf(entity.item), { _, stack -> entity.setItem(stack, false) }, wanted, produced)
+
+            is ItemFrame -> rewearSlots(
+                arrayOf(entity.item),
+                { _, stack -> entity.setItem(stack, false) },
+                wanted,
+                produced
+            )
+
             else -> emptyList()
         }
     }
+
     else -> emptyList()
 }
 
-private fun rewearIn(inventory: Inventory, wanted: List<Rewear>, produced: Map<ItemKey, Set<Int>>): List<Pair<Rewear, Int>> =
+private fun rewearIn(
+    inventory: Inventory,
+    wanted: List<Rewear>,
+    produced: Map<ItemKey, Set<Int>>
+): List<Pair<Rewear, Int>> =
     rewearSlots(inventory.contents, inventory::setItem, wanted, produced)
 
 private fun rewearSlots(
@@ -190,7 +221,7 @@ private fun rewearSlots(
         val candidates = contents.indices.count { slot ->
             val stack = contents[slot]
             !used[slot] && stack != null && !stack.isEmpty && stack.matches(rewear.itemKey) &&
-                (stack.itemMeta as? Damageable)?.damage in produced[rewear.itemKey].orEmpty()
+                    (stack.itemMeta as? Damageable)?.damage in produced[rewear.itemKey].orEmpty()
         }
         if (candidates > (owed[rewear.itemKey] ?: 0)) continue
         claim(rewear, exact = false)

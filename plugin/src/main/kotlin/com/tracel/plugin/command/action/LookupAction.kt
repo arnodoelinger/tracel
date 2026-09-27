@@ -82,9 +82,9 @@ class LookupAction(private val services: TracelServices) {
             holders = users.map(HolderId::Player).toSet(),
             excludedHolders = excludedUsers.map(HolderId::Player).toSet(),
             material = parsed.item?.let { MaterialAliases.resolve(it).first },
-                blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
+            blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
             causes = actions.causes,
-                worldCauses = actions.worldCauses,
+            worldCauses = actions.worldCauses,
             actions = actions.actions,
             since = parsed.since,
             until = parsed.until,
@@ -107,10 +107,18 @@ class LookupAction(private val services: TracelServices) {
             val (results, worldChanges) = try {
                 coroutineScope {
                     val txns = async {
-                        if (!actions.material || parsed.structureOnly) emptyList() else services.reading { services.log.query(filter) }
+                        if (!actions.material || parsed.structureOnly) emptyList() else services.reading {
+                            services.log.query(
+                                filter
+                            )
+                        }
                     }
                     val world = async {
-                        if (!actions.structural || parsed.materialOnly) emptyList() else services.reading { services.worldLog.query(filter) }
+                        if (!actions.structural || parsed.materialOnly) emptyList() else services.reading {
+                            services.worldLog.query(
+                                filter
+                            )
+                        }
                     }
                     Pair(txns.await(), world.await())
                 }

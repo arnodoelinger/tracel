@@ -35,10 +35,13 @@ fun EntityRemoveEvent.Cause.kind(): RemovalKind = when (this) {
     EntityRemoveEvent.Cause.ENTER_BLOCK,
     EntityRemoveEvent.Cause.DISCARD,
         -> RemovalKind.Ignore
+
     EntityRemoveEvent.Cause.DESPAWN
         -> RemovalKind.SceneryOnly
+
     EntityRemoveEvent.Cause.TRANSFORMATION
         -> RemovalKind.BlamedOnly
+
     else -> RemovalKind.Record
 }
 

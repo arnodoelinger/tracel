@@ -31,14 +31,16 @@ public class FlowGraph(private val repo: LotRepository, private val maxDepth: In
     /** Recursively builds a tree of the lot's ancestors, up to [maxDepth]. */
     private suspend fun buildOrigin(lotId: LotId, depth: Int): ProvenanceNode {
         val lot = repo.lot(lotId)
-        val parents = if (depth >= maxDepth) emptyList() else repo.edgesInto(lotId).map { buildOrigin(it.parent, depth + 1) }
+        val parents =
+            if (depth >= maxDepth) emptyList() else repo.edgesInto(lotId).map { buildOrigin(it.parent, depth + 1) }
         return ProvenanceNode(lotId, lot.itemKey, lot.createdBy, parents)
     }
 
     /** Recursively builds a tree of the lot's descendants, up to [maxDepth]. */
     private suspend fun buildFate(lotId: LotId, depth: Int): FateNode {
         val lot = repo.lot(lotId)
-        val children = if (depth >= maxDepth) emptyList() else repo.edgesFrom(lotId).map { buildFate(it.child, depth + 1) }
+        val children =
+            if (depth >= maxDepth) emptyList() else repo.edgesFrom(lotId).map { buildFate(it.child, depth + 1) }
         val holder = if (children.isEmpty()) repo.currentHolderOf(lotId) else null
         return FateNode(lotId, lot.itemKey, holder, children)
     }

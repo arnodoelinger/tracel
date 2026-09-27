@@ -22,7 +22,12 @@ suspend fun purgeAll(storage: TracelStorage) {
             }
         }
         storage.engine.wipe()
-        if (kept.isNotEmpty()) storage.engine.write(MutationBatch().apply { for ((key, value) in kept) put(key, value) }, durable = true)
+        if (kept.isNotEmpty()) storage.engine.write(MutationBatch().apply {
+            for ((key, value) in kept) put(
+                key,
+                value
+            )
+        }, durable = true)
         storage.reloadInterning()
     }
 }

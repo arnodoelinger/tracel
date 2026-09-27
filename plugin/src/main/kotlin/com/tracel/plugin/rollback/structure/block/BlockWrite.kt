@@ -15,7 +15,8 @@ import org.bukkit.block.data.type.BubbleColumn
 import org.bukkit.block.data.type.Leaves
 import org.bukkit.inventory.ItemStack
 
-private val LEAF_FACES = arrayOf(BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST)
+private val LEAF_FACES =
+    arrayOf(BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST)
 
 private const val LEAF_MAX_DISTANCE = 7
 private const val MAX_LEAF_SETTLE = 4_096
@@ -23,7 +24,12 @@ private const val MAX_BUBBLE_COLUMN = 384
 
 /** Apply [step]; report with the live standing shape. */
 @Unstable
-internal fun StructureRestorer.apply(block: Block, step: StructureStep.SetBlock, force: Boolean, dumpHeldCargo: Boolean): Outcome {
+internal fun StructureRestorer.apply(
+    block: Block,
+    step: StructureStep.SetBlock,
+    force: Boolean,
+    dumpHeldCargo: Boolean
+): Outcome {
     if (step.target.data.value.startsWith("minecraft:moving_piston")) return Refused("was caught mid-push by a piston; nothing to put back")
     if (block.mayHaveTile() || step.target.extras != null || step.expected.extras != null) {
         return applyTile(block, step, force, dumpHeldCargo)
@@ -55,7 +61,8 @@ internal fun StructureRestorer.applyPlain(block: Block, step: StructureStep.SetB
     }
 
     val live = block.blockData
-    val exact = BlockDataCache.of(step.expected.data)?.let { live.sameState(it) } ?: (step.expected.isAirLike && block.isEmpty)
+    val exact =
+        BlockDataCache.of(step.expected.data)?.let { live.sameState(it) } ?: (step.expected.isAirLike && block.isEmpty)
     val standing = if (exact) null else live.asString
 
     if (!alreadyTarget && targetData != null) {
@@ -73,7 +80,12 @@ internal fun StructureRestorer.applyPlain(block: Block, step: StructureStep.SetB
 }
 
 /** Tile chest / sign / banner, etc. */
-internal fun StructureRestorer.applyTile(block: Block, step: StructureStep.SetBlock, force: Boolean, dumpHeldCargo: Boolean): Outcome {
+internal fun StructureRestorer.applyTile(
+    block: Block,
+    step: StructureStep.SetBlock,
+    force: Boolean,
+    dumpHeldCargo: Boolean
+): Outcome {
     if (block.blockData.asString == step.target.data.value && block.ticksOnly()) return Unchanged
     val standing = block.toShape()
     if (standing == step.target) return Unchanged
@@ -145,8 +157,16 @@ private fun Block.wakeBubbles() {
         val source = (data as? Levelled)?.let { cell.type == Material.WATER && it.level == 0 } ?: false
         when {
             drag != null && (source || cell.type == Material.BUBBLE_COLUMN) ->
-                cell.setBlockData((Material.BUBBLE_COLUMN.createBlockData() as BubbleColumn).also { it.isDrag = drag }, false)
-            drag == null && cell.type == Material.BUBBLE_COLUMN -> cell.setBlockData(Material.WATER.createBlockData(), false)
+                cell.setBlockData(
+                    (Material.BUBBLE_COLUMN.createBlockData() as BubbleColumn).also { it.isDrag = drag },
+                    false
+                )
+
+            drag == null && cell.type == Material.BUBBLE_COLUMN -> cell.setBlockData(
+                Material.WATER.createBlockData(),
+                false
+            )
+
             else -> return
         }
         cell = cell.getRelative(BlockFace.UP)

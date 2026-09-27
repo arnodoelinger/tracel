@@ -53,7 +53,12 @@ class InvolutionJobCoordinatorTest {
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(lease, plan, target = RollbackTarget.Uniform(chest))
         world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
@@ -71,7 +76,11 @@ class InvolutionJobCoordinatorTest {
 
         assertInstanceOf(InvolutionOutcome.Undone::class.java, outcome)
         assertNull(world.ledger.totalAt(chest, diamond), "the chest gives back everything the rollback put there")
-        assertEquals(6L, world.ledger.totalAt(steve, diamond)?.raw, "Steve gets back exactly what was actually recovered")
+        assertEquals(
+            6L,
+            world.ledger.totalAt(steve, diamond)?.raw,
+            "Steve gets back exactly what was actually recovered"
+        )
         assertEquals(6L, world.ledger.census(diamond), "back to the pre-rollback census — the burned 4 stay burned")
     }
 
@@ -88,7 +97,12 @@ class InvolutionJobCoordinatorTest {
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(lease, plan, target = RollbackTarget.Uniform(chest))
         world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
@@ -110,7 +124,11 @@ class InvolutionJobCoordinatorTest {
         val second = coordinator.undo(job)
 
         assertInstanceOf(InvolutionOutcome.AlreadyUndone::class.java, second)
-        assertEquals(censusAfterFirstUndo, world.ledger.census(diamond), "a repeated undo must not move the ledger again")
+        assertEquals(
+            censusAfterFirstUndo,
+            world.ledger.census(diamond),
+            "a repeated undo must not move the ledger again"
+        )
         assertEquals(txnCountAfterFirstUndo, world.log.all().size, "a repeated undo must not log any new transaction")
     }
 
@@ -126,7 +144,12 @@ class InvolutionJobCoordinatorTest {
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(lease, plan, target = RollbackTarget.Uniform(chest))
         world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
@@ -159,7 +182,12 @@ class InvolutionJobCoordinatorTest {
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val lease = world.acquireLease(job, plan)
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(lease, plan, target = RollbackTarget.Uniform(chest))
         world.jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
 
@@ -169,12 +197,18 @@ class InvolutionJobCoordinatorTest {
             val iterationWorld = LedgerHarness()
             val iterationChest = block(0, 64, 0)
             val iterationSteve = player(1)
-            val iterationRoot = iterationWorld.ledger.mint(iterationChest, diamond, Quantity(10), iterationWorld.nextTxn())
+            val iterationRoot =
+                iterationWorld.ledger.mint(iterationChest, diamond, Quantity(10), iterationWorld.nextTxn())
             iterationWorld.ledger.move(iterationChest, iterationSteve, diamond, Quantity(10), iterationWorld.nextTxn())
             iterationWorld.ledger.burn(iterationSteve, diamond, Quantity(4), SinkKind.LAVA, iterationWorld.nextTxn())
             val iterationPlan = RollbackPlanner(iterationWorld.repo, { true }).plan(listOf(iterationRoot.id))
             val iterationLease = iterationWorld.acquireLease(job, iterationPlan)
-            JournalExecutor(RollbackExecutor(iterationWorld.ledger, iterationWorld.log, iterationWorld::nextSeq), InMemoryJournal(), iterationWorld.leases, iterationWorld::nextTxn)
+            JournalExecutor(
+                RollbackExecutor(iterationWorld.ledger, iterationWorld.log, iterationWorld::nextSeq),
+                InMemoryJournal(),
+                iterationWorld.leases,
+                iterationWorld::nextTxn
+            )
                 .execute(iterationLease, iterationPlan, target = RollbackTarget.Uniform(iterationChest))
             iterationWorld.jobs.save(RollbackJobRecord(job, iterationPlan, RollbackTarget.Uniform(iterationChest)))
 
@@ -189,7 +223,10 @@ class InvolutionJobCoordinatorTest {
             )
 
             val crash = runCatching { coordinator.undo(job, CrashPoint.before(crashAt)) }.exceptionOrNull()
-            assertTrue(crash is SimulatedCrash, "crash before undo step $crashAt should actually have fired, got $crash")
+            assertTrue(
+                crash is SimulatedCrash,
+                "crash before undo step $crashAt should actually have fired, got $crash"
+            )
 
             val resumed = InvolutionJobCoordinator(
                 iterationWorld.jobs,
@@ -202,8 +239,16 @@ class InvolutionJobCoordinatorTest {
 
             assertInstanceOf(InvolutionOutcome.Undone::class.java, resumed)
             assertNull(iterationWorld.ledger.totalAt(iterationChest, diamond), "crash before undo step $crashAt")
-            assertEquals(6L, iterationWorld.ledger.totalAt(iterationSteve, diamond)?.raw, "crash before undo step $crashAt")
-            assertEquals(6L, iterationWorld.ledger.census(diamond), "crash before undo step $crashAt: no duplication, no loss")
+            assertEquals(
+                6L,
+                iterationWorld.ledger.totalAt(iterationSteve, diamond)?.raw,
+                "crash before undo step $crashAt"
+            )
+            assertEquals(
+                6L,
+                iterationWorld.ledger.census(diamond),
+                "crash before undo step $crashAt: no duplication, no loss"
+            )
         }
     }
 }

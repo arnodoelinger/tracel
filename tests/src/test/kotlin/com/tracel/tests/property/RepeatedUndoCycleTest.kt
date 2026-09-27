@@ -42,10 +42,19 @@ class RepeatedUndoCycleTest {
             val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
             val target = RollbackTarget.Uniform(chest)
             jobs.save(RollbackJobRecord(job, plan, target))
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                InMemoryJournal(),
+                world.leases,
+                world::nextTxn
+            )
                 .execute(world.acquireLease(job, plan), plan, target)
 
-            assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw, "cycle $cycle: the rollback put it back in the chest")
+            assertEquals(
+                10L,
+                world.ledger.totalAt(chest, diamond)?.raw,
+                "cycle $cycle: the rollback put it back in the chest"
+            )
             assertNull(world.ledger.totalAt(steve, diamond), "cycle $cycle: and took it off the player")
             assertEquals(10L, world.ledger.census(diamond), "cycle $cycle: a rollback creates nothing")
 
@@ -56,7 +65,11 @@ class RepeatedUndoCycleTest {
             }
             world.leases.release(job)
 
-            assertEquals(10L, world.ledger.totalAt(steve, diamond)?.raw, "cycle $cycle: undo gave it back to the player")
+            assertEquals(
+                10L,
+                world.ledger.totalAt(steve, diamond)?.raw,
+                "cycle $cycle: undo gave it back to the player"
+            )
             assertNull(world.ledger.totalAt(chest, diamond), "cycle $cycle: and emptied the chest again")
             assertEquals(10L, world.ledger.census(diamond), "cycle $cycle: an undo creates nothing either")
         }

@@ -50,11 +50,12 @@ public class RollbackJobCoordinator(
         preparedAt: Long? = null,
         structural: Boolean = true,
         covered: Set<HolderId>? = null,
-    ): RollbackOutcome = when (val reservation = reserve(job, rootLots, target, vanished, prepared, preparedAt, structural, covered)) {
-        is Reservation.Blocked -> RollbackOutcome.Blocked(reservation.conflicts)
-        is Reservation.Stale -> RollbackOutcome.Stale(reservation.replan)
-        is Reservation.Granted -> apply(reservation, target, crashPoint, recordsOwnJob)
-    }
+    ): RollbackOutcome =
+        when (val reservation = reserve(job, rootLots, target, vanished, prepared, preparedAt, structural, covered)) {
+            is Reservation.Blocked -> RollbackOutcome.Blocked(reservation.conflicts)
+            is Reservation.Stale -> RollbackOutcome.Stale(reservation.replan)
+            is Reservation.Granted -> apply(reservation, target, crashPoint, recordsOwnJob)
+        }
 
     /**
      * Plans, reserves and verifies — everything that can still say no.
@@ -79,7 +80,14 @@ public class RollbackJobCoordinator(
         structural: Boolean = true,
         covered: Set<HolderId>? = null,
     ): Reservation {
-        val planner = RollbackPlanner(repo, worldQuery, vanished = vanished, structural = structural, covered = covered, target = target)
+        val planner = RollbackPlanner(
+            repo,
+            worldQuery,
+            vanished = vanished,
+            structural = structural,
+            covered = covered,
+            target = target
+        )
         val plan: RollbackPlan
         val planned: Long?
         if (prepared != null && preparedAt != null) {
@@ -97,7 +105,7 @@ public class RollbackJobCoordinator(
 
         // Only worth replanning if one of its own lots changed: on a live server something always did
         val moved = planned == null ||
-            (changedSince?.invoke(plan.touchedLots, planned) ?: (ledgerVersion?.invoke() != planned))
+                (changedSince?.invoke(plan.touchedLots, planned) ?: (ledgerVersion?.invoke() != planned))
         if (moved) {
             val verifiedAt = ledgerVersion?.invoke()
             val verified = try {

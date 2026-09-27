@@ -52,7 +52,7 @@ public class EntityCaptureQueue(
         if (total == 1L || total % DROP_REPORT_EVERY == 0L) {
             logger.warning(
                 "Tracel entity capture queue is full — $total entity change(s) have been dropped and " +
-                    "cannot be rolled back. The storage thread is not keeping up."
+                        "cannot be rolled back. The storage thread is not keeping up."
             )
         }
         return false
@@ -108,7 +108,7 @@ public class EntityCaptureQueue(
                 val total = droppedCount.incrementAndGet()
                 logger.warning(
                     "Tracel could not record a ${change.action} of entity ${change.entity} at ${change.at} " +
-                        "(${failure.javaClass.simpleName}: ${failure.message}); $total entity change(s) dropped so far"
+                            "(${failure.javaClass.simpleName}: ${failure.message}); $total entity change(s) dropped so far"
                 )
             }
         }

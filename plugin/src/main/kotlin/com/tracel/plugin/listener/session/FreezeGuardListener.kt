@@ -20,12 +20,14 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent
 class FreezeGuardListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.HIGHEST)
     fun holdClick(event: InventoryClickEvent) {
-        if (frozenPlayer(event.whoClicked as? Player) || frozen(event.view.topInventory.toHolderId())) event.isCancelled = true
+        if (frozenPlayer(event.whoClicked as? Player) || frozen(event.view.topInventory.toHolderId())) event.isCancelled =
+            true
     }
 
     @Observes(priority = Priority.HIGHEST)
     fun holdDrag(event: InventoryDragEvent) {
-        if (frozenPlayer(event.whoClicked as? Player) || frozen(event.view.topInventory.toHolderId())) event.isCancelled = true
+        if (frozenPlayer(event.whoClicked as? Player) || frozen(event.view.topInventory.toHolderId())) event.isCancelled =
+            true
     }
 
     @Observes(priority = Priority.HIGHEST)

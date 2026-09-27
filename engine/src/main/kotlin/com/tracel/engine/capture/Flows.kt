@@ -86,6 +86,7 @@ public suspend fun LotLedger.shortfallMints(
                 debit(source, itemKey, quantity.raw)
                 pending.merge(destination to itemKey, quantity.raw, Long::plus)
             }
+
             FlowKind.BURN -> debit(source, itemKey, quantity.raw)
             FlowKind.MINT -> pending.merge(destination to itemKey, quantity.raw, Long::plus)
             FlowKind.TRANSFORM_IN, FlowKind.TRANSFORM_OUT ->
@@ -131,6 +132,7 @@ public suspend fun LotLedger.checkAllWithdrawalsSatisfiable(flows: List<Flow>): 
                 debit(source, itemKey, quantity.raw)
                 credit(destination, itemKey, quantity.raw)
             }
+
             FlowKind.BURN -> debit(source, itemKey, quantity.raw)
             FlowKind.MINT -> credit(destination, itemKey, quantity.raw)
             FlowKind.TRANSFORM_IN, FlowKind.TRANSFORM_OUT ->

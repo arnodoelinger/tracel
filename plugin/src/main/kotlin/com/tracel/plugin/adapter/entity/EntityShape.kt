@@ -62,11 +62,12 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
     val cargo = surfaces.associateWith { it.save(entity) }
     try {
         for (surface in surfaces) surface.empty(entity)
-        val left = buildList { for (surface in surfaces) surface.collect(entity) { if (it != null && !it.isEmpty) add(it) } }
+        val left =
+            buildList { for (surface in surfaces) surface.collect(entity) { if (it != null && !it.isEmpty) add(it) } }
         if (left.isNotEmpty()) {
             Warnings.once(logger, "cargo:${entity.type}") {
                 "a ${entity.type} could not be emptied before being captured — its pose is not recorded, " +
-                    "because recording it would carry its contents into the world log"
+                        "because recording it would carry its contents into the world log"
             }
             return@runCatching null
         }
@@ -76,7 +77,7 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
         if (nbt.size > room) {
             Warnings.once(logger, "huge:${entity.type}") {
                 "a ${entity.type} serializes to ${nbt.size} bytes, past the $room a " +
-                    "world-log record can hold — it will be restored without its detail"
+                        "world-log record can hold — it will be restored without its detail"
             }
             return@runCatching null
         }

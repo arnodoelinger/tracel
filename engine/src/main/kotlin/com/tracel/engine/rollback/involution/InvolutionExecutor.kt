@@ -67,10 +67,15 @@ public class InvolutionExecutor(
                     debit(step.from, step.itemKey, step.quantity.raw)
                     pending.merge(step.to to step.itemKey, step.quantity.raw, Long::plus)
                 }
+
                 is InvolutionStep.Retract -> debit(step.from, step.itemKey, step.quantity.raw)
                 is InvolutionStep.Remake -> {
                     for ((_, itemKey, quantity) in step.inputs) debit(step.product.holder, itemKey, quantity.raw)
-                    for ((_, quantity, holder) in step.outputs) pending.merge(holder to step.product.itemKey, quantity.raw, Long::plus)
+                    for ((_, quantity, holder) in step.outputs) pending.merge(
+                        holder to step.product.itemKey,
+                        quantity.raw,
+                        Long::plus
+                    )
                 }
             }
         }
@@ -92,7 +97,15 @@ public class InvolutionExecutor(
                 }
                 ledger.burnBack(step.from, minted, step.itemKey, step.quantity, SinkKind.ROLLBACK_BURN, txn)
                 step.originalLot?.let { ledger.uncompensate(it, lease.job) }
-                listOf(Flow(step.itemKey, step.quantity, step.from, HolderId.Sink(SinkKind.ROLLBACK_BURN), FlowKind.BURN))
+                listOf(
+                    Flow(
+                        step.itemKey,
+                        step.quantity,
+                        step.from,
+                        HolderId.Sink(SinkKind.ROLLBACK_BURN),
+                        FlowKind.BURN
+                    )
+                )
             }
 
             is InvolutionStep.Remake -> {
@@ -106,10 +119,25 @@ public class InvolutionExecutor(
 
                 step.inputs.map {
                     Flow(it.itemKey, it.quantity, holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)
-                } + Flow(step.product.itemKey, step.product.quantity, HolderId.Source(SourceKind.CRAFT), holder, FlowKind.TRANSFORM_OUT)
+                } + Flow(
+                    step.product.itemKey,
+                    step.product.quantity,
+                    HolderId.Source(SourceKind.CRAFT),
+                    holder,
+                    FlowKind.TRANSFORM_OUT
+                )
             }
         }
 
-        log.append(Transaction(txn, nextSeq(), System.currentTimeMillis(), CauseKind.INVOLUTION, causedBy = null, flows))
+        log.append(
+            Transaction(
+                txn,
+                nextSeq(),
+                System.currentTimeMillis(),
+                CauseKind.INVOLUTION,
+                causedBy = null,
+                flows
+            )
+        )
     }
 }

@@ -28,7 +28,9 @@ internal fun pageAccepted(
     val want = offset.toLong() + limit
     val slices = ArrayList<Accepted>()
     var end = seqs.size
-    var chunk = if (want >= seqs.size) seqs.size else maxOf(want * 2, MIN_PAGE_SLICE.toLong()).coerceAtMost(seqs.size.toLong()).toInt()
+    var chunk =
+        if (want >= seqs.size) seqs.size else maxOf(want * 2, MIN_PAGE_SLICE.toLong()).coerceAtMost(seqs.size.toLong())
+            .toInt()
     var total = 0L
     while (end > 0 && total < want) {
         val start = (end - chunk).coerceAtLeast(0)

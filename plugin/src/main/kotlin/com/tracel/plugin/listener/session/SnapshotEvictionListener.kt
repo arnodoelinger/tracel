@@ -33,7 +33,10 @@ class SnapshotEvictionListener(services: TracelServices) : TracelListener(servic
         if (tiles.isEmpty()) return
         val world = WorldId(event.world.uid)
         forgetLater(tiles.flatMap { tile ->
-            listOfNotNull(HolderId.Block(world, tile.x, tile.y, tile.z), runCatching { tile.block.toHolderId() }.getOrNull())
+            listOfNotNull(
+                HolderId.Block(world, tile.x, tile.y, tile.z),
+                runCatching { tile.block.toHolderId() }.getOrNull()
+            )
         })
     }
 

@@ -50,10 +50,11 @@ private const val MAX_REBUILT_FORMS = 4_096
 /** [amount] of [itemKey], rebuilt from [form] if there is one and plain if there is not. */
 internal fun MaterialRestorer.stackFor(itemKey: ItemKey, amount: Int, form: ByteArray?): ItemStack? {
     if (form != null) {
-        val rebuilt = rebuiltForms[form]?.clone() ?: runCatching { ItemStack.deserializeBytes(form) }.getOrNull()?.also {
-            if (rebuiltForms.size >= MAX_REBUILT_FORMS) rebuiltForms.clear()
-            rebuiltForms[form] = it.clone()
-        }
+        val rebuilt =
+            rebuiltForms[form]?.clone() ?: runCatching { ItemStack.deserializeBytes(form) }.getOrNull()?.also {
+                if (rebuiltForms.size >= MAX_REBUILT_FORMS) rebuiltForms.clear()
+                rebuiltForms[form] = it.clone()
+            }
         if (rebuilt != null) return rebuilt.apply { this.amount = amount }
         Warnings.once(logger, "form:$itemKey") {
             "stored form of $itemKey no longer deserializes on this server — restoring it plain"

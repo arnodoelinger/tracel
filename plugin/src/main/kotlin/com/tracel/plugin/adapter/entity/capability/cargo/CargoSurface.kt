@@ -49,7 +49,7 @@ internal interface CargoSurface {
      *
      * Default is nothing.
      */
-    fun resync(entity: Entity, plugin: Plugin) { }
+    fun resync(entity: Entity, plugin: Plugin) {}
 }
 
 /** Copies the item stack if it is not `null`, not air, and has a positive amount. */

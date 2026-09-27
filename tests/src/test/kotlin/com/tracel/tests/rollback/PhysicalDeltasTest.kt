@@ -61,7 +61,14 @@ class PhysicalDeltasTest {
         )
 
         val plan = RollbackPlan(
-            listOf(RollbackStep.Unmake(listOf(UnmadeOutput(crafted.output.id, steve)), listOf(LotContribution(ingredientLot.id, Quantity(9))), world.nextTxn(), steve))
+            listOf(
+                RollbackStep.Unmake(
+                    listOf(UnmadeOutput(crafted.output.id, steve)),
+                    listOf(LotContribution(ingredientLot.id, Quantity(9))),
+                    world.nextTxn(),
+                    steve
+                )
+            )
         )
 
         assertEquals(

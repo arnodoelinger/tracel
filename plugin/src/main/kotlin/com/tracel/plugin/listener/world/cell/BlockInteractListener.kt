@@ -42,11 +42,15 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
     @Observes(priority = Priority.LOWEST, ignoreCancelled = false)
     fun beforeInteract(event: PlayerInteractEvent) {
         val clicked = event.clickedBlock
-        if (clicked != null && clicked.type == Material.DRAGON_EGG) DragonEggCell.clicked(clicked, event.player.uniqueId)
+        if (clicked != null && clicked.type == Material.DRAGON_EGG) DragonEggCell.clicked(
+            clicked,
+            event.player.uniqueId
+        )
         if (clicked != null && (clicked.blockData is Bed || clicked.type == Material.RESPAWN_ANCHOR)) {
             ColumnCell.remember(event.player.uniqueId, clicked)
             (clicked.blockData as? Bed)?.let { bed ->
-                val other = if (bed.part == Bed.Part.FOOT) clicked.getRelative(bed.facing) else clicked.getRelative(bed.facing.oppositeFace)
+                val other =
+                    if (bed.part == Bed.Part.FOOT) clicked.getRelative(bed.facing) else clicked.getRelative(bed.facing.oppositeFace)
                 ColumnCell.remember(event.player.uniqueId, other)
             }
         }
@@ -72,12 +76,21 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
         val snapshot = before.remove(player.uniqueId)
         val state = block.getState(false)
         val cargo = event.action == Action.RIGHT_CLICK_BLOCK &&
-            (state is TileStateInventoryHolder || state is Campfire)
+                (state is TileStateInventoryHolder || state is Campfire)
         val ejected = (state as? Jukebox)?.takeIf { it.hasRecord() && event.item?.type?.isRecord != true }?.record
         if (event.action == Action.RIGHT_CLICK_BLOCK && ejected != null && !ejected.isEmpty) {
             val holder = block.toHolderId()
             material.releasing(
-                listOf(BlockRelease(holder, block.world, block.x, block.y, block.z, mapOf(ejected.toItemKey() to ejected.amount.toLong()))),
+                listOf(
+                    BlockRelease(
+                        holder,
+                        block.world,
+                        block.x,
+                        block.y,
+                        block.z,
+                        mapOf(ejected.toItemKey() to ejected.amount.toLong())
+                    )
+                ),
                 CauseKind.PLAYER_ACTION,
                 HolderId.Player(player.uniqueId),
                 at = block.toBlockPos(),
@@ -90,7 +103,12 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
             block.getRelative(if (half.half == Bisected.Half.TOP) BlockFace.DOWN else BlockFace.UP)
         }?.takeIf { it.type == block.type && event.action == Action.RIGHT_CLICK_BLOCK }
         if (partner != null) {
-            shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.PLAYER_ACTION, HolderId.Player(player.uniqueId), listOf(partner)) { it.before != it.after }
+            shape.reread(
+                ActionKind.BLOCK_CHANGE,
+                CauseKind.PLAYER_ACTION,
+                HolderId.Player(player.uniqueId),
+                listOf(partner)
+            ) { it.before != it.after }
         }
         later(block.location) {
             if (snapshot != null) {
@@ -102,7 +120,8 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
                         after = after,
                         action = ActionKind.BLOCK_CHANGE,
                         cause = CauseKind.PLAYER_ACTION,
-                        causedBy = HolderId.Player(player.uniqueId
+                        causedBy = HolderId.Player(
+                            player.uniqueId
                         ),
                     )
                 }

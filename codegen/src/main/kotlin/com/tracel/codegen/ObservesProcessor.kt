@@ -63,7 +63,10 @@ public class ObservesProcessor(
             ?: return logger.fail("@Observes function \"$name\" must take exactly one parameter, the event.", function)
 
         val eventDecl = parameter.type.resolve().declaration.qualifiedName
-            ?: return logger.fail("@Observes function \"$name\" takes a parameter whose type cannot be resolved.", function)
+            ?: return logger.fail(
+                "@Observes function \"$name\" takes a parameter whose type cannot be resolved.",
+                function
+            )
 
         val annotation = function.annotations.first {
             it.annotationType.resolve().declaration.qualifiedName?.asString() == OBSERVES_ANNOTATION

@@ -15,7 +15,13 @@ class BlockDrop {
     data class ClaimedDrop(val itemKey: ItemKey, val quantity: Long, val entity: HolderId)
     data class ReleaseResult(val unclaimed: Map<ItemKey, Long>, val claimed: List<ClaimedDrop>)
 
-    private class Release(val world: UUID, val x: Int, val y: Int, val z: Int, val remaining: ConcurrentHashMap<ItemKey, Long>) {
+    private class Release(
+        val world: UUID,
+        val x: Int,
+        val y: Int,
+        val z: Int,
+        val remaining: ConcurrentHashMap<ItemKey, Long>
+    ) {
         val claimed = CopyOnWriteArrayList<ClaimedDrop>()
     }
 

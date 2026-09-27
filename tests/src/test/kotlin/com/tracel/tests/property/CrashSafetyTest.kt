@@ -52,14 +52,29 @@ class CrashSafetyTest {
             // failed, the second attempt would just "do everything from scratch", and matching the expected final
             // state would prove nothing.
             val crash = runCatching {
-                JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), journal, world.leases, world::nextTxn)
-                    .execute(lease, plan, target = RollbackTarget.Uniform(chest), crashPoint = CrashPoint.before(crashAt))
+                JournalExecutor(
+                    RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                    journal,
+                    world.leases,
+                    world::nextTxn
+                )
+                    .execute(
+                        lease,
+                        plan,
+                        target = RollbackTarget.Uniform(chest),
+                        crashPoint = CrashPoint.before(crashAt)
+                    )
             }.exceptionOrNull()
             assertTrue(crash is SimulatedCrash, "crash before step $crashAt should actually have fired, got $crash")
 
             // New exectutor, same journal, same job id, same plan: must resume from the crash point and reach
             // the correct final state.
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), journal, world.leases, world::nextTxn)
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                journal,
+                world.leases,
+                world::nextTxn
+            )
                 .execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
             assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw, "crash before step $crashAt")
@@ -69,6 +84,10 @@ class CrashSafetyTest {
     }
 
     private suspend fun assertNothingLeftInEscrow(ledger: LotLedger, job: RollbackJobId) {
-        assertEquals(null, ledger.totalAt(HolderId.Escrow(job), diamond), "escrow must be fully drained once a job completes")
+        assertEquals(
+            null,
+            ledger.totalAt(HolderId.Escrow(job), diamond),
+            "escrow must be fully drained once a job completes"
+        )
     }
 }

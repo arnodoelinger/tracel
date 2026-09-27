@@ -50,13 +50,26 @@ class CraftUndoCycleTest {
 
             val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
             assertTrue(plan.steps.any { it is RollbackStep.Unmake }, "cycle $cycle: the craft has to be unmade")
-            if (first == null) first = plan else assertEquals(first, plan, "cycle $cycle: the same window, so the same plan")
+            if (first == null) first = plan else assertEquals(
+                first,
+                plan,
+                "cycle $cycle: the same window, so the same plan"
+            )
 
             jobs.save(RollbackJobRecord(job, plan, target))
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                InMemoryJournal(),
+                world.leases,
+                world::nextTxn
+            )
                 .execute(world.acquireLease(job, plan), plan, target)
 
-            assertEquals(9L, world.ledger.totalAt(chest, diamond)?.raw, "cycle $cycle: the ingredients came out of the block")
+            assertEquals(
+                9L,
+                world.ledger.totalAt(chest, diamond)?.raw,
+                "cycle $cycle: the ingredients came out of the block"
+            )
             assertNull(world.ledger.totalAt(steve, diamondBlock), "cycle $cycle: and the block is gone")
 
             val undoLease = world.acquireLease(job, plan)

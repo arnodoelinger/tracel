@@ -15,11 +15,19 @@ import com.tracel.model.item.ItemKey
  * A holder that is both a source and [restoreTo] (rolling back to yourself) nets to zero via the
  * merge.
  */
-public suspend fun physicalDeltas(plan: RollbackPlan, restoreTo: HolderId, ledger: LotLedger): Map<HolderId, Map<ItemKey, Long>> =
+public suspend fun physicalDeltas(
+    plan: RollbackPlan,
+    restoreTo: HolderId,
+    ledger: LotLedger
+): Map<HolderId, Map<ItemKey, Long>> =
     physicalDeltas(plan, RollbackTarget.Uniform(restoreTo), ledger)
 
 /** The same, for a rollback whose reclaimed material does not all go to one place. */
-public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, ledger: LotLedger): Map<HolderId, Map<ItemKey, Long>> =
+public suspend fun physicalDeltas(
+    plan: RollbackPlan,
+    target: RollbackTarget,
+    ledger: LotLedger
+): Map<HolderId, Map<ItemKey, Long>> =
     ledger.reading {
         val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
         fun add(holder: HolderId, itemKey: ItemKey, amount: Long) {
@@ -34,7 +42,11 @@ public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, le
         }
 
         for (step in plan.steps) {
-            if (step is RollbackStep.Take) takenAdd(destinationFor(step.lotId), ledger.itemKeyOf(step.lotId), step.quantity.raw)
+            if (step is RollbackStep.Take) takenAdd(
+                destinationFor(step.lotId),
+                ledger.itemKeyOf(step.lotId),
+                step.quantity.raw
+            )
         }
 
         for (step in plan.steps) {
@@ -48,10 +60,14 @@ public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, le
                 is RollbackStep.Mint -> {
                     val key = ledger.itemKeyOf(step.lotId)
                     val dest = destinationFor(step.lotId)
-                    val covered = if (step.reason != SinkKind.UNATTRIBUTED) 0L else minOf(taken[dest]?.get(key) ?: 0L, step.quantity.raw)
+                    val covered = if (step.reason != SinkKind.UNATTRIBUTED) 0L else minOf(
+                        taken[dest]?.get(key) ?: 0L,
+                        step.quantity.raw
+                    )
                     if (covered > 0L) takenAdd(dest, key, -covered)
                     if (step.quantity.raw > covered) add(dest, key, step.quantity.raw - covered)
                 }
+
                 is RollbackStep.Debt -> add(destinationFor(step.lotId), ledger.itemKeyOf(step.lotId), step.quantity.raw)
 
                 is RollbackStep.Unmake -> {
@@ -70,14 +86,21 @@ public suspend fun physicalDeltas(plan: RollbackPlan, target: RollbackTarget, le
  * Net physical change per real holder undoing [steps] implies — the involution-side mirror of
  * [physicalDeltas].
  */
-public fun physicalDeltasForUndo(steps: List<InvolutionStep>, noise: Set<LotId>? = null): Map<HolderId, Map<ItemKey, Long>> {
+public fun physicalDeltasForUndo(
+    steps: List<InvolutionStep>,
+    noise: Set<LotId>? = null
+): Map<HolderId, Map<ItemKey, Long>> {
     val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
     fun add(holder: HolderId, itemKey: ItemKey, amount: Long) {
         deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
     }
 
     val returned = HashMap<Pair<HolderId, ItemKey>, Long>()
-    for (step in steps) if (step is InvolutionStep.Return) returned.merge(step.from to step.itemKey, step.quantity.raw, Long::plus)
+    for (step in steps) if (step is InvolutionStep.Return) returned.merge(
+        step.from to step.itemKey,
+        step.quantity.raw,
+        Long::plus
+    )
 
     for (step in steps) {
         when (step) {

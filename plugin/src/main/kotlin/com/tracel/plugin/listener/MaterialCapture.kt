@@ -126,7 +126,13 @@ class MaterialCapture internal constructor(private val services: TracelServices)
                 if (missing > 0L) shortfall[itemKey] = missing
             }
             if (shortfall.isNotEmpty()) {
-                services.capture.recordDirect(worldgenMintFlows(shortfall, holder), System.currentTimeMillis(), CauseKind.WORLD, null, at)
+                services.capture.recordDirect(
+                    worldgenMintFlows(shortfall, holder),
+                    System.currentTimeMillis(),
+                    CauseKind.WORLD,
+                    null,
+                    at
+                )
             }
         }
     }
@@ -321,7 +327,13 @@ class MaterialCapture internal constructor(private val services: TracelServices)
     ) {
         if (services.gate.single(cause, causedBy, epochMillis, itemKey, holder, delta)) return
         committing("$cause at $holder") {
-            services.capture.record(listOf(InventoryDelta(holder, itemKey, delta)), epochMillis, cause, causedBy, mintShortfall = ::ignoranceIsPermanent)
+            services.capture.record(
+                listOf(InventoryDelta(holder, itemKey, delta)),
+                epochMillis,
+                cause,
+                causedBy,
+                mintShortfall = ::ignoranceIsPermanent
+            )
         }
     }
 
@@ -416,8 +428,12 @@ class MaterialCapture internal constructor(private val services: TracelServices)
             val transient = inventory.transientInputs()
             val holder = if (transient != null) causedBy else inventory.toHolderId() ?: continue
             if (!ledgered && holder == causedBy) continue
-            if (transient == null && (holder is HolderId.Block || holder is HolderId.Entity)) captureSlotLayout(holder, inventory)
-            val totals = transient ?: (inventory as? CraftingInventory)?.matrix?.toItemTotals() ?: inventory.toItemTotals()
+            if (transient == null && (holder is HolderId.Block || holder is HolderId.Entity)) captureSlotLayout(
+                holder,
+                inventory
+            )
+            val totals =
+                transient ?: (inventory as? CraftingInventory)?.matrix?.toItemTotals() ?: inventory.toItemTotals()
             val merged = totalsByHolder.getOrPut(holder) { mutableMapOf() }
             for ((key, qty) in totals) merged.merge(key, qty, Long::plus)
         }
@@ -569,18 +585,39 @@ class MaterialCapture internal constructor(private val services: TracelServices)
                 val quantity = (gain?.delta ?: 0L) + dropped.filter { it.itemKey == productKey }.sumOf { it.quantity }
                 if (gain != null) net.merge(productKey, -gain.delta, Long::plus)
                 for ((_, itemKey, quantity1) in ingredients) net.merge(itemKey, quantity1.raw, Long::plus)
-                val transaction = crafted(ingredients, Product(player, productKey, Quantity(quantity)), player, at, epochMillis)
+                val transaction =
+                    crafted(ingredients, Product(player, productKey, Quantity(quantity)), player, at, epochMillis)
                 if (productDamage != null) {
                     val output = transaction.lots.last { it.flowIndex == ingredients.size }.lotId
                     services.wear.record(WearMark(output, epochMillis, productDamage, productDamage))
                 }
                 for ((pile1, itemKey, quantity1) in dropped) {
-                    if (itemKey == productKey) flows += Flow(productKey, Quantity(quantity1), player, pile1, FlowKind.MOVE)
+                    if (itemKey == productKey) flows += Flow(
+                        productKey,
+                        Quantity(quantity1),
+                        player,
+                        pile1,
+                        FlowKind.MOVE
+                    )
                 }
             }
-            if (flows.isNotEmpty()) services.capture.recordDirect(flows, epochMillis, CauseKind.PLAYER_ACTION, player, at, ::ignoranceIsPermanent)
+            if (flows.isNotEmpty()) services.capture.recordDirect(
+                flows,
+                epochMillis,
+                CauseKind.PLAYER_ACTION,
+                player,
+                at,
+                ::ignoranceIsPermanent
+            )
             val rest = net.filterValues { it != 0L }.map { (key, delta) -> InventoryDelta(player, key, delta) }
-            if (rest.isNotEmpty()) services.capture.record(rest, epochMillis, CauseKind.CRAFT, player, at, ::ignoranceIsPermanent)
+            if (rest.isNotEmpty()) services.capture.record(
+                rest,
+                epochMillis,
+                CauseKind.CRAFT,
+                player,
+                at,
+                ::ignoranceIsPermanent
+            )
         }
     }
 
@@ -665,7 +702,16 @@ class MaterialCapture internal constructor(private val services: TracelServices)
 
     private fun gapped(deltas: List<InventoryDelta>, epochMillis: Long, cause: CauseKind, at: BlockPos) {
         val gaps = deltas.map { it.copy(fromGap = true) }
-        committing("$cause, a gap") { services.capture.record(gaps, epochMillis, cause, null, at, ::ignoranceIsPermanent) }
+        committing("$cause, a gap") {
+            services.capture.record(
+                gaps,
+                epochMillis,
+                cause,
+                null,
+                at,
+                ::ignoranceIsPermanent
+            )
+        }
     }
 
     private fun foldInOpenGrid(

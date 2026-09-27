@@ -137,10 +137,18 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (entity.ticksLived > 0) return
         val reason = (event as? CreatureSpawnEvent)?.spawnReason ?: runCatching { entity.entitySpawnReason }.getOrNull()
         val transformed = transformedBy.remove(entity.uniqueId)
-        val dispensed = if (reason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) DispenseCell.at(entity.location.block) else null
+        val dispensed =
+            if (reason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) DispenseCell.at(entity.location.block) else null
         if (dispensed != null) {
             markMadeBy(entity, dispensed)
-            record(ActionKind.ENTITY_SPAWN, entity.uniqueId, entity.toShape(), entity.toBlockPos(), dispensed, after = true)
+            record(
+                ActionKind.ENTITY_SPAWN,
+                entity.uniqueId,
+                entity.toShape(),
+                entity.toBlockPos(),
+                dispensed,
+                after = true
+            )
             return
         }
         if (!entity.isScenery() && transformed == null && reason.kind() == SpawnKind.World) return
@@ -221,7 +229,10 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
             val who = services.damageBlame(event).who
             if (who != null) {
                 HitActor.hit(entity, who)
-                if (entity.logsWorldShape() && removedBy[entity.uniqueId]?.who == null) removedBy.put(entity.uniqueId, Blame(who))
+                if (entity.logsWorldShape() && removedBy[entity.uniqueId]?.who == null) removedBy.put(
+                    entity.uniqueId,
+                    Blame(who)
+                )
             }
             if (entity !is ArmorStand) return
         }
@@ -328,7 +339,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     fun onHangingBreak(event: HangingBreakEvent) {
         val byEntity = (event as? HangingBreakByEntityEvent)?.remover
         val explosion = event.cause == HangingBreakEvent.RemoveCause.EXPLOSION ||
-            byEntity.isBlastSource()
+                byEntity.isBlastSource()
         val who: HolderId? = (byEntity as? Player)?.let { HolderId.Player(it.uniqueId) }
             ?: byEntity?.let { services.explosionActor(it) }
             ?: if (explosion) services.redstoneTriggers.recentExplosionNear(event.entity.location) else null
@@ -357,7 +368,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (entity.isMidDetonation(event.cause)) return
 
         val exploded = blame?.cause == CauseKind.EXPLOSION ||
-            event.cause == EntityRemoveEvent.Cause.EXPLODE
+                event.cause == EntityRemoveEvent.Cause.EXPLODE
         val who = blame?.who
             ?: if (exploded) services.redstoneTriggers.recentExplosionNear(entity.location) else null
 
@@ -526,7 +537,13 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
 
 internal fun String.isCommand(name: String): Boolean {
     val bare = removePrefix("minecraft:")
-    return bare.regionMatches(0, name, 0, name.length, ignoreCase = true) && (bare.length == name.length || bare[name.length] == ' ')
+    return bare.regionMatches(
+        0,
+        name,
+        0,
+        name.length,
+        ignoreCase = true
+    ) && (bare.length == name.length || bare[name.length] == ' ')
 }
 
 private fun Material.spawnsAnEntity(): Boolean = when {
@@ -558,7 +575,7 @@ private data class Blame(val who: HolderId?, val cause: CauseKind? = null)
 private fun Entity.diedInAnExplosion(): Boolean = when (lastDamageCause?.cause) {
     EntityDamageEvent.DamageCause.BLOCK_EXPLOSION,
     EntityDamageEvent.DamageCause.ENTITY_EXPLOSION,
-    -> true
+        -> true
 
     else -> false
 }

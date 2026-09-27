@@ -9,7 +9,9 @@ class InspectorState {
 
     /** Toggle inspector. */
     fun toggle(player: UUID): Boolean =
-        if (active.remove(player)) false else { active.add(player); true }
+        if (active.remove(player)) false else {
+            active.add(player); true
+        }
 
     /** Whether inspector is active. */
     fun isActive(player: UUID): Boolean = player in active

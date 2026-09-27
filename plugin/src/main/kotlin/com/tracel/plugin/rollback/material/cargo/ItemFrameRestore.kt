@@ -45,6 +45,7 @@ internal fun MaterialRestorer.applyItemFrame(
                     frame.setItem(null, false)
                     if (-delta > 1) moves.short(itemKey, -delta - 1)
                 }
+
                 else -> moves.short(itemKey, -delta)
             }
         }

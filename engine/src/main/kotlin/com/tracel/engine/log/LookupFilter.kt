@@ -49,6 +49,6 @@ public data class LookupRegion(
     /** Whether these coordinates sit in this region, ignoring which world they belong to. */
     public fun containsBlock(x: Int, y: Int, z: Int): Boolean =
         (x shr 4) in minChunkX..maxChunkX &&
-            (z shr 4) in minChunkZ..maxChunkZ &&
-            x in minX..maxX && y in minY..maxY && z in minZ..maxZ
+                (z shr 4) in minChunkZ..maxChunkZ &&
+                x in minX..maxX && y in minY..maxY && z in minZ..maxZ
 }

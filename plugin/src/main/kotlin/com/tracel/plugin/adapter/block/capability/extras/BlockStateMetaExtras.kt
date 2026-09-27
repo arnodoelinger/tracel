@@ -31,7 +31,11 @@ internal object BlockStateMetaExtras {
         (state as? Nameable)?.customName()?.let { meta.customName(it) }
         (live as? Crafter)?.let { crafter ->
             val off = (0 until CRAFTER_SLOTS).filter { runCatching { crafter.isSlotDisabled(it) }.getOrDefault(false) }
-            if (off.isNotEmpty()) meta.persistentDataContainer.set(DISABLED_SLOTS, PersistentDataType.INTEGER_ARRAY, off.toIntArray())
+            if (off.isNotEmpty()) meta.persistentDataContainer.set(
+                DISABLED_SLOTS,
+                PersistentDataType.INTEGER_ARRAY,
+                off.toIntArray()
+            )
         }
         carrier.itemMeta = meta
         return BlockExtras.Opaque(carrier.serializeAsBytes())

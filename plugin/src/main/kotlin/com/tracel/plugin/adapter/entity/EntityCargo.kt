@@ -37,7 +37,8 @@ internal fun Entity.restoreCargoSurfaces(saved: Map<CargoSurface, Any?>) {
 }
 
 /** Surfaces a pose snapshot strips. */
-internal fun Entity.shapeCargoSurfaces(): List<CargoSurface> = CargoSurfaces.matching(this).filter { it !== ChestedCargo }
+internal fun Entity.shapeCargoSurfaces(): List<CargoSurface> =
+    CargoSurfaces.matching(this).filter { it !== ChestedCargo }
 
 fun Entity.toPlacedEntityId(): HolderId.PlacedEntity = HolderId.PlacedEntity(uniqueId)
 

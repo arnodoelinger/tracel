@@ -17,8 +17,10 @@ internal abstract class Run {
 
     @JvmField
     var keySegment: MemorySegment = MemorySegment.NULL
+
     @JvmField
     var keyOffset: Long = 0
+
     @JvmField
     var keyLength: Int = 0
 

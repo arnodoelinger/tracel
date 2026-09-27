@@ -49,7 +49,15 @@ class DeathListener(services: TracelServices) : TracelListener(services) {
         val killer = entity.killer?.let { HolderId.Player(it.uniqueId) } ?: HitActor.of(entity)
 
         material.releasing(
-            releases = listOf(BlockRelease(HolderId.Entity(entity.uniqueId), at.world, at.blockX, at.blockY, at.blockZ)),
+            releases = listOf(
+                BlockRelease(
+                    HolderId.Entity(entity.uniqueId),
+                    at.world,
+                    at.blockX,
+                    at.blockY,
+                    at.blockZ
+                )
+            ),
             cause = if (killer != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
             causedBy = killer,
             at = entity.toBlockPos(),

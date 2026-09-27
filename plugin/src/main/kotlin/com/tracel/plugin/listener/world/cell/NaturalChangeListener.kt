@@ -142,7 +142,12 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     fun onPlaceUnderWater(event: BlockPlaceEvent) {
         val block = event.blockPlaced
         if (block.type == Material.WET_SPONGE && block.world.isUltraWarm) {
-            shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.PLAYER_ACTION, HolderId.Player(event.player.uniqueId), listOf(block))
+            shape.reread(
+                ActionKind.BLOCK_CHANGE,
+                CauseKind.PLAYER_ACTION,
+                HolderId.Player(event.player.uniqueId),
+                listOf(block)
+            )
         }
         if (block.type in BUBBLE_MAKERS || event.blockReplacedState.type in BUBBLE_MAKERS) {
             bubbleColumn(block, HolderId.Player(event.player.uniqueId))
@@ -161,7 +166,13 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
             column += cell
             cell = cell.getRelative(BlockFace.UP)
         }
-        if (column.isNotEmpty()) shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.PLAYER_ACTION, by, column, delayTicks = BUBBLE_DELAY_TICKS)
+        if (column.isNotEmpty()) shape.reread(
+            ActionKind.BLOCK_CHANGE,
+            CauseKind.PLAYER_ACTION,
+            by,
+            column,
+            delayTicks = BUBBLE_DELAY_TICKS
+        )
     }
 
     @Observes
@@ -179,7 +190,13 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val hit = bolt.location.block
         val near = ArrayList<Block>(LIGHTNING_REACH)
         for (dx in -1..1) for (dy in -2..0) for (dz in -1..1) near += hit.getRelative(dx, dy, dz)
-        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.WORLD, null, near, delayTicks = LIGHTNING_SETTLE_TICKS) { it.before != it.after }
+        shape.reread(
+            ActionKind.BLOCK_CHANGE,
+            CauseKind.WORLD,
+            null,
+            near,
+            delayTicks = LIGHTNING_SETTLE_TICKS
+        ) { it.before != it.after }
     }
 
     private companion object {

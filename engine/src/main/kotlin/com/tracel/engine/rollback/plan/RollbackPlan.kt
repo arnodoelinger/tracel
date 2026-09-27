@@ -25,6 +25,7 @@ public data class RollbackPlan(
                     add(step.holder)
                     for ((_, holder) in step.outputs) add(holder)
                 }
+
                 is RollbackStep.Mint, is RollbackStep.Debt -> Unit
             }
         }

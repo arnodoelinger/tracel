@@ -100,15 +100,35 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Flag("#wide") { it.copy(horizontalOnly = true) },
     LookupArgument.Flag("#trace") { it.copy(trace = true) },
 
-    LookupArgument.Multi("-user:", { it.excludedUsers }, { r, v -> r.copy(excludedUsers = v) }, { it.onlinePlayerNames }),
+    LookupArgument.Multi(
+        "-user:",
+        { it.excludedUsers },
+        { r, v -> r.copy(excludedUsers = v) },
+        { it.onlinePlayerNames }),
     LookupArgument.Multi("user:", { it.users }, { r, v -> r.copy(users = v) }, { it.onlinePlayerNames }),
     LookupArgument.Value("item:", { r, v -> r.copy(item = v) }, { it.itemNames }),
     LookupArgument.Value("block:", { r, v -> r.copy(item = v) }, { it.blockNames }),
     LookupArgument.Multi("action:", { it.actions }, { r, v -> r.copy(actions = v) }, { it.causeNames }),
-    LookupArgument.Parsed("scope:", { v, _ -> ScopeArgument.parse(v) }, { r, v -> r.withScope(v) }, { ScopeArgument.suggestions(it.worldNames) }),
-    LookupArgument.Parsed("before:", { v, now -> TimeArgument.parseDuration(v)?.let { now - it } }, { r, v -> r.copy(until = earlier(r.until, v)) }, { TimeArgument.durationSuggestions() }),
-    LookupArgument.Parsed("after:", { v, now -> TimeArgument.parseDuration(v)?.let { now - it } }, { r, v -> r.copy(since = later(r.since, v)) }, { TimeArgument.durationSuggestions() }),
-    LookupArgument.Parsed("time:", { v, now -> TimeArgument.parseExpr(v, now) }, { r, v -> r.within(v) }, { TimeArgument.timeSuggestions() }),
+    LookupArgument.Parsed(
+        "scope:",
+        { v, _ -> ScopeArgument.parse(v) },
+        { r, v -> r.withScope(v) },
+        { ScopeArgument.suggestions(it.worldNames) }),
+    LookupArgument.Parsed(
+        "before:",
+        { v, now -> TimeArgument.parseDuration(v)?.let { now - it } },
+        { r, v -> r.copy(until = earlier(r.until, v)) },
+        { TimeArgument.durationSuggestions() }),
+    LookupArgument.Parsed(
+        "after:",
+        { v, now -> TimeArgument.parseDuration(v)?.let { now - it } },
+        { r, v -> r.copy(since = later(r.since, v)) },
+        { TimeArgument.durationSuggestions() }),
+    LookupArgument.Parsed(
+        "time:",
+        { v, now -> TimeArgument.parseExpr(v, now) },
+        { r, v -> r.within(v) },
+        { TimeArgument.timeSuggestions() }),
     LookupArgument.Parsed("lot:", { v, _ -> v.toLongOrNull() }, { r, v -> r.copy(lot = v) }),
 
     // Aliases
@@ -117,8 +137,16 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Value("i:", { r, v -> r.copy(item = v) }, { it.itemNames }),
     LookupArgument.Value("b:", { r, v -> r.copy(item = v) }, { it.blockNames }),
     LookupArgument.Multi("a:", { it.actions }, { r, v -> r.copy(actions = v) }, { it.causeNames }),
-    LookupArgument.Parsed("w:", { v, _ -> v.takeIf(String::isNotBlank) }, { r, v -> r.copy(world = v) }, { it.worldNames }),
-    LookupArgument.Parsed("t:", { v, now -> TimeArgument.parseExpr(v, now) }, { r, v -> r.within(v) }, { TimeArgument.timeSuggestions() }),
+    LookupArgument.Parsed(
+        "w:",
+        { v, _ -> v.takeIf(String::isNotBlank) },
+        { r, v -> r.copy(world = v) },
+        { it.worldNames }),
+    LookupArgument.Parsed(
+        "t:",
+        { v, now -> TimeArgument.parseExpr(v, now) },
+        { r, v -> r.within(v) },
+        { TimeArgument.timeSuggestions() }),
     LookupArgument.Parsed("l:", { v, _ -> v.toLongOrNull() }, { r, v -> r.copy(lot = v) }),
 )
 

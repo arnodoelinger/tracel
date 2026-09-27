@@ -56,24 +56,52 @@ internal suspend fun StructureRestorer.restoreSteps(
                     // Loaded off the region thread, all at once, before the hop: synchronously on the region
                     // thread each unloaded chunk stalled its tick, one after another
                     worldOf(anchor.world)?.let { world ->
-                        val chunks = groups[index].mapTo(HashSet()) { dispatchAt(it).let { at -> (at.x shr 4) to (at.z shr 4) } }
-                        chunks.map { (cx, cz) -> async { runCatching { world.getChunkAtAsync(cx, cz).await() } } }.awaitAll()
+                        val chunks =
+                            groups[index].mapTo(HashSet()) { dispatchAt(it).let { at -> (at.x shr 4) to (at.z shr 4) } }
+                        chunks.map { (cx, cz) -> async { runCatching { world.getChunkAtAsync(cx, cz).await() } } }
+                            .awaitAll()
                     }
-                    withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {
+                    withContext(
+                        services.schedulers.region(
+                            HolderId.Block(
+                                anchor.world,
+                                anchor.x,
+                                anchor.y,
+                                anchor.z
+                            )
+                        )
+                    ) {
                         dispatched()
                         val world = worldOf(anchor.world)
                         if (world == null) {
-                            StructureReport(emptyList(), groups[index].map { SkippedStep(it.at, "world is not loaded") })
+                            StructureReport(
+                                emptyList(),
+                                groups[index].map { SkippedStep(it.at, "world is not loaded") })
                         } else {
                             val mine = claim(index, groups, claimed)
                             try {
                                 services.selfManagedWorld.whileRestoring {
-                                    applyGroup(world, mine, force, trace, structurePhase, keepCargoFor, ledgerCargoFor, ledgerHeldBy, dumpHeldCargo, driftOnly)
+                                    applyGroup(
+                                        world,
+                                        mine,
+                                        force,
+                                        trace,
+                                        structurePhase,
+                                        keepCargoFor,
+                                        ledgerCargoFor,
+                                        ledgerHeldBy,
+                                        dumpHeldCargo,
+                                        driftOnly
+                                    )
                                 }.also { report -> services.selfManagedWorld.wrote(report.applied.map { it.at }) }
                             } catch (cancelled: CancellationException) {
                                 throw cancelled
                             } catch (failure: Throwable) {
-                                logger.log(Level.WARNING, "a structure group failed; its steps are reported as skipped", failure)
+                                logger.log(
+                                    Level.WARNING,
+                                    "a structure group failed; its steps are reported as skipped",
+                                    failure
+                                )
                                 val why = "restore failed here: ${failure.message ?: failure::class.java.simpleName}"
                                 StructureReport(emptyList(), mine.map { SkippedStep(it.at, why) })
                             }
@@ -87,9 +115,12 @@ internal suspend fun StructureRestorer.restoreSteps(
     val first = dispatch(steps)
 
     val unsupported = first.flatMap { it.skipped }.filter { it.reason == UNSUPPORTED }.mapTo(HashSet()) { it.at }
-    val retry = if (unsupported.isEmpty()) emptyList() else steps.filter { it is StructureStep.SetBlock && it.at in unsupported }
+    val retry =
+        if (unsupported.isEmpty()) emptyList() else steps.filter { it is StructureStep.SetBlock && it.at in unsupported }
     val reports = if (retry.isEmpty()) first else {
-        first.map { report -> report.copy(skipped = report.skipped.filterNot { it.reason == UNSUPPORTED }) } + dispatch(retry)
+        first.map { report -> report.copy(skipped = report.skipped.filterNot { it.reason == UNSUPPORTED }) } + dispatch(
+            retry
+        )
     }
 
     return StructureReport(

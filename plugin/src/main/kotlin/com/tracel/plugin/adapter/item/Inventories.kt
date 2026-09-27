@@ -27,6 +27,7 @@ fun Inventory.toHolderId(): HolderId? = when (val owner = holder) {
     is Player ->
         if (type == InventoryType.ENDER_CHEST) HolderId.EnderChest(owner.uniqueId)
         else HolderId.Player(owner.uniqueId)
+
     is Entity -> HolderId.Entity(owner.uniqueId)
     else -> {
         val loc = location ?: return null
@@ -72,7 +73,8 @@ fun Map<ItemKey, Long>.withCursor(player: HumanEntity): Map<ItemKey, Long> {
 }
 
 /** The crafting grid this player has open, a table or their own two by two. */
-fun HumanEntity.openGrid(): CraftingInventory? = runCatching { openInventory.topInventory as? CraftingInventory }.getOrNull()
+fun HumanEntity.openGrid(): CraftingInventory? =
+    runCatching { openInventory.topInventory as? CraftingInventory }.getOrNull()
 
 /**
  * All a player holds: pockets, cursor, the open grid and an open anvil's (or loom's, or trade's) inputs. Rebaselined without the grid, the next click
@@ -81,7 +83,8 @@ fun HumanEntity.openGrid(): CraftingInventory? = runCatching { openInventory.top
 fun Player.heldTotals(): Map<ItemKey, Long> {
     val totals = inventory.toItemTotals().withCursor(this).toMutableMap()
     openGrid()?.matrix?.forEach { it?.addTo(totals) }
-    runCatching { openInventory.topInventory.transientInputs() }.getOrNull()?.forEach { (key, qty) -> totals.merge(key, qty, Long::plus) }
+    runCatching { openInventory.topInventory.transientInputs() }.getOrNull()
+        ?.forEach { (key, qty) -> totals.merge(key, qty, Long::plus) }
     return totals
 }
 

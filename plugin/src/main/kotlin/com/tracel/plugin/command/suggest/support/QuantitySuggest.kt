@@ -30,14 +30,14 @@ internal fun suggestQuantity(
         val fromDigits = digitSuggestions(prefix, head, number, typedUnit)
         val taken = (fromUnits + fromDigits).map { it.text }.toSet()
         return fromUnits + fromDigits +
-            presetSuggestions(prefix, needle, presets).filter { it.text !in taken } +
-            wordSuggestions(prefix, needle, words)
+                presetSuggestions(prefix, needle, presets).filter { it.text !in taken } +
+                wordSuggestions(prefix, needle, words)
     }
     val open = if (needle.isEmpty()) digitSuggestions(prefix, "", "", "") else emptyList()
     val taken = open.map { it.text }.toSet()
     return open +
-        presetSuggestions(prefix, needle, presets).filter { it.text !in taken } +
-        wordSuggestions(prefix, needle, words)
+            presetSuggestions(prefix, needle, presets).filter { it.text !in taken } +
+            wordSuggestions(prefix, needle, words)
 }
 
 private fun digitSuggestions(

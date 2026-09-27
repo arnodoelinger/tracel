@@ -102,7 +102,9 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onVehicleDestroy(event: VehicleDestroyEvent) {
-        destroyed(event.vehicle, (event.attacker as? Player)?.let { HolderId.Player(it.uniqueId) } ?: HitActor.of(event.vehicle))
+        destroyed(
+            event.vehicle,
+            (event.attacker as? Player)?.let { HolderId.Player(it.uniqueId) } ?: HitActor.of(event.vehicle))
     }
 
     @Observes
@@ -239,11 +241,13 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         later(entity) {
             val cargo = totals()
             val holder = entity.toCargoHolderId()
-            later(player) { material.reconcile(
-                inventories = listOf(player.inventory),
-                player = player,
-                extra = mapOf(holder to cargo)
-            ) }
+            later(player) {
+                material.reconcile(
+                    inventories = listOf(player.inventory),
+                    player = player,
+                    extra = mapOf(holder to cargo)
+                )
+            }
         }
     }
 

@@ -23,7 +23,14 @@ class InMemoryWorldLogTest {
     private val world = WorldId(UUID(0L, 1L))
     private val stone = BlockShape(BlockDataKey("minecraft:stone"))
 
-    private fun broke(seq: Long, x: Int, z: Int, y: Int = 70, by: HolderId? = player(1), cause: CauseKind = CauseKind.PLAYER_ACTION) =
+    private fun broke(
+        seq: Long,
+        x: Int,
+        z: Int,
+        y: Int = 70,
+        by: HolderId? = player(1),
+        cause: CauseKind = CauseKind.PLAYER_ACTION
+    ) =
         WorldChange(
             Seq(seq), ActionKind.BLOCK_BREAK, cause, by, seq,
             BlockPos(world, x, y, z),

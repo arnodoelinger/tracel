@@ -35,14 +35,23 @@ internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep
                     // A loaded chunk this region owns, whether or not a step sits in it: streams cross chunk lines
                     val owned = HashMap<Long, Boolean>()
                     val owns = { x: Int, z: Int ->
-                        owned.getOrPut(chunkKey(x, z)) { world.isChunkLoaded(x shr 4, z shr 4) && ownsChunkAt(world, x, z) }
+                        owned.getOrPut(chunkKey(x, z)) {
+                            world.isChunkLoaded(x shr 4, z shr 4) && ownsChunkAt(
+                                world,
+                                x,
+                                z
+                            )
+                        }
                     }
                     services.selfManagedWorld.wrote(mine.map { it.at })
                     services.selfManagedWorld.whileRestoring {
                         val whole = !drain || drainFlowing(world, mine, owns)
                         settleFluids(world, mine, owns)
                         if (whole) StructureReport.EMPTY
-                        else StructureReport(emptyList(), listOf(SkippedStep(mine.first().at, "the fluid drain hit its $MAX_DRAINED cell limit")))
+                        else StructureReport(
+                            emptyList(),
+                            listOf(SkippedStep(mine.first().at, "the fluid drain hit its $MAX_DRAINED cell limit"))
+                        )
                     }
                 }
             }

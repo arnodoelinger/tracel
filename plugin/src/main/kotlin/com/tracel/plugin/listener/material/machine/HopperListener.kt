@@ -25,7 +25,10 @@ class HopperListener(services: TracelServices) : TracelListener(services) {
     fun holdWhileRestoring(event: InventoryMoveItemEvent) {
         val source = event.source.toHolderId()
         val destination = event.destination.toHolderId()
-        if (source != null && services.frozen.isFrozen(source) || destination != null && services.frozen.isFrozen(destination)) {
+        if (source != null && services.frozen.isFrozen(source) || destination != null && services.frozen.isFrozen(
+                destination
+            )
+        ) {
             event.isCancelled = true
         }
     }
@@ -47,8 +50,18 @@ class HopperListener(services: TracelServices) : TracelListener(services) {
             val from = event.source.real()
             val into = event.destination.real()
             later(at) {
-                if (seedSource) material.seedOnOpen(source, from.toItemTotals().shifted(moved, +1), pos, baseline = true)
-                if (seedDestination) material.seedOnOpen(destination, into.toItemTotals().shifted(moved, -1), pos, baseline = true)
+                if (seedSource) material.seedOnOpen(
+                    source,
+                    from.toItemTotals().shifted(moved, +1),
+                    pos,
+                    baseline = true
+                )
+                if (seedDestination) material.seedOnOpen(
+                    destination,
+                    into.toItemTotals().shifted(moved, -1),
+                    pos,
+                    baseline = true
+                )
                 seeding -= source
                 seeding -= destination
             }

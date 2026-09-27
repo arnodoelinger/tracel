@@ -87,6 +87,7 @@ public class StructurePlanner {
                                 create += StructureStep.SpawnEntity(last.at, subject.entity, before)
                             }
                         }
+
                         before == null -> {
                             val remove = StructureStep.RemoveEntity(last.at, subject.entity, now)
                             // Falling sand still here when the block returns drops as an item.
@@ -99,6 +100,7 @@ public class StructurePlanner {
                             // undo had nothing to put back. Don't leave hangings in destroy.
                             if (now.isFallingBlock() || now.popsWhenABlockReturns()) create += remove else destroy += remove
                         }
+
                         before != now ->
                             // Still standing: change-in-place; undo puts the newer shape back.
                             create += StructureStep.SpawnEntity(last.at, subject.entity, before, now)
@@ -176,7 +178,7 @@ private fun EntityShape.isFallingBlock(): Boolean {
 private fun EntityShape.hangs(): Boolean {
     val name = type.value.substringAfter(':')
     return name == "item_frame" || name == "glow_item_frame" || name == "painting" ||
-        name == "leash_knot"
+            name == "leash_knot"
 }
 
 /** Painting pops if the supporting block is restored first. */

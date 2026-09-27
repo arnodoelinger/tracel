@@ -41,7 +41,8 @@ class CaptureCoordinatorTest {
         world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
         val deltas = listOf(InventoryDelta(chest, diamond, -4L), InventoryDelta(steve, diamond, 4L))
 
-        val transaction = coordinator.record(deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
+        val transaction =
+            coordinator.record(deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
 
         checkNotNull(transaction)
         assertEquals(1, transaction.flows.size)
@@ -141,7 +142,8 @@ class CaptureCoordinatorTest {
         world.ledger.mint(ground, diamond, Quantity(5), world.nextTxn())
 
         val flow = Flow(diamond, Quantity(5), ground, HolderId.Sink(SinkKind.DESPAWN), FlowKind.BURN)
-        val transaction = coordinator.recordDirect(listOf(flow), epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
+        val transaction =
+            coordinator.recordDirect(listOf(flow), epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
 
         checkNotNull(transaction)
         assertEquals(CauseKind.WORLD, transaction.cause)
@@ -157,7 +159,8 @@ class CaptureCoordinatorTest {
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
-        val transaction = coordinator.recordDirect(emptyList(), epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
+        val transaction =
+            coordinator.recordDirect(emptyList(), epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
 
         assertNull(transaction)
     }
@@ -169,7 +172,8 @@ class CaptureCoordinatorTest {
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
-        val transaction = coordinator.record(emptyList(), epochMillis = 1_000L, cause = CauseKind.UNKNOWN, causedBy = null)
+        val transaction =
+            coordinator.record(emptyList(), epochMillis = 1_000L, cause = CauseKind.UNKNOWN, causedBy = null)
 
         assertNull(transaction)
     }
@@ -242,7 +246,8 @@ class CaptureCoordinatorTest {
             Flow(diamond, Quantity(5), steve, ground, FlowKind.MOVE),
         )
 
-        val transaction = coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
+        val transaction =
+            coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
 
         checkNotNull(transaction)
         assertEquals(5L, world.ledger.totalAt(ground, diamond)?.raw)
@@ -261,7 +266,11 @@ class CaptureCoordinatorTest {
         val deltas = listOf(InventoryDelta(steve, diamond, -2L), InventoryDelta(ground, diamond, 2L))
 
         val transaction = coordinator.record(
-            deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve, mintShortfall = { it is HolderId.Player },
+            deltas,
+            epochMillis = 1_000L,
+            cause = CauseKind.PLAYER_ACTION,
+            causedBy = steve,
+            mintShortfall = { it is HolderId.Player },
         )
 
         checkNotNull(transaction)
@@ -323,7 +332,8 @@ class CaptureCoordinatorTest {
             Flow(diamond, Quantity(3), bush, steve, FlowKind.MOVE),
         )
 
-        val transaction = coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
+        val transaction =
+            coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
 
         assertEquals(3L, world.ledger.totalAt(steve, diamond)?.raw, "the material ends up in the hand")
         assertNull(world.ledger.totalAt(bush, diamond), "and none of it is left behind in the plant")

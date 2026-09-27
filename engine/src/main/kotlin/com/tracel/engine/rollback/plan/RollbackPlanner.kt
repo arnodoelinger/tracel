@@ -100,6 +100,7 @@ public class RollbackPlanner(
                 is ResolvedLocation.Split -> {
                     location.children.forEach { stack.addLast(it to root) }
                 }
+
                 is ResolvedLocation.Settled -> settled += location.lotId
                 is ResolvedLocation.Gone -> Unit
                 // is ResolvedLocation.Destroyed -> Unit
@@ -204,6 +205,7 @@ public class RollbackPlanner(
                         val gone = outputLocation.holder as? HolderId.Sink ?: HolderId.Sink(SinkKind.UNTRACKED_GAP)
                         return ResolvedLocation.Holder(lotId, gone, transform.quantity)
                     }
+
                     is ResolvedLocation.Settled -> return ResolvedLocation.Settled(lotId, outputLocation.byJob)
 
                     // The crafted stack did not stay one lot. Spending part of it splits it, and
@@ -264,7 +266,7 @@ public class RollbackPlanner(
      */
     private fun HolderId.isReclaimable(): Boolean =
         this !is HolderId.Sink && this !is HolderId.Source && this !is HolderId.Escrow && this !in vanished &&
-            (!isPlacedThing() || reclaimedByStructure())
+                (!isPlacedThing() || reclaimedByStructure())
 
     private fun HolderId.reclaimedByStructure(): Boolean = structural && (covered == null || this in covered)
 
@@ -317,8 +319,12 @@ public class RollbackPlanner(
                     // What sits there now. A piece resolved through a further craft is not placed at all,
                     // and an unmake destroys that whole lot.
                     // the engine places whole lots, so the preloaded quantity is what sits there: no read per piece
-                    covered += lotCache[at.lotId]?.quantity?.raw ?: repo.placementOf(at.holder, at.lotId)?.remaining?.raw ?: 0L
+                    covered += lotCache[at.lotId]?.quantity?.raw ?: repo.placementOf(
+                        at.holder,
+                        at.lotId
+                    )?.remaining?.raw ?: 0L
                 }
+
                 is ResolvedLocation.Split -> frontier += at.children
                 is ResolvedLocation.Settled, is ResolvedLocation.Gone -> return null
             }

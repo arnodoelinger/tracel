@@ -45,7 +45,12 @@ class InvolutionTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val target = RollbackTarget.Uniform(chest)
         jobs.save(RollbackJobRecord(job, plan, target))
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(world.acquireLease(job, plan), plan, target)
 
         world.ledger.move(chest, hopper, diamond, Quantity(10), world.nextTxn())
@@ -80,7 +85,12 @@ class InvolutionTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
         val lease = world.acquireLease(job, plan)
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
         // Sanity check the rollback itself did what NoDupeTest already proves it does
@@ -97,7 +107,11 @@ class InvolutionTest {
         world.leases.release(job)
 
         assertNull(world.ledger.totalAt(chest, diamond), "the chest gives back everything the rollback put there")
-        assertEquals(6L, world.ledger.totalAt(steve, diamond)?.raw, "Steve gets back exactly what was actually recovered")
+        assertEquals(
+            6L,
+            world.ledger.totalAt(steve, diamond)?.raw,
+            "Steve gets back exactly what was actually recovered"
+        )
         assertEquals(6L, world.ledger.census(diamond), "back to the pre-rollback census — the burned 4 stay burned")
 
         val compensated = plan.steps.filterIsInstance<RollbackStep.Mint>().map { it.lotId }.toSet()
@@ -123,7 +137,12 @@ class InvolutionTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val target = RollbackTarget.Uniform(chest)
         jobs.save(RollbackJobRecord(job, plan, target))
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(world.acquireLease(job, plan), plan, target)
 
         assertEquals(13L, world.ledger.totalAt(chest, diamond)?.raw)
@@ -138,7 +157,10 @@ class InvolutionTest {
         for (step in steps) executor.apply(lease, step, world.nextTxn())
         world.leases.release(job)
 
-        assertNull(world.ledger.totalAt(chest, diamond), "the chest gives back what the rollback put there, even if the drop is gone")
+        assertNull(
+            world.ledger.totalAt(chest, diamond),
+            "the chest gives back what the rollback put there, even if the drop is gone"
+        )
         assertEquals(13L, world.ledger.totalAt(drop, diamond)?.raw)
     }
 
@@ -167,7 +189,12 @@ class InvolutionTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(looted.id))
         jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
         val lease = world.acquireLease(job, plan)
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
         // Sanity check the rollback itself did what CraftUnmakeTest already proves it does
@@ -190,15 +217,39 @@ class InvolutionTest {
         assertEquals(0L, world.ledger.census(diamond), "back to the pre-rollback census: no loose diamonds")
         assertEquals(1L, world.ledger.census(diamondBlock), "back to the pre-rollback census: exactly one block")
 
-        val unmakeTxn = world.log.all().single { it.cause == CauseKind.ROLLBACK && it.flows.any { f -> f.kind == FlowKind.TRANSFORM_IN } }
-        assertEquals(diamondBlock, unmakeTxn.flows.single { it.kind == FlowKind.TRANSFORM_IN }.itemKey, "the destroyed output is the TRANSFORM_IN side")
-        assertTrue(unmakeTxn.flows.filter { it.kind == FlowKind.TRANSFORM_OUT }.all { it.itemKey == diamond }, "every restored ingredient flow is the TRANSFORM_OUT side")
-        assertEquals(9L, unmakeTxn.flows.filter { it.kind == FlowKind.TRANSFORM_OUT }.sumOf { it.quantity.raw }, "all 9 diamonds restored across however many lots the craft consumed")
+        val unmakeTxn = world.log.all()
+            .single { it.cause == CauseKind.ROLLBACK && it.flows.any { f -> f.kind == FlowKind.TRANSFORM_IN } }
+        assertEquals(
+            diamondBlock,
+            unmakeTxn.flows.single { it.kind == FlowKind.TRANSFORM_IN }.itemKey,
+            "the destroyed output is the TRANSFORM_IN side"
+        )
+        assertTrue(
+            unmakeTxn.flows.filter { it.kind == FlowKind.TRANSFORM_OUT }.all { it.itemKey == diamond },
+            "every restored ingredient flow is the TRANSFORM_OUT side"
+        )
+        assertEquals(
+            9L,
+            unmakeTxn.flows.filter { it.kind == FlowKind.TRANSFORM_OUT }.sumOf { it.quantity.raw },
+            "all 9 diamonds restored across however many lots the craft consumed"
+        )
 
-        val remakeTxn = world.log.all().single { it.cause == CauseKind.INVOLUTION && it.flows.any { f -> f.kind == FlowKind.TRANSFORM_OUT } }
-        assertTrue(remakeTxn.flows.filter { it.kind == FlowKind.TRANSFORM_IN }.all { it.itemKey == diamond }, "every re-consumed ingredient flow is the TRANSFORM_IN side")
-        assertEquals(9L, remakeTxn.flows.filter { it.kind == FlowKind.TRANSFORM_IN }.sumOf { it.quantity.raw }, "all 9 diamonds re-consumed")
-        assertEquals(diamondBlock, remakeTxn.flows.single { it.kind == FlowKind.TRANSFORM_OUT }.itemKey, "the re-crafted block is the TRANSFORM_OUT side")
+        val remakeTxn = world.log.all()
+            .single { it.cause == CauseKind.INVOLUTION && it.flows.any { f -> f.kind == FlowKind.TRANSFORM_OUT } }
+        assertTrue(
+            remakeTxn.flows.filter { it.kind == FlowKind.TRANSFORM_IN }.all { it.itemKey == diamond },
+            "every re-consumed ingredient flow is the TRANSFORM_IN side"
+        )
+        assertEquals(
+            9L,
+            remakeTxn.flows.filter { it.kind == FlowKind.TRANSFORM_IN }.sumOf { it.quantity.raw },
+            "all 9 diamonds re-consumed"
+        )
+        assertEquals(
+            diamondBlock,
+            remakeTxn.flows.single { it.kind == FlowKind.TRANSFORM_OUT }.itemKey,
+            "the re-crafted block is the TRANSFORM_OUT side"
+        )
     }
 
     @Test
@@ -215,7 +266,12 @@ class InvolutionTest {
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         jobs.save(RollbackJobRecord(job, plan, RollbackTarget.Uniform(chest)))
         val lease = world.acquireLease(job, plan)
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
         // Job 1's own lease was released automatically on success — but before anyone gets

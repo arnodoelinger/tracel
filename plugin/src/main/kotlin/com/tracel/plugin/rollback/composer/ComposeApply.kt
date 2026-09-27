@@ -25,7 +25,8 @@ internal suspend fun RollbackComposer.applyTracked(planned: Planned, strict: Boo
 
     var attempt = planned
     repeat(STALE_RETRIES) {
-        val deltas = attempt.trace.span("material deltas") { materialHalf.deltasFor(attempt.composite.material, attempt.target) }
+        val deltas =
+            attempt.trace.span("material deltas") { materialHalf.deltasFor(attempt.composite.material, attempt.target) }
         when (val preflight = materialHalf.preflight(deltas)) {
             is Unreachable -> return preflight
             PreflightResult.Ok -> Unit
@@ -58,8 +59,14 @@ private suspend fun RollbackComposer.applyReserved(
     // Mid-apply refusal left a half-restored world.
     val reservation = if (planned.roots.isEmpty()) null else planned.trace.span("reserve") {
         services.rollback.reserve(
-            job, planned.roots, planned.target, planned.vanished,
-            prepared = composite.material, preparedAt = planned.witness, structural = planned.structural, covered = planned.covered,
+            job,
+            planned.roots,
+            planned.target,
+            planned.vanished,
+            prepared = composite.material,
+            preparedAt = planned.witness,
+            structural = planned.structural,
+            covered = planned.covered,
         )
     }
     when (reservation) {

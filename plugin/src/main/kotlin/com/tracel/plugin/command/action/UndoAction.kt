@@ -90,7 +90,7 @@ class UndoAction(private val services: TracelServices) {
         if (spawns.size <= services.entityRestoreLimit) return false
         sender.sendMessage(
             "Undo: this would bring ${spawns.size} entities back (${mostly(spawns)}), past the " +
-                "${services.entityRestoreLimit} this server allows in one go."
+                    "${services.entityRestoreLimit} this server allows in one go."
         )
         sender.sendMessage("  Run /tracel undo #confirm to do it anyway.")
         return true

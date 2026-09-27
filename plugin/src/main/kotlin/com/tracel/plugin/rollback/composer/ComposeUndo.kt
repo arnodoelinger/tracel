@@ -110,7 +110,8 @@ private suspend fun RollbackComposer.undoFrozen(
 
     return when (outcome) {
         is InvolutionOutcome.Undone -> {
-            val material = materialHalf.undoRestore(outcome.steps, job, record.plan.noiseMints(), asOf = record.executedAtMillis)
+            val material =
+                materialHalf.undoRestore(outcome.steps, job, record.plan.noiseMints(), asOf = record.executedAtMillis)
             services.undoJournal.markCompleted(job, MATERIAL_RETURNED)
             if (record.executedAtMillis > 0L) materialHalf.rewearUndo(outcome.steps, record.executedAtMillis)
             val removed = structureHalf.restore(takeAway, takingAway)
@@ -151,7 +152,7 @@ private suspend fun RollbackComposer.undoFrozen(
             putBackAgain()
             UndoResult.Failed(
                 "an earlier undo of job ${job.raw} took the ledger back and stopped before putting items back; " +
-                    "check the holders it touched by hand",
+                        "check the holders it touched by hand",
             )
         }
 

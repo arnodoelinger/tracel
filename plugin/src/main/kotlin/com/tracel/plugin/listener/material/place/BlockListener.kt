@@ -60,7 +60,8 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
                 causedBy = causedBy,
                 from = placedHolder,
                 to = CREATIVE_SINK,
-                epochMillis = epochMillis)
+                epochMillis = epochMillis
+            )
             return
         }
 
@@ -69,7 +70,8 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
             releases = listOf(BlockRelease(placedHolder, block)),
             cause = CauseKind.BLOCK_BREAK,
             causedBy = causedBy,
-            epochMillis = epochMillis)
+            epochMillis = epochMillis
+        )
     }
 
     /**

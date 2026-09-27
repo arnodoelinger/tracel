@@ -100,7 +100,15 @@ object Records {
         targetTimeMillis: Long,
         hasTargetTime: Boolean,
         executedAtMillis: Long,
-    ) = Job.rbJob(restoreToHolderId, stepCount, createCount, destroyCount, targetTimeMillis, hasTargetTime, executedAtMillis)
+    ) = Job.rbJob(
+        restoreToHolderId,
+        stepCount,
+        createCount,
+        destroyCount,
+        targetTimeMillis,
+        hasTargetTime,
+        executedAtMillis
+    )
 
     fun rbJobRestoreTo(v: MemorySegment) = Job.rbJobRestoreTo(v)
     fun rbJobStepCount(v: MemorySegment) = Job.rbJobStepCount(v)

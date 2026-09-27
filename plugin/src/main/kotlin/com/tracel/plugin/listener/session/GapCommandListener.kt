@@ -33,7 +33,14 @@ class GapCommandListener(services: TracelServices) : TracelListener(services) {
 
     private fun settle(player: Player) {
         for (delay in SETTLE_TICKS) {
-            later(player, delay) { material.reconcile(listOf(player.inventory), player, CauseKind.WORLD, anonymous = true) }
+            later(player, delay) {
+                material.reconcile(
+                    listOf(player.inventory),
+                    player,
+                    CauseKind.WORLD,
+                    anonymous = true
+                )
+            }
         }
     }
 

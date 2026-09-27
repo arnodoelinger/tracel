@@ -130,7 +130,12 @@ class LsmEngine(
         if (recovered.sealed.isNotEmpty()) compactor.execute { compactWhileNeeded() }
         // An interval policy only synced inside a later write: one write and then silence stayed unsynced
         (config.sync as? SyncPolicy.Interval)?.let { policy ->
-            syncer.scheduleWithFixedDelay({ runCatching { if (!closed) sync() } }, policy.millis, policy.millis, TimeUnit.MILLISECONDS)
+            syncer.scheduleWithFixedDelay(
+                { runCatching { if (!closed) sync() } },
+                policy.millis,
+                policy.millis,
+                TimeUnit.MILLISECONDS
+            )
         }
     }
 
@@ -309,7 +314,8 @@ class LsmEngine(
             return
         }
         // Oldest first: a later segment has to carry the higher id so it shadows the earlier one
-        val written = pending.sortedBy { it.minSequence }.map { segmentWriter.seal(it, nextFileId++, horizon = Long.MAX_VALUE) }
+        val written =
+            pending.sortedBy { it.minSequence }.map { segmentWriter.seal(it, nextFileId++, horizon = Long.MAX_VALUE) }
         open += written
         logs.clear()
         version = Version(

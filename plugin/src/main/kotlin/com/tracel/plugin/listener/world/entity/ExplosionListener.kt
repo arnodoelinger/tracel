@@ -88,7 +88,12 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
             edits = broken.map { BlockEdit(it.toBlockPos(), it.toShape(), BlockShape.AIR) },
             epochMillis = epochMillis,
         )
-        if (tnt.isNotEmpty()) shape.reread(ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, causedBy, tnt) { it.before != it.after }
+        if (tnt.isNotEmpty()) shape.reread(
+            ActionKind.BLOCK_BREAK,
+            CauseKind.EXPLOSION,
+            causedBy,
+            tnt
+        ) { it.before != it.after }
 
         for (block in blocks) {
             if (block.state is ShulkerBox) {

@@ -119,6 +119,7 @@ public class InMemoryTransactionLog : TransactionLog {
             if (!hitWanted && holder in wanted) hitWanted = true
             return true
         }
+
         val by = causedBy
         if (by != null && !consider(by)) return false
         for ((_, _, source, destination) in flows) {
@@ -137,6 +138,7 @@ public class InMemoryTransactionLog : TransactionLog {
             if (!regionHit && region != null && region.contains(posWorld, x, y, z)) regionHit = true
             return worldHit && regionHit
         }
+
         val at = at
         if (at != null && consider(at.world, at.x, at.y, at.z)) return true
         val by = causedBy

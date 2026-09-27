@@ -47,7 +47,8 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
 
         // Recipe result name, now: a tick later it still exists but we need it to tell craft output from hopper / mob / off-hand gains
         val produced = runCatching { event.recipe.result.type.name }.getOrNull()
-        val productDamage = event.currentItem?.takeIf { it.type.maxDurability > 0 }?.let { (it.itemMeta as? Damageable)?.damage }
+        val productDamage =
+            event.currentItem?.takeIf { it.type.maxDurability > 0 }?.let { (it.itemMeta as? Damageable)?.damage }
 
         // Player holders have no coords; without the bench (or feet for 2 x 2) "scope:" never sees "a:craft"
         val where = event.inventory.location?.block?.toBlockPos() ?: player.toBlockPos()
@@ -87,11 +88,21 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
 
         owing {
             try {
-                material.craftedByPlayer(playerHolder, totals, seeded, produced, ingredients, thrown, where, epochMillis, productDamage) { gains ->
+                material.craftedByPlayer(
+                    playerHolder,
+                    totals,
+                    seeded,
+                    produced,
+                    ingredients,
+                    thrown,
+                    where,
+                    epochMillis,
+                    productDamage
+                ) { gains ->
                     logger.log(
                         Level.FINE,
                         "craft by $playerHolder produced $gains distinct item keys and none " +
-                            "uniquely matched ${produced ?: "an unknown recipe"}, not recorded",
+                                "uniquely matched ${produced ?: "an unknown recipe"}, not recorded",
                     )
                 }
             } catch (e: IllegalStateException) {
@@ -124,10 +135,20 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
         val at = block.toBlockPos()
         val epochMillis = System.currentTimeMillis()
 
-        val into = crafterFront(block)?.let { front -> block.getRelative(front) }?.takeIf { it.container() != null }?.toHolderId()
+        val into = crafterFront(block)?.let { front -> block.getRelative(front) }?.takeIf { it.container() != null }
+            ?.toHolderId()
         if (into == null) {
             material.releasing(
-                releases = listOf(BlockRelease(holder, block.world, block.x, block.y, block.z, mapOf(productKey to productQty))),
+                releases = listOf(
+                    BlockRelease(
+                        holder,
+                        block.world,
+                        block.x,
+                        block.y,
+                        block.z,
+                        mapOf(productKey to productQty)
+                    )
+                ),
                 cause = CauseKind.CRAFT,
                 causedBy = null,
                 at = at,

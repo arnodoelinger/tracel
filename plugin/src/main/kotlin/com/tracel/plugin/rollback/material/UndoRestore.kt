@@ -22,7 +22,12 @@ import java.util.logging.Level
 private val holdsItems = ConcurrentHashMap<String, Boolean>()
 
 /** Puts material back after the ledger has already undone a job. */
-internal suspend fun MaterialRestorer.restoreUndo(steps: List<InvolutionStep>, job: RollbackJobId, noise: Set<LotId>, asOf: Long?): RestorationReport {
+internal suspend fun MaterialRestorer.restoreUndo(
+    steps: List<InvolutionStep>,
+    job: RollbackJobId,
+    noise: Set<LotId>,
+    asOf: Long?
+): RestorationReport {
     val deltas = physicalDeltasForUndo(steps, noise)
 
     // Vanished-drop gives wait until the dest is gone
@@ -66,7 +71,7 @@ internal suspend fun MaterialRestorer.respawnDrops(
         logger.log(
             Level.WARNING,
             "could not put ${failures.size} vanished drop(s) back on the ground in undo job ${job.raw}; " +
-                "first: ${failures.entries.take(SAMPLED_FAILURES).joinToString("; ") { "${it.key}: ${it.value}" }}",
+                    "first: ${failures.entries.take(SAMPLED_FAILURES).joinToString("; ") { "${it.key}: ${it.value}" }}",
         )
     }
     return RestorationReport(failures, spilled = sink.size)

@@ -102,7 +102,10 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             put(Keys.wchgAt(worldId, x, y, z, seq), NONE)
             if (subject is ChangeSubject.Entity) put(Keys.wchgEntity(subject.entity, seq), NONE)
             if (change.cause.isBookkeeping) return@write
-            if (causedById != 0) put(Keys.actor(causedById, seq), Records.logKindTimed(LogKind.WORLD, change.epochMillis, change.cause))
+            if (causedById != 0) put(
+                Keys.actor(causedById, seq),
+                Records.logKindTimed(LogKind.WORLD, change.epochMillis, change.cause)
+            )
             put(Keys.time(change.epochMillis, seq), OWN_LOG)
             put(
                 Keys.spatial(worldId, x shr 4, z shr 4, y, seq, change.epochMillis),
@@ -197,7 +200,10 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             )
             put(Keys.wchgAtSection(worldId, sectionX, sectionY, sectionZ, baseSeq), NONE)
             if (edits.cause.isBookkeeping) return@write
-            if (causedById != 0) put(Keys.actor(causedById, baseSeq), Records.logKindTimed(LogKind.WORLD, edits.epochMillis, edits.cause))
+            if (causedById != 0) put(
+                Keys.actor(causedById, baseSeq),
+                Records.logKindTimed(LogKind.WORLD, edits.epochMillis, edits.cause)
+            )
             put(Keys.time(edits.epochMillis, baseSeq), OWN_LOG)
             put(
                 Keys.spatial(worldId, sectionX, sectionZ, first.y, baseSeq, edits.epochMillis),
@@ -321,10 +327,19 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         }
         val worldArr = if (inlineWorld) LongArray(0) else ascending(worldSeqs)
         val txnLog = transactions as TransactionLog
-        val byItem = if (scans == null && filter.material != null) txnLog.itemKeyIdsFor(this, filter.material!!) else null
+        val byItem =
+            if (scans == null && filter.material != null) txnLog.itemKeyIdsFor(this, filter.material!!) else null
         val txnArr = if (byItem == null) ascending(txnSeqs) else ascending(
             QueryProbe.phase("item index") {
-                gatherSeqs(LogKind.TRANSACTION, scansOver(byItem.map(Keys::itemPrefix)), filter.since, filter.until, Int.MAX_VALUE, filter.excludedCauses, null)
+                gatherSeqs(
+                    LogKind.TRANSACTION,
+                    scansOver(byItem.map(Keys::itemPrefix)),
+                    filter.since,
+                    filter.until,
+                    Int.MAX_VALUE,
+                    filter.excludedCauses,
+                    null
+                )
             },
         )
         val unit = this
@@ -723,7 +738,11 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             if (Records.wchgKind(record) != Records.CHANGE_BLOCK) return false
             val before = interning.resolveBlockData(unit, Records.blockChangeBefore(record)).value
             val after = interning.resolveBlockData(unit, Records.blockChangeAfter(record)).value
-            if (!before.matchesAny(material, filter.blockMaterials) && !after.matchesAny(material, filter.blockMaterials)) return false
+            if (!before.matchesAny(material, filter.blockMaterials) && !after.matchesAny(
+                    material,
+                    filter.blockMaterials
+                )
+            ) return false
         }
         return true
     }

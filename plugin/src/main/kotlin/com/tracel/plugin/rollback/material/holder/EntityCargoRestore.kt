@@ -99,14 +99,25 @@ internal suspend fun MaterialRestorer.restoreEntityCargo(
         grouped.values.map { group ->
             async {
                 val at = group.first().at
-                worldOf(at.world)?.let { world -> runCatching { world.getChunkAtAsync(at.x shr 4, at.z shr 4).await() } }
+                worldOf(at.world)?.let { world ->
+                    runCatching {
+                        world.getChunkAtAsync(at.x shr 4, at.z shr 4).await()
+                    }
+                }
                 withContext(services.schedulers.region(at)) {
                     val world = worldOf(at.world)
                     if (world != null) runCatching { world.getChunkAt(at.x shr 4, at.z shr 4).entities }
                     group.map { row ->
                         row.holder to inRegion {
                             val failed = fillEntityCargo(row.holder, row.deltas, forms, sink, asOf, worn)
-                            if (failed == NO_HULL && world != null) spillGives(row.holder, row.deltas, forms, world, row.at, sink)
+                            if (failed == NO_HULL && world != null) spillGives(
+                                row.holder,
+                                row.deltas,
+                                forms,
+                                world,
+                                row.at,
+                                sink
+                            )
                             failed
                         }
                     }
@@ -146,11 +157,13 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
             entity.resyncCargoViewers(services.plugin)
             services.differ.forget(holder)
         }
+
         is ItemFrame -> {
             applyItemFrame(entity, deltas, forms, moves, worn)
             entity.resyncCargoViewers(services.plugin)
             services.differ.forget(holder)
         }
+
         is InventoryHolder -> {
             val inventory = entity.inventory
             val horse = entity as? ChestedHorse
@@ -225,7 +238,12 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
     return moves.reason
 }
 
-private fun MaterialRestorer.applyMobEquipment(mob: Mob, deltas: Map<ItemKey, Long>, forms: Map<ItemKey, ByteArray>, moves: Moves) {
+private fun MaterialRestorer.applyMobEquipment(
+    mob: Mob,
+    deltas: Map<ItemKey, Long>,
+    forms: Map<ItemKey, ByteArray>,
+    moves: Moves
+) {
     val equipment = mob.equipment
     for ((itemKey, delta) in deltas.entries.sortedBy { it.value > 0L }) {
         if (delta < 0L) {
@@ -235,7 +253,9 @@ private fun MaterialRestorer.applyMobEquipment(mob: Mob, deltas: Map<ItemKey, Lo
                 val held = runCatching { equipment.getItem(slot) }.getOrNull() ?: continue
                 if (held.isEmpty || !held.matches(itemKey)) continue
                 val take = minOf(left, held.amount.toLong())
-                equipment.setItem(slot, if (take >= held.amount) ItemStack.empty() else held.clone().apply { amount -= take.toInt() })
+                equipment.setItem(
+                    slot,
+                    if (take >= held.amount) ItemStack.empty() else held.clone().apply { amount -= take.toInt() })
                 left -= take
             }
             moves.short(itemKey, left)
@@ -276,5 +296,11 @@ private fun MaterialRestorer.spillGives(
         val template = stackFor(itemKey, 1, forms[itemKey]) ?: continue
         for (stack in stacksOf(itemKey, delta, template)) moves.overflow += itemKey to stack
     }
-    if (moves.overflow.isNotEmpty()) spillInRegion(holder, moves, world, Location(world, at.x + 0.5, at.y + 1.0, at.z + 0.5), sink)
+    if (moves.overflow.isNotEmpty()) spillInRegion(
+        holder,
+        moves,
+        world,
+        Location(world, at.x + 0.5, at.y + 1.0, at.z + 0.5),
+        sink
+    )
 }

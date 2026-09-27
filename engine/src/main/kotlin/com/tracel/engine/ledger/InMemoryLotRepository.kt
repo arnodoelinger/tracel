@@ -351,7 +351,10 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
                 holderOf = holderOf.build(),
                 edgesByParent = edgesByParent.build(),
                 edgesByChild = edgesByChild.build(),
-                remainingAt = if (remaining == 0L) base.remainingAt.removing(key) else base.remainingAt.putting(key, remaining),
+                remainingAt = if (remaining == 0L) base.remainingAt.removing(key) else base.remainingAt.putting(
+                    key,
+                    remaining
+                ),
             ).withQueue(key, queue).dropIndexIfEmpty(holder, itemKey, key)
         }
 

@@ -30,7 +30,10 @@ class UnmakeIntoSinkTest {
         )
 
         val intact = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
-        assertTrue(intact.steps.any { it is RollbackStep.Unmake }, "while the block exists, unmaking it is the way back")
+        assertTrue(
+            intact.steps.any { it is RollbackStep.Unmake },
+            "while the block exists, unmaking it is the way back"
+        )
 
         world.ledger.burn(steve, diamondBlock, Quantity(1), SinkKind.UNATTRIBUTED, world.nextTxn())
 

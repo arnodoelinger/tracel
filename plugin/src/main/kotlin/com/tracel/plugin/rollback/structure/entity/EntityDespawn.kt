@@ -37,7 +37,9 @@ internal fun StructureRestorer.despawn(
     val entity = Bukkit.getEntity(step.entity)
         ?: step.shape.sittingAt(world, loc, step.entity)
         ?: world.getNearbyEntities(loc, 2.5, 2.5, 2.5).firstOrNull { it.uniqueId == step.entity }
-        ?: return if (step.shape.type.value.endsWith("parrot") && takeOffShoulder(step.entity, loc)) Despawn.Removed(step.entity) else Despawn.Absent
+        ?: return if (step.shape.type.value.endsWith("parrot") && takeOffShoulder(step.entity, loc)) Despawn.Removed(
+            step.entity
+        ) else Despawn.Absent
 
     // Found anywhere is not ours to touch: another region owns it now, and a removal from here is swallowed
     if (!Bukkit.isOwnedByCurrentRegion(entity)) {
@@ -57,13 +59,13 @@ internal fun StructureRestorer.despawn(
         if (entity.uniqueId in ledgerHeldBy) {
             return Despawn.Refused(
                 "${entity.type.name.lowercase()} holds material this rollback did not plan to " +
-                    "withdraw: $what",
+                        "withdraw: $what",
             )
         }
         // Unbooked
         Warnings.once(logger, "unbooked-cargo:${entity.type}") {
             "a ${entity.type.name.lowercase()} (${entity.uniqueId}) holds $what with no Entity " +
-                "account; the hull is still removed"
+                    "account; the hull is still removed"
         }
         entity.emptyCargo()
     }
@@ -82,7 +84,9 @@ internal fun StructureRestorer.despawn(
     runCatching { entity.remove() }
 
     // Only what really went is journaled: undo respawns every entity recorded as removed
-    return if (entity.isValid) Despawn.Refused("the ${entity.type.name.lowercase()} could not be removed") else Despawn.Removed(entity.uniqueId)
+    return if (entity.isValid) Despawn.Refused("the ${entity.type.name.lowercase()} could not be removed") else Despawn.Removed(
+        entity.uniqueId
+    )
 }
 
 private fun clearTrailUnder(entity: Entity) {

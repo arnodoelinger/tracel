@@ -103,11 +103,24 @@ internal suspend fun RollbackComposer.planMaterial(
 
     val target = RollbackTarget.PerRoot(byRoot)
     val roots = byRoot.keys.sortedByDescending { it.raw }
-    if (roots.isEmpty()) return@coroutineScope MaterialSurvey(RollbackPlan(emptyList()), target, roots, emptySet(), null)
+    if (roots.isEmpty()) return@coroutineScope MaterialSurvey(
+        RollbackPlan(emptyList()),
+        target,
+        roots,
+        emptySet(),
+        null
+    )
 
     val witness = services.repo.version()
     var vanished = checked
-    var planner = RollbackPlanner(services.repo, services.worldQuery, vanished = vanished, structural = structural, covered = covered, target = target)
+    var planner = RollbackPlanner(
+        services.repo,
+        services.worldQuery,
+        vanished = vanished,
+        structural = structural,
+        covered = covered,
+        target = target
+    )
     var plan = trace.span("plan material") { planner.plan(roots) }
 
     // Holders the plan named that the log never mentioned (pre-window drops).
@@ -117,7 +130,14 @@ internal suspend fun RollbackComposer.planMaterial(
         val late = trace.span("find vanished items") { worldCensus.vanishedEntities(unchecked, trace) }
         if (late.isNotEmpty()) {
             vanished = vanished + late
-            planner = RollbackPlanner(services.repo, services.worldQuery, vanished = vanished, structural = structural, covered = covered, target = target)
+            planner = RollbackPlanner(
+                services.repo,
+                services.worldQuery,
+                vanished = vanished,
+                structural = structural,
+                covered = covered,
+                target = target
+            )
             plan = trace.span("replan material") { planner.plan(roots) }
         }
     }

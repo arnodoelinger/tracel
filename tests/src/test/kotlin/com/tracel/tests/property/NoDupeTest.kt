@@ -41,12 +41,21 @@ class NoDupeTest {
         assertEquals(4L, mintStep.quantity.raw, "compensation must match exactly what was actually lost")
         assertEquals(SinkKind.LAVA, mintStep.reason)
 
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(world.acquireLease(RollbackJobId(1), plan), plan, target = RollbackTarget.Uniform(chest))
 
         // 6 remaining in the chest, 4 newly minted to compensate for the burned ones — census is back to 10
         assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw)
-        assertEquals(10L, world.ledger.census(diamond), "I4: mints and burns are always accounted for in the census, never silently lost or duplicated")
+        assertEquals(
+            10L,
+            world.ledger.census(diamond),
+            "I4: mints and burns are always accounted for in the census, never silently lost or duplicated"
+        )
     }
 
     @Test
@@ -62,15 +71,29 @@ class NoDupeTest {
         world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
 
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(world.acquireLease(RollbackJobId(1), plan), plan, target = RollbackTarget.Uniform(steve))
-        assertEquals(4L, world.ledger.totalAt(steve, diamond)?.raw, "the first rollback correctly compensates the burned material")
+        assertEquals(
+            4L,
+            world.ledger.totalAt(steve, diamond)?.raw,
+            "the first rollback correctly compensates the burned material"
+        )
 
         val replan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         assertEquals(setOf(root.id), replan.settled, "the replan recognizes the lot as already compensated")
         assertTrue(replan.steps.isEmpty(), "and plans nothing for it: ${replan.steps}")
 
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(world.acquireLease(RollbackJobId(2), replan), replan, target = RollbackTarget.Uniform(steve))
         assertEquals(4L, world.ledger.census(diamond), "still exactly one compensation — the replan minted nothing")
     }

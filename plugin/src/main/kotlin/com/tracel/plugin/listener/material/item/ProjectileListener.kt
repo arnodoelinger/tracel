@@ -123,7 +123,8 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
             EntityRemoveEvent.Cause.PICKUP,
             EntityRemoveEvent.Cause.UNLOAD,
             EntityRemoveEvent.Cause.PLAYER_QUIT,
-            -> return
+                -> return
+
             else -> Unit
         }
         LiveProjectile.remove(projectile.uniqueId)

@@ -38,7 +38,8 @@ private val ALIASES: List<ActionAlias> = listOf(
     ),
     ActionAlias(
         names = setOf("-block", "break"),
-        actions = setOf(ActionKind.BLOCK_BREAK), half = Half.STRUCTURE),
+        actions = setOf(ActionKind.BLOCK_BREAK), half = Half.STRUCTURE
+    ),
     ActionAlias(
         names = setOf("sign"),
         actions = setOf(ActionKind.SIGN_EDIT),
@@ -56,7 +57,8 @@ private val ALIASES: List<ActionAlias> = listOf(
     ),
     ActionAlias(
         names = setOf("-entity", "kill"),
-        actions = setOf(ActionKind.ENTITY_REMOVE), half = Half.STRUCTURE),
+        actions = setOf(ActionKind.ENTITY_REMOVE), half = Half.STRUCTURE
+    ),
     ActionAlias(
         names = setOf("container", "item", "inventory"),
         causes = setOf(CauseKind.PLAYER_ACTION, CauseKind.HOPPER, CauseKind.BLOCK_BREAK, CauseKind.WEAR),
@@ -108,11 +110,13 @@ object ActionArgument {
                     actions += action
                     halves += Half.STRUCTURE
                 }
+
                 cause != null -> {
                     causes += cause
                     worldCauses += cause
                     halves += Half.BOTH
                 }
+
                 else -> unknown += raw
             }
         }

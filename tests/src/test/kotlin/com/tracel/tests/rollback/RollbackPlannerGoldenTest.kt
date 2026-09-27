@@ -183,7 +183,8 @@ class RollbackPlannerGoldenTest {
         assertEquals(emptySet<LotId>(), plan.settled)
     }
 
-    private fun take(id: Long, quantity: Long, holder: HolderId) = RollbackStep.Take(LotId(id), Quantity(quantity), holder)
+    private fun take(id: Long, quantity: Long, holder: HolderId) =
+        RollbackStep.Take(LotId(id), Quantity(quantity), holder)
 
     private fun unmake(output: Long, input: Long, quantity: Long, txn: Long) = RollbackStep.Unmake(
         listOf(UnmadeOutput(LotId(output), steve)),
@@ -193,12 +194,21 @@ class RollbackPlannerGoldenTest {
     )
 
     private suspend fun craft(world: LedgerHarness, input: ItemKey, amount: Long, output: ItemKey, produced: Long) {
-        world.ledger.craft(listOf(Ingredient(steve, input, Quantity(amount))), Product(steve, output, Quantity(produced)), world.nextTxn())
+        world.ledger.craft(
+            listOf(Ingredient(steve, input, Quantity(amount))),
+            Product(steve, output, Quantity(produced)),
+            world.nextTxn()
+        )
     }
 
     private suspend fun apply(world: LedgerHarness, plan: RollbackPlan) {
         val job = RollbackJobId(1)
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(world.acquireLease(job, plan), plan, RollbackTarget.Uniform(chest))
         assertEquals(emptyMap<ItemKey, Quantity>(), world.ledger.totalsAt(HolderId.Escrow(job)))
     }

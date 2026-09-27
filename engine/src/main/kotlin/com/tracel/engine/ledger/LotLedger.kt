@@ -60,14 +60,15 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
      * withdraw used to eat whatever it could reach, then throw.
      */
     @Consume
-    public suspend fun withdraw(holder: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): List<LotPortion> = atomically {
-        val available = repo.totalOf(holder, itemKey)
-        check(available >= quantity.raw) {
-            "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have $available"
-        }
+    public suspend fun withdraw(holder: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): List<LotPortion> =
+        atomically {
+            val available = repo.totalOf(holder, itemKey)
+            check(available >= quantity.raw) {
+                "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have $available"
+            }
 
-        repo.takeFifo(holder, itemKey, quantity, txn)
-    }
+            repo.takeFifo(holder, itemKey, quantity, txn)
+        }
 
     /** Same FIFO as [withdraw], one pass for several destinations. */
     @Consume
@@ -113,7 +114,13 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
      * Withdraw and place on a [HolderId.Sink]. Sinks are real holders here;
      * [census] is what leaves them out of the world total.
      */
-    public suspend fun burn(holder: HolderId, itemKey: ItemKey, quantity: Quantity, reason: SinkKind, txn: TxnId): List<LotPortion> =
+    public suspend fun burn(
+        holder: HolderId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        reason: SinkKind,
+        txn: TxnId
+    ): List<LotPortion> =
         atomically {
             val portions = withdraw(holder, itemKey, quantity, txn)
             deposit(HolderId.Sink(reason), portions)
@@ -121,7 +128,13 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         }
 
     /** Withdraw from [from], deposit on [to]. */
-    public suspend fun move(from: HolderId, to: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): List<LotPortion> =
+    public suspend fun move(
+        from: HolderId,
+        to: HolderId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId
+    ): List<LotPortion> =
         atomically {
             val portions = withdraw(from, itemKey, quantity, txn)
             deposit(to, portions)
@@ -247,7 +260,13 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
     }
 
     /** Mint a stand-in for a lot that is gone, linked with [LotEdge.Compensate]. */
-    public suspend fun compensate(holder: HolderId, originalLotId: LotId, quantity: Quantity, txn: TxnId, job: RollbackJobId): Lot =
+    public suspend fun compensate(
+        holder: HolderId,
+        originalLotId: LotId,
+        quantity: Quantity,
+        txn: TxnId,
+        job: RollbackJobId
+    ): Lot =
         atomically {
             val itemKey = repo.lot(originalLotId).itemKey
             val lot = repo.createLot(itemKey, quantity, txn)

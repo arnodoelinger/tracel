@@ -91,7 +91,13 @@ private suspend fun MaterialRestorer.rewearDelivered(player: Player, claimed: Li
         val record = runCatching { services.atomically { services.jobs.find(job) } }.getOrNull() ?: continue
         val asOf = record.targetTimeMillis ?: continue
         runCatching { rewearPlan(record.plan, record.target, job, asOf, only = mine) }
-            .onFailure { logger.log(Level.FINE, "tools delivered to ${player.name} kept their damage as they were", it) }
+            .onFailure {
+                logger.log(
+                    Level.FINE,
+                    "tools delivered to ${player.name} kept their damage as they were",
+                    it
+                )
+            }
     }
 }
 

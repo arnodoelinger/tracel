@@ -84,7 +84,9 @@ internal suspend fun MaterialRestorer.applyToContainer(
         for ((itemKey, delta) in deltas) {
             applyDelta(itemKey, delta, forms[itemKey], moves, inventory, preferredSlots[itemKey].orEmpty(), worn)
         }
-        if (state is BrewingStand && deltas.any { (key, delta) -> key.material == "BLAZE_POWDER" && delta > 0L }) primeBrewingStandFuel(state)
+        if (state is BrewingStand && deltas.any { (key, delta) -> key.material == "BLAZE_POWDER" && delta > 0L }) primeBrewingStandFuel(
+            state
+        )
         spillInRegion(holder, moves, world, at, sink)
         syncCargoFlags(state)
         services.differ.rebaseline(holder, inventory.toItemTotals())

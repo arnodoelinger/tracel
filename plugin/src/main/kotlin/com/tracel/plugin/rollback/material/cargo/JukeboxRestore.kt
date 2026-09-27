@@ -42,6 +42,7 @@ internal fun MaterialRestorer.applyJukebox(
                     jukebox.setRecord(ItemStack.empty())
                     if (-delta > 1) moves.short(itemKey, -delta - 1)
                 }
+
                 else -> moves.short(itemKey, -delta)
             }
         }

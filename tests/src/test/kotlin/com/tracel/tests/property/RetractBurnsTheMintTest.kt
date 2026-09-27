@@ -39,7 +39,12 @@ class RetractBurnsTheMintTest {
         val target = RollbackTarget.Uniform(chest)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         jobs.save(RollbackJobRecord(job, plan, target))
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(world.acquireLease(job, plan), plan, target)
 
         val burned = plan.steps.filterIsInstance<com.tracel.engine.rollback.plan.RollbackStep.Mint>().single().lotId
@@ -48,7 +53,11 @@ class RetractBurnsTheMintTest {
 
         val undoLease = world.acquireLease(job, plan)
         val executor = InvolutionExecutor(world.ledger, world.log, world::nextSeq)
-        for (step in InvolutionPlanner(world.repo).plan(jobs.find(job)!!)) executor.apply(undoLease, step, world.nextTxn())
+        for (step in InvolutionPlanner(world.repo).plan(jobs.find(job)!!)) executor.apply(
+            undoLease,
+            step,
+            world.nextTxn()
+        )
         world.leases.release(job)
 
         assertNull(world.repo.placementOf(chest, minted), "the compensation is what the undo burned")
@@ -57,7 +66,11 @@ class RetractBurnsTheMintTest {
             world.repo.placementOf(chest, older.id)?.remaining?.raw,
             "and the chest's own diamonds were never touched",
         )
-        assertEquals(26L, world.ledger.census(diamond), "back where the cycle found it: the chest's 20 plus 10 minus the 4 in the lava")
+        assertEquals(
+            26L,
+            world.ledger.census(diamond),
+            "back where the cycle found it: the chest's 20 plus 10 minus the 4 in the lava"
+        )
 
         assertEquals(plan, RollbackPlanner(world.repo, { true }).plan(listOf(root.id)))
     }

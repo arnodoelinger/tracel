@@ -23,6 +23,7 @@ internal fun Block.holdsFreeFluid(): Boolean = fluidOf(this) != null
 internal fun fluidOf(block: Block): Material? = when (val type = block.type) {
     Material.WATER, Material.BUBBLE_COLUMN, Material.KELP, Material.KELP_PLANT,
     Material.SEAGRASS, Material.TALL_SEAGRASS -> Material.WATER
+
     Material.LAVA -> Material.LAVA
     else -> if (type in WATERLOGGABLE && (block.blockData as? Waterlogged)?.isWaterlogged == true) Material.WATER else null
 }
@@ -46,6 +47,8 @@ internal val HORIZONTAL: List<BlockFace> = listOf(BlockFace.NORTH, BlockFace.EAS
 
 private val WATERLOGGABLE: Set<Material> by lazy {
     Material.entries.filterTo(HashSet()) { material ->
-        !material.isLegacy && material.isBlock && runCatching { material.createBlockData() is Waterlogged }.getOrDefault(false)
+        !material.isLegacy && material.isBlock && runCatching { material.createBlockData() is Waterlogged }.getOrDefault(
+            false
+        )
     }
 }

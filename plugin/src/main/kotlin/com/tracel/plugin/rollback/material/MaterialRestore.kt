@@ -53,9 +53,9 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     val gone = when {
         unknown.isEmpty() -> knownGone.orEmpty() + censusGone
         else -> knownGone.orEmpty() + censusGone +
-            trace.span("move items / vanished") {
-                vanishedEntities(unknown, trace)
-            }
+                trace.span("move items / vanished") {
+                    vanishedEntities(unknown, trace)
+                }
     }
 
     val worn = WornStacks()
@@ -72,10 +72,34 @@ internal suspend fun MaterialRestorer.restoreDeltas(
         }
         coroutineScope {
             val freeRun = async {
-                fanOut(free.associate { it.toPair() }, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
+                fanOut(
+                    free.associate { it.toPair() },
+                    job,
+                    gone,
+                    respawnAt,
+                    trace,
+                    census,
+                    forms,
+                    sink,
+                    null,
+                    asOf,
+                    worn
+                )
             }
             val first = fanOut(early, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
-            val second = fanOut(waiting.associate { it.toPair() }, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
+            val second = fanOut(
+                waiting.associate { it.toPair() },
+                job,
+                gone,
+                respawnAt,
+                trace,
+                census,
+                forms,
+                sink,
+                null,
+                asOf,
+                worn
+            )
             val all = first + freeRun.await() + second
             settled?.complete(all.mapNotNullTo(HashSet()) { (holder, result) -> holder.takeIf { result is ApplyResult.Failed } })
             all
@@ -96,7 +120,7 @@ internal suspend fun MaterialRestorer.restoreDeltas(
         logger.log(
             Level.WARNING,
             "physical restoration incomplete for ${failures.size} holder(s) in rollback job ${job.raw}; " +
-                "first: ${failures.entries.take(SAMPLED_FAILURES).joinToString("; ") { "${it.key}: ${it.value}" }}",
+                    "first: ${failures.entries.take(SAMPLED_FAILURES).joinToString("; ") { "${it.key}: ${it.value}" }}",
         )
     }
 
@@ -133,11 +157,31 @@ private suspend fun MaterialRestorer.fanOut(
     return coroutineScope {
         val items = async {
             if (ground.isEmpty()) emptyList()
-            else trace.span("move items / ground items") { restoreGroundItems(ground, gone, census, forms, sink, respawnAt, worn) }
+            else trace.span("move items / ground items") {
+                restoreGroundItems(
+                    ground,
+                    gone,
+                    census,
+                    forms,
+                    sink,
+                    respawnAt,
+                    worn
+                )
+            }
         }
         val cargoJob = async {
             if (cargo.isEmpty()) emptyList()
-            else trace.span("move items / entity cargo") { restoreEntityCargo(cargo, forms, gone, census, sink, asOf, worn) }
+            else trace.span("move items / entity cargo") {
+                restoreEntityCargo(
+                    cargo,
+                    forms,
+                    gone,
+                    census,
+                    sink,
+                    asOf,
+                    worn
+                )
+            }
         }
         val others = rest.entries.groupBy { it.key.regionKey() }.values.map { group ->
             async {
@@ -147,13 +191,33 @@ private suspend fun MaterialRestorer.fanOut(
                         if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
                         else {
                             val kind = HolderGroup.of(holder)
-                            holder to trace.span("move items / ${kind.traceName}") { applyTo(holder, nonZero, forms, job, sink, asOf, worn) }
+                            holder to trace.span("move items / ${kind.traceName}") {
+                                applyTo(
+                                    holder,
+                                    nonZero,
+                                    forms,
+                                    job,
+                                    sink,
+                                    asOf,
+                                    worn
+                                )
+                            }
                         }
                     }
                 }
                 when (val first = group.first().key) {
                     is HolderId.Block -> withContext(services.schedulers.region(first)) { each() }
-                    is HolderId.PlacedBlock -> withContext(services.schedulers.region(HolderId.Block(first.world, first.x, first.y, first.z))) { each() }
+                    is HolderId.PlacedBlock -> withContext(
+                        services.schedulers.region(
+                            HolderId.Block(
+                                first.world,
+                                first.x,
+                                first.y,
+                                first.z
+                            )
+                        )
+                    ) { each() }
+
                     else -> each()
                 }
             }

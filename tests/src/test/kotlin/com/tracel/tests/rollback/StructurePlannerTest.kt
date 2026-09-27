@@ -34,7 +34,8 @@ class StructurePlannerTest {
     private val chest = BlockShape(BlockDataKey("minecraft:chest[facing=north]"))
     private val redstone = BlockShape(BlockDataKey("minecraft:redstone_block"))
     private val sand = BlockShape(BlockDataKey("minecraft:sand"))
-    private val fire = BlockShape(BlockDataKey("minecraft:fire[age=0,east=false,north=false,south=false,up=false,west=false]"))
+    private val fire =
+        BlockShape(BlockDataKey("minecraft:fire[age=0,east=false,north=false,south=false,up=false,west=false]"))
 
     private val tnt = BlockShape(BlockDataKey("minecraft:tnt[unstable=false]"))
 
@@ -305,8 +306,8 @@ class StructurePlannerTest {
         assertTrue(
             create.any { it is StructureStep.RemoveEntity && it.entity == painting },
             "left in destroy, the wall is rebuilt around a painting that is still hanging on it — " +
-                "vanilla pops it, the item drops beside the one the ledger is handing back, and the " +
-                "removal that arrives afterwards finds nothing to record",
+                    "vanilla pops it, the item drops beside the one the ledger is handing back, and the " +
+                    "removal that arrives afterwards finds nothing to record",
         )
         assertTrue(destroy.none { it is StructureStep.RemoveEntity && it.entity == painting })
     }

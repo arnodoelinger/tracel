@@ -19,7 +19,7 @@ internal data class DamageBlame(val who: HolderId?, val cause: CauseKind)
 @Unstable
 internal fun TracelServices.damageBlame(event: EntityDamageEvent): DamageBlame {
     val blast = event.cause == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION ||
-        event.cause == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION
+            event.cause == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION
     if (event is EntityDamageByEntityEvent) {
         val who = attackerOf(event.damager)
         val cause = when {

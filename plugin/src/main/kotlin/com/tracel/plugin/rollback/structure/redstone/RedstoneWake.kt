@@ -69,6 +69,7 @@ private fun wakeIfRedstone(block: Block) {
             data.isPowered = target
             block.setBlockData(data, true)
         }
+
         is AnaloguePowerable -> {
             val target = data.power
             data.power = if (target == 0) 1 else 0
@@ -76,6 +77,7 @@ private fun wakeIfRedstone(block: Block) {
             data.power = target
             block.setBlockData(data, true)
         }
+
         is Lightable -> {
             val target = data.isLit
             data.isLit = !target
@@ -83,6 +85,7 @@ private fun wakeIfRedstone(block: Block) {
             data.isLit = target
             block.setBlockData(data, true)
         }
+
         else -> Unit
     }
 }

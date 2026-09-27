@@ -113,7 +113,13 @@ public class InMemoryWorldLog : WorldLog {
             val wantedFrom = if (wantedColon < 0) 0 else wantedColon + 1
             val storedLen = storedEnd - storedFrom
             val wantedLen = material.length - wantedFrom
-            return storedLen == wantedLen && regionMatches(storedFrom, material, wantedFrom, storedLen, ignoreCase = true)
+            return storedLen == wantedLen && regionMatches(
+                storedFrom,
+                material,
+                wantedFrom,
+                storedLen,
+                ignoreCase = true
+            )
         }
 
         fun indexOfColon(value: String, end: Int): Int {

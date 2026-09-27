@@ -17,6 +17,7 @@ public class SnapshotDiffer(
     private val baseline: suspend (HolderId) -> Map<ItemKey, Long> = { emptyMap() },
 ) {
     private data class Snapshot(val totals: Map<ItemKey, Long>, val seeded: Boolean)
+
     private val snapshots = ConcurrentHashMap<HolderId, Snapshot>()
 
     /**
@@ -37,7 +38,11 @@ public class SnapshotDiffer(
                 else -> base.merge(prior.totals)
             }
             val next = Snapshot(current, seeded = true)
-            val swapped = if (prior == null) snapshots.putIfAbsent(holder, next) == null else snapshots.replace(holder, prior, next)
+            val swapped = if (prior == null) snapshots.putIfAbsent(holder, next) == null else snapshots.replace(
+                holder,
+                prior,
+                next
+            )
             if (swapped) return deltasBetween(holder, previous, current, fromGap = prior?.seeded != true)
         }
     }

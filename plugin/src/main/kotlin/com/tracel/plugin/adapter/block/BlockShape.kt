@@ -148,7 +148,14 @@ private fun applyBlockEntityExtras(
                 if (meta.hasCustomName()) named.customName(meta.customName())
             }
             val off = meta.persistentDataContainer.get(DISABLED_SLOTS, PersistentDataType.INTEGER_ARRAY)
-            if (off != null) (state as? Crafter)?.let { crafter -> for (slot in off) runCatching { crafter.setSlotDisabled(slot, true) } }
+            if (off != null) (state as? Crafter)?.let { crafter ->
+                for (slot in off) runCatching {
+                    crafter.setSlotDisabled(
+                        slot,
+                        true
+                    )
+                }
+            }
             state.update(true, physics)
             return
         }

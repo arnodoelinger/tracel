@@ -108,7 +108,15 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         counters = counters,
         schedulers = schedulers,
         scope = CoroutineScope(SupervisorJob() + schedulers.async + plugin.captureFailures()),
-        rollback = RollbackJobCoordinator(repo, WorldQuery(::playerIsOnline), leases, journalExecutor, jobs, ledgerVersion = repo::version, changedSince = repo::changedSince),
+        rollback = RollbackJobCoordinator(
+            repo,
+            WorldQuery(::playerIsOnline),
+            leases,
+            journalExecutor,
+            jobs,
+            ledgerVersion = repo::version,
+            changedSince = repo::changedSince
+        ),
         jobs = jobs,
         undo = involutionCoordinator,
         undoJournal = undoJournal,
@@ -138,7 +146,14 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         },
         worldSink = { edits -> services.worldCapture.record(edits) },
         placedSink = { placed ->
-            services.capture.record(placed.deltas, placed.epochMillis, placed.cause, placed.causedBy, placed.at, ::ignoranceIsPermanent)
+            services.capture.record(
+                placed.deltas,
+                placed.epochMillis,
+                placed.cause,
+                placed.causedBy,
+                placed.at,
+                ::ignoranceIsPermanent
+            )
         },
     )
     services.scope.launch {

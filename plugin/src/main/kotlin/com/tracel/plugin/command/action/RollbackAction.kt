@@ -137,7 +137,12 @@ class RollbackAction(
         val flushed = services.flushCapture()
         var witness = services.repo.version()
         val outcome = runCatching {
-            RollbackPlanner(services.repo, services.worldQuery, structural = false, target = RollbackTarget.Uniform(restoreTo)).plan(listOf(lot))
+            RollbackPlanner(
+                services.repo,
+                services.worldQuery,
+                structural = false,
+                target = RollbackTarget.Uniform(restoreTo)
+            ).plan(listOf(lot))
         }
         val plan = outcome.getOrNull()
         if (plan == null) {
@@ -158,7 +163,12 @@ class RollbackAction(
         val replan: suspend () -> Planned? = {
             witness = services.repo.version()
             runCatching {
-                RollbackPlanner(services.repo, services.worldQuery, structural = false, target = RollbackTarget.Uniform(restoreTo)).plan(listOf(lot))
+                RollbackPlanner(
+                    services.repo,
+                    services.worldQuery,
+                    structural = false,
+                    target = RollbackTarget.Uniform(restoreTo)
+                ).plan(listOf(lot))
             }.map(::rollbackFor).getOrElse {
                 sender.sendMessage("Rollback: could not plan for lot ${lot.raw} — ${it.message}")
                 null
@@ -195,7 +205,11 @@ class RollbackAction(
             }
             when (outcome) {
                 is RollbackResult.Done -> {
-                    if (RollbackPresenter.appliedNothing(outcome)) services.atomically { services.jobs.markUndone(outcome.job) }
+                    if (RollbackPresenter.appliedNothing(outcome)) services.atomically {
+                        services.jobs.markUndone(
+                            outcome.job
+                        )
+                    }
                     RollbackPresenter.report(sender, outcome)
                     return
                 }

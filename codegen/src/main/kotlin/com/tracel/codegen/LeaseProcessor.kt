@@ -78,7 +78,8 @@ public class LeaseProcessor(
                     .addSuperinterface(acquisition)
                     .primaryConstructor(FunSpec.constructorBuilder().addParameter("lease", lease).build())
                     .addProperty(
-                        PropertySpec.builder("lease", lease).addModifiers(KModifier.PUBLIC).initializer("lease").build(),
+                        PropertySpec.builder("lease", lease).addModifiers(KModifier.PUBLIC).initializer("lease")
+                            .build(),
                     )
                     .build(),
             )
@@ -122,7 +123,7 @@ public class LeaseProcessor(
                     .addModifiers(KModifier.PUBLIC, KModifier.ABSTRACT, KModifier.SUSPEND)
                     .addKdoc(
                         "Hands everything [from] holds to [to], in one step.\n\n" +
-                            "@return the lots that moved.",
+                                "@return the lots that moved.",
                     )
                     .addParameter("from", JOB_ID)
                     .addParameter("to", JOB_ID)
@@ -134,8 +135,8 @@ public class LeaseProcessor(
                     .addModifiers(KModifier.PUBLIC, KModifier.ABSTRACT, KModifier.SUSPEND)
                     .addKdoc(
                         "Frees every lease older than [maxAgeMillis] as of [nowMillis].\n\n" +
-                            "The backstop for a job that died with the process still holding its lots.\n\n" +
-                            "@return the jobs that were reaped.",
+                                "The backstop for a job that died with the process still holding its lots.\n\n" +
+                                "@return the jobs that were reaped.",
                     )
                     .addParameter("nowMillis", LONG)
                     .addParameter("maxAgeMillis", LONG)
@@ -147,7 +148,7 @@ public class LeaseProcessor(
                     .addModifiers(KModifier.PUBLIC, KModifier.SUSPEND)
                     .addKdoc(
                         "Asks for [lotIds] on behalf of [job].\n\n" +
-                            "Granted or denied whole.",
+                                "Granted or denied whole.",
                     )
                     .addParameter("job", JOB_ID)
                     .addParameter("lotIds", lotSet)

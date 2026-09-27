@@ -69,7 +69,8 @@ internal suspend fun MaterialRestorer.confirmGone(suspects: Set<HolderId>): Set<
                 chunks.map { (cx, cz) -> async { runCatching { world.getChunkAtAsync(cx, cz).await() } } }.awaitAll()
                 withContext(services.schedulers.region(at)) {
                     for ((cx, cz) in chunks) runCatching { world.getChunkAt(cx, cz).entities }
-                    group.filter { (holder, _) -> Bukkit.getEntity((holder as HolderId.ItemEntity).uuid) is Item }.map { it.key }
+                    group.filter { (holder, _) -> Bukkit.getEntity((holder as HolderId.ItemEntity).uuid) is Item }
+                        .map { it.key }
                 }
             }
         }.awaitAll().flatten()

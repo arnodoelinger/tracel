@@ -42,7 +42,12 @@ public class InvolutionPlanner(private val repo: LotRepository) {
      * (hopper, vanished drop credited to a PlacedBlock, entity gone) is not a reason to abort
      * the whole undo — take what is there, skip the rest.
      */
-    private suspend fun stepFor(books: Books, job: RollbackJobRecord, step: RollbackStep, restoreTo: HolderId): InvolutionStep? = when (step) {
+    private suspend fun stepFor(
+        books: Books,
+        job: RollbackJobRecord,
+        step: RollbackStep,
+        restoreTo: HolderId
+    ): InvolutionStep? = when (step) {
         is RollbackStep.Take -> {
             val itemKey = repo.lot(step.lotId).itemKey
             books.payable(restoreTo, itemKey, step.quantity, step.lotId)?.let { qty ->

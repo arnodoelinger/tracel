@@ -76,7 +76,16 @@ internal suspend fun RollbackComposer.layoutOf(
     }
     val deferred = entityDestroy + deferredBlocks + createLater + hangsOnLater
 
-    return ApplyLayout(respawning, keepCargoFor, ledgerCargoFor, ledgerHeldBy, entityDestroy, prompt, createNow, deferred)
+    return ApplyLayout(
+        respawning,
+        keepCargoFor,
+        ledgerCargoFor,
+        ledgerHeldBy,
+        entityDestroy,
+        prompt,
+        createNow,
+        deferred
+    )
 }
 
 private fun BlockPos.neighbours(): List<BlockPos> = listOf(

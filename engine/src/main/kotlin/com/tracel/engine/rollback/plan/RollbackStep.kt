@@ -14,7 +14,7 @@ public sealed interface RollbackStep {
         public val lotId: LotId,
         public val quantity: Quantity,
         public val holder: HolderId,
-    ): RollbackStep
+    ) : RollbackStep
 
     /** [lotId] was burned; nothing is left to take, so a replacement is minted instead. */
     public data class Mint(

@@ -80,7 +80,13 @@ internal suspend fun MaterialRestorer.applyToEnderChest(
         val player = playerOf(holder.uuid)
         if (player == null) {
             services.atomically {
-                services.pendingDeliveries.enqueueAll(holder.uuid, deltas, job, System.currentTimeMillis(), enderChest = true)
+                services.pendingDeliveries.enqueueAll(
+                    holder.uuid,
+                    deltas,
+                    job,
+                    System.currentTimeMillis(),
+                    enderChest = true
+                )
             }
             deliverIfBack(holder.uuid)
             return@withContext ApplyResult.Queued(

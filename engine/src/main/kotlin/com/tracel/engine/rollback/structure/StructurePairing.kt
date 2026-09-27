@@ -23,6 +23,7 @@ public fun structuralPartnerOf(at: BlockPos, shape: BlockShape): BlockPos? {
         material == "piston_head" -> props["facing"]?.let { at.towards(it.opposite()) }
         material == "piston" || material == "sticky_piston" ->
             if (props["extended"] == "true") props["facing"]?.let { at.towards(it) } else null
+
         else -> null
     }
 }

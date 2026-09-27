@@ -25,10 +25,17 @@ private val spillRecords = ConcurrentHashMap.newKeySet<Job>()
  *
  * Recorded now.
  */
-internal fun MaterialRestorer.spillInRegion(holder: HolderId, moves: Moves, world: World, at: Location, sink: MutableCollection<Spill>) {
+internal fun MaterialRestorer.spillInRegion(
+    holder: HolderId,
+    moves: Moves,
+    world: World,
+    at: Location,
+    sink: MutableCollection<Spill>
+) {
     if (moves.overflow.isEmpty()) return
     val where = BlockPos(WorldId(world.uid), at.blockX, at.blockY, at.blockZ)
-    val spilled = moves.overflow.map { (itemKey, stack) -> Spill(holder, services.dropTracked(stack, itemKey, world, at), where) }
+    val spilled =
+        moves.overflow.map { (itemKey, stack) -> Spill(holder, services.dropTracked(stack, itemKey, world, at), where) }
     sink += spilled
     recordSpilled(holder, where, spilled)
 }
@@ -52,7 +59,13 @@ private suspend fun MaterialRestorer.recordSpillGroup(holder: HolderId, at: Bloc
     runCatching {
         services.atomically {
             // the pile is real either way: a holder that lost its lots meanwhile mints what it no longer has
-            services.capture.recordDirect(flows, System.currentTimeMillis(), CauseKind.ROLLBACK, null, at) { it == holder }
+            services.capture.recordDirect(
+                flows,
+                System.currentTimeMillis(),
+                CauseKind.ROLLBACK,
+                null,
+                at
+            ) { it == holder }
         }
     }.onFailure {
         logger.log(Level.WARNING, "material overflowed onto the ground and the move could not be recorded", it)

@@ -34,7 +34,12 @@ class RollbackJobPersistenceTest {
         listOf(
             RollbackStep.Take(LotId(1), Quantity(3), block(0, 64, 0)),
             RollbackStep.Mint(LotId(2), Quantity(1), SinkKind.LAVA),
-            RollbackStep.Unmake(listOf(UnmadeOutput(LotId(3), player(1))), listOf(LotContribution(LotId(4), Quantity(9))), TxnId(7), player(1)),
+            RollbackStep.Unmake(
+                listOf(UnmadeOutput(LotId(3), player(1))),
+                listOf(LotContribution(LotId(4), Quantity(9))),
+                TxnId(7),
+                player(1)
+            ),
             RollbackStep.Unmake(
                 listOf(UnmadeOutput(LotId(5), player(1)), UnmadeOutput(LotId(6), player(1))),
                 listOf(LotContribution(LotId(7), Quantity(2))),
@@ -248,17 +253,19 @@ class RollbackJobPersistenceTest {
     }
 
     @Test
-    fun `a save that never finished can still be undone, minus what it had yet to destroy`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            val record = RollbackJobRecord(RollbackJobId(6), plan, RollbackTarget.Uniform(player(1)), create, destroy)
-            stack.jobs.begin(record)
+    fun `a save that never finished can still be undone, minus what it had yet to destroy`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                val record =
+                    RollbackJobRecord(RollbackJobId(6), plan, RollbackTarget.Uniform(player(1)), create, destroy)
+                stack.jobs.begin(record)
 
-            val read = stack.jobs.find(RollbackJobId(6))!!
-            assertEquals(create, read.create)
-            assertTrue(read.destroy.isEmpty())
-            assertTrue(stack.jobs.isUndoable(RollbackJobId(6)))
+                val read = stack.jobs.find(RollbackJobId(6))!!
+                assertEquals(create, read.create)
+                assertTrue(read.destroy.isEmpty())
+                assertTrue(stack.jobs.isUndoable(RollbackJobId(6)))
+            }
         }
-    }
 
     @Test
     fun `a job's blocks are packed by section and still all come back`(@TempDir dir: Path) = runTest {
@@ -411,9 +418,23 @@ class RollbackJobPersistenceTest {
     @Test
     fun `one admin filling their stack evicts only their own oldest`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
-            stack.jobs.save(RollbackJobRecord(RollbackJobId(1), plan, RollbackTarget.Uniform(player(1)), by = player(3)))
+            stack.jobs.save(
+                RollbackJobRecord(
+                    RollbackJobId(1),
+                    plan,
+                    RollbackTarget.Uniform(player(1)),
+                    by = player(3)
+                )
+            )
             for (id in 2L..(2L + RollbackJobRepository.UNDO_DEPTH)) {
-                stack.jobs.save(RollbackJobRecord(RollbackJobId(id), plan, RollbackTarget.Uniform(player(1)), by = player(2)))
+                stack.jobs.save(
+                    RollbackJobRecord(
+                        RollbackJobId(id),
+                        plan,
+                        RollbackTarget.Uniform(player(1)),
+                        by = player(2)
+                    )
+                )
             }
             assertEquals(RollbackJobRepository.UNDO_DEPTH, stack.jobs.undoableBy(player(2), limit = 100).size)
             assertFalse(stack.jobs.isUndoable(RollbackJobId(2)))
@@ -422,14 +443,15 @@ class RollbackJobPersistenceTest {
     }
 
     @Test
-    fun `a job saved before owners were kept is on nobody's stack, the console's included`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            stack.jobs.save(RollbackJobRecord(RollbackJobId(1), plan, RollbackTarget.Uniform(player(1))))
-            stack.storage.write { put(Keys.rbRecent(1), ByteArray(0)) }
+    fun `a job saved before owners were kept is on nobody's stack, the console's included`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                stack.jobs.save(RollbackJobRecord(RollbackJobId(1), plan, RollbackTarget.Uniform(player(1))))
+                stack.storage.write { put(Keys.rbRecent(1), ByteArray(0)) }
 
-            assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoableBy(null, limit = 5))
-            assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoableBy(player(2), limit = 5))
-            assertTrue(stack.jobs.isUndoable(RollbackJobId(1)))
+                assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoableBy(null, limit = 5))
+                assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoableBy(player(2), limit = 5))
+                assertTrue(stack.jobs.isUndoable(RollbackJobId(1)))
+            }
         }
-    }
 }

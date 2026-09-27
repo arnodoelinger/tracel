@@ -62,7 +62,12 @@ class CraftChainRollbackTest {
         val job = RollbackJobId(1)
         val target = RollbackTarget.Uniform(chest)
         jobs.save(RollbackJobRecord(job, plan, target))
-        JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), InMemoryJournal(), world.leases, world::nextTxn)
+        JournalExecutor(
+            RollbackExecutor(world.ledger, world.log, world::nextSeq),
+            InMemoryJournal(),
+            world.leases,
+            world::nextTxn
+        )
             .execute(world.acquireLease(job, plan), plan, target)
 
         assertEquals(16L, world.ledger.totalAt(chest, log)?.raw, "all sixteen logs come back")
@@ -79,8 +84,16 @@ class CraftChainRollbackTest {
         val bench = placedBlock(1, 64, 0)
 
         val logs = world.ledger.mint(steve, log, Quantity(1), world.nextTxn())
-        world.ledger.craft(listOf(Ingredient(steve, log, Quantity(1))), Product(steve, planks, Quantity(4)), world.nextTxn())
-        world.ledger.craft(listOf(Ingredient(steve, planks, Quantity(4))), Product(steve, table, Quantity(1)), world.nextTxn())
+        world.ledger.craft(
+            listOf(Ingredient(steve, log, Quantity(1))),
+            Product(steve, planks, Quantity(4)),
+            world.nextTxn()
+        )
+        world.ledger.craft(
+            listOf(Ingredient(steve, planks, Quantity(4))),
+            Product(steve, table, Quantity(1)),
+            world.nextTxn()
+        )
         world.ledger.move(steve, bench, table, Quantity(1), world.nextTxn())
 
         val withWorld = RollbackPlanner(world.repo, { true })

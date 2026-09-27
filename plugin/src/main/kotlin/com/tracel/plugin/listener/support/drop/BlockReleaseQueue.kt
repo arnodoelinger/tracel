@@ -59,7 +59,13 @@ class BlockReleaseQueue(private val services: TracelServices) {
         var believed: List<Map<ItemKey, Long>>? = null
     }
 
-    private class FollowUp(val flow: Flow, val cause: CauseKind, val causedBy: HolderId?, val epochMillis: Long, val at: BlockPos?)
+    private class FollowUp(
+        val flow: Flow,
+        val cause: CauseKind,
+        val causedBy: HolderId?,
+        val epochMillis: Long,
+        val at: BlockPos?
+    )
 
     private val open = ConcurrentLinkedQueue<Batch>()
 
@@ -90,7 +96,13 @@ class BlockReleaseQueue(private val services: TracelServices) {
      *
      * @return `false` when the drop waits for nothing and the flow can go straight to the ledger.
      */
-    fun afterRelease(flow: Flow, cause: CauseKind, causedBy: HolderId?, epochMillis: Long, at: BlockPos? = null): Boolean {
+    fun afterRelease(
+        flow: Flow,
+        cause: CauseKind,
+        causedBy: HolderId?,
+        epochMillis: Long,
+        at: BlockPos? = null
+    ): Boolean {
         val token = waitingOn[flow.source] ?: return false
         followUps.computeIfAbsent(token) { ConcurrentLinkedQueue() } += FollowUp(flow, cause, causedBy, epochMillis, at)
         return true
@@ -109,14 +121,28 @@ class BlockReleaseQueue(private val services: TracelServices) {
             val release = releases[i]
             services.blockDrops.open(release.world, release.x, release.y, release.z)
         }
-        open += Batch(releases, tokens, cause, causedBy, epochMillis, at, System.currentTimeMillis() + CLAIM_WINDOW_MILLIS)
+        open += Batch(
+            releases,
+            tokens,
+            cause,
+            causedBy,
+            epochMillis,
+            at,
+            System.currentTimeMillis() + CLAIM_WINDOW_MILLIS
+        )
     }
 
     /** Starts a coroutine, runs `pass()`. */
     fun start(scope: CoroutineScope): Job = scope.launch {
         while (isActive) {
             delay(TICK_MILLIS.milliseconds)
-            runCatching { pass() }.onFailure { logger.log(Level.WARNING, "block release pass failed; the loop continues", it) }
+            runCatching { pass() }.onFailure {
+                logger.log(
+                    Level.WARNING,
+                    "block release pass failed; the loop continues",
+                    it
+                )
+            }
         }
     }
 
@@ -142,7 +168,8 @@ class BlockReleaseQueue(private val services: TracelServices) {
             services.atomically {
                 for (batch in uncredited) {
                     batch.believed = batch.releases.mapIndexed { i, release ->
-                        val believed = release.contents ?: services.ledger.totalsAt(release.holder).mapValues { it.value.raw }
+                        val believed =
+                            release.contents ?: services.ledger.totalsAt(release.holder).mapValues { it.value.raw }
                         services.blockDrops.credit(batch.tokens[i], believed)
                         believed
                     }
@@ -161,7 +188,8 @@ class BlockReleaseQueue(private val services: TracelServices) {
         if (closed.isEmpty()) return
         open.removeAll(closed.toSet())
 
-        val finished = closed.map { batch -> batch to batch.releases.indices.map { i -> services.blockDrops.finish(batch.tokens[i]) } }
+        val finished =
+            closed.map { batch -> batch to batch.releases.indices.map { i -> services.blockDrops.finish(batch.tokens[i]) } }
 
         // What waited on these windows goes right after them, in the same commit
         val tokens = closed.flatMapTo(HashSet()) { it.tokens.asIterable() }
@@ -172,10 +200,20 @@ class BlockReleaseQueue(private val services: TracelServices) {
         services.atomically {
             val work = finished.map { (batch, results) ->
                 val flows = batch.releases.flatMapIndexed { i, release ->
-                    val contents = release.contents ?: return@flatMapIndexed flowsFor(release.holder, batch.believed?.getOrNull(i).orEmpty(), results[i])
+                    val contents = release.contents ?: return@flatMapIndexed flowsFor(
+                        release.holder,
+                        batch.believed?.getOrNull(i).orEmpty(),
+                        results[i]
+                    )
                     val ledger = services.ledger.totalsAt(release.holder).mapValues { it.value.raw }
                     val unseen = contents.mapValues { (key, qty) -> qty - (ledger[key] ?: 0L) }.filterValues { it > 0L }
-                    if (unseen.isNotEmpty()) services.capture.recordDirect(worldgenMintFlows(unseen, release.holder), batch.epochMillis - 1, CauseKind.WORLD, null, batch.at)
+                    if (unseen.isNotEmpty()) services.capture.recordDirect(
+                        worldgenMintFlows(unseen, release.holder),
+                        batch.epochMillis - 1,
+                        CauseKind.WORLD,
+                        null,
+                        batch.at
+                    )
                     flowsFor(release.holder, contents, results[i])
                 }
                 batch to flows
@@ -186,8 +224,20 @@ class BlockReleaseQueue(private val services: TracelServices) {
                 val mark = services.storage.read { mark() }
                 try {
                     val (mints, rest) = flows.partition { it.kind == FlowKind.MINT && it.destination !is HolderId.Entity }
-                    if (mints.isNotEmpty()) services.capture.recordDirect(mints, batch.epochMillis - 1, CauseKind.WORLD, null, batch.at)
-                    if (rest.isNotEmpty()) services.capture.recordDirect(rest, batch.epochMillis, batch.cause, batch.causedBy, batch.at)
+                    if (mints.isNotEmpty()) services.capture.recordDirect(
+                        mints,
+                        batch.epochMillis - 1,
+                        CauseKind.WORLD,
+                        null,
+                        batch.at
+                    )
+                    if (rest.isNotEmpty()) services.capture.recordDirect(
+                        rest,
+                        batch.epochMillis,
+                        batch.cause,
+                        batch.causedBy,
+                        batch.at
+                    )
                     services.storage.read { release(mark) }
                 } catch (e: IllegalStateException) {
                     services.storage.read { rollbackTo(mark) }
@@ -197,7 +247,13 @@ class BlockReleaseQueue(private val services: TracelServices) {
             for (follow in after) {
                 val mark = services.storage.read { mark() }
                 try {
-                    services.capture.recordDirect(listOf(follow.flow), follow.epochMillis, follow.cause, follow.causedBy, follow.at)
+                    services.capture.recordDirect(
+                        listOf(follow.flow),
+                        follow.epochMillis,
+                        follow.cause,
+                        follow.causedBy,
+                        follow.at
+                    )
                     services.storage.read { release(mark) }
                 } catch (e: IllegalStateException) {
                     services.storage.read { rollbackTo(mark) }

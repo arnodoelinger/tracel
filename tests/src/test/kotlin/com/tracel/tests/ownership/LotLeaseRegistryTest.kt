@@ -51,7 +51,10 @@ class LotLeaseRegistryTest {
         val job = RollbackJobId(1)
         registry.acquire(job, setOf(LotId(1), LotId(2)))
 
-        assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(job, setOf(LotId(1), LotId(2), LotId(3))))
+        assertInstanceOf(
+            LeaseAcquisition.Granted::class.java,
+            registry.acquire(job, setOf(LotId(1), LotId(2), LotId(3)))
+        )
     }
 
     @Test

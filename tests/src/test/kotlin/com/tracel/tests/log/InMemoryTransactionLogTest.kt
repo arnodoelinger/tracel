@@ -80,7 +80,10 @@ class InMemoryTransactionLogTest {
         listOf(txn1, txn2, txn3).forEach { log.append(it) }
 
         assertEquals(listOf(txn2, txn1), log.query(LookupFilter(holders = setOf(steve, griefer))))
-        assertEquals(listOf(txn1), log.query(LookupFilter(holders = setOf(steve, griefer), excludedHolders = setOf(griefer))))
+        assertEquals(
+            listOf(txn1),
+            log.query(LookupFilter(holders = setOf(steve, griefer), excludedHolders = setOf(griefer)))
+        )
         assertEquals(listOf(txn3, txn1), log.query(LookupFilter(material = "minecraft:diamond")))
         assertEquals(listOf(txn2), log.query(LookupFilter(causes = setOf(CauseKind.EXPLOSION))))
         assertEquals(listOf(txn3, txn2), log.query(LookupFilter(since = 2_000L)))
@@ -122,8 +125,26 @@ class InMemoryTransactionLogTest {
         val here = block(3, 64, 5)
         val there = block(1608, 64, 1608)
         val steve = player(1)
-        log.append(Transaction(TxnId(1), Seq(1), 100, CauseKind.PLAYER_ACTION, steve, listOf(Flow(diamond, Quantity(1), here, steve, FlowKind.MOVE))))
-        log.append(Transaction(TxnId(2), Seq(2), 200, CauseKind.PLAYER_ACTION, steve, listOf(Flow(diamond, Quantity(1), there, steve, FlowKind.MOVE))))
+        log.append(
+            Transaction(
+                TxnId(1),
+                Seq(1),
+                100,
+                CauseKind.PLAYER_ACTION,
+                steve,
+                listOf(Flow(diamond, Quantity(1), here, steve, FlowKind.MOVE))
+            )
+        )
+        log.append(
+            Transaction(
+                TxnId(2),
+                Seq(2),
+                200,
+                CauseKind.PLAYER_ACTION,
+                steve,
+                listOf(Flow(diamond, Quantity(1), there, steve, FlowKind.MOVE))
+            )
+        )
 
         val nearby = LookupRegion(world, 0, 0, 0, 0)
         assertEquals(
@@ -138,7 +159,14 @@ class InMemoryTransactionLogTest {
         val chest = block(0, 64, 0)
         val steve = player(1)
         val txns = (1..5).map { i ->
-            Transaction(TxnId(i.toLong()), Seq(i.toLong()), i * 1_000L, CauseKind.HOPPER, null, listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE)))
+            Transaction(
+                TxnId(i.toLong()),
+                Seq(i.toLong()),
+                i * 1_000L,
+                CauseKind.HOPPER,
+                null,
+                listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE))
+            )
         }
         txns.forEach { log.append(it) }
 
@@ -156,9 +184,30 @@ class InMemoryTransactionLogTest {
         val log = InMemoryTransactionLog()
         val chest = block(0, 64, 0)
         val steve = player(1)
-        val original = Transaction(TxnId(1), Seq(1), 100, CauseKind.PLAYER_ACTION, steve, listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE)))
-        val rollback = Transaction(TxnId(2), Seq(2), 200, CauseKind.ROLLBACK, null, listOf(Flow(diamond, Quantity(1), steve, chest, FlowKind.MOVE)))
-        val undo = Transaction(TxnId(3), Seq(3), 300, CauseKind.INVOLUTION, null, listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE)))
+        val original = Transaction(
+            TxnId(1),
+            Seq(1),
+            100,
+            CauseKind.PLAYER_ACTION,
+            steve,
+            listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE))
+        )
+        val rollback = Transaction(
+            TxnId(2),
+            Seq(2),
+            200,
+            CauseKind.ROLLBACK,
+            null,
+            listOf(Flow(diamond, Quantity(1), steve, chest, FlowKind.MOVE))
+        )
+        val undo = Transaction(
+            TxnId(3),
+            Seq(3),
+            300,
+            CauseKind.INVOLUTION,
+            null,
+            listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE))
+        )
         listOf(original, rollback, undo).forEach { log.append(it) }
 
         assertEquals(rollback, log.find(TxnId(2)))

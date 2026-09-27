@@ -53,6 +53,7 @@ internal fun MaterialRestorer.applyLectern(
                     inventory.setItem(0, null)
                     if (-delta > 1) moves.short(itemKey, -delta - 1)
                 }
+
                 else -> moves.short(itemKey, -delta)
             }
         }

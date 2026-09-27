@@ -45,7 +45,11 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
         val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.WORLD
 
         val facing = (block.blockData as? Directional)?.facing
-        if (by != null && facing != null && item.type.name.endsWith("_SPAWN_EGG")) DispenseCell.fired(block.getRelative(facing), by)
+        if (by != null && facing != null && item.type.name.endsWith("_SPAWN_EGG")) DispenseCell.fired(
+            block.getRelative(
+                facing
+            ), by
+        )
 
         // Straight onto a body
         val armor = event as? BlockDispenseArmorEvent
@@ -58,7 +62,10 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
                 cause = cause,
                 causedBy = by,
                 at = block.location,
-                deltas = listOf(InventoryDelta(dispenser, itemKey, -quantity), InventoryDelta(wearer, itemKey, quantity)),
+                deltas = listOf(
+                    InventoryDelta(dispenser, itemKey, -quantity),
+                    InventoryDelta(wearer, itemKey, quantity)
+                ),
                 mintShortfallAt = dispenser,
             )
             return

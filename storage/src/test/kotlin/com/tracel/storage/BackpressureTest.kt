@@ -33,7 +33,10 @@ class BackpressureTest {
             val elapsed = kotlin.system.measureNanoTime {
                 repeat(10_000) { gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1) }
             }
-            assertTrue(elapsed < 500_000_000, "10 000 refused enqueues took ${elapsed / 1_000_000}ms — something waited")
+            assertTrue(
+                elapsed < 500_000_000,
+                "10 000 refused enqueues took ${elapsed / 1_000_000}ms — something waited"
+            )
             assertTrue(gate.dropped > 9_000, "a 64-slot ring must have refused most of 10 000 events")
         }
     }

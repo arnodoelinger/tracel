@@ -52,7 +52,13 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     private val dropBlame = ExpiringMap<UUID, HolderId>(PENDING_DROP_MS)
     private val sheared = ExpiringMap<UUID, Unit>(SHEAR_DROP_MS)
 
-    private data class FramePop(val world: UUID, val at: Location, val holder: HolderId, val key: ItemKey, val by: HolderId?)
+    private data class FramePop(
+        val world: UUID,
+        val at: Location,
+        val holder: HolderId,
+        val key: ItemKey,
+        val by: HolderId?
+    )
 
     private val framePops = ExpiringMap<Long, FramePop>(SHEAR_DROP_MS)
     private val nextPop = AtomicLong()
@@ -87,13 +93,29 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         val epochMillis = System.currentTimeMillis()
         val credited = pendingDrops.remove(item.uniqueId)
         if (credited != null) {
-            creditDrop(credited, itemKey, qty, groundHolder, epochMillis, item.location, dropBlame.remove(item.uniqueId) ?: credited)
+            creditDrop(
+                credited,
+                itemKey,
+                qty,
+                groundHolder,
+                epochMillis,
+                item.location,
+                dropBlame.remove(item.uniqueId) ?: credited
+            )
             return
         }
         val popped = takeFramePop(item.location, itemKey)
         if (popped != null) {
             material.adjust(popped.holder, itemKey, -qty)
-            creditDrop(popped.holder, itemKey, qty, groundHolder, epochMillis, item.location, popped.by ?: popped.holder)
+            creditDrop(
+                popped.holder,
+                itemKey,
+                qty,
+                groundHolder,
+                epochMillis,
+                item.location,
+                popped.by ?: popped.holder
+            )
             return
         }
         val hull = services.hullDrops.take(item.location, itemKey)
@@ -142,7 +164,16 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
 
         val stack = item.itemStack
         if (thrower != null && throwerPlayer != null && !throwerPlayer.isLedgeredHolder()) {
-            movedStack(CauseKind.PLAYER_ACTION, HolderId.Player(thrower), stack, qty, CREATIVE_SOURCE, groundHolder, epochMillis, item.location)
+            movedStack(
+                CauseKind.PLAYER_ACTION,
+                HolderId.Player(thrower),
+                stack,
+                qty,
+                CREATIVE_SOURCE,
+                groundHolder,
+                epochMillis,
+                item.location
+            )
             return
         }
 
@@ -150,9 +181,25 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             val playerHolder = HolderId.Player(thrower)
             // Bypass of diff(); without adjust a later click compares against a stale pre-drop snapshot
             for ((key, amount) in stack.totalsOf(qty)) material.adjust(playerHolder, key, -amount)
-            movedStack(CauseKind.PLAYER_ACTION, playerHolder, stack, qty, playerHolder, groundHolder, epochMillis, item.location)
+            movedStack(
+                CauseKind.PLAYER_ACTION,
+                playerHolder,
+                stack,
+                qty,
+                playerHolder,
+                groundHolder,
+                epochMillis,
+                item.location
+            )
         } else {
-            for ((key, amount) in stack.totalsOf(qty)) material.single(CauseKind.WORLD, null, key, groundHolder, amount, epochMillis)
+            for ((key, amount) in stack.totalsOf(qty)) material.single(
+                CauseKind.WORLD,
+                null,
+                key,
+                groundHolder,
+                amount,
+                epochMillis
+            )
         }
     }
 
@@ -190,7 +237,14 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             // Mob pickup
             val taken = (item.itemStack.amount - event.remaining).toLong()
             if (taken > 0) {
-                movedStack(CauseKind.WORLD, null, item.itemStack, taken, HolderId.ItemEntity(item.uniqueId), HolderId.Entity(event.entity.uniqueId))
+                movedStack(
+                    CauseKind.WORLD,
+                    null,
+                    item.itemStack,
+                    taken,
+                    HolderId.ItemEntity(item.uniqueId),
+                    HolderId.Entity(event.entity.uniqueId)
+                )
             }
             return
         }
@@ -201,12 +255,28 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         val playerHolder = HolderId.Player(player.uniqueId)
 
         if (!player.isLedgeredHolder() && !tracked) {
-            movedStack(CauseKind.PLAYER_ACTION, playerHolder, item.itemStack, pickedUp, groundHolder, CREATIVE_SINK, at = item.location)
+            movedStack(
+                CauseKind.PLAYER_ACTION,
+                playerHolder,
+                item.itemStack,
+                pickedUp,
+                groundHolder,
+                CREATIVE_SINK,
+                at = item.location
+            )
             return
         }
 
         for ((key, amount) in item.itemStack.totalsOf(pickedUp)) material.adjust(playerHolder, key, amount)
-        movedStack(CauseKind.PLAYER_ACTION, playerHolder, item.itemStack, pickedUp, groundHolder, playerHolder, at = item.location)
+        movedStack(
+            CauseKind.PLAYER_ACTION,
+            playerHolder,
+            item.itemStack,
+            pickedUp,
+            groundHolder,
+            playerHolder,
+            at = item.location
+        )
     }
 
     @Observes
@@ -296,7 +366,10 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         val stack = frame.item
         if (stack.type.isAir) return
         val world = frame.world.uid
-        framePops.put(nextPop.incrementAndGet(), FramePop(world, frame.location, frame.toCargoHolderId(), stack.toItemKey(), services.damageBlame(event).who))
+        framePops.put(
+            nextPop.incrementAndGet(),
+            FramePop(world, frame.location, frame.toCargoHolderId(), stack.toItemKey(), services.damageBlame(event).who)
+        )
     }
 
     @Observes
@@ -378,7 +451,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         EntityRemoveEvent.Cause.OUT_OF_WORLD,
         EntityRemoveEvent.Cause.DISCARD,
         EntityRemoveEvent.Cause.DEATH,
-        -> SinkKind.UNATTRIBUTED
+            -> SinkKind.UNATTRIBUTED
 
         EntityRemoveEvent.Cause.DESPAWN,
         EntityRemoveEvent.Cause.PLUGIN,
@@ -388,7 +461,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         EntityRemoveEvent.Cause.PLAYER_QUIT,
         EntityRemoveEvent.Cause.TRANSFORMATION,
         EntityRemoveEvent.Cause.DROP,
-        -> null
+            -> null
     }
 
     private fun movedStack(
@@ -401,9 +474,19 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         epochMillis: Long = System.currentTimeMillis(),
         at: Location? = null,
     ) {
-        val where = at?.takeIf { causedBy is HolderId.Player }?.let { BlockPos(WorldId(it.world.uid), it.blockX, it.blockY, it.blockZ) }
+        val where = at?.takeIf { causedBy is HolderId.Player }
+            ?.let { BlockPos(WorldId(it.world.uid), it.blockX, it.blockY, it.blockZ) }
         for ((key, amount) in stack.totalsOf(quantity)) {
-            material.moved(cause = cause, causedBy = causedBy, itemKey = key, from = from, to = to, quantity = amount, epochMillis = epochMillis, at = where)
+            material.moved(
+                cause = cause,
+                causedBy = causedBy,
+                itemKey = key,
+                from = from,
+                to = to,
+                quantity = amount,
+                epochMillis = epochMillis,
+                at = where
+            )
         }
     }
 

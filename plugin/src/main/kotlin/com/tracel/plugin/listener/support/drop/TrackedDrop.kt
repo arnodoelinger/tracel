@@ -24,7 +24,12 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.resume
 
-fun TracelServices.spawnAsRelease(itemKey: ItemKey, quantity: Long, world: World, location: Location): List<InventoryDelta> =
+fun TracelServices.spawnAsRelease(
+    itemKey: ItemKey,
+    quantity: Long,
+    world: World,
+    location: Location
+): List<InventoryDelta> =
     itemKey.toItemStacks(quantity).map { stack -> dropTracked(stack, itemKey, world, location) }
 
 internal fun TracelServices.dropTracked(
@@ -132,7 +137,7 @@ fun TracelServices.recordAt(
         } catch (e: IllegalStateException) {
             Warnings.once(releaseLogger, "untracked:$cause:${causedBy ?: where}") {
                 "material in $cause at $where is not on the ledger's books, so it was not recorded " +
-                    "— a rollback cannot put back what was never written down (${e.message})"
+                        "— a rollback cannot put back what was never written down (${e.message})"
             }
         }
     }.invokeOnCompletion { pendingCaptures.done(ticket) }

@@ -23,10 +23,12 @@ internal fun syncCargoFlags(state: BlockState) {
             val disc = (state as? Jukebox)?.record ?: saved.getOrNull(0)
             data.setHasRecord(disc.isReal())
         }
+
         is LecternData -> {
             val book = saved.getOrNull(0)
             data.setHasBook(book.isReal())
         }
+
         else -> return
     }
     state.blockData = data

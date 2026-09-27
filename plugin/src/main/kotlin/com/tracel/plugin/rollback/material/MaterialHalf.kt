@@ -41,7 +41,12 @@ interface MaterialHalf {
     ): RestorationReport
 
     /** After the ledger undid. [asOf] is the original job's run time, not the historical target. */
-    suspend fun undoRestore(steps: List<InvolutionStep>, job: RollbackJobId, noise: Set<LotId>, asOf: Long? = null): RestorationReport
+    suspend fun undoRestore(
+        steps: List<InvolutionStep>,
+        job: RollbackJobId,
+        noise: Set<LotId>,
+        asOf: Long? = null
+    ): RestorationReport
 
     /** Worn tools the plan reached, back to the damage they had at [asOf]. After [restore]. */
     suspend fun rewear(plan: RollbackPlan, target: RollbackTarget, job: RollbackJobId, asOf: Long)

@@ -18,7 +18,7 @@ fun HolderId.blockPos(): BlockPos? = when (this) {
     is HolderId.Source,
     is HolderId.Sink,
     is HolderId.Escrow,
-    -> null
+        -> null
 }
 
 /** Which world this holder is in, when it names one. */
@@ -33,7 +33,7 @@ fun HolderId.worldId(): WorldId? = when (this) {
     is HolderId.Source,
     is HolderId.Sink,
     is HolderId.Escrow,
-    -> null
+        -> null
 }
 
 /** The entity this holder is about, when it is one that can simply stop existing. */
@@ -48,7 +48,7 @@ fun HolderId.entityUuid(): UUID? = when (this) {
     is HolderId.Source,
     is HolderId.Sink,
     is HolderId.Escrow,
-    -> null
+        -> null
 }
 
 /**

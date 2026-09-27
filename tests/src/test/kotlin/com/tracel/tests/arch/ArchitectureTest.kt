@@ -44,9 +44,9 @@ class ArchitectureTest {
             .files
             .assertFalse(testName = "no blocking waits in plugin") { file ->
                 file.text.contains("Thread.sleep") ||
-                    file.text.contains(".getNow(") ||
-                    Regex("""\bfutures?\.get\(""").containsMatchIn(file.text) ||
-                    file.text.contains("CountDownLatch")
+                        file.text.contains(".getNow(") ||
+                        Regex("""\bfutures?\.get\(""").containsMatchIn(file.text) ||
+                        file.text.contains("CountDownLatch")
             }
     }
 
@@ -102,7 +102,7 @@ class ArchitectureTest {
         ports.assertTrue(testName = "InMemory is @SingleWriter") { it.hasAnnotationOf(SingleWriter::class) }
         ports.assertTrue(testName = "InMemory is @RunsOn(STORAGE)") { klass ->
             klass.hasAnnotationOf(RunsOn::class) &&
-                klass.annotations.any { it.text.contains("STORAGE") }
+                    klass.annotations.any { it.text.contains("STORAGE") }
         }
         ports.flatMap { klass ->
             klass.functions(includeNested = false)
@@ -147,7 +147,7 @@ class ArchitectureTest {
             .filter { klass -> klass.annotations.any { it.text.contains("STORAGE") } }
             .assertFalse(testName = "STORAGE has no Bukkit") { klass ->
                 klass.containingFile.text.contains("org.bukkit") ||
-                    klass.containingFile.text.contains("io.papermc")
+                        klass.containingFile.text.contains("io.papermc")
             }
     }
 
@@ -249,8 +249,18 @@ class ArchitectureTest {
 
     @Test
     fun `rollback structure and material halves never import each other`() {
-        rollbackLayer("structure").assertFalse(testName = "structure imports material") { importsRollback(it.text, "material") }
-        rollbackLayer("material").assertFalse(testName = "material imports structure") { importsRollback(it.text, "structure") }
+        rollbackLayer("structure").assertFalse(testName = "structure imports material") {
+            importsRollback(
+                it.text,
+                "material"
+            )
+        }
+        rollbackLayer("material").assertFalse(testName = "material imports structure") {
+            importsRollback(
+                it.text,
+                "structure"
+            )
+        }
     }
 
     @Test

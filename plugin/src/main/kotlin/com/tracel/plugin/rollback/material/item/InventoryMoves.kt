@@ -29,7 +29,8 @@ internal fun takeByKey(
     if (amount <= 0L) return 0L
     var remaining = amount
     val contents = inventory.contents
-    val order = contents.indices.sortedBy { slot -> contents[slot]?.let { it.canCarry() && it.carried().isNotEmpty() } == true }
+    val order =
+        contents.indices.sortedBy { slot -> contents[slot]?.let { it.canCarry() && it.carried().isNotEmpty() } == true }
     for (slot in order) {
         if (remaining <= 0L) break
         val stack = contents[slot] ?: continue
@@ -177,6 +178,7 @@ private fun intoRoleSlot(inventory: Inventory, stack: ItemStack): ItemStack? = w
         for (slot in brewingSlots(stack)) left = left?.let { fill(inventory, slot, it) }
         left
     }
+
     is SaddledMountInventory -> intoTack(inventory, stack)
     else -> stack
 }
@@ -190,11 +192,13 @@ private fun intoTack(inventory: SaddledMountInventory, stack: ItemStack): ItemSt
             worn = runCatching { inventory.saddle }.getOrNull()
             wear = { runCatching { inventory.saddle = it } }
         }
+
         inventory is ArmoredHorseInventory &&
-            (name.endsWith("_HORSE_ARMOR") || name == "HORSE_ARMOR" || runCatching { stack.type.equipmentSlot }.getOrNull() == EquipmentSlot.BODY) -> {
+                (name.endsWith("_HORSE_ARMOR") || name == "HORSE_ARMOR" || runCatching { stack.type.equipmentSlot }.getOrNull() == EquipmentSlot.BODY) -> {
             worn = runCatching { inventory.armor }.getOrNull()
             wear = { runCatching { inventory.armor = it } }
         }
+
         inventory is LlamaInventory && name.endsWith("_CARPET") -> {
             worn = runCatching { inventory.decor }.getOrNull()
             wear = { runCatching { inventory.decor = it } }
@@ -270,7 +274,7 @@ private fun brewingSlots(stack: ItemStack): List<Int> = when {
 
 private fun isBottle(material: Material): Boolean =
     material == Material.POTION || material == Material.SPLASH_POTION ||
-        material == Material.LINGERING_POTION || material == Material.GLASS_BOTTLE
+            material == Material.LINGERING_POTION || material == Material.GLASS_BOTTLE
 
 private val cooking: Pair<Set<Material>, Set<Material>> by lazy { cookingMaterials() }
 

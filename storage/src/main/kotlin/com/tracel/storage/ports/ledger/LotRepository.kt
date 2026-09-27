@@ -41,7 +41,12 @@ class LotRepository(
     private val stamps: Cache<LotId, Long> = Caffeine.newBuilder()
         .maximumSize(2_000_000)
         .executor(Runnable::run)
-        .removalListener<LotId, Long> { _, stamp, cause -> if (cause.wasEvicted() && stamp != null) evictedFloor.accumulateAndGet(stamp, ::maxOf) }
+        .removalListener<LotId, Long> { _, stamp, cause ->
+            if (cause.wasEvicted() && stamp != null) evictedFloor.accumulateAndGet(
+                stamp,
+                ::maxOf
+            )
+        }
         .build()
 
     override suspend fun version(): Long = version.get()
@@ -447,7 +452,14 @@ class LotRepository(
             val lot = readLot(this, lotId)
             // placed anywhere, not only here: on disk a second place was a silent duplicate
             scan(Keys.placeRevPrefix(lotId.raw)).use { cursor ->
-                check(!cursor.next()) { "lot $lotId is already placed at ${interning.resolveHolder(this, KeyReader.u32(cursor.key(), 9))}" }
+                check(!cursor.next()) {
+                    "lot $lotId is already placed at ${
+                        interning.resolveHolder(
+                            this,
+                            KeyReader.u32(cursor.key(), 9)
+                        )
+                    }"
+                }
             }
             val holderId = interning.internHolder(this, holder)
             val itemKeyId = interning.internItemKey(this, lot.itemKey)

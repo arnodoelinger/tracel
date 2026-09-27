@@ -126,8 +126,13 @@ internal suspend fun RollbackComposer.materialAndContested(
                 planned.trace.span("save job") {
                     services.jobs.begin(
                         RollbackJobRecord(
-                            job, composite.material, planned.target, first.created.applied,
-                            targetTimeMillis = planned.targetTimeMillis, executedAtMillis = startedAtMillis, by = planned.by,
+                            job,
+                            composite.material,
+                            planned.target,
+                            first.created.applied,
+                            targetTimeMillis = planned.targetTimeMillis,
+                            executedAtMillis = startedAtMillis,
+                            by = planned.by,
                         )
                     )
                 }
@@ -147,13 +152,22 @@ internal suspend fun RollbackComposer.materialAndContested(
             }.also {
                 val asOf = planned.targetTimeMillis
                 val tools = deltas.values.any { moved -> moved.keys.any(WornStacks::wears) }
-                if (asOf != null && tools) planned.trace.span("rewear tools") { materialHalf.rewear(composite.material, planned.target, job, asOf) }
+                if (asOf != null && tools) planned.trace.span("rewear tools") {
+                    materialHalf.rewear(
+                        composite.material,
+                        planned.target,
+                        job,
+                        asOf
+                    )
+                }
             }
         }
         val removing = if (layout.deferred.isEmpty()) null else async {
             val failed = if (early && items != null) settled.await() else items?.await()?.failures?.keys.orEmpty()
             val (stuck, removable) = layout.deferred.partition { it.cargoHolderIn(failed) }
-            val kept = StructureReport(emptyList(), stuck.map { SkippedStep(it.at, "its contents could not be taken out, so it was left in place") })
+            val kept = StructureReport(
+                emptyList(),
+                stuck.map { SkippedStep(it.at, "its contents could not be taken out, so it was left in place") })
             kept + planned.trace.span("remove contested") {
                 structureHalf.restore(
                     removable,
