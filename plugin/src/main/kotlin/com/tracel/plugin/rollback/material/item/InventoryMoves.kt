@@ -289,6 +289,7 @@ private fun isCooked(material: Material): Boolean = material in cooking.first
 
 private fun isSmeltable(material: Material): Boolean = material in cooking.second
 
+@Suppress("DEPRECATION")
 private fun cookingMaterials(): Pair<Set<Material>, Set<Material>> {
     val results = HashSet<Material>()
     val inputs = HashSet<Material>()

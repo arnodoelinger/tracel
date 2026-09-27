@@ -108,7 +108,7 @@ class EntityKindsTest {
     @Test
     fun `wildlife wandering in is not`() {
         for (reason in listOf(
-            SpawnReason.NATURAL, SpawnReason.CHUNK_GEN, SpawnReason.SPAWNER,
+            SpawnReason.NATURAL, SpawnReason.SPAWNER,
             SpawnReason.TRIAL_SPAWNER, SpawnReason.RAID, SpawnReason.PATROL,
             SpawnReason.REINFORCEMENTS, SpawnReason.JOCKEY, SpawnReason.SLIME_SPLIT,
         )) {

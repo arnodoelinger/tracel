@@ -830,7 +830,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             if (material != null) {
                 val before = interning.resolveBlockData(unit, beforeId).value
                 val after = interning.resolveBlockData(unit, afterId).value
-                val aliases = filter?.blockMaterials.orEmpty()
+                val aliases = filter.blockMaterials.orEmpty()
                 if (!before.matchesAny(material, aliases) && !after.matchesAny(material, aliases)) {
                     return@forEachSectionPosition
                 }

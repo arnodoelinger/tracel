@@ -147,6 +147,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     // No event reports these: the world writes them straight in. Read them after instead
 
     @Observes
+    @Suppress("DEPRECATION")
     fun onPlaceUnderWater(event: BlockPlaceEvent) {
         val block = event.blockPlaced
         if (block.type == Material.WET_SPONGE && block.world.isUltraWarm) {
