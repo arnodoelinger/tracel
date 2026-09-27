@@ -170,9 +170,14 @@ private suspend fun RollbackComposer.undoFrozen(
 
 private fun RollbackJobRecord.touches(): Set<Any> = buildSet {
     for (step in create + destroy) add(step.at)
-    for (holder in plan.holders) add(holder.blockPos() ?: holder)
+    for (holder in plan.holders) touch(holder)
     when (val target = target) {
-        is RollbackTarget.Uniform -> add(target.holder.blockPos() ?: target.holder)
-        is RollbackTarget.PerRoot -> for (holder in target.byRoot.values) add(holder.blockPos() ?: holder)
+        is RollbackTarget.Uniform -> touch(target.holder)
+        is RollbackTarget.PerRoot -> for (holder in target.byRoot.values) touch(holder)
     }
+}
+
+private fun MutableSet<Any>.touch(holder: HolderId) {
+    if (holder is HolderId.Source || holder is HolderId.Sink || holder is HolderId.Escrow) return
+    add(holder.blockPos() ?: holder)
 }

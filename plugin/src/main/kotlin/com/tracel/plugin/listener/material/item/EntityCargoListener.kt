@@ -209,6 +209,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
     fun onKillCommand(event: PlayerCommandPreprocessEvent) {
         val body = event.message.removePrefix("/")
         if (!body.isCommand("kill")) return
+        if (!event.player.hasPermission("minecraft.command.kill")) return
         val selector = body.substringAfter(' ', "").trim().ifEmpty { return }
         val targets = runCatching { Bukkit.selectEntities(event.player, selector) }.getOrNull() ?: return
         val by = HolderId.Player(event.player.uniqueId)

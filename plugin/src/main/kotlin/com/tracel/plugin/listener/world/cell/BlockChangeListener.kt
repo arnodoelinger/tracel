@@ -136,6 +136,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onBurn(event: BlockBurnEvent) {
         val by = FireCell.at(event.ignitingBlock) ?: FireCell.at(event.block)
+        by?.let { FireCell.lit(event.block, it) }
         shape.removed(
             block = event.block,
             cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
