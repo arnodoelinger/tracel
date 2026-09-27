@@ -7,9 +7,18 @@ import org.bukkit.entity.Player
 import org.bukkit.event.inventory.CraftItemEvent
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
+import org.bukkit.event.inventory.InventoryOpenEvent
+import com.tracel.model.holder.HolderId
+import com.tracel.plugin.adapter.item.toHolderId
+import com.tracel.plugin.adapter.item.toItemTotals
+import com.tracel.plugin.adapter.item.transientInputs
+import com.tracel.plugin.adapter.block.toBlockPos
 import org.bukkit.event.inventory.InventoryCreativeEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.inventory.InventoryType
+import org.bukkit.event.inventory.InventoryAction
+import com.tracel.plugin.listener.support.ContainerDrops
+import com.tracel.plugin.adapter.item.toItemKey
 import org.bukkit.inventory.CraftingInventory
 
 /**
@@ -32,6 +41,13 @@ class InventoryClickListener(services: TracelServices) : TracelListener(services
 
         val player = event.whoClicked as? Player ?: return
         val view = event.view
+        if ((event.action == InventoryAction.DROP_ALL_SLOT || event.action == InventoryAction.DROP_ONE_SLOT) && event.clickedInventory == view.topInventory) {
+            val from = view.topInventory.toHolderId()
+            val stack = event.currentItem
+            if ((from is HolderId.Block || from is HolderId.Entity) && stack != null && !stack.type.isAir) {
+                ContainerDrops.expect(player.uniqueId, from, stack.toItemKey())
+            }
+        }
         material.scheduleReconcile(
             player = player,
             inventories = listOfNotNull(view.topInventory, view.bottomInventory)
@@ -56,6 +72,15 @@ class InventoryClickListener(services: TracelServices) : TracelListener(services
             player = player,
             inventories = listOfNotNull(view.topInventory, view.bottomInventory)
         )
+    }
+
+    @Observes
+    fun onOpen(event: InventoryOpenEvent) {
+        val top = event.inventory
+        if (top is CraftingInventory || top.transientInputs() != null) return
+        val holder = top.toHolderId() ?: return
+        if (holder !is HolderId.Block && holder !is HolderId.Entity) return
+        material.seedOnOpen(holder, top.toItemTotals(), top.location?.block?.toBlockPos())
     }
 
     @Observes

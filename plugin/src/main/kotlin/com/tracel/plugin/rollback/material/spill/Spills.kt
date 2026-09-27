@@ -30,6 +30,12 @@ internal fun MaterialRestorer.spillInRegion(holder: HolderId, moves: Moves, worl
     val where = BlockPos(WorldId(world.uid), at.blockX, at.blockY, at.blockZ)
     val spilled = moves.overflow.map { (itemKey, stack) -> Spill(holder, services.dropTracked(stack, itemKey, world, at), where) }
     sink += spilled
+    recordSpilled(holder, where, spilled)
+}
+
+/** Books piles already on the ground as moved out of [holder]; [recordSpills] waits for it. */
+internal fun MaterialRestorer.recordSpilled(holder: HolderId, where: BlockPos, spilled: List<Spill>) {
+    if (spilled.isEmpty()) return
     val recording = services.scope.launch { recordSpillGroup(holder, where, spilled) }
     spillRecords += recording
     recording.invokeOnCompletion { spillRecords -= recording }

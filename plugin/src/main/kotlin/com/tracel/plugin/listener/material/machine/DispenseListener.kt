@@ -1,8 +1,11 @@
 package com.tracel.plugin.listener.material.machine
 
+import com.tracel.plugin.listener.support.DispensedBy
+import org.bukkit.block.data.Directional
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
+import com.tracel.annotations.Unstable
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
@@ -17,6 +20,7 @@ import org.bukkit.event.block.BlockDispenseArmorEvent
 import org.bukkit.event.block.BlockDispenseEvent
 
 /** Dispense listener. */
+@Unstable
 class DispenseListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.HIGHEST) // A monitor cannot cancel
     fun holdWhileRestoring(event: BlockDispenseEvent) {
@@ -37,6 +41,12 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
         val itemKey = item.toItemKey()
         val quantity = item.amount.toLong()
 
+        val by = services.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
+        val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+
+        val facing = (block.blockData as? Directional)?.facing
+        if (by != null && facing != null && item.type.name.endsWith("_SPAWN_EGG")) DispensedBy.fired(block.getRelative(facing), by)
+
         // Straight onto a body
         val armor = event as? BlockDispenseArmorEvent
         if (armor != null) {
@@ -45,8 +55,8 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
             material.adjust(dispenser, itemKey, -quantity)
             material.adjust(wearer, itemKey, quantity)
             material.positioned(
-                cause = CauseKind.WORLD,
-                causedBy = null,
+                cause = cause,
+                causedBy = by,
                 at = block.location,
                 deltas = listOf(InventoryDelta(dispenser, itemKey, -quantity), InventoryDelta(wearer, itemKey, quantity)),
                 mintShortfallAt = dispenser,
@@ -62,8 +72,8 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
                     contents = mapOf(itemKey to quantity),
                 ),
             ),
-            cause = CauseKind.WORLD,
-            causedBy = null,
+            cause = cause,
+            causedBy = by,
             at = block.toBlockPos(),
         )
     }

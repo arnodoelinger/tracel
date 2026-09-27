@@ -1,5 +1,7 @@
 package com.tracel.plugin.rollback.structure.block
 
+import org.bukkit.block.data.type.Leaves
+import org.bukkit.Tag
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.block.BlockDataKey
@@ -15,11 +17,21 @@ import com.tracel.plugin.adapter.block.takeAll
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import org.bukkit.block.Block
+import org.bukkit.block.data.type.BubbleColumn
+import org.bukkit.block.data.Levelled
+import org.bukkit.block.BlockFace
+import org.bukkit.Material
 import org.bukkit.block.BrewingStand
 import org.bukkit.block.Campfire
 import org.bukkit.block.Furnace
 import org.bukkit.block.data.BlockData
 import org.bukkit.inventory.ItemStack
+
+private val LEAF_FACES = arrayOf(BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST)
+
+private const val LEAF_MAX_DISTANCE = 7
+private const val MAX_LEAF_SETTLE = 4_096
+private const val MAX_BUBBLE_COLUMN = 384
 
 /** Apply [step]; report with the live standing shape. */
 @Unstable
@@ -62,6 +74,10 @@ internal fun StructureRestorer.applyPlain(block: Block, step: StructureStep.SetB
         block.setBlockData(targetData, false)
     } else if (!alreadyTarget) {
         step.target.applyTo(block, physics = false)
+    }
+    if (!alreadyTarget) {
+        block.wakeBubbles()
+        runCatching { block.settleLeaves() }
     }
 
     if (standing == null) return Applied(step)
@@ -126,4 +142,60 @@ internal fun StructureRestorer.carryOver(block: Block, saved: List<ItemStack?>) 
 private fun Block.ticksOnly(): Boolean = when (runCatching { getState(false) }.getOrNull()) {
     is Furnace, is BrewingStand, is Campfire -> true
     else -> false
+}
+
+private fun Block.wakeBubbles() {
+    val drag = when (type) {
+        Material.SOUL_SAND -> false
+        Material.MAGMA_BLOCK -> true
+        else -> null
+    }
+    var cell = getRelative(BlockFace.UP)
+    var left = MAX_BUBBLE_COLUMN
+    while (left-- > 0) {
+        val data = cell.blockData
+        val source = (data as? Levelled)?.let { cell.type == Material.WATER && it.level == 0 } ?: false
+        when {
+            drag != null && (source || cell.type == Material.BUBBLE_COLUMN) ->
+                cell.setBlockData((Material.BUBBLE_COLUMN.createBlockData() as BubbleColumn).also { it.isDrag = drag }, false)
+            drag == null && cell.type == Material.BUBBLE_COLUMN -> cell.setBlockData(Material.WATER.createBlockData(), false)
+            else -> return
+        }
+        cell = cell.getRelative(BlockFace.UP)
+    }
+}
+
+private fun Block.settleLeaves() {
+    val start = distanceOf(this) ?: return
+    val queue = ArrayDeque<Pair<Block, Int>>()
+    queue += this to start
+    var budget = MAX_LEAF_SETTLE
+    while (queue.isNotEmpty() && budget-- > 0) {
+        val (cell, distance) = queue.removeFirst()
+        for (face in LEAF_FACES) {
+            val next = cell.getRelative(face)
+            val leaves = next.blockData as? Leaves ?: continue
+            if (leaves.isPersistent || distance + 1 >= leaves.distance) continue
+            leaves.distance = distance + 1
+            next.setBlockData(leaves, false)
+            if (distance + 1 < LEAF_MAX_DISTANCE) queue += next to distance + 1
+        }
+    }
+}
+
+private fun distanceOf(block: Block): Int? {
+    if (Tag.LOGS.isTagged(block.type)) return 0
+    val leaves = block.blockData as? Leaves ?: return null
+    if (leaves.isPersistent) return null
+    var best = leaves.distance
+    for (face in LEAF_FACES) {
+        val near = block.getRelative(face)
+        val d = if (Tag.LOGS.isTagged(near.type)) 0 else (near.blockData as? Leaves)?.distance ?: continue
+        if (d + 1 < best) best = d + 1
+    }
+    if (best < leaves.distance) {
+        leaves.distance = best
+        block.setBlockData(leaves, false)
+    }
+    return best.takeIf { it < LEAF_MAX_DISTANCE }
 }

@@ -1,6 +1,9 @@
 package com.tracel.plugin.adapter.block
 
 import com.tracel.annotations.Unstable
+import org.bukkit.persistence.PersistentDataType
+import org.bukkit.block.Crafter
+import com.tracel.plugin.adapter.block.capability.extras.DISABLED_SLOTS
 import java.nio.ByteBuffer
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.block.BlockDataKey
@@ -89,13 +92,13 @@ internal fun captureShape(state: BlockState): BlockShape {
     CargoSnapshot.empty(copy)
     return BlockShape(
         BlockDataKey(CargoClaims.cleared(copy.blockData)),
-        tileExtras(copy) ?: NameableExtras.of(state),
+        tileExtras(copy, state) ?: NameableExtras.of(state),
     )
 }
 
 /** Banner patterns or `BlockStateMeta` NBT, or `null` if capture failed. */
-private fun tileExtras(state: BlockState): BlockExtras? = runCatching {
-    BannerExtras.of(state) ?: SkullExtras.of(state) ?: BlockStateMetaExtras.of(state)
+private fun tileExtras(state: BlockState, live: BlockState = state): BlockExtras? = runCatching {
+    BannerExtras.of(state) ?: SkullExtras.of(state) ?: BlockStateMetaExtras.of(state, live)
 }.getOrElse {
     logger.log(Level.FINE, "block entity at ${state.location} could not be captured, keeping its state only", it)
     null
@@ -149,6 +152,8 @@ private fun applyBlockEntityExtras(
             (state as? Nameable)?.let { named ->
                 if (meta.hasCustomName()) named.customName(meta.customName())
             }
+            val off = meta.persistentDataContainer.get(DISABLED_SLOTS, PersistentDataType.INTEGER_ARRAY)
+            if (off != null) (state as? Crafter)?.let { crafter -> for (slot in off) runCatching { crafter.setSlotDisabled(slot, true) } }
             state.update(true, physics)
             return
         }

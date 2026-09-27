@@ -1,5 +1,7 @@
 package com.tracel.plugin.listener.material.item
 
+import com.tracel.plugin.adapter.entity.toBlockPos
+import com.tracel.plugin.listener.support.HitBy
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
@@ -19,7 +21,10 @@ import com.tracel.plugin.adapter.entity.toPlacedEntityId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.isLedgeredHolder
 import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.listener.world.entity.isCommand
+import org.bukkit.Bukkit
 import org.bukkit.entity.AbstractVillager
+import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.ArmorStand
 import org.bukkit.entity.ChestedHorse
 import org.bukkit.entity.Mob
@@ -32,6 +37,7 @@ import org.bukkit.event.hanging.HangingBreakByEntityEvent
 import org.bukkit.event.hanging.HangingBreakEvent
 import org.bukkit.event.hanging.HangingPlaceEvent
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent
+import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.vehicle.VehicleCreateEvent
 import org.bukkit.event.vehicle.VehicleDestroyEvent
@@ -107,7 +113,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onVehicleDestroy(event: VehicleDestroyEvent) {
-        destroyed(event.vehicle, (event.attacker as? Player)?.let { HolderId.Player(it.uniqueId) })
+        destroyed(event.vehicle, (event.attacker as? Player)?.let { HolderId.Player(it.uniqueId) } ?: HitBy.of(event.vehicle))
     }
 
     @Observes
@@ -118,7 +124,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         if (event.entity is Player) return
 
         withholdManagedCargo(event)
-        destroyed(event.entity, event.entity.killer?.let { HolderId.Player(it.uniqueId) })
+        destroyed(event.entity, event.entity.killer?.let { HolderId.Player(it.uniqueId) } ?: HitBy.of(event.entity))
     }
 
     private fun withholdManagedCargo(event: EntityDeathEvent) {
@@ -159,7 +165,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
 
         val hull = if (entity.dropsSelf()) entity.hullItemKey() else null
         if (hull != null) {
-            services.hullDrops.expect(entity.location, entity.toPlacedEntityId(), hull)
+            services.hullDrops.expect(entity.location, entity.toPlacedEntityId(), hull, causedBy)
         } else {
             material.released(
                 cause = CauseKind.ENTITY_ACTION,
@@ -182,7 +188,10 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         }
         val cargo = entity is InventoryHolder || entity is ItemFrame || entity is ArmorStand
         if (!cargo) return
+        dropCargo(entity, causedBy, epochMillis)
+    }
 
+    private fun dropCargo(entity: Entity, causedBy: HolderId?, epochMillis: Long) {
         // Read before empty. Respawning only ledgered lots made pre-plugin frames drop nothing
         val removed = entity.cargoStacks()
         entity.emptyCargo()
@@ -194,6 +203,22 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
             epochMillis = epochMillis,
             removed = removed
         )
+    }
+
+    @Observes
+    fun onKillCommand(event: PlayerCommandPreprocessEvent) {
+        val body = event.message.removePrefix("/")
+        if (!body.isCommand("kill")) return
+        val selector = body.substringAfter(' ', "").trim().ifEmpty { return }
+        val targets = runCatching { Bukkit.selectEntities(event.player, selector) }.getOrNull() ?: return
+        val by = HolderId.Player(event.player.uniqueId)
+        val epochMillis = System.currentTimeMillis()
+        for (target in targets) {
+            if (target is LivingEntity || target !is InventoryHolder) continue
+            if (!Bukkit.isOwnedByCurrentRegion(target)) continue
+            if (restoring) return
+            dropCargo(target, by, epochMillis)
+        }
     }
 
     // No seed: SnapshotDiffer already marks unseen holders as gaps.
@@ -220,6 +245,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
     }
 
     private fun cargoChanged(player: Player, entity: Entity, totals: () -> Map<ItemKey, Long>) {
+        material.seedOnOpen(entity.toCargoHolderId(), totals(), entity.toBlockPos())
         later(entity) {
             val cargo = totals()
             val holder = entity.toCargoHolderId()

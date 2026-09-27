@@ -4,6 +4,7 @@ import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.model.flow.Flow
+import com.tracel.model.flow.FlowKind
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices
@@ -60,13 +61,13 @@ class BlockReleaseQueue(private val services: TracelServices) {
         var believed: List<Map<ItemKey, Long>>? = null
     }
 
+    private class FollowUp(val flow: Flow, val cause: CauseKind, val causedBy: HolderId?, val epochMillis: Long, val at: BlockPos?)
+
     private val open = ConcurrentLinkedQueue<Batch>()
 
     private val waitingOn = ConcurrentHashMap<HolderId, Long>()
     private val followUps = ConcurrentHashMap<Long, ConcurrentLinkedQueue<FollowUp>>()
     private val outstanding = ConcurrentHashMap<Long, Int>()
-
-    private class FollowUp(val flow: Flow, val cause: CauseKind, val causedBy: HolderId?, val epochMillis: Long)
 
     /**
      * [drop] spawned inside the window [token] belongs to; whatever happens to it waits for that window,
@@ -91,9 +92,9 @@ class BlockReleaseQueue(private val services: TracelServices) {
      *
      * @return `false` when the drop waits for nothing and the flow can go straight to the ledger.
      */
-    fun afterRelease(flow: Flow, cause: CauseKind, causedBy: HolderId?, epochMillis: Long): Boolean {
+    fun afterRelease(flow: Flow, cause: CauseKind, causedBy: HolderId?, epochMillis: Long, at: BlockPos? = null): Boolean {
         val token = waitingOn[flow.source] ?: return false
-        followUps.computeIfAbsent(token) { ConcurrentLinkedQueue() } += FollowUp(flow, cause, causedBy, epochMillis)
+        followUps.computeIfAbsent(token) { ConcurrentLinkedQueue() } += FollowUp(flow, cause, causedBy, epochMillis, at)
         return true
     }
 
@@ -143,8 +144,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
             services.atomically {
                 for (batch in uncredited) {
                     batch.believed = batch.releases.mapIndexed { i, release ->
-                        val believed = release.contents
-                            ?: services.ledger.totalsAt(release.holder).mapValues { it.value.raw }
+                        val believed = release.contents ?: services.ledger.totalsAt(release.holder).mapValues { it.value.raw }
                         services.blockDrops.credit(batch.tokens[i], believed)
                         believed
                     }
@@ -163,17 +163,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
         if (closed.isEmpty()) return
         open.removeAll(closed.toSet())
 
-        val work = closed.map { batch ->
-            val believed = batch.believed
-            val flows = batch.releases.flatMapIndexed { i, release ->
-                flowsFor(
-                    release.holder,
-                    believed?.getOrNull(i).orEmpty(),
-                    services.blockDrops.finish(batch.tokens[i]),
-                )
-            }
-            batch to flows
-        }
+        val finished = closed.map { batch -> batch to batch.releases.indices.map { i -> services.blockDrops.finish(batch.tokens[i]) } }
 
         // What waited on these windows goes right after them, in the same commit
         val tokens = closed.flatMapTo(HashSet()) { it.tokens.asIterable() }
@@ -182,12 +172,24 @@ class BlockReleaseQueue(private val services: TracelServices) {
         val after = tokens.flatMap { token -> followUps.remove(token).orEmpty() }
 
         services.atomically {
+            val work = finished.map { (batch, results) ->
+                val flows = batch.releases.flatMapIndexed { i, release ->
+                    val contents = release.contents ?: return@flatMapIndexed flowsFor(release.holder, batch.believed?.getOrNull(i).orEmpty(), results[i])
+                    val ledger = services.ledger.totalsAt(release.holder).mapValues { it.value.raw }
+                    val unseen = contents.mapValues { (key, qty) -> qty - (ledger[key] ?: 0L) }.filterValues { it > 0L }
+                    if (unseen.isNotEmpty()) services.capture.recordDirect(worldgenMintFlows(unseen, release.holder), batch.epochMillis - 1, CauseKind.WORLD, null, batch.at)
+                    flowsFor(release.holder, contents, results[i])
+                }
+                batch to flows
+            }
             for ((batch, flows) in work) {
                 if (flows.isEmpty()) continue
                 // Savepoint per batch: one unseen-material failure must not unwind the rest of the commit
                 val mark = services.storage.read { mark() }
                 try {
-                    services.capture.recordDirect(flows, batch.epochMillis, batch.cause, batch.causedBy, batch.at)
+                    val (mints, rest) = flows.partition { it.kind == FlowKind.MINT && it.destination !is HolderId.Entity }
+                    if (mints.isNotEmpty()) services.capture.recordDirect(mints, batch.epochMillis - 1, CauseKind.WORLD, null, batch.at)
+                    if (rest.isNotEmpty()) services.capture.recordDirect(rest, batch.epochMillis, batch.cause, batch.causedBy, batch.at)
                     services.storage.read { release(mark) }
                 } catch (e: IllegalStateException) {
                     services.storage.read { rollbackTo(mark) }
@@ -197,7 +199,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
             for (follow in after) {
                 val mark = services.storage.read { mark() }
                 try {
-                    services.capture.recordDirect(listOf(follow.flow), follow.epochMillis, follow.cause, follow.causedBy, null)
+                    services.capture.recordDirect(listOf(follow.flow), follow.epochMillis, follow.cause, follow.causedBy, follow.at)
                     services.storage.read { release(mark) }
                 } catch (e: IllegalStateException) {
                     services.storage.read { rollbackTo(mark) }
@@ -206,7 +208,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
             }
         }
 
-        for ((batch, _) in work) batch.releases.forEach { services.differ.forget(it.holder) }
+        for ((batch, _) in finished) batch.releases.forEach { services.differ.forget(it.holder) }
     }
 
     private companion object {

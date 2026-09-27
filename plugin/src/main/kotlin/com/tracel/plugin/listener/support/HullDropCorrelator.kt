@@ -18,11 +18,14 @@ class HullDropCorrelator {
         val z: Double,
         val holder: HolderId.PlacedEntity,
         val key: ItemKey,
+        val by: HolderId?,
     )
 
     private val next = AtomicLong()
     private val claims = ExpiringMap<Long, Claim>(ttlMillis = 1_000L)
 
+    /** What a hull spawn is bound to, and who broke it. */
+    data class Hull(val holder: HolderId.PlacedEntity, val by: HolderId?)
 
     /**
      * [holder] drops [key] at [at].
@@ -32,13 +35,13 @@ class HullDropCorrelator {
      *
      * The floor item keeps the same lot.
      */
-    fun expect(at: Location, holder: HolderId.PlacedEntity, key: ItemKey) {
+    fun expect(at: Location, holder: HolderId.PlacedEntity, key: ItemKey, by: HolderId? = null) {
         val world = at.world?.uid ?: return
-        claims.put(next.incrementAndGet(), Claim(world, at.x, at.y, at.z, holder, key))
+        claims.put(next.incrementAndGet(), Claim(world, at.x, at.y, at.z, holder, key, by))
     }
 
     /** Bind a nearby hull spawn to the [HolderId.PlacedEntity] that [expect]ed this [key]. */
-    fun take(at: Location, key: ItemKey): HolderId.PlacedEntity? {
+    fun take(at: Location, key: ItemKey): Hull? {
         val world = at.world?.uid ?: return null
         val radiusSq = MATCH_RADIUS * MATCH_RADIUS
         var bestId: Long? = null
@@ -57,7 +60,7 @@ class HullDropCorrelator {
             }
         }
         if (bestId != null) claims.remove(bestId)
-        return best?.holder
+        return best?.let { Hull(it.holder, it.by) }
     }
 
     private companion object {

@@ -10,6 +10,8 @@ import com.tracel.plugin.adapter.block.container
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.id.Quantity
+import com.tracel.model.item.ItemKey
+import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.lostRelativeTo
 import com.tracel.plugin.adapter.item.mergedWith
@@ -33,6 +35,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.block.CrafterCraftEvent
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.CraftItemEvent
+import org.bukkit.inventory.CraftingInventory
 import org.bukkit.inventory.meta.Damageable
 
 /** Craft listener. */
@@ -54,32 +57,49 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
         val where = event.inventory.location?.block?.toBlockPos() ?: player.toBlockPos()
         if (event.click == ClickType.DROP || event.click == ClickType.CONTROL_DROP) CraftDrops.expect(player.uniqueId)
 
+        material.craftOwed(player.uniqueId)
         later(player) {
-            val thrown = CraftDrops.take(player.uniqueId)
-            val matrix = event.inventory.matrix.toItemTotals()
-            val consumed = before.lostRelativeTo(matrix)
-            if (consumed.isEmpty()) return@later
+            try {
+                book(player, event.inventory, playerHolder, before, produced, where, productDamage)
+            } finally {
+                material.craftBooked(player.uniqueId)
+            }
+        }
+    }
 
-            // Grid is part of the player snapshot (cursor too)
-            val totals = player.inventory.toItemTotals().mergedWith(matrix).withCursor(player)
-            val ingredients = consumed.map { (key, qty) -> Ingredient(playerHolder, key, Quantity(qty)) }
-            val epochMillis = System.currentTimeMillis()
+    private fun book(
+        player: Player,
+        grid: CraftingInventory,
+        playerHolder: HolderId.Player,
+        before: Map<ItemKey, Long>,
+        produced: String?,
+        where: BlockPos,
+        productDamage: Int?,
+    ) {
+        val thrown = CraftDrops.take(player.uniqueId)
+        val matrix = grid.matrix.toItemTotals()
+        val consumed = before.lostRelativeTo(matrix)
+        if (consumed.isEmpty()) return
 
-            // Diffed here, in click order: on the storage thread a second craft had already moved the snapshot on
-            val seeded = services.differ.diffIfSeeded(playerHolder, totals)
+        // Grid is part of the player snapshot (cursor too)
+        val totals = player.inventory.toItemTotals().mergedWith(matrix).withCursor(player)
+        val ingredients = consumed.map { (key, qty) -> Ingredient(playerHolder, key, Quantity(qty)) }
+        val epochMillis = System.currentTimeMillis()
 
-            owing {
-                try {
-                    material.craftedByPlayer(playerHolder, totals, seeded, produced, ingredients, thrown, where, epochMillis, productDamage) { gains ->
-                        logger.log(
-                            Level.FINE,
-                            "craft by $playerHolder produced $gains distinct item keys and none " +
-                                "uniquely matched ${produced ?: "an unknown recipe"}, not recorded",
-                        )
-                    }
-                } catch (e: IllegalStateException) {
-                    logger.log(Level.FINE, "untracked ingredient material for craft by $playerHolder, not recorded", e)
+        // Diffed here, in click order: on the storage thread a second craft had already moved the snapshot on
+        val seeded = services.differ.diffIfSeeded(playerHolder, totals)
+
+        owing {
+            try {
+                material.craftedByPlayer(playerHolder, totals, seeded, produced, ingredients, thrown, where, epochMillis, productDamage) { gains ->
+                    logger.log(
+                        Level.FINE,
+                        "craft by $playerHolder produced $gains distinct item keys and none " +
+                            "uniquely matched ${produced ?: "an unknown recipe"}, not recorded",
+                    )
                 }
+            } catch (e: IllegalStateException) {
+                logger.log(Level.FINE, "untracked ingredient material for craft by $playerHolder, not recorded", e)
             }
         }
     }

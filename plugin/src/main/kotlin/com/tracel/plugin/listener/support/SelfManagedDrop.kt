@@ -1,5 +1,6 @@
 package com.tracel.plugin.listener.support
 
+import com.tracel.model.flow.FlowKind
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.holder.HolderId
@@ -34,6 +35,8 @@ internal fun TracelServices.dropTracked(
 
     // Track until pickup / rollback: blast merge swaps UUID, ledger names the dead one, diamonds stay
     selfManagedSpawns.track(item.uniqueId)
+    // the vanished check asks from the global thread, blind to this region: without a hint the pile read as gone
+    groundWhereabouts.remember(item)
     return InventoryDelta(HolderId.ItemEntity(item.uniqueId), itemKey, stack.amount.toLong())
 }
 
@@ -79,7 +82,11 @@ fun TracelServices.releaseAsTrackedDrops(
                     else believed.flatMap { (itemKey, qty) -> spawnAsRelease(itemKey, qty, world, at) }
                 }
                 val flows = releaseFlows(holder, believed, release, spawned)
-                atomically { capture.recordDirect(flows, epochMillis, cause, causedBy, where) }
+                val (mints, rest) = flows.partition { it.kind == FlowKind.MINT }
+                atomically {
+                    if (mints.isNotEmpty()) capture.recordDirect(mints, epochMillis - 1, CauseKind.WORLD, null, where)
+                    if (rest.isNotEmpty()) capture.recordDirect(rest, epochMillis, cause, causedBy, where)
+                }
             }
         } catch (e: IllegalStateException) {
             releaseLogger.log(Level.FINE, "untracked material in $holder, not recorded", e)
@@ -153,5 +160,5 @@ private suspend fun TracelServices.mintUnseen(
     if (shortfall.isEmpty()) return
 
     for ((itemKey, amount) in shortfall) differ.adjust(holder, itemKey, amount)
-    capture.recordDirect(worldgenMintFlows(shortfall, holder), epochMillis, cause, causedBy, where)
+    capture.recordDirect(worldgenMintFlows(shortfall, holder), epochMillis - 1, CauseKind.WORLD, null, where)
 }

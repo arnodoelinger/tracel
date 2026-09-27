@@ -2,11 +2,15 @@ package com.tracel.plugin.listener.material.inventory
 
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
+import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.isLedgeredHolder
+import com.tracel.plugin.listener.support.DESTROYED_SINK
+import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.adapter.entity.toBlockPos
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.PlayerLeashEntityEvent
 import org.bukkit.event.player.PlayerBucketEmptyEvent
@@ -14,6 +18,8 @@ import org.bukkit.event.player.PlayerBucketEntityEvent
 import org.bukkit.event.player.PlayerBucketFillEvent
 import org.bukkit.event.player.PlayerEditBookEvent
 import org.bukkit.event.player.PlayerGameModeChangeEvent
+import org.bukkit.event.player.PlayerInteractEntityEvent
+import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.player.PlayerItemBreakEvent
 import org.bukkit.event.player.PlayerItemConsumeEvent
 import org.bukkit.event.player.PlayerTakeLecternBookEvent
@@ -21,12 +27,31 @@ import org.bukkit.event.player.PlayerUnleashEntityEvent
 import org.bukkit.inventory.InventoryHolder
 
 /** Hand mutations listener. */
+@Unstable
 class HandMutationListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onConsume(event: PlayerItemConsumeEvent) = afterTick(event.player)
 
     @Observes(ignoreCancelled = false)
-    fun onItemBreak(event: PlayerItemBreakEvent) = afterTick(event.player)
+    fun onItemBreak(event: PlayerItemBreakEvent) {
+        val player = event.player
+        if (!player.isLedgeredHolder()) return
+        val holder = HolderId.Player(player.uniqueId)
+        val itemKey = event.brokenItem.toItemKey()
+        material.adjust(holder, itemKey, -1L)
+        material.moved(CauseKind.PLAYER_ACTION, holder, itemKey, holder, DESTROYED_SINK, 1L, at = player.toBlockPos())
+    }
+
+    @Observes(ignoreCancelled = false)
+    fun onEgg(event: PlayerInteractEvent) {
+        if (event.item?.type?.name?.endsWith("_SPAWN_EGG") == true) afterTick(event.player)
+    }
+
+    @Observes
+    fun onEggOnMob(event: PlayerInteractEntityEvent) {
+        val hand = event.player.inventory.getItem(event.hand)
+        if (hand.type.name.endsWith("_SPAWN_EGG")) afterTick(event.player)
+    }
 
     @Observes
     fun onEditBook(event: PlayerEditBookEvent) = afterTick(event.player)

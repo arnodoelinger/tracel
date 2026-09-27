@@ -32,6 +32,10 @@ import org.bukkit.event.block.EntityBlockFormEvent
 import org.bukkit.event.block.FluidLevelChangeEvent
 import org.bukkit.event.block.MoistureChangeEvent
 import org.bukkit.event.weather.LightningStrikeEvent
+import java.util.UUID
+import com.tracel.plugin.util.ExpiringSet
+import org.bukkit.entity.LightningStrike
+import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent
 import org.bukkit.event.world.PortalCreateEvent
 import org.bukkit.event.world.StructureGrowEvent
 
@@ -169,11 +173,21 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     }
 
     @Observes
-    fun onLightning(event: LightningStrikeEvent) {
-        val hit = event.lightning.location.block
+    fun onLightning(event: LightningStrikeEvent) = struck(event.lightning)
+
+    @Observes
+    fun onLightningSpawn(event: EntityAddToWorldEvent) {
+        (event.entity as? LightningStrike)?.let(::struck)
+    }
+
+    private val seenBolts = ExpiringSet<UUID>(BOLT_SEEN_MS)
+
+    private fun struck(bolt: LightningStrike) {
+        if (!seenBolts.add(bolt.uniqueId)) return
+        val hit = bolt.location.block
         val near = ArrayList<Block>(LIGHTNING_REACH)
         for (dx in -1..1) for (dy in -2..0) for (dz in -1..1) near += hit.getRelative(dx, dy, dz)
-        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.WORLD, null, near) { it.before != it.after }
+        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.WORLD, null, near, delayTicks = LIGHTNING_SETTLE_TICKS) { it.before != it.after }
     }
 
     private companion object {
@@ -182,5 +196,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         const val MAX_BUBBLE_COLUMN = 64
         const val BUBBLE_DELAY_TICKS = 5L
         const val LIGHTNING_REACH = 27
+        const val LIGHTNING_SETTLE_TICKS = 5L
+        const val BOLT_SEEN_MS = 5_000L
     }
 }

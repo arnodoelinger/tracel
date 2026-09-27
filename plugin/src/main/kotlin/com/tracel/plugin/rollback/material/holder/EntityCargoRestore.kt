@@ -147,12 +147,12 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
     val moves = Moves()
     when (entity) {
         is ArmorStand -> {
-            applyArmorStand(entity, deltas, forms, moves)
+            applyArmorStand(entity, deltas, forms, moves, worn)
             entity.resyncCargoViewers(services.plugin)
             services.differ.forget(holder)
         }
         is ItemFrame -> {
-            applyItemFrame(entity, deltas, forms, moves)
+            applyItemFrame(entity, deltas, forms, moves, worn)
             entity.resyncCargoViewers(services.plugin)
             services.differ.forget(holder)
         }
@@ -171,7 +171,7 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
             if (attach) horse.isCarryingChest = true
             // After attach, getInventory() is a new wrapper
             val live = if (attach) entity.inventory else inventory
-            val preferredSlots = asOf?.let { services.containerSlots.layoutAt(holder, it) }
+            val preferredSlots = asOf?.let { layoutFor(holder, it) }
                 ?.groupBy { it.itemKey }
                 .orEmpty()
 

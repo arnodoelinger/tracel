@@ -10,6 +10,7 @@ import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.BlockRelease
+import com.tracel.plugin.listener.support.HitBy
 import com.tracel.plugin.listener.support.isLedgeredHolder
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityDeathEvent
@@ -21,6 +22,7 @@ class DeathListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onPlayerDeath(event: PlayerDeathEvent) {
         val player = event.entity
+        material.died(player.uniqueId)
         if (!player.isLedgeredHolder()) return
 
         val dropped = event.drops.totals()
@@ -45,7 +47,7 @@ class DeathListener(services: TracelServices) : TracelListener(services) {
 
         val entity = event.entity
         val at = entity.location
-        val killer = entity.killer?.let { HolderId.Player(it.uniqueId) }
+        val killer = entity.killer?.let { HolderId.Player(it.uniqueId) } ?: HitBy.of(entity)
 
         material.releasing(
             releases = listOf(BlockRelease(HolderId.Entity(entity.uniqueId), at.world, at.blockX, at.blockY, at.blockZ)),

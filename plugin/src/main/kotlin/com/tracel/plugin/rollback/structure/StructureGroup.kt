@@ -205,6 +205,7 @@ internal fun StructureRestorer.applyGroup(
             val hull = step.shape.spawnInto(world, step.entity, step.entity in keepCargoFor, resurrect = !inPlace)
             if (hull != null) {
                 applied += step
+                services.whereabouts.remember(hull)
                 if (!hull.linkedAsRecorded(step.shape)) looseEnds += hull to step.shape
             } else {
                 val why = if (inPlace) "entity is no longer here — a change to it is not a resurrection" else "entity could not be restored"

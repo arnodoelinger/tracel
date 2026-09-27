@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.composer
 
+import com.tracel.plugin.listener.support.LiveProjectiles
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
@@ -82,7 +83,7 @@ internal suspend fun RollbackComposer.planRollback(
         trace.span("plan structure") { StructurePlanner().plan(paired) }
     }
     val keepCargoOn = create.mapNotNullTo(HashSet()) { (it as? StructureStep.SpawnEntity)?.entity }
-    val covered = if (!structure) null else placedCovered(create + destroy)
+    val covered = if (!structure) null else placedCovered(create + destroy) + LiveProjectiles.holders()
     val materials = if (!material) NO_MATERIAL else planMaterial(txns, trace, keepCargoOn, structure, covered)
     val vanishedCells = if (paired.isEmpty()) emptySet() else StructurePlanner().cellsAirToAir(paired)
     val target = materials.target.awayFromAirToAir(vanishedCells)

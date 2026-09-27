@@ -9,6 +9,8 @@ import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
 import org.bukkit.block.Block
+import com.tracel.model.holder.HolderId
+import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.event.Cancellable
 import org.bukkit.event.block.BlockCookEvent
 import org.bukkit.event.inventory.BrewEvent
@@ -16,6 +18,8 @@ import org.bukkit.event.inventory.FurnaceBurnEvent
 
 /** Smelt event listener. */
 class SmeltListener(services: TracelServices) : TracelListener(services) {
+    private val queued = ConcurrentHashMap.newKeySet<HolderId>()
+
     @Observes(priority = Priority.HIGHEST)
     fun holdCookWhileRestoring(event: BlockCookEvent) = holdWhileRestoring(event.block, event)
 
@@ -42,7 +46,11 @@ class SmeltListener(services: TracelServices) : TracelListener(services) {
         val holder = block.toHolderId()
         val at = block.toBlockPos()
 
+        if (!queued.add(holder)) return
         later(block.location) {
+            queued.remove(holder)
+
+            if (material.reconcilePending(holder)) return@later
             val totals = block.cargoTotals()
             if (totals != null) material.reconcile(
                 holder = holder,

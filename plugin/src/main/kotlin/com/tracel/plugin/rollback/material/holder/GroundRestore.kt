@@ -16,6 +16,7 @@ import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.stackFor
 import com.tracel.plugin.rollback.material.item.stacksOf
 import com.tracel.plugin.rollback.material.spill.Spill
+import com.tracel.plugin.rollback.material.spill.recordSpilled
 import com.tracel.plugin.util.blockPos
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.CancellationException
@@ -198,12 +199,18 @@ internal fun MaterialRestorer.spawnReturnedDrop(
     val world = worldOf(at.world) ?: return "world is not loaded"
     val loc = Location(world, at.x + 0.5, at.y + 0.5, at.z + 0.5)
     val where = BlockPos(at.world, at.x, at.y, at.z)
-    for ((itemKey, qty) in deltas) {
-        if (qty <= 0L) continue
-        val template = stackFor(itemKey, 1, forms[itemKey]) ?: return "unknown material ${itemKey.material}"
-        for (stack in stacksOf(itemKey, qty, template)) {
-            sink += Spill(vanished, services.dropTracked(stack, itemKey, world, loc), where)
+    val spilled = ArrayList<Spill>()
+    try {
+        for ((itemKey, qty) in deltas) {
+            if (qty <= 0L) continue
+            val template = stackFor(itemKey, 1, forms[itemKey]) ?: return "unknown material ${itemKey.material}"
+            for (stack in stacksOf(itemKey, qty, template)) {
+                spilled += Spill(vanished, services.dropTracked(stack, itemKey, world, loc), where)
+            }
         }
+    } finally {
+        sink += spilled
+        recordSpilled(vanished, where, spilled)
     }
     return null
 }

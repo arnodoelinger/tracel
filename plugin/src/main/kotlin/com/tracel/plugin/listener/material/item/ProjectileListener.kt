@@ -14,6 +14,7 @@ import com.tracel.plugin.adapter.entity.kind.shouldLogProjectile
 import com.tracel.plugin.adapter.entity.toPlacedEntityId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.CREATIVE_SINK
+import com.tracel.plugin.listener.support.LiveProjectiles
 import com.tracel.plugin.listener.support.isLedgeredHolder
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile
@@ -21,8 +22,6 @@ import org.bukkit.event.entity.EntityRemoveEvent
 import org.bukkit.event.entity.ProjectileLaunchEvent
 import org.bukkit.event.player.PlayerPickupArrowEvent
 import org.bukkit.projectiles.BlockProjectileSource
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Projectile listener.
@@ -33,8 +32,6 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @Unstable
 class ProjectileListener(services: TracelServices) : TracelListener(services) {
-    private val booked = ConcurrentHashMap.newKeySet<UUID>()
-
     @Observes
     fun onLaunch(event: ProjectileLaunchEvent) {
         if (restoring) return
@@ -46,7 +43,8 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
 
         when (val shooter = projectile.shooter) {
             is Player -> fromPlayer(shooter, projectile, itemKey, holder)
-            is BlockProjectileSource -> fromBlock(shooter, projectile, itemKey, holder)
+            is BlockProjectileSource -> fromBlock(projectile, itemKey, holder)
+            null -> fromBlock(projectile, itemKey, holder)
             else -> Unit
         }
     }
@@ -67,24 +65,13 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
             at = projectile.location,
             deltas = listOf(InventoryDelta(holder, itemKey, 1L), InventoryDelta(playerHolder, itemKey, -1L)),
         )
-        booked += projectile.uniqueId
+        LiveProjectiles.add(projectile.uniqueId)
     }
 
-    private fun fromBlock(
-        shooter: BlockProjectileSource,
-        projectile: Projectile,
-        itemKey: ItemKey,
-        holder: HolderId.PlacedEntity,
-    ) {
-        val block = shooter.block
-        later(projectile, DROP_CLAIM_DELAY_TICKS) {
-
-            // Hit in four ticks: release burn is honest; do not mint against nothing
-            if (!projectile.isValid) return@later
-            val loc = projectile.location
-            val claimed = services.blockDrops.claim(block.world, loc.x, loc.y, loc.z, itemKey, 1L, holder)
-            if (claimed > 0L) booked += projectile.uniqueId
-        }
+    private fun fromBlock(projectile: Projectile, itemKey: ItemKey, holder: HolderId.PlacedEntity) {
+        val loc = projectile.location
+        val claimed = services.blockDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, 1L, holder)
+        if (claimed > 0L) LiveProjectiles.add(projectile.uniqueId)
     }
 
     @Observes
@@ -111,7 +98,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
             )
             return
         }
-        booked -= arrow.uniqueId
+        LiveProjectiles.remove(arrow.uniqueId)
         material.adjust(
             holder = playerHolder,
             itemKey = itemKey,
@@ -131,7 +118,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
     fun onRemove(event: EntityRemoveEvent) {
         if (restoring) return
         val projectile = event.entity as? Projectile ?: return
-        if (projectile.uniqueId !in booked) return
+        if (projectile.uniqueId !in LiveProjectiles) return
         when (event.cause) {
             EntityRemoveEvent.Cause.PICKUP,
             EntityRemoveEvent.Cause.UNLOAD,
@@ -139,7 +126,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
             -> return
             else -> Unit
         }
-        booked -= projectile.uniqueId
+        LiveProjectiles.remove(projectile.uniqueId)
         services.groundWhereabouts.remember(projectile)
         material.released(
             cause = CauseKind.WORLD,
@@ -149,7 +136,4 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
         )
     }
 
-    private companion object {
-        const val DROP_CLAIM_DELAY_TICKS = 4L
-    }
 }

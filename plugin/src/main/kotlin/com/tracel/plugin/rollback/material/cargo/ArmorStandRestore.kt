@@ -4,6 +4,7 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.item.Moves
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.item.matches
 import com.tracel.plugin.rollback.material.item.stackFor
 import com.tracel.plugin.rollback.material.item.stacksOf
@@ -21,10 +22,12 @@ internal fun MaterialRestorer.applyArmorStand(
     deltas: Map<ItemKey, Long>,
     forms: Map<ItemKey, ByteArray>,
     moves: Moves,
+    worn: WornStacks? = null,
 ) {
     val eq = stand.equipment
     for ((itemKey, delta) in deltas) {
-        val template = stackFor(itemKey, 1, forms[itemKey])
+        val real = if (delta > 0 && WornStacks.wears(itemKey)) worn?.next(itemKey) else null
+        val template = real?.clone()?.apply { amount = 1 } ?: stackFor(itemKey, 1, forms[itemKey])
         if (template == null) {
             moves.problem("${itemKey.material} is not an item this server can build")
             continue

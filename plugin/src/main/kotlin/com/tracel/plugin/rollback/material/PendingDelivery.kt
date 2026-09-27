@@ -1,7 +1,9 @@
 package com.tracel.plugin.rollback.material
 
 import com.tracel.plugin.rollback.material.item.WornStacks
+import com.tracel.plugin.rollback.material.item.PendingWorn
 import com.tracel.plugin.rollback.material.holder.takeFromGrid
+import com.tracel.plugin.rollback.material.holder.takeFromMenu
 import com.tracel.plugin.rollback.material.holder.takeFromCursor
 import com.tracel.plugin.adapter.item.heldTotals
 import com.tracel.model.holder.HolderId
@@ -45,17 +47,19 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
             }
             val moves = Moves()
             val enderMoves = Moves()
+            val worn = PendingWorn.take(player.uniqueId)
             for ((_, itemKey, delta, _, enderChest) in claimed.sortedBy { it.delta > 0L }) {
                 if (enderChest) {
-                    applyDelta(itemKey, delta, forms[itemKey], enderMoves, player.enderChest)
+                    applyDelta(itemKey, delta, forms[itemKey], enderMoves, player.enderChest, worn = worn)
                 } else {
-                    applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory)
+                    applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory, worn = worn)
                 }
             }
             // Full inventory on login is ordinary: spill it all
             val at = player.location
             takeFromCursor(player, moves)
             takeFromGrid(player, moves)
+            takeFromMenu(player, moves)
             spillInRegion(holder, moves, at.world, at, sink)
             services.differ.rebaseline(holder, player.heldTotals())
             if (claimed.any { it.enderChest }) {

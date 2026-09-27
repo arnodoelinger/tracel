@@ -4,6 +4,7 @@ import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.ActionKind
+import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.block.toPlacedBlockId
@@ -29,7 +30,9 @@ class PistonListener(services: TracelServices) : TracelListener(services) {
     private fun moved(piston: Block, blocks: List<Block>, direction: BlockFace) {
         val facing = (piston.blockData as? Directional)?.facing ?: direction
         val touched = blocks + blocks.map { it.getRelative(direction) } + piston + piston.getRelative(facing)
-        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.WORLD, null, touched.distinct(), delayTicks = PISTON_SETTLE_TICKS) {
+        val by = services.redstoneTriggers.recentPressNear(piston.world, piston.x, piston.y, piston.z)
+        val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+        shape.reread(ActionKind.BLOCK_CHANGE, cause, by, touched.distinct(), delayTicks = PISTON_SETTLE_TICKS) {
             !it.after.data.value.startsWith("minecraft:moving_piston")
         }
         if (blocks.isEmpty()) return

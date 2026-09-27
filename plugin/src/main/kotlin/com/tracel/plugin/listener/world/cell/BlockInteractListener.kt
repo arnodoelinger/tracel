@@ -50,6 +50,10 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
         if (clicked != null && clicked.type == Material.DRAGON_EGG) DragonEggClicks.clicked(clicked, event.player.uniqueId)
         if (clicked != null && (clicked.blockData is Bed || clicked.type == Material.RESPAWN_ANCHOR)) {
             RecentColumnActor.remember(event.player.uniqueId, clicked)
+            (clicked.blockData as? Bed)?.let { bed ->
+                val other = if (bed.part == Bed.Part.FOOT) clicked.getRelative(bed.facing) else clicked.getRelative(bed.facing.oppositeFace)
+                RecentColumnActor.remember(event.player.uniqueId, other)
+            }
         }
         if (event.action != Action.RIGHT_CLICK_BLOCK && event.action != Action.PHYSICAL) return
         val block = event.clickedBlock ?: return

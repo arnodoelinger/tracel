@@ -24,6 +24,8 @@ import kotlinx.coroutines.withContext
 import com.tracel.plugin.rollback.material.item.matches
 import org.bukkit.Material
 import org.bukkit.entity.Player
+import com.tracel.plugin.rollback.material.item.PendingWorn
+import com.tracel.plugin.adapter.item.transientInputSlots
 import org.bukkit.inventory.EquipmentSlot
 
 @Unstable
@@ -42,6 +44,17 @@ internal suspend fun MaterialRestorer.applyToPlayer(
     withContext(services.schedulers.entity(holder.uuid)) {
         val player = playerOf(holder.uuid)
         if (player == null || player.isDead) {
+            if (worn != null) {
+                for ((itemKey, delta) in deltas) {
+                    if (delta <= 0L || !WornStacks.wears(itemKey)) continue
+                    var left = delta
+                    while (left > 0L) {
+                        val real = worn.next(itemKey) ?: break
+                        PendingWorn.keep(holder.uuid, itemKey, real)
+                        left -= real.amount
+                    }
+                }
+            }
             services.atomically {
                 services.pendingDeliveries.enqueueAll(holder.uuid, deltas, job, System.currentTimeMillis())
             }
@@ -54,6 +67,7 @@ internal suspend fun MaterialRestorer.applyToPlayer(
         }
         takeFromCursor(player, moves)
         takeFromGrid(player, moves)
+        takeFromMenu(player, moves)
         wearGiven(player, deltas)
         val at = player.location
         spillInRegion(holder, moves, at.world, at, sink)
@@ -125,6 +139,27 @@ internal fun takeFromGrid(player: Player, moves: Moves) {
         changed = true
     }
     if (changed) grid.matrix = matrix
+}
+
+/**
+ * Take remaining [Moves.owed] from the input slots of an open anvil, grindstone or other menu: an item parked
+ * there is still the player's, and left alone it came back to their pockets on close as a copy.
+ */
+internal fun takeFromMenu(player: Player, moves: Moves) {
+    if (moves.shortfalls <= 0L) return
+    val menu = runCatching { player.openInventory.topInventory }.getOrNull() ?: return
+    val slots = menu.transientInputSlots() ?: return
+    for (i in slots) {
+        if (i >= menu.size) break
+        val stack = menu.getItem(i) ?: continue
+        if (stack.isEmpty || stack.type.isAir) continue
+        val key = stack.toItemKey()
+        val owed = moves.owed(key)
+        if (owed <= 0L) continue
+        val take = minOf(owed, stack.amount.toLong()).toInt()
+        menu.setItem(i, if (take >= stack.amount) null else stack.clone().apply { amount -= take })
+        moves.forgive(key, take.toLong())
+    }
 }
 
 /**

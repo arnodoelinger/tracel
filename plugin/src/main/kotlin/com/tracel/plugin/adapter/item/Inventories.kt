@@ -98,6 +98,9 @@ private val TRANSIENT_INPUTS: Map<InventoryType, IntRange> = mapOf(
     InventoryType.MERCHANT to 0..1,
 )
 
+/** The input slots of a menu [transientInputs] reads, or `null` for an inventory that is somebody's own. */
+fun Inventory.transientInputSlots(): IntRange? = TRANSIENT_INPUTS[type]
+
 /**
  * What sits in the input slots of a menu nobody owns but the player using it.
  *

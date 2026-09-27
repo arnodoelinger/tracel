@@ -10,7 +10,11 @@ import com.tracel.plugin.rollback.material.holder.fillEntityCargo
 import com.tracel.plugin.rollback.material.holder.takeGroundItem
 import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.spill.Spill
+import com.tracel.plugin.listener.support.LiveProjectiles
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
+import org.bukkit.Bukkit
+import org.bukkit.entity.Projectile
 
 /** One holder's move. */
 internal suspend fun MaterialRestorer.applyTo(
@@ -54,7 +58,18 @@ internal suspend fun MaterialRestorer.dispatch(
     is HolderId.Block -> applyToContainer(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
     is HolderId.ItemEntity -> takeGroundItem(holder, deltas, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
 
-    is HolderId.PlacedBlock, is HolderId.PlacedEntity -> ApplyResult.Ok
+    is HolderId.PlacedEntity -> takeProjectile(holder, deltas)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+    is HolderId.PlacedBlock -> ApplyResult.Ok
     is HolderId.Entity -> fillEntityCargo(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
     is HolderId.Source, is HolderId.Sink, is HolderId.Escrow -> ApplyResult.Ok
+}
+
+private suspend fun MaterialRestorer.takeProjectile(holder: HolderId.PlacedEntity, deltas: Map<ItemKey, Long>): String? {
+    if (holder.uuid !in LiveProjectiles || deltas.values.any { it > 0L }) return null
+    return withContext(services.schedulers.entity(holder.uuid)) {
+        val projectile = Bukkit.getEntity(holder.uuid) as? Projectile ?: return@withContext "the projectile is no longer there"
+        LiveProjectiles.remove(holder.uuid)
+        services.selfManagedWorld.whileRestoring { projectile.remove() }
+        null
+    }
 }

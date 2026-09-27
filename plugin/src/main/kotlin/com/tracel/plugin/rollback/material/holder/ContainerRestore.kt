@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.material.holder
 
+import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
@@ -68,15 +69,16 @@ internal suspend fun MaterialRestorer.applyToContainer(
         }
 
         if (state is Lectern) {
-            applyLectern(state, deltas, forms, moves)
+            val openAt = applyLectern(state, deltas, forms, moves)
             spillInRegion(holder, moves, world, at, sink)
             syncCargoFlags(state)
+            if (openAt != null) runCatching { (block.getState(false) as? Lectern)?.page = openAt }
             services.differ.rebaseline(holder, state.inventory.toItemTotals())
             return@withContext moves.reason
         }
 
         if (state is ChiseledBookshelf) {
-            val preferredSlots = asOf?.let { services.containerSlots.layoutAt(holder, it) }.orEmpty()
+            val preferredSlots = asOf?.let { layoutFor(holder, it) }.orEmpty()
             applyBookshelf(state, deltas, forms, moves, preferredSlots)
             spillInRegion(holder, moves, world, at, sink)
             runCatching { state.lastInteractedSlot = -1 }
@@ -88,7 +90,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
             ?: (state as? InventoryHolder)?.inventory
             ?: return@withContext NOT_A_CONTAINER
 
-        val preferredSlots = asOf?.let { services.containerSlots.layoutAt(holder, it) }
+        val preferredSlots = asOf?.let { layoutFor(holder, it) }
             ?.groupBy { it.itemKey }
             .orEmpty()
         for ((itemKey, delta) in deltas) {
@@ -133,6 +135,10 @@ internal suspend fun MaterialRestorer.applyToContainer(
         "$first; what it was owed was dropped on the ground there"
     }
 }
+
+/** Where [holder]'s stacks sat at [asOf]. */
+internal suspend fun MaterialRestorer.layoutFor(holder: HolderId, asOf: Long): List<ContainerSlotEntry>? =
+    services.containerSlots.layoutAt(holder, asOf) ?: services.containerSlots.layoutAt(holder, Long.MAX_VALUE)
 
 private fun primeBrewingStandFuel(state: BrewingStand) {
     if (state.fuelLevel > 0) return

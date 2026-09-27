@@ -22,6 +22,7 @@ import com.tracel.plugin.adapter.item.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.totalsOf
 import com.tracel.plugin.listener.support.CraftDrops
+import com.tracel.plugin.listener.support.ContainerDrops
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.BlockRelease
@@ -38,6 +39,9 @@ import org.bukkit.inventory.ItemStack
 import org.bukkit.Location
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityDropItemEvent
+import org.bukkit.event.entity.EntityDamageEvent
+import com.tracel.plugin.listener.support.damageBlame
+import java.util.concurrent.atomic.AtomicLong
 import org.bukkit.event.entity.EntityPickupItemEvent
 import org.bukkit.event.entity.EntityRemoveEvent
 import org.bukkit.event.entity.ItemDespawnEvent
@@ -56,6 +60,18 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     private val pendingDrops = ExpiringMap<UUID, HolderId>(PENDING_DROP_MS)
     private val dropBlame = ExpiringMap<UUID, HolderId>(PENDING_DROP_MS)
     private val sheared = ExpiringMap<UUID, Unit>(SHEAR_DROP_MS)
+
+    private data class FramePop(val world: UUID, val at: Location, val holder: HolderId, val key: ItemKey, val by: HolderId?)
+
+    private val framePops = ExpiringMap<Long, FramePop>(SHEAR_DROP_MS)
+    private val nextPop = AtomicLong()
+
+    private companion object {
+        const val DROP_CLAIM_DELAY_TICKS = 4L
+        const val SHEAR_DROP_MS = 1_000L
+        const val PENDING_DROP_MS = 5_000L
+        const val FRAME_POP_RADIUS = 1.5
+    }
 
     @Observes
     fun onShear(event: PlayerShearEntityEvent) {
@@ -83,18 +99,23 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             creditDrop(credited, itemKey, qty, groundHolder, epochMillis, item.location, dropBlame.remove(item.uniqueId) ?: credited)
             return
         }
+        val popped = takeFramePop(item.location, itemKey)
+        if (popped != null) {
+            material.adjust(popped.holder, itemKey, -qty)
+            creditDrop(popped.holder, itemKey, qty, groundHolder, epochMillis, item.location, popped.by ?: popped.holder)
+            return
+        }
         val hull = services.hullDrops.take(item.location, itemKey)
         if (hull != null) {
             // Same PlacedEntity lot
             services.selfManagedSpawns.track(item.uniqueId)
-            material.moved(
-                cause = CauseKind.ENTITY_ACTION,
-                causedBy = null,
-                itemKey = itemKey,
-                from = hull,
-                to = groundHolder,
-                quantity = qty,
-                epochMillis = epochMillis
+            material.positioned(
+                cause = if (hull.by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
+                causedBy = hull.by,
+                at = item.location,
+                deltas = listOf(InventoryDelta(hull.holder, itemKey, -qty), InventoryDelta(groundHolder, itemKey, qty)),
+                epochMillis = epochMillis,
+                mintShortfallAt = hull.holder,
             )
             return
         }
@@ -110,6 +131,19 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         }
 
         val throwerPlayer = thrower?.let { Bukkit.getPlayer(it) }
+        val outOf = thrower?.let { ContainerDrops.take(it, itemKey) }
+        if (thrower != null && outOf != null) {
+            material.adjust(outOf, itemKey, -qty)
+            material.positioned(
+                cause = CauseKind.PLAYER_ACTION,
+                causedBy = HolderId.Player(thrower),
+                at = item.location,
+                deltas = listOf(InventoryDelta(outOf, itemKey, -qty), InventoryDelta(groundHolder, itemKey, qty)),
+                epochMillis = epochMillis,
+                mintShortfallAt = outOf,
+            )
+            return
+        }
         if (thrower != null && CraftDrops.expecting(thrower)) {
             CraftDrops.add(thrower, CraftDrops.Thrown(groundHolder, itemKey, qty))
             return
@@ -219,12 +253,6 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         )
     }
 
-    private companion object {
-        const val DROP_CLAIM_DELAY_TICKS = 4L
-        const val SHEAR_DROP_MS = 1_000L
-        const val PENDING_DROP_MS = 5_000L
-    }
-
     @Observes(priority = Priority.HIGHEST)
     fun holdPickupWhileRestoring(event: InventoryPickupItemEvent) {
         val destination = event.inventory.toHolderId() ?: return
@@ -271,6 +299,16 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     }
 
     @Observes
+    fun onFrameHit(event: EntityDamageEvent) {
+        val frame = event.entity as? ItemFrame ?: return
+        if (frame.isFixed || frame.isInvulnerable) return
+        val stack = frame.item
+        if (stack.type.isAir) return
+        val world = frame.world.uid
+        framePops.put(nextPop.incrementAndGet(), FramePop(world, frame.location, frame.toCargoHolderId(), stack.toItemKey(), services.damageBlame(event).who))
+    }
+
+    @Observes
     fun onFish(event: PlayerFishEvent) {
         if (event.state != PlayerFishEvent.State.CAUGHT_FISH) return
         val player = event.player
@@ -313,7 +351,8 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     @Observes(ignoreCancelled = false)
     fun onRemove(event: EntityRemoveEvent) {
         val item = event.entity as? Item ?: return
-        // gone, merged, picked up by a hopper or unloaded: the tracked set only ever grew
+
+        // Gone, merged, picked up by a hopper or unloaded: the tracked set only ever grew
         if (event.cause != EntityRemoveEvent.Cause.UNLOAD) services.selfManagedSpawns.forget(item.uniqueId)
         if (restoring) return
         val sink = sinkFor(event.cause) ?: return
@@ -323,6 +362,21 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             from = HolderId.ItemEntity(item.uniqueId),
             to = HolderId.Sink(sink)
         )
+    }
+
+    private fun takeFramePop(at: Location, key: ItemKey): FramePop? {
+        val world = at.world?.uid ?: return null
+        var best: Pair<Long, FramePop>? = null
+        var bestDist = FRAME_POP_RADIUS * FRAME_POP_RADIUS
+        framePops.forEachFresh { id, pop ->
+            if (pop.world != world || pop.key != key) return@forEachFresh
+            val d = pop.at.distanceSquared(at)
+            if (d <= bestDist) {
+                bestDist = d
+                best = id to pop
+            }
+        }
+        return best?.let { (id, pop) -> framePops.remove(id); pop }
     }
 
     // TODO: improve this

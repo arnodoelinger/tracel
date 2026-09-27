@@ -5,6 +5,10 @@ import com.tracel.annotations.Observes
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import org.bukkit.block.ShulkerBox
+import org.bukkit.block.Lectern
+import org.bukkit.event.player.PlayerTakeLecternBookEvent
+import com.tracel.plugin.adapter.block.toBlockPos
+import com.tracel.plugin.listener.support.LecternPages
 import com.tracel.plugin.adapter.block.accountMovesTo
 import com.tracel.plugin.adapter.block.cargoSlots
 import com.tracel.plugin.adapter.block.resyncCargo
@@ -21,7 +25,13 @@ import com.tracel.plugin.listener.world.entity.ExplosionListener
  */
 class ContainerListener(services: TracelServices) : TracelListener(services) {
     @Observes
+    fun onTakeBook(event: PlayerTakeLecternBookEvent) {
+        LecternPages.left(event.lectern.block.toBlockPos(), event.lectern.page)
+    }
+
+    @Observes
     fun onBreak(event: BlockBreakEvent) {
+        (event.block.getState(false) as? Lectern)?.let { LecternPages.left(event.block.toBlockPos(), it.page) }
         if (event.block.state is ShulkerBox) {
             packShulker(event)
             return
@@ -31,6 +41,9 @@ class ContainerListener(services: TracelServices) : TracelListener(services) {
         val causedBy = HolderId.Player(event.player.uniqueId)
         val epochMillis = System.currentTimeMillis()
         val dropLocation = event.block.location.add(0.5, 0.5, 0.5)
+
+        // Where each stack lay
+        material.captureSlotLayout(holder, slots)
 
         // Clear now: the ledger read is too late for vanilla's spill.
         // Read first; respawning only ledgered lots deleted chests nobody had opened since plugin start.
