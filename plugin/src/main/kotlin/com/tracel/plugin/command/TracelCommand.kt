@@ -113,9 +113,7 @@ object TracelCommand {
             }
         }
 
-        val node = root.build()
-        node.answerSuggestionsFromServer()
-        registrar.register(node, "Tracel commands.", listOf("tr"))
+        registrar.register(root.build(), "Tracel commands.", listOf("tr"))
     }
 
     private fun sendHelp(sender: CommandSender) {

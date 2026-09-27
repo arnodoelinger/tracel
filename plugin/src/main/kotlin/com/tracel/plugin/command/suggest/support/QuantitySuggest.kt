@@ -12,13 +12,7 @@ internal data class QuantityUnit(
 private val SIMPLE = Regex("""^(\d+)([a-z]*)$""")
 private val COMPOUND = Regex("""^((?:\d+[smhdw])*)(\d+)([a-z]*)$""")
 
-/**
- * Suggestions for a number-then-unit value.
- *
- * `100` offers `100b` and `100c`; `1h30` offers a unit on the trailing `30`.
- *
- * The unit itself is [com.tracel.plugin.command.suggest.Suggestion.tail], so tab completes just `b` or `c` after the digits.
- */
+/** Suggestions for a number-then-unit value. */
 internal fun suggestQuantity(
     prefix: String,
     raw: String,
@@ -34,12 +28,27 @@ internal fun suggestQuantity(
         val number = if (compound) match.groupValues[2] else match.groupValues[1]
         val typedUnit = if (compound) match.groupValues[3] else match.groupValues[2]
         val fromUnits = unitSuggestions(prefix, head, number, typedUnit, units, presets)
-        val taken = fromUnits.map { it.text }.toSet()
-        return fromUnits +
+        val fromDigits = digitSuggestions(prefix, head, number, typedUnit)
+        val taken = (fromUnits + fromDigits).map { it.text }.toSet()
+        return fromUnits + fromDigits +
             presetSuggestions(prefix, needle, presets).filter { it.text !in taken } +
             wordSuggestions(prefix, needle, words)
     }
-    return presetSuggestions(prefix, needle, presets) + wordSuggestions(prefix, needle, words)
+    val open = if (needle.isEmpty()) digitSuggestions(prefix, "", "", "") else emptyList()
+    val taken = open.map { it.text }.toSet()
+    return open +
+        presetSuggestions(prefix, needle, presets).filter { it.text !in taken } +
+        wordSuggestions(prefix, needle, words)
+}
+
+private fun digitSuggestions(
+    prefix: String,
+    head: String,
+    number: String,
+    typedUnit: String,
+): List<Suggestion> {
+    if (typedUnit.isNotEmpty() || number.length >= 2) return emptyList()
+    return (0..9).map { digit -> Suggestion("$prefix$head$number$digit") }
 }
 
 private fun unitSuggestions(
@@ -59,7 +68,6 @@ private fun unitSuggestions(
             Suggestion(
                 text = "$prefix$value",
                 tooltip = preset ?: unit.describe(amount),
-                tail = unit.suffix,
             )
         }
 }

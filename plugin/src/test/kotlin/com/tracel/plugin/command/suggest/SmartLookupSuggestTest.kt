@@ -104,7 +104,6 @@ class SmartLookupSuggestTest {
     fun `any radius offers blocks and chunks after the digits`() {
         val open = LookupSuggest.suggest("scope:100", lists)
         assertEquals(listOf("scope:100b", "scope:100c"), open.map { it.text })
-        assertEquals(listOf("b", "c"), open.map { it.tail })
 
         val blocks = LookupSuggest.suggest("scope:100b", lists).map { it.text }
         assertEquals(listOf("scope:100b"), blocks)
@@ -118,17 +117,28 @@ class SmartLookupSuggestTest {
     }
 
     @Test
-    fun `a typed radius is completed as just the unit`() {
-        val full = "/tracel lookup scope:100"
-        val builder = SuggestionsBuilder(full, "/tracel lookup ".length)
-        val done = builder.reply(LookupSuggest.suggest("scope:100", lists)).join()
+    fun `a single digit radius also offers the next digit`() {
+        val four = LookupSuggest.suggest("scope:4", lists).map { it.text }
+        assertTrue("scope:4b" in four)
+        assertTrue("scope:4c" in four)
+        assertTrue((0..9).all { "scope:4$it" in four })
+        assertFalse("scope:40b" in four)
 
-        assertEquals(setOf("b", "c"), done.list.map { it.text }.toSet())
+        val longer = LookupSuggest.suggest("scope:40", lists).map { it.text }
+        assertEquals(listOf("scope:40b", "scope:40c"), longer)
+    }
+
+    @Test
+    fun `a typed radius completes to the whole token`() {
+        val full = "/tracel lookup scope:4"
+        val builder = SuggestionsBuilder(full, "/tracel lookup ".length)
+        val done = builder.reply(LookupSuggest.suggest("scope:4", lists)).join()
+
         val applied = done.list.associate { it.text to it.apply(full) }
-        assertEquals("${full}b", applied["b"])
-        assertEquals("${full}c", applied["c"])
-        assertTrue(done.list.first { it.text == "b" }.tooltip.string.contains("block"))
-        assertTrue(done.list.first { it.text == "c" }.tooltip.string.contains("chunk"))
+        assertEquals("${full}b", applied["scope:4b"])
+        assertEquals("${full}0", applied["scope:40"])
+        assertTrue(done.list.first { it.text == "scope:4b" }.tooltip.string.contains("block"))
+        assertTrue(done.list.first { it.text == "scope:4c" }.tooltip.string.contains("chunk"))
     }
 
     @Test
@@ -139,10 +149,22 @@ class SmartLookupSuggestTest {
         assertTrue("t:45h" in fortyFive)
         assertTrue("t:45d" in fortyFive)
         assertTrue("t:45w" in fortyFive)
+        assertFalse("t:450" in fortyFive)
+
+        val four = LookupSuggest.suggest("t:4", lists).map { it.text }
+        assertTrue("t:4h" in four)
+        assertTrue("t:4d" in four)
+        assertTrue((0..9).all { "t:4$it" in four })
 
         val continued = LookupSuggest.suggest("t:1h30", lists).map { it.text }
         assertTrue("t:1h30m" in continued)
+        assertTrue("t:1h30s" in continued)
+        assertFalse("t:1h300" in continued)
         assertFalse(continued.any { it == "t:today" })
+
+        val openHour = LookupSuggest.suggest("t:1h3", lists).map { it.text }
+        assertTrue("t:1h3m" in openHour)
+        assertTrue("t:1h30" in openHour)
 
         val after = LookupSuggest.suggest("after:1", lists).map { it.text }
         assertTrue("after:1h" in after)

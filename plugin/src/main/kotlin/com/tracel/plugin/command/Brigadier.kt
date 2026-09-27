@@ -4,11 +4,9 @@ import com.mojang.brigadier.Command
 import com.mojang.brigadier.LiteralMessage
 import com.mojang.brigadier.RedirectModifier
 import com.mojang.brigadier.arguments.ArgumentType
-import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.builder.RequiredArgumentBuilder
 import com.mojang.brigadier.context.CommandContext
-import com.mojang.brigadier.suggestion.SuggestionProvider
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.mojang.brigadier.tree.CommandNode
@@ -56,32 +54,6 @@ fun <T> RequiredArgumentBuilder<CommandSourceStack, T>.literal(
     val child = described(name, tooltip).apply(block)
     then(child)
     return child
-}
-
-/**
- * Mirrors a command node so that it reflects the updated state on the client side.
- *
- * This is necessary to ensure that suggestions or updates to the command are visible
- * to clients using the command's suggestions feature.
- */
-fun CommandNode<CommandSourceStack>.answerSuggestionsFromServer() {
-    val mirror = Commands.literal(name).apply {
-        command?.let { executes(it) }
-        requires(requirement)
-        then(
-            Commands.argument("command", StringArgumentType.greedyString())
-                .suggests(SuggestionProvider { _, builder -> Suggestions.empty() }),
-        )
-    }.build()
-    var type: Class<*>? = javaClass
-    var field: java.lang.reflect.Field? = null
-    while (type != null && field == null) {
-        field = type.declaredFields.firstOrNull { it.name == "clientNode" }
-        type = type.superclass
-    }
-    val clientNode = field ?: error("Paper CommandNode.clientNode is missing, so command tooltips cannot be sent to the client.")
-    clientNode.isAccessible = true
-    clientNode.set(this, mirror)
 }
 
 /** Checks that the command sender has the given permission node. */
