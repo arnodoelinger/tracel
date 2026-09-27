@@ -69,6 +69,21 @@ public final class PalettePaste {
     private boolean dead;
     private byte capture; // 0 unknown, 1 capturing, -1 not. Read once per paste
 
+    /** Result of {@link #placeFast}. */
+    public enum Fast {
+        /** Already the target state. */
+        UNCHANGED,
+
+        /** Written into the section palette. */
+        WRITTEN,
+
+        /** Paste cannot handle this cell; use {@code Bukkit}. */
+        BUKKIT,
+
+        /** Live block is not the expected one; the slow check decides. */
+        DRIFTED
+    }
+
     /** Paste currently bound to this thread, or {@code null}. */
     public static PalettePaste current() {
         return CURRENT.get();
@@ -265,7 +280,7 @@ public final class PalettePaste {
     }
 
     /**
-     * Write {@code next} when the caller already read [previous].
+     * Write {@code next} when the caller already read {@code previous}.
      *
      * @return {@code false} when the section was not written
      */
@@ -281,10 +296,8 @@ public final class PalettePaste {
 
     /**
      * Common rollback case: the block is still the expected plain state, so write the target.
-     *
-     * @return 0 unchanged, 1 written, -1 use {@code Bukkit}, -2 the block drifted and needs the slow check
      */
-    public int placeFast(
+    public Fast placeFast(
             int x,
             int y,
             int z,
@@ -293,27 +306,35 @@ public final class PalettePaste {
             boolean targetAir,
             boolean expectedAir
     ) {
-        if (dead || target == null) return -1;
+        if (dead || target == null) return Fast.BUKKIT;
         try {
             int targetTraits = traits(target);
-            if ((targetTraits & ENTITY) != 0) return -1;
+            if ((targetTraits & ENTITY) != 0) return Fast.BUKKIT;
             PasteChunk chunk = chunk(x >> 4, z >> 4);
-            if (chunk == null) return -1;
+            if (chunk == null) return Fast.BUKKIT;
             Object section = chunk.section(y);
-            if (section == null) return -1;
+            if (section == null) return Fast.BUKKIT;
             Object live = nms.getState.invokeExact(section, x & 15, y & 15, z & 15);
             lastRead = live;
             int liveTraits = traits(live);
-            if ((liveTraits & ENTITY) != 0) return -1;
+            if ((liveTraits & ENTITY) != 0) return Fast.BUKKIT;
             boolean liveAir = (liveTraits & AIR) != 0;
-            if (targetAir ? liveAir : live == target) return 0;
-            boolean matches = expectedAir ? liveAir : live == expected;
-            if (!matches || (!expectedAir && expected == null)) return -2;
+            if (targetAir) {
+                if (liveAir) return Fast.UNCHANGED;
+            } else if (live == target) {
+                return Fast.UNCHANGED;
+            }
+            if (!expectedAir && expected == null) return Fast.DRIFTED;
+            if (expectedAir) {
+                if (!liveAir) return Fast.DRIFTED;
+            } else if (live != expected) {
+                return Fast.DRIFTED;
+            }
             writePlain(chunk, section, x, y, z, live, liveTraits, target, targetTraits);
-            return 1;
+            return Fast.WRITTEN;
         } catch (Throwable failure) {
             die(failure);
-            return -1;
+            return Fast.BUKKIT;
         }
     }
 
@@ -340,6 +361,7 @@ public final class PalettePaste {
         return edges;
     }
 
+    // Packs (x, z) coordinates into a single 64-bit long
     private static long key(int x, int z) {
         return ((long) x << 32) ^ (z & 0xffffffffL);
     }

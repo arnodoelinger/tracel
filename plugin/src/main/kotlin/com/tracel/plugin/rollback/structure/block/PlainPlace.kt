@@ -44,12 +44,13 @@ internal fun PalettePaste.place(step: StructureStep.SetBlock, force: Boolean, dr
             expectedAir,
         )
     ) {
-        0 -> return Unchanged
-        1 -> {
+        PalettePaste.Fast.UNCHANGED -> return Unchanged
+        PalettePaste.Fast.WRITTEN -> {
             wakeIfNeeded(step.at.x, step.at.y, step.at.z, targetData)
             return Applied(step)
         }
-        -1 -> return null
+        PalettePaste.Fast.BUKKIT -> return null
+        PalettePaste.Fast.DRIFTED -> Unit
     }
     val pending = try {
         plan(step, force, driftOnly)
