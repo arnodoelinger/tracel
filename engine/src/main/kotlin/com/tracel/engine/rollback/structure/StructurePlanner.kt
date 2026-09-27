@@ -1,5 +1,6 @@
 package com.tracel.engine.rollback.structure
 
+import java.util.UUID
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
 import com.tracel.annotations.Unstable
@@ -132,6 +133,25 @@ public class StructurePlanner {
             val oldest = (slot[OLDEST].subject as ChangeSubject.Block).before
             val newest = (slot[NEWEST].subject as ChangeSubject.Block).after
             if (oldest.isAirLike && newest.isAirLike) out += at
+        }
+        return out
+    }
+
+    /** Entities born and gone inside the window: the rollback leaves them gone, so nothing may be handed to them. */
+    @Unstable
+    public fun entitiesBornAndGone(changes: List<WorldChange>): Set<UUID> {
+        val ends = HashMap<UUID, Array<WorldChange>>()
+        for (change in changes) {
+            val subject = change.subject as? ChangeSubject.Entity ?: continue
+            val slot = ends.getOrPut(subject.entity) { arrayOf(change, change) }
+            if (change.seq.raw > slot[NEWEST].seq.raw) slot[NEWEST] = change
+            if (change.seq.raw < slot[OLDEST].seq.raw) slot[OLDEST] = change
+        }
+        val out = HashSet<UUID>()
+        for ((uuid, slot) in ends) {
+            val born = (slot[OLDEST].subject as ChangeSubject.Entity).before == null
+            val gone = (slot[NEWEST].subject as ChangeSubject.Entity).after == null
+            if (born && gone) out += uuid
         }
         return out
     }

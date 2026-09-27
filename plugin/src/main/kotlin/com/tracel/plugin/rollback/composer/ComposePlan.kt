@@ -10,6 +10,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.rollback.survey.NO_MATERIAL
 import com.tracel.plugin.rollback.survey.awayFromAirToAir
+import com.tracel.plugin.rollback.survey.awayFromEntitiesGone
 import com.tracel.plugin.rollback.survey.planMaterial
 import com.tracel.plugin.rollback.survey.withStructuralPartners
 import com.tracel.plugin.rollback.survey.withTrails
@@ -86,7 +87,8 @@ internal suspend fun RollbackComposer.planRollback(
     val covered = if (!structure) null else placedCovered(create + destroy) + LiveProjectile.holders()
     val materials = if (!material) NO_MATERIAL else planMaterial(txns, trace, keepCargoOn, structure, covered)
     val vanishedCells = if (paired.isEmpty()) emptySet() else StructurePlanner().cellsAirToAir(paired)
-    val target = materials.target.awayFromAirToAir(vanishedCells)
+    val bornAndGone = if (paired.isEmpty()) emptySet() else StructurePlanner().entitiesBornAndGone(paired)
+    val target = materials.target.awayFromAirToAir(vanishedCells).awayFromEntitiesGone(bornAndGone)
     return Planned(
         CompositeRollbackPlan(create, materials.plan, destroy),
         target,
