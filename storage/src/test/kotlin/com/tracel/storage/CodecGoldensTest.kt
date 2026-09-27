@@ -241,7 +241,7 @@ class CodecGoldensTest {
         assertTrue(Key(Keys.spatialChunkPrefix(1, 0, 9)) < Key(Keys.spatialChunkPrefix(1, 1, -9)))
 
         // And a family never bleeds into the one next to it
-        assertTrue(Key(Keys.lot(Long.MAX_VALUE)) < Key(Keys.place(0, 0, 0)))
+        assertTrue(Key(Keys.lot(Long.MAX_VALUE)) < Key(Keys.packAt(0, 0, 0)))
         assertTrue(Key(Keys.internReverse(Keys.NS_ENTITY_TYPE, ByteArray(64) { -1 })) < Key(Keys.wchg(0)))
         assertTrue(Key(Keys.wchg(Long.MAX_VALUE)) < Key(Keys.wchgAt(0, 0, 0, 0, 0)))
         assertTrue(Key(Keys.txnLot(0, 0, 0)) < Key(Keys.blockLease(0, 0, 0, 0)))

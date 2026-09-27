@@ -12,40 +12,44 @@ import com.tracel.storage.spi.EngineCursor
  *    written in the machine's own order and a load is a load.
  * 2. Every sequence number in a secondary index is stored inverted ([invert]).
  *
- * | Tag  | Key                                                                       | Value                | Scanned by              |
- * |------|---------------------------------------------------------------------------|----------------------|-------------------------|
- * | 01   | `txn / seq`                                                               | packed transaction   | retention, seq range    |
- * | 02   | `txnById @ txnId`                                                         | seq                  | point                   |
- * | 03   | `actor / holderId / ~seq`                                                 | —                    | prefix, newest first    |
- * | 04   | `item / itemKeyId / ~seq`                                                 | —                    | prefix, newest first    |
- * | 05   | `time / ~epochMillis / ~seq`                                              | —                    | range, newest first     |
- * | 06   | `spatial / worldId / chunkX / chunkZ / ~epochMillis / yBin / ~seq`        | kind+time+cause+xyz  | chunk x time range      |
- * | 07   | `lot / lotId`                                                             | packed lot           | point                   |
- * | 08   | `place / holderId / itemKeyId / fifoSeq`                                  | lotId, remaining     | prefix, FIFO order      |
- * | 09   | `placeRev / lotId / holderId`                                             | itemKeyId, fifoSeq   | point                   |
- * | 0A   | `placeItm / itemKeyId / holderId / fifoSeq`                               | —                    | prefix (census)         |
- * | 0B   | `total / holderId / itemKeyId`                                            | running total        | point + prefix          |
- * | 0C   | `edgeFrom / parentLotId / childLotId`                                     | packed edge          | prefix                  |
- * | 0D   | `edgeInto / childLotId / parentLotId`                                     | packed edge          | prefix                  |
- * | 0E   | `lease / lotId`                                                           | jobId, acquiredAt    | point + full scan       |
- * | 0F   | `leaseJob / jobId / lotId`                                                | —                    | prefix                  |
- * | 10   | `rbStep / jobId / stepIndex`                                              | packed plan fragment | prefix                  |
- * | 11   | `rbJob / jobId`                                                           | restoreTo, stepCount | point                   |
- * | 12   | `applied / kind / jobId / stepIndex`                                      | —                    | point                   |
- * | 13   | `pending / playerUuid / id`                                               | packed delivery      | prefix                  |
- * | 14   | `counter / nameId`                                                        | next value           | point                   |
- * | 15   | `internFw / namespace / id`                                               | packed value         | point                   |
- * | 16   | `internRv / namespace / packed value`                                     | id                   | point                   |
- * | 17   | `wchg / seq`                                                              | packed world change  | retention, seq range    |
- * | 18   | `wchgAt / worldId / x / y / z / ~seq`                                     | seq                  | prefix, newest first    |
- * | 19   | `wchgEnt / entityUuid / ~seq`                                             | seq                  | prefix, newest first    |
- * | 1A   | `txnLot / seq / flowIndex / lotId`                                        | quantity             | prefix                  |
- * | 1B   | `blockLease / worldId / x / y / z`                                        | jobId, acquiredAt    | point + full scan       |
- * | 1C   | `rbStruct / jobId / stepIndex`                                            | packed structure step| prefix                  |
- * | 1D   | `rbTarget / jobId / rootLotId`                                            | holderId             | prefix                  |
- * | 21   | `cslot / holderId / ~seq`                                                 | packed slot layout   | prefix, newest first    |
- * | 23   | `wear / lotId / seq`                                                      | epochMillis, damage  | prefix, oldest first    |
- * | 24   | `leaseSet / jobId`                                                        | acquiredAt, lotIds   | full scan on open       |
+ * | Tag  | Key                                                                | Value                | Scanned by            |
+ * |------|--------------------------------------------------------------------|----------------------|----------------------|
+ * | 01   | `txn / seq`                                                        | packed transaction   | retention, seq range |
+ * | 02   | `txnById @ txnId`                                                  | seq                  | point                |
+ * | 03   | `actor / holderId / ~seq`                                          | —                    | prefix, newest first |
+ * | 04   | `item / itemKeyId / ~seq`                                          | —                    | prefix, newest first |
+ * | 05   | `time / ~epochMillis / ~seq`                                       | —                    | range, newest first  |
+ * | 06   | `spatial / worldId / chunkX / chunkZ / ~epochMillis / yBin / ~seq` | kind+time+cause+xyz  | chunk x time range   |
+ * | 07   | `lot / lotId`                                                      | packed lot           | point                |
+ * | 08   | retired: per-lot `place`                                           |                      |                      |
+ * | 09   | retired: per-lot `placeRev`                                        |                      |                      |
+ * | 0A   | retired: per-lot `placeItm`                                        |                      |                      |
+ * | 0B   | `total / holderId / itemKeyId`                                     | running total        | point + prefix       |
+ * | 0C   | `edgeFrom / parentLotId / childLotId`                              | packed edge          | prefix               |
+ * | 0D   | `edgeInto / childLotId / parentLotId`                              | packed edge          | prefix               |
+ * | 0E   | `lease / lotId`                                                    | jobId, acquiredAt    | point + full scan    |
+ * | 0F   | `leaseJob / jobId / lotId`                                         | —                    | prefix               |
+ * | 10   | `rbStep / jobId / stepIndex`                                       | packed plan fragment | prefix               |
+ * | 11   | `rbJob / jobId`                                                    | restoreTo, stepCount | point                |
+ * | 12   | `applied / kind / jobId / stepIndex`                               | —                    | point                |
+ * | 13   | `pending / playerUuid / id`                                        | packed delivery      | prefix               |
+ * | 14   | `counter / nameId`                                                 | next value           | point                |
+ * | 15   | `internFw / namespace / id`                                        | packed value         | poin                 |
+ * | 16   | `internRv / namespace / packed value`                              | id                   | pot                  |
+ * | 17   | `wchg / seq`                                                       | packed world change  | retention, seq range |
+ * | 18   | `wchgAt / worldId / x / y / z / ~seq`                              | seq                  | prefix, newest first |
+ * | 19   | `wchgEnt / entityUuid / ~seq`                                      | seq                  | prefix, newest first |
+ * | 1A   | `txnLot / seq / flowIndex / lotId`                                 | quantity             | prefix               |
+ * | 1B   | `blockLease / worldId / x / y / z`                                 | jobId, acquiredAt    | point + full scan    |
+ * | 1C   | `rbStruct / jobId / stepIndex`                                     | packed structure step| prefix               |
+ * | 1D   | `rbTarget / jobId / rootLotId`                                     | holderId             | prefix               |
+ * | 21   | `cslot / holderId / ~seq`                                          | packed slot layout   | prefix, newest first |
+ * | 23   | `wear / lotId / seq`                                               | epochMillis, damage  | prefix, oldest first |
+ * | 24   | `leaseSet / jobId`                                                 | acquiredAt, lotIds   | full scan on open    |
+ * | 25   | `pack / packId`                                                    | holderId, item, tail | point                |
+ * | 26   | `packAt / holderId / itemKeyId / tailFifoSeq`                      | the pack's lots      | prefix, FIFO order   |
+ * | 27   | `packItm / itemKeyId / holderId / tailFifoSeq`                     | packId, sum          | prefix (census)      |
+ * | 28   | `lotPack / lotId`                                                  | packId               | point                |
  */
 object Keys {
     fun tagName(tag: Byte): String = when (tag) {
@@ -83,6 +87,10 @@ object Keys {
         CONTAINER_SLOT -> "cslot"
         WEAR -> "wear"
         LEASE_SET -> "leaseSet"
+        PACK -> "pack"
+        PACK_AT -> "packAt"
+        PACK_ITEM -> "packItm"
+        LOT_PACK -> "lotPack"
         else -> "tag%02x".format(tag.toInt() and 0xff)
     }
 
@@ -122,6 +130,10 @@ object Keys {
     const val GROUND_AT: Byte = 0x22
     const val WEAR: Byte = 0x23
     const val LEASE_SET: Byte = 0x24
+    const val PACK: Byte = 0x25
+    const val PACK_AT: Byte = 0x26
+    const val PACK_ITEM: Byte = 0x27
+    const val LOT_PACK: Byte = 0x28
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -188,23 +200,22 @@ object Keys {
 
     fun lot(lotId: Long): ByteArray = KeyWriter(9).tag(LOT).u64(lotId).done()
 
-    fun place(holderId: Int, itemKeyId: Int, fifoSeq: Long): ByteArray =
-        KeyWriter(17).tag(PLACE).u32(holderId).u32(itemKeyId).u64(fifoSeq).done()
+    fun pack(packId: Long): ByteArray = KeyWriter(9).tag(PACK).u64(packId).done()
 
-    fun placePrefix(holderId: Int, itemKeyId: Int): ByteArray =
-        KeyWriter(9).tag(PLACE).u32(holderId).u32(itemKeyId).done()
+    fun packAt(holderId: Int, itemKeyId: Int, tailFifoSeq: Long): ByteArray =
+        KeyWriter(17).tag(PACK_AT).u32(holderId).u32(itemKeyId).u64(tailFifoSeq).done()
 
-    fun placeHolderPrefix(holderId: Int): ByteArray = KeyWriter(5).tag(PLACE).u32(holderId).done()
+    fun packAtPrefix(holderId: Int, itemKeyId: Int): ByteArray =
+        KeyWriter(9).tag(PACK_AT).u32(holderId).u32(itemKeyId).done()
 
-    fun placeRev(lotId: Long, holderId: Int): ByteArray =
-        KeyWriter(13).tag(PLACE_REV).u64(lotId).u32(holderId).done()
+    fun packAtHolderPrefix(holderId: Int): ByteArray = KeyWriter(5).tag(PACK_AT).u32(holderId).done()
 
-    fun placeRevPrefix(lotId: Long): ByteArray = KeyWriter(9).tag(PLACE_REV).u64(lotId).done()
+    fun packItem(itemKeyId: Int, holderId: Int, tailFifoSeq: Long): ByteArray =
+        KeyWriter(17).tag(PACK_ITEM).u32(itemKeyId).u32(holderId).u64(tailFifoSeq).done()
 
-    fun placeItem(itemKeyId: Int, holderId: Int, fifoSeq: Long): ByteArray =
-        KeyWriter(17).tag(PLACE_ITEM).u32(itemKeyId).u32(holderId).u64(fifoSeq).done()
+    fun packItemPrefix(itemKeyId: Int): ByteArray = KeyWriter(5).tag(PACK_ITEM).u32(itemKeyId).done()
 
-    fun placeItemPrefix(itemKeyId: Int): ByteArray = KeyWriter(5).tag(PLACE_ITEM).u32(itemKeyId).done()
+    fun lotPack(lotId: Long): ByteArray = KeyWriter(9).tag(LOT_PACK).u64(lotId).done()
 
     fun total(holderId: Int, itemKeyId: Int): ByteArray =
         KeyWriter(9).tag(TOTAL).u32(holderId).u32(itemKeyId).done()
@@ -359,6 +370,10 @@ object Keys {
         GROUND_AT,
         WEAR,
         LEASE_SET,
+        PACK,
+        PACK_AT,
+        PACK_ITEM,
+        LOT_PACK,
     )
 }
 

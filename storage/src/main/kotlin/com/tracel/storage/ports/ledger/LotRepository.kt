@@ -24,6 +24,7 @@ import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.atomic.AtomicLong
+import com.tracel.storage.codec.records.Lot as LotRecord
 import com.tracel.engine.ledger.LotRepository as LotRepositoryPort
 
 /** [LotRepositoryPort] over the packed keyspace. */
@@ -33,7 +34,7 @@ class LotRepository(
 ) : LotRepositoryPort, UnitOfWork by storage {
     private val interning: Interning get() = storage.interning
     private val lots: Cache<LotId, Lot> = Caffeine.newBuilder().maximumSize(100_000).build()
-    private val fifoScratch = FifoScratch()
+    private val packs = Packs(counters)
     private val version = AtomicLong()
 
     private val evictedFloor = AtomicLong()
@@ -208,13 +209,351 @@ class LotRepository(
         val sorted = rawsOf(unique)
         return storage.read {
             val out = HashMap<LotId, HolderId>(unique.size)
+            val holderOfPack = HashMap<Long, HolderId?>()
             QueryProbe.cursors(1)
             QueryProbe.scanned(sorted.size.toLong())
-            walkWanted(Keys.PLACE_REV, sorted, 0, sorted.size, Keys::placeRevPrefix) { at, cursor ->
-                val id = LotId(at)
-                if (id !in out) out[id] = interning.resolveHolder(this, cursor.keyU32(9))
+            walkWanted(Keys.LOT_PACK, sorted, 0, sorted.size, Keys::lotPack) { at, cursor ->
+                val packId = Records.asLong(cursor.value())
+                val holder = holderOfPack.getOrPut(packId) {
+                    packs.holderIdOf(this, packId)?.let { interning.resolveHolder(this, it) }
+                }
+                if (holder != null) out[LotId(at)] = holder
             }
             out
+        }
+    }
+
+    override suspend fun accountQueue(holder: HolderId, itemKey: ItemKey, limit: Int): List<AccountLot> = storage.read {
+        val holderId = interning.findHolderId(this, holder) ?: return@read emptyList()
+        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read emptyList()
+        val out = ArrayList<AccountLot>()
+        scan(Keys.packAtPrefix(holderId, itemKeyId)).use { cursor ->
+            while (out.size < limit && cursor.next()) {
+                val pack = packs.decode(holderId, itemKeyId, cursor.value())
+                var i = 0
+                while (i < pack.size && out.size < limit) out += accountLot(this, holder, pack, i++)
+            }
+        }
+        out
+    }
+
+    @Consume
+    override suspend fun takeFifo(
+        holder: HolderId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId,
+    ): List<LotPortion> = storage.write {
+        val holderId = interning.findHolderId(this, holder)
+            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0")
+        val itemKeyId = interning.findItemKeyId(this, itemKey)
+            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0")
+        consume(this, holder, holderId, itemKey, itemKeyId, longArrayOf(quantity.raw), strict = true, txn)[0]
+    }
+
+    @Consume
+    override suspend fun drainFifo(
+        holder: HolderId,
+        itemKey: ItemKey,
+        owed: List<Pair<HolderId, Long>>,
+        txn: TxnId,
+    ): List<Pair<HolderId, List<LotPortion>>> = storage.write {
+        if (owed.isEmpty()) return@write emptyList()
+        val holderId = interning.findHolderId(this, holder) ?: return@write emptyList()
+        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@write emptyList()
+        val wants = LongArray(owed.size) { owed[it].second }
+        val taken = consume(this, holder, holderId, itemKey, itemKeyId, wants, strict = false, txn)
+        owed.indices.filter { taken[it].isNotEmpty() }.map { owed[it].first to taken[it] }
+    }
+
+    private fun consume(
+        unit: StorageUnit,
+        holder: HolderId,
+        holderId: Int,
+        itemKey: ItemKey,
+        itemKeyId: Int,
+        wants: LongArray,
+        strict: Boolean,
+        txn: TxnId,
+    ): Array<ArrayList<LotPortion>> {
+        val want = wants.sum()
+        val queue = ArrayList<Pack>()
+        var have = 0L
+        unit.scan(Keys.packAtPrefix(holderId, itemKeyId)).use { cursor ->
+            while (have < want && cursor.next()) {
+                val pack = packs.decode(holderId, itemKeyId, cursor.value())
+                queue += pack
+                have += pack.sum
+            }
+        }
+        check(!strict || have >= want) {
+            "insufficient balance at $holder for $itemKey: needed $want, short by ${want - have}"
+        }
+
+        val out = Array(wants.size) { ArrayList<LotPortion>(4) }
+        var d = 0
+        var still = wants[0]
+        var spent = 0L
+        val touched = ArrayList<Long>()
+        var done = false
+        for (pack in queue) {
+            if (done) break
+            val keep = BooleanArray(pack.size) { true }
+            var lots: LongArray? = null
+            var remaining: LongArray? = null
+            for (i in 0 until pack.size) {
+                var lot = pack.lots[i]
+                var left = pack.remaining[i]
+                touched += lot
+                while (left > 0L) {
+                    while (still == 0L && d + 1 < wants.size) still = wants[++d]
+                    if (still == 0L) {
+                        done = true
+                        break
+                    }
+                    if (left <= still) {
+                        keep[i] = false
+                        unit.delete(Keys.lotPack(lot))
+                        out[d] += LotPortion(LotId(lot), Quantity(left))
+                        still -= left
+                        spent += left
+                        left = 0L
+                    } else {
+                        val split = split(unit, itemKey, itemKeyId, lot, left, still, txn)
+                        lots = lots ?: pack.lots.copyOf()
+                        remaining = remaining ?: pack.remaining.copyOf()
+                        lots[i] = split.keptLotId
+                        remaining[i] = split.keptRemaining
+                        unit.delete(Keys.lotPack(lot))
+                        unit.put(Keys.lotPack(split.keptLotId), Records.long(pack.id))
+                        out[d] += split.taken
+                        spent += still
+                        left = split.keptRemaining
+                        lot = split.keptLotId
+                        still = 0L
+                    }
+                }
+                if (done) break
+            }
+            if (keep.all { it } && lots == null) continue
+            val edited = if (lots == null) pack else Pack(pack.id, holderId, itemKeyId, lots, remaining!!, pack.fifo)
+            packs.swap(unit, pack, edited.keeping(keep))
+        }
+        addToTotal(unit, holderId, itemKeyId, -spent)
+        if (touched.isNotEmpty()) unit.changed(*touched.toLongArray())
+        return out
+    }
+
+    override suspend fun totalOf(holder: HolderId, itemKey: ItemKey): Long = storage.read {
+        val holderId = interning.findHolderId(this, holder) ?: return@read 0L
+        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read 0L
+        get(Keys.total(holderId, itemKeyId))?.let(Records::asLong) ?: 0L
+    }
+
+    override suspend fun totalsAt(holder: HolderId): Map<ItemKey, Long> = storage.read {
+        val holderId = interning.findHolderId(this, holder) ?: return@read emptyMap()
+        val out = LinkedHashMap<ItemKey, Long>()
+        eachRow(Keys.totalPrefix(holderId)) { cursor ->
+            val total = Records.asLong(cursor.value())
+            if (total > 0) out[interning.resolveItemKey(this, KeyReader.u32(cursor.key(), 5))] = total
+        }
+        out
+    }
+
+    override suspend fun placementOf(holder: HolderId, lotId: LotId): AccountLot? = storage.read {
+        val holderId = interning.findHolderId(this, holder) ?: return@read null
+        val pack = packs.of(this, lotId.raw)?.takeIf { it.holderId == holderId } ?: return@read null
+        val i = pack.indexOf(lotId.raw)
+        if (i < 0) null else accountLot(this, holder, pack, i)
+    }
+
+    override suspend fun census(itemKey: ItemKey): Long = storage.read {
+        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read 0L
+        var total = 0L
+        eachRow(Keys.packItemPrefix(itemKeyId)) { cursor ->
+            when (interning.resolveHolder(this, KeyReader.u32(cursor.key(), 5))) {
+                is HolderId.Source, is HolderId.Sink -> return@eachRow
+                else -> total += LotRecord.sumOf(cursor.value())
+            }
+        }
+        total
+    }
+
+    override suspend fun allPlacements(itemKey: ItemKey): List<AccountLot> = storage.read {
+        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read emptyList()
+        val slots = ArrayList<Pair<Int, Long>>()
+        eachRow(Keys.packItemPrefix(itemKeyId)) { cursor ->
+            slots += KeyReader.u32(cursor.key(), 5) to KeyReader.u64(cursor.key(), 9)
+        }
+        val out = ArrayList<AccountLot>()
+        for ((holderId, tail) in slots) {
+            val slot = get(Keys.packAt(holderId, itemKeyId, tail)) ?: continue
+            val pack = packs.decode(holderId, itemKeyId, slot)
+            val holder = interning.resolveHolder(this, holderId)
+            for (i in 0 until pack.size) out += accountLot(this, holder, pack, i)
+        }
+        out
+    }
+
+    override suspend fun placementsAt(holder: HolderId): List<AccountLot> = storage.read {
+        val holderId = interning.findHolderId(this, holder) ?: return@read emptyList()
+        val out = ArrayList<AccountLot>()
+        eachRow(Keys.packAtHolderPrefix(holderId)) { cursor ->
+            val pack = packs.decode(holderId, KeyReader.u32(cursor.key(), 5), cursor.value())
+            for (i in 0 until pack.size) out += accountLot(this, holder, pack, i)
+        }
+        out
+    }
+
+    override suspend fun currentHolderOf(lotId: LotId): HolderId? = storage.read {
+        val pointer = get(Keys.lotPack(lotId.raw)) ?: return@read null
+        packs.holderIdOf(this, Records.asLong(pointer))?.let { interning.resolveHolder(this, it) }
+    }
+
+    override suspend fun place(holder: HolderId, lotId: LotId, quantity: Quantity): AccountLot = storage.write {
+        val lot = readLot(this, lotId)
+        notPlaced(this, lotId)
+        val holderId = interning.internHolder(this, holder)
+        val itemKeyId = interning.internItemKey(this, lot.itemKey)
+        val fifo = counters.nextFifoSeqOn(this)
+        packs.insert(this, holderId, itemKeyId, longArrayOf(lotId.raw), longArrayOf(quantity.raw), longArrayOf(fifo))
+        addToTotal(this, holderId, itemKeyId, quantity.raw)
+        changed(lotId.raw)
+        AccountLot(holder, lot, quantity, Seq(fifo))
+    }
+
+    override suspend fun placeAll(holder: HolderId, portions: List<LotPortion>) {
+        if (portions.isEmpty()) return
+        storage.write {
+            val holderId = interning.internHolder(this, holder)
+            val seen = HashSet<Long>(portions.size * 2)
+            val byItem = LinkedHashMap<Int, Entries>()
+            for ((lotId, quantity) in portions) {
+                check(seen.add(lotId.raw)) { "lot $lotId is already placed at $holder" }
+                notPlaced(this, lotId)
+                val itemKeyId = interning.internItemKey(this, readLot(this, lotId).itemKey)
+                byItem.getOrPut(itemKeyId) { Entries() }.add(lotId.raw, quantity.raw, counters.nextFifoSeqOn(this))
+            }
+            for ((itemKeyId, entries) in byItem) {
+                packs.insert(this, holderId, itemKeyId, entries.lots(), entries.remaining(), entries.fifo())
+                addToTotal(this, holderId, itemKeyId, entries.sum)
+            }
+            changed(*seen.toLongArray())
+        }
+    }
+
+    private fun notPlaced(unit: StorageUnit, lotId: LotId) {
+        val pointer = unit.get(Keys.lotPack(lotId.raw)) ?: return
+        val holderId = packs.holderIdOf(unit, Records.asLong(pointer)) ?: return
+        error("lot $lotId is already placed at ${interning.resolveHolder(unit, holderId)}")
+    }
+
+    override suspend fun remove(holder: HolderId, lotId: LotId) {
+        storage.write {
+            val holderId = interning.findHolderId(this, holder) ?: return@write
+            val pack = packs.of(this, lotId.raw)?.takeIf { it.holderId == holderId } ?: return@write
+            val i = pack.indexOf(lotId.raw)
+            if (i < 0) return@write
+            packs.swap(this, pack, pack.keeping(BooleanArray(pack.size) { it != i }))
+            delete(Keys.lotPack(lotId.raw))
+            addToTotal(this, holderId, pack.itemKeyId, -pack.remaining[i])
+            changed(lotId.raw)
+        }
+    }
+
+    override suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId): Quantity =
+        rehomeAll(from, to, listOf(lotId)).getValue(lotId)
+
+    override suspend fun rehomeAll(from: HolderId, to: HolderId, lotIds: List<LotId>): Map<LotId, Quantity> {
+        if (lotIds.isEmpty()) return emptyMap()
+        return storage.write {
+            val fromId = interning.findHolderId(this, from)
+                ?: error("lot ${lotIds.first()} is not currently placed at $from")
+            val sorted = rawsOf(lotIds)
+            val packOf = HashMap<Long, Long>(lotIds.size * 2)
+            walkWanted(Keys.LOT_PACK, sorted, 0, sorted.size, Keys::lotPack) { at, cursor ->
+                packOf[at] = Records.asLong(cursor.value())
+            }
+            val byPack = LinkedHashMap<Long, ArrayList<Long>>()
+            for (lotId in lotIds) {
+                val packId = packOf[lotId.raw] ?: error("lot $lotId is not currently placed at $from")
+                byPack.getOrPut(packId) { ArrayList() } += lotId.raw
+            }
+            val toId = if (from == to) fromId else interning.internHolder(this, to)
+            val moved = HashMap<LotId, Quantity>(lotIds.size * 2)
+            val delta = HashMap<Int, Long>()
+            for ((packId, chosen) in byPack) {
+                val pack = packs.read(this, packId)?.takeIf { it.holderId == fromId }
+                    ?: error("lot ${LotId(chosen.first())} is not currently placed at $from")
+                val take = BooleanArray(pack.size)
+                var sum = 0L
+                for (lot in chosen) {
+                    val i = pack.indexOf(lot)
+                    check(i >= 0) { "lot ${LotId(lot)} is not currently placed at $from" }
+                    take[i] = true
+                    moved[LotId(lot)] = Quantity(pack.remaining[i])
+                    sum += pack.remaining[i]
+                }
+                if (toId == fromId) continue
+                if (take.all { it }) {
+                    packs.move(this, pack, toId)
+                } else {
+                    packs.swap(this, pack, pack.keeping(BooleanArray(pack.size) { !take[it] }))
+                    val chosenPack = pack.keeping(take)!!
+                    packs.insert(this, toId, pack.itemKeyId, chosenPack.lots, chosenPack.remaining, chosenPack.fifo)
+                }
+                delta.merge(pack.itemKeyId, sum, Long::plus)
+            }
+            for ((itemKeyId, sum) in delta) {
+                addToTotal(this, fromId, itemKeyId, -sum)
+                addToTotal(this, toId, itemKeyId, sum)
+            }
+            if (toId != fromId) changed(*LongArray(lotIds.size) { lotIds[it].raw })
+            moved
+        }
+    }
+
+    override suspend fun relocate(from: HolderId, to: HolderId) {
+        storage.write {
+            val fromId = interning.findHolderId(this, from) ?: return@write
+            val toId = interning.internHolder(this, to)
+            if (fromId == toId) return@write
+
+            // Read the whole account out before touching any of it: rewriting keys under a cursor
+            // that is still walking the same prefix is a good way to visit a key twice or not at all.
+            val moving = ArrayList<Pack>()
+            eachRow(Keys.packAtHolderPrefix(fromId)) { cursor ->
+                moving += packs.decode(fromId, KeyReader.u32(cursor.key(), 5), cursor.value())
+            }
+            val lots = ArrayList<Long>()
+            for (pack in moving) {
+                packs.move(this, pack, toId)
+                addToTotal(this, fromId, pack.itemKeyId, -pack.sum)
+                addToTotal(this, toId, pack.itemKeyId, pack.sum)
+                for (lot in pack.lots) lots += lot
+            }
+            if (lots.isNotEmpty()) changed(*lots.toLongArray())
+        }
+    }
+
+    override suspend fun replace(holder: HolderId, retiredLotId: LotId, newLotId: LotId, remaining: Quantity) {
+        storage.write {
+            val holderId = interning.findHolderId(this, holder) ?: error("no placement of $retiredLotId at $holder")
+            val pack = packs.of(this, retiredLotId.raw)?.takeIf { it.holderId == holderId }
+                ?: error("no placement of $retiredLotId at $holder")
+            val i = pack.indexOf(retiredLotId.raw)
+            check(i >= 0) { "no placement of $retiredLotId at $holder" }
+            val previous = pack.remaining[i]
+
+            // The replacement keeps the retired lot's queue slot: for everyone who comes after,
+            // it is still the oldest thing in this account.
+            val lots = pack.lots.copyOf().also { it[i] = newLotId.raw }
+            val left = pack.remaining.copyOf().also { it[i] = remaining.raw }
+            packs.swap(this, pack, Pack(pack.id, holderId, pack.itemKeyId, lots, left, pack.fifo))
+            delete(Keys.lotPack(retiredLotId.raw))
+            put(Keys.lotPack(newLotId.raw), Records.long(pack.id))
+            addToTotal(this, holderId, pack.itemKeyId, remaining.raw - previous)
+            changed(retiredLotId.raw, newLotId.raw)
         }
     }
 
@@ -241,390 +580,36 @@ class LotRepository(
         return out
     }
 
-    override suspend fun accountQueue(holder: HolderId, itemKey: ItemKey, limit: Int): List<AccountLot> = storage.read {
-        val holderId = interning.findHolderId(this, holder) ?: return@read emptyList()
-        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read emptyList()
-        val out = ArrayList<AccountLot>()
-        scan(Keys.placePrefix(holderId, itemKeyId)).use { cursor ->
-            while (out.size < limit && cursor.next()) {
-                out += accountLot(this, holder, cursor.key(), cursor.value())
-            }
-        }
-        out
-    }
-
-    @Consume
-    override suspend fun takeFifo(
-        holder: HolderId,
-        itemKey: ItemKey,
-        quantity: Quantity,
-        txn: TxnId,
-    ): List<LotPortion> = storage.write {
-        val holderId = interning.findHolderId(this, holder)
-            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0")
-        val itemKeyId = interning.findItemKeyId(this, itemKey)
-            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0")
-        val buf = fifoScratch
-        buf.clear()
-        var need = quantity.raw
-        scan(Keys.placePrefix(holderId, itemKeyId)).use { cursor ->
-            while (need > 0 && cursor.next()) {
-                val value = cursor.value()
-                val remaining = Records.placementRemaining(value)
-                buf.add(cursor.keyU64(9), Records.placementLotId(value), remaining)
-                need -= if (remaining <= need) remaining else need
-            }
-        }
-        check(need == 0L) {
-            "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, short by $need"
-        }
-        changed(*buf.lots.copyOf(buf.n))
-        val taken = ArrayList<LotPortion>(buf.n)
-        var still = quantity.raw
-        var i = 0
-        while (i < buf.n && still > 0) {
-            val remaining = buf.rem[i]
-            val lotId = buf.lots[i]
-            val fifo = buf.fifo[i]
-            if (remaining <= still) {
-                consumeSlot(this, holderId, itemKeyId, fifo, lotId, remaining)
-                taken += LotPortion(LotId(lotId), Quantity(remaining))
-                still -= remaining
-            } else {
-                taken += splitSlot(this, holderId, itemKeyId, itemKey, fifo, lotId, remaining, still, txn).taken
-                still = 0
-            }
-            i++
-        }
-        taken
-    }
-
-    @Consume
-    override suspend fun drainFifo(
-        holder: HolderId,
-        itemKey: ItemKey,
-        owed: List<Pair<HolderId, Long>>,
-        txn: TxnId,
-    ): List<Pair<HolderId, List<LotPortion>>> = storage.write {
-        if (owed.isEmpty()) return@write emptyList()
-        val holderId = interning.findHolderId(this, holder) ?: return@write emptyList()
-        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@write emptyList()
-        val buf = fifoScratch
-        buf.clear()
-        var want = 0L
-        var o = 0
-        while (o < owed.size) {
-            want += owed[o].second
-            o++
-        }
-        var have = 0L
-        scan(Keys.placePrefix(holderId, itemKeyId)).use { cursor ->
-            while ((want == 0L || have < want) && cursor.next()) {
-                val value = cursor.value()
-                val remaining = Records.placementRemaining(value)
-                buf.add(cursor.keyU64(9), Records.placementLotId(value), remaining)
-                have += remaining
-            }
-        }
-        changed(*buf.lots.copyOf(buf.n))
-        val out = ArrayList<Pair<HolderId, List<LotPortion>>>(owed.size)
-        var slot = 0
-        var lotId = if (buf.n == 0) 0L else buf.lots[0]
-        var left = if (buf.n == 0) 0L else buf.rem[0]
-        o = 0
-        while (o < owed.size) {
-            val dest = owed[o]
-            var stillNeeded = dest.second
-            var taken: ArrayList<LotPortion>? = null
-            while (stillNeeded > 0 && slot < buf.n) {
-                val fifo = buf.fifo[slot]
-                val take = if (left <= stillNeeded) left else stillNeeded
-                if (take == left) {
-                    consumeSlot(this, holderId, itemKeyId, fifo, lotId, left)
-                    val bucket = taken ?: ArrayList<LotPortion>(4).also { taken = it }
-                    bucket += LotPortion(LotId(lotId), Quantity(take))
-                    stillNeeded -= take
-                    slot++
-                    if (slot < buf.n) {
-                        lotId = buf.lots[slot]
-                        left = buf.rem[slot]
-                    } else {
-                        left = 0L
-                    }
-                } else {
-                    val split = splitSlot(this, holderId, itemKeyId, itemKey, fifo, lotId, left, take, txn)
-                    val bucket = taken ?: ArrayList<LotPortion>(4).also { taken = it }
-                    bucket += split.taken
-                    lotId = split.keptLotId
-                    left = split.keptRemaining
-                    stillNeeded = 0
-                }
-            }
-            val got = taken
-            if (!got.isNullOrEmpty()) out += dest.first to got
-            o++
-        }
-        out
-    }
-
-    override suspend fun totalOf(holder: HolderId, itemKey: ItemKey): Long = storage.read {
-        val holderId = interning.findHolderId(this, holder) ?: return@read 0L
-        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read 0L
-        get(Keys.total(holderId, itemKeyId))?.let(Records::asLong) ?: 0L
-    }
-
-    override suspend fun totalsAt(holder: HolderId): Map<ItemKey, Long> = storage.read {
-        val holderId = interning.findHolderId(this, holder) ?: return@read emptyMap()
-        val out = LinkedHashMap<ItemKey, Long>()
-        eachRow(Keys.totalPrefix(holderId)) { cursor ->
-            val total = Records.asLong(cursor.value())
-            if (total > 0) out[interning.resolveItemKey(this, KeyReader.u32(cursor.key(), 5))] = total
-        }
-        out
-    }
-
-    override suspend fun placementOf(holder: HolderId, lotId: LotId): AccountLot? = storage.read {
-        val holderId = interning.findHolderId(this, holder) ?: return@read null
-        val reverse = get(Keys.placeRev(lotId.raw, holderId)) ?: return@read null
-        val itemKeyId = Records.placementRevItemKeyId(reverse)
-        val fifoSeq = Records.placementRevFifoSeq(reverse)
-        val key = Keys.place(holderId, itemKeyId, fifoSeq)
-        get(key)?.let { accountLot(this, holder, key, it) }
-    }
-
-    override suspend fun census(itemKey: ItemKey): Long = storage.read {
-        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read 0L
-        var total = 0L
-        eachRow(Keys.placeItemPrefix(itemKeyId)) { cursor ->
-            val holderId = KeyReader.u32(cursor.key(), 5)
-            when (interning.resolveHolder(this, holderId)) {
-                is HolderId.Source, is HolderId.Sink -> return@eachRow
-                else -> {
-                    val fifoSeq = KeyReader.u64(cursor.key(), 9)
-                    val placement = get(Keys.place(holderId, itemKeyId, fifoSeq)) ?: return@eachRow
-                    total += Records.placementRemaining(placement)
-                }
-            }
-        }
-        total
-    }
-
-    override suspend fun allPlacements(itemKey: ItemKey): List<AccountLot> = storage.read {
-        val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read emptyList()
-        val out = ArrayList<AccountLot>()
-        eachRow(Keys.placeItemPrefix(itemKeyId)) { cursor ->
-            val holderId = KeyReader.u32(cursor.key(), 5)
-            val fifoSeq = KeyReader.u64(cursor.key(), 9)
-            val placement = get(Keys.place(holderId, itemKeyId, fifoSeq)) ?: return@eachRow
-            out += AccountLot(
-                interning.resolveHolder(this, holderId),
-                readLot(this, LotId(Records.placementLotId(placement))),
-                Quantity(Records.placementRemaining(placement)),
-                Seq(fifoSeq),
-            )
-        }
-        out
-    }
-
-    override suspend fun placementsAt(holder: HolderId): List<AccountLot> = storage.read {
-        val holderId = interning.findHolderId(this, holder) ?: return@read emptyList()
-        val out = ArrayList<AccountLot>()
-        eachRow(Keys.placeHolderPrefix(holderId)) { cursor ->
-            out += accountLot(
-                this,
-                holder,
-                cursor.key(),
-                cursor.value()
-            )
-        }
-        out
-    }
-
-    override suspend fun currentHolderOf(lotId: LotId): HolderId? = storage.read {
-        scan(Keys.placeRevPrefix(lotId.raw)).use { cursor ->
-            if (!cursor.next()) null else interning.resolveHolder(this, KeyReader.u32(cursor.key(), 9))
-        }
-    }
-
-    override suspend fun place(holder: HolderId, lotId: LotId, quantity: Quantity): AccountLot {
-        val fifoSeq = counters.nextFifoSeq()
-        return storage.write {
-            val lot = readLot(this, lotId)
-            // placed anywhere, not only here: on disk a second place was a silent duplicate
-            scan(Keys.placeRevPrefix(lotId.raw)).use { cursor ->
-                check(!cursor.next()) {
-                    "lot $lotId is already placed at ${
-                        interning.resolveHolder(
-                            this,
-                            KeyReader.u32(cursor.key(), 9)
-                        )
-                    }"
-                }
-            }
-            val holderId = interning.internHolder(this, holder)
-            val itemKeyId = interning.internItemKey(this, lot.itemKey)
-            put(Keys.place(holderId, itemKeyId, fifoSeq.raw), Records.placement(lotId.raw, quantity.raw))
-            put(Keys.placeRev(lotId.raw, holderId), Records.placementRev(itemKeyId, fifoSeq.raw))
-            put(Keys.placeItem(itemKeyId, holderId, fifoSeq.raw), EMPTY)
-            addToTotal(this, holderId, itemKeyId, quantity.raw)
-            changed(lotId.raw)
-            AccountLot(holder, lot, quantity, fifoSeq)
-        }
-    }
-
-    override suspend fun remove(holder: HolderId, lotId: LotId) {
-        storage.write {
-            val holderId = interning.findHolderId(this, holder) ?: return@write
-            val reverseKey = Keys.placeRev(lotId.raw, holderId)
-            val reverse = get(reverseKey) ?: return@write
-            val itemKeyId = Records.placementRevItemKeyId(reverse)
-            val fifoSeq = Records.placementRevFifoSeq(reverse)
-            val placementKey = Keys.place(holderId, itemKeyId, fifoSeq)
-            val remaining = get(placementKey)?.let(Records::placementRemaining) ?: 0L
-
-            delete(placementKey)
-            delete(reverseKey)
-            delete(Keys.placeItem(itemKeyId, holderId, fifoSeq))
-            addToTotal(this, holderId, itemKeyId, -remaining)
-            changed(lotId.raw)
-        }
-    }
-
-    override suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId) {
-        storage.write {
-            if (from == to) return@write
-            val fromId = interning.findHolderId(this, from)
-                ?: error("lot $lotId is not currently placed at $from")
-            val toId = interning.internHolder(this, to)
-            val reverseKey = Keys.placeRev(lotId.raw, fromId)
-            val reverse = get(reverseKey) ?: error("lot $lotId is not currently placed at $from")
-            val itemKeyId = Records.placementRevItemKeyId(reverse)
-            val fifoSeq = Records.placementRevFifoSeq(reverse)
-            val placementKey = Keys.place(fromId, itemKeyId, fifoSeq)
-            val remaining = get(placementKey)?.let(Records::placementRemaining) ?: return@write
-
-            delete(placementKey)
-            delete(reverseKey)
-            delete(Keys.placeItem(itemKeyId, fromId, fifoSeq))
-            put(Keys.place(toId, itemKeyId, fifoSeq), Records.placement(lotId.raw, remaining))
-            put(Keys.placeRev(lotId.raw, toId), Records.placementRev(itemKeyId, fifoSeq))
-            put(Keys.placeItem(itemKeyId, toId, fifoSeq), EMPTY)
-            addToTotal(this, fromId, itemKeyId, -remaining)
-            addToTotal(this, toId, itemKeyId, remaining)
-            changed(lotId.raw)
-        }
-    }
-
-    override suspend fun relocate(from: HolderId, to: HolderId) {
-        storage.write {
-            val fromId = interning.findHolderId(this, from) ?: return@write
-            val toId = interning.internHolder(this, to)
-            if (fromId == toId) return@write
-
-            // Read the whole account out before touching any of it: rewriting keys under a cursor
-            // that is still walking the same prefix is a good way to visit a key twice or not at all.
-            val moving = ArrayList<Moved>()
-            eachRow(Keys.placeHolderPrefix(fromId)) { cursor ->
-                val key = cursor.key()
-                val value = cursor.value()
-                moving += Moved(
-                    KeyReader.u32(key, 5),
-                    KeyReader.u64(key, 9),
-                    Records.placementLotId(value),
-                    Records.placementRemaining(value),
-                )
-            }
-
-            changed(*LongArray(moving.size) { moving[it].lotId })
-            for ((itemKeyId, fifoSeq, lotId, remaining) in moving) {
-                delete(Keys.place(fromId, itemKeyId, fifoSeq))
-                delete(Keys.placeRev(lotId, fromId))
-                delete(Keys.placeItem(itemKeyId, fromId, fifoSeq))
-
-                // The queue position travels with the lot, so a relocated account keeps its FIFO
-                // order both internally and against whatever already sat at the destination.
-                put(Keys.place(toId, itemKeyId, fifoSeq), Records.placement(lotId, remaining))
-                put(Keys.placeRev(lotId, toId), Records.placementRev(itemKeyId, fifoSeq))
-                put(Keys.placeItem(itemKeyId, toId, fifoSeq), EMPTY)
-
-                addToTotal(this, fromId, itemKeyId, -remaining)
-                addToTotal(this, toId, itemKeyId, remaining)
-            }
-        }
-    }
-
-    private data class Moved(val itemKeyId: Int, val fifoSeq: Long, val lotId: Long, val remaining: Long)
-
-    override suspend fun replace(holder: HolderId, retiredLotId: LotId, newLotId: LotId, remaining: Quantity) {
-        storage.write {
-            val holderId = interning.findHolderId(this, holder) ?: error("no placement of $retiredLotId at $holder")
-            val reverseKey = Keys.placeRev(retiredLotId.raw, holderId)
-            val reverse = get(reverseKey) ?: error("no placement of $retiredLotId at $holder")
-            val itemKeyId = Records.placementRevItemKeyId(reverse)
-            val fifoSeq = Records.placementRevFifoSeq(reverse)
-            val placementKey = Keys.place(holderId, itemKeyId, fifoSeq)
-            val previous = get(placementKey)?.let(Records::placementRemaining) ?: 0L
-
-            // The replacement keeps the retired lot's queue slot: for everyone who comes after,
-            // it is still the oldest thing in this account.
-            put(placementKey, Records.placement(newLotId.raw, remaining.raw))
-            delete(reverseKey)
-            put(Keys.placeRev(newLotId.raw, holderId), Records.placementRev(itemKeyId, fifoSeq))
-            addToTotal(this, holderId, itemKeyId, remaining.raw - previous)
-            changed(retiredLotId.raw, newLotId.raw)
-        }
-    }
-
     fun forget() {
         lots.invalidateAll()
     }
 
-    private class FifoScratch {
-        var fifo = LongArray(32)
-        var lots = LongArray(32)
-        var rem = LongArray(32)
-        var n = 0
 
-        fun clear() {
-            n = 0
+    private class Entries {
+        private val lots = ArrayList<Long>()
+        private val remaining = ArrayList<Long>()
+        private val fifo = ArrayList<Long>()
+        var sum = 0L
+            private set
+
+        fun add(lot: Long, left: Long, at: Long) {
+            lots += lot
+            remaining += left
+            fifo += at
+            sum += left
         }
 
-        fun add(fifoSeq: Long, lotId: Long, remaining: Long) {
-            if (n == fifo.size) {
-                val cap = n * 2
-                fifo = fifo.copyOf(cap)
-                lots = lots.copyOf(cap)
-                rem = rem.copyOf(cap)
-            }
-            fifo[n] = fifoSeq
-            lots[n] = lotId
-            rem[n] = remaining
-            n++
-        }
+        fun lots() = lots.toLongArray()
+        fun remaining() = remaining.toLongArray()
+        fun fifo() = fifo.toLongArray()
     }
 
     private class Split(val taken: LotPortion, val keptLotId: Long, val keptRemaining: Long)
 
-    private fun consumeSlot(
+    private fun split(
         unit: StorageUnit,
-        holderId: Int,
-        itemKeyId: Int,
-        fifoSeq: Long,
-        lotId: Long,
-        remaining: Long,
-    ) {
-        unit.delete(Keys.place(holderId, itemKeyId, fifoSeq))
-        unit.delete(Keys.placeRev(lotId, holderId))
-        unit.delete(Keys.placeItem(itemKeyId, holderId, fifoSeq))
-        addToTotal(unit, holderId, itemKeyId, -remaining)
-    }
-
-    private fun splitSlot(
-        unit: StorageUnit,
-        holderId: Int,
-        itemKeyId: Int,
         itemKey: ItemKey,
-        fifoSeq: Long,
+        itemKeyId: Int,
         parentLotId: Long,
         remaining: Long,
         take: Long,
@@ -644,11 +629,6 @@ class LotRepository(
         unit.put(Keys.edgeInto(takenId.raw, parentLotId), splitTaken)
         unit.put(Keys.edgeFrom(parentLotId, keptId.raw), splitKept)
         unit.put(Keys.edgeInto(keptId.raw, parentLotId), splitKept)
-        val placementKey = Keys.place(holderId, itemKeyId, fifoSeq)
-        unit.put(placementKey, Records.placement(keptId.raw, keptQty.raw))
-        unit.delete(Keys.placeRev(parentLotId, holderId))
-        unit.put(Keys.placeRev(keptId.raw, holderId), Records.placementRev(itemKeyId, fifoSeq))
-        addToTotal(unit, holderId, itemKeyId, -take)
         return Split(LotPortion(takenId, takenQty), keptId.raw, keptQty.raw)
     }
 
@@ -658,6 +638,13 @@ class LotRepository(
         val updated = (unit.get(key)?.let(Records::asLong) ?: 0L) + delta
         if (updated == 0L) unit.delete(key) else unit.put(key, Records.long(updated))
     }
+
+    private fun accountLot(unit: StorageUnit, holder: HolderId, pack: Pack, i: Int): AccountLot = AccountLot(
+        holder,
+        readLot(unit, LotId(pack.lots[i])),
+        Quantity(pack.remaining[i]),
+        Seq(pack.fifo[i]),
+    )
 
     private fun readLot(unit: StorageUnit, id: LotId): Lot {
         lots.getIfPresent(id)?.let { return it }
@@ -670,18 +657,6 @@ class LotRepository(
         interning.resolveItemKey(unit, Records.lotItemKeyId(value)),
         Quantity(Records.lotQuantity(value)),
         TxnId(Records.lotCreatedBy(value)),
-    )
-
-    private fun accountLot(
-        unit: StorageUnit,
-        holder: HolderId,
-        placementKey: ByteArray,
-        placement: MemorySegment,
-    ): AccountLot = AccountLot(
-        holder,
-        readLot(unit, LotId(Records.placementLotId(placement))),
-        Quantity(Records.placementRemaining(placement)),
-        Seq(KeyReader.u64(placementKey, 9)),
     )
 
     private fun decodeEdge(

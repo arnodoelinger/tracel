@@ -171,11 +171,23 @@ public interface LotRepository : UnitOfWork {
     /** Appends a fresh queue entry for [lotId] at [holder], newest position. */
     public suspend fun place(holder: HolderId, lotId: LotId, quantity: Quantity): AccountLot
 
+    /** [place] for each of [portions] at [holder], in order. */
+    public suspend fun placeAll(holder: HolderId, portions: List<LotPortion>) {
+        for ((lotId, quantity) in portions) place(holder, lotId, quantity)
+    }
+
     /** Retires [lotId]'s placement at [holder] entirely. */
     public suspend fun remove(holder: HolderId, lotId: LotId)
 
-    /** Moves one lot from [from] to [to] in place. */
-    public suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId)
+    /** Moves one lot from [from] to [to] in place. Throws if it is not at [from]; returns what it held. */
+    public suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId): Quantity
+
+    /** [rehome] for many lots at once. Throws if any is not at [from]; returns what each held. */
+    public suspend fun rehomeAll(from: HolderId, to: HolderId, lotIds: List<LotId>): Map<LotId, Quantity> {
+        val out = LinkedHashMap<LotId, Quantity>(lotIds.size)
+        for (lotId in lotIds) out[lotId] = rehome(from, to, lotId)
+        return out
+    }
 
     /** Moves on every committed change. Zero where nobody counts. */
     public suspend fun version(): Long = 0L

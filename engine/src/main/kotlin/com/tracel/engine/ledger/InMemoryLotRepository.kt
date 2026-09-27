@@ -222,15 +222,16 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         commit(s.copy(holderOf = s.holderOf.removing(lotId)))
     }
 
-    override suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId) {
+    override suspend fun rehome(from: HolderId, to: HolderId, lotId: LotId): Quantity {
         writer.checkIn()
-        if (from == to) return
         var s = state.get()
         val entry = s.byLot[lotId]?.takeIf { it.holder == from }
             ?: error("lot $lotId is not currently placed at $from")
+        if (from == to) return entry.remaining
         s = s.unplace(from, lotId)
         s = s.putPlacement(entry.copy(holder = to))
         commit(s.copy(holderOf = s.holderOf.putting(lotId, to)))
+        return entry.remaining
     }
 
     override suspend fun relocate(from: HolderId, to: HolderId) {

@@ -47,6 +47,12 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     /** @return a new lot ID. */
     fun nextLotIdOn(unit: StorageUnit): LotId = LotId(nextOn(unit, LOT))
 
+    /** @return a new FIFO sequence number, inside [unit]. */
+    fun nextFifoSeqOn(unit: StorageUnit): Long = nextOn(unit, PLACEMENT)
+
+    /** @return a new pack ID, inside [unit]. */
+    fun nextPackIdOn(unit: StorageUnit): Long = nextOn(unit, PACK)
+
     /** @return a new sequence number. */
     suspend fun peekTxnId(): Long {
         lock.lock()
@@ -96,7 +102,6 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         value
     }
 
-    @Suppress("SameParameterValue")
     private fun nextOn(unit: StorageUnit, name: Int): Long = lock.withLock {
         val reservation = reserved[name]
         if (reservation != null && reservation.next < reservation.exhaustedAt) return reservation.next++
@@ -133,6 +138,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         const val SEQ = 4
         const val ROLLBACK_JOB = 5
         const val PENDING_DELIVERY = 6
+        const val PACK = 7
         const val DEFAULT_BLOCK_SIZE = 256L
     }
 }

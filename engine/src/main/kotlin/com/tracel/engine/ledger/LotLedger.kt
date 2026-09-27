@@ -100,14 +100,16 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
 
     /** Moves one lot to another holder, same FIFO slot. */
     public suspend fun moveExact(from: HolderId, to: HolderId, lotId: LotId): Quantity = atomically {
-        val placed = repo.placementOf(from, lotId)?.remaining ?: error("lot $lotId is not currently placed at $from")
-        if (from != to) repo.rehome(from, to, lotId)
-        placed
+        repo.rehome(from, to, lotId)
     }
+
+    /** [moveExact] for many lots at once; a whole pack of them moves as one. */
+    public suspend fun moveExactAll(from: HolderId, to: HolderId, lotIds: List<LotId>): Map<LotId, Quantity> =
+        atomically { repo.rehomeAll(from, to, lotIds) }
 
     /** Puts already-withdrawn portions onto [holder]. */
     public suspend fun deposit(holder: HolderId, portions: List<LotPortion>): Unit = atomically {
-        for ((lotId, quantity) in portions) repo.place(holder, lotId, quantity)
+        repo.placeAll(holder, portions)
     }
 
     /**

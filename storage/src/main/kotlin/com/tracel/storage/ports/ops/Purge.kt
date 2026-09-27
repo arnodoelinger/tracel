@@ -8,6 +8,7 @@ import com.tracel.storage.codec.Records
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
+import com.tracel.storage.codec.records.Lot as LotRecord
 
 /** Deletes the `Tracel`'s history. */
 suspend fun purgeAll(storage: TracelStorage) {
@@ -45,12 +46,12 @@ suspend fun rebuildTotals(storage: TracelStorage) {
         keys.forEach(::delete)
 
         val totals = HashMap<Long, Long>()
-        eachRow(Keys.tagPrefix(Keys.PLACE)) { cursor ->
+        eachRow(Keys.tagPrefix(Keys.PACK_ITEM)) { cursor ->
             val key = cursor.key()
-            val holderId = KeyReader.u32(key, 1)
-            val itemKeyId = KeyReader.u32(key, 5)
+            val itemKeyId = KeyReader.u32(key, 1)
+            val holderId = KeyReader.u32(key, 5)
             val packed = (holderId.toLong() shl 32) or (itemKeyId.toLong() and 0xFFFFFFFFL) // -> 64
-            totals.merge(packed, Records.placementRemaining(cursor.value()), Long::plus)
+            totals.merge(packed, LotRecord.sumOf(cursor.value()), Long::plus)
         }
         for ((packed, total) in totals) {
             if (total == 0L) continue
