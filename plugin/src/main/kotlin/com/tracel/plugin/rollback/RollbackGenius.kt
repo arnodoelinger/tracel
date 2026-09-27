@@ -1,6 +1,7 @@
 package com.tracel.plugin.rollback
 
 import com.tracel.engine.log.LookupFilter
+import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
@@ -42,6 +43,6 @@ interface RollbackGenius {
     /** Mirror of apply: put-back structure, material, take-away last. */
     suspend fun undo(job: RollbackJobId): UndoResult
 
-    /** The most recent job that has not been undone. */
-    suspend fun lastUndoable(): RollbackJobId?
+    /** [by]'s most recent job that has not been undone. */
+    suspend fun lastUndoable(by: HolderId?): RollbackJobId?
 }

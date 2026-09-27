@@ -3,7 +3,9 @@ package com.tracel.storage
 import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.plan.*
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
+import com.tracel.engine.rollback.job.RollbackJobRepository
 import com.tracel.model.id.*
 import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
@@ -387,4 +389,47 @@ class RollbackJobPersistenceTest {
                 .mapToLong { java.nio.file.Files.size(it) }
                 .sum()
         }
+
+    @Test
+    fun `every admin has their own undo stack, the console its own too`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            fun job(id: Long, by: HolderId?) =
+                RollbackJobRecord(RollbackJobId(id), plan, RollbackTarget.Uniform(player(1)), by = by)
+            stack.jobs.save(job(1, player(2)))
+            stack.jobs.save(job(2, player(3)))
+            stack.jobs.save(job(3, null))
+            stack.jobs.save(job(4, player(2)))
+
+            assertEquals(listOf(RollbackJobId(4), RollbackJobId(1)), stack.jobs.undoableBy(player(2), limit = 5))
+            assertEquals(listOf(RollbackJobId(2)), stack.jobs.undoableBy(player(3), limit = 5))
+            assertEquals(listOf(RollbackJobId(3)), stack.jobs.undoableBy(null, limit = 5))
+            assertEquals(player(3), stack.jobs.find(RollbackJobId(2))!!.by)
+            assertNull(stack.jobs.find(RollbackJobId(3))!!.by)
+        }
+    }
+
+    @Test
+    fun `one admin filling their stack evicts only their own oldest`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            stack.jobs.save(RollbackJobRecord(RollbackJobId(1), plan, RollbackTarget.Uniform(player(1)), by = player(3)))
+            for (id in 2L..(2L + RollbackJobRepository.UNDO_DEPTH)) {
+                stack.jobs.save(RollbackJobRecord(RollbackJobId(id), plan, RollbackTarget.Uniform(player(1)), by = player(2)))
+            }
+            assertEquals(RollbackJobRepository.UNDO_DEPTH, stack.jobs.undoableBy(player(2), limit = 100).size)
+            assertFalse(stack.jobs.isUndoable(RollbackJobId(2)))
+            assertTrue(stack.jobs.isUndoable(RollbackJobId(1)))
+        }
+    }
+
+    @Test
+    fun `a job saved before owners were kept is on nobody's stack, the console's included`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            stack.jobs.save(RollbackJobRecord(RollbackJobId(1), plan, RollbackTarget.Uniform(player(1))))
+            stack.storage.write { put(Keys.rbRecent(1), ByteArray(0)) }
+
+            assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoableBy(null, limit = 5))
+            assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoableBy(player(2), limit = 5))
+            assertTrue(stack.jobs.isUndoable(RollbackJobId(1)))
+        }
+    }
 }

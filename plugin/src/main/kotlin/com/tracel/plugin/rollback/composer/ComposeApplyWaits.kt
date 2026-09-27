@@ -133,7 +133,7 @@ internal suspend fun RollbackComposer.materialAndContested(
                     services.jobs.begin(
                         RollbackJobRecord(
                             job, composite.material, planned.target, first.created.applied,
-                            targetTimeMillis = planned.targetTimeMillis, executedAtMillis = startedAtMillis,
+                            targetTimeMillis = planned.targetTimeMillis, executedAtMillis = startedAtMillis, by = planned.by,
                         )
                     )
                 }

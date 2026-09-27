@@ -32,9 +32,9 @@ class UndoAction(private val services: TracelServices) {
     }
 
     private suspend fun runUndo(sender: CommandSender, confirmed: Boolean) {
-        val job = services.composite.lastUndoable()
+        val job = services.composite.lastUndoable(sender.actor())
         if (job == null) {
-            sender.sendMessage("Undo: nothing to undo — no rollback has run that has not already been taken back.")
+            sender.sendMessage("Undo: nothing to undo — every rollback you ran has already been taken back.")
             return
         }
         if (!confirmed && askedAboutEntities(sender, job)) return
@@ -68,8 +68,8 @@ class UndoAction(private val services: TracelServices) {
                 val listed = outcome.newer.take(LISTED_JOBS).joinToString(", ") { it.raw.toString() }
                 val more = if (outcome.newer.size > LISTED_JOBS) ", ..." else ""
                 sender.sendMessage(
-                    "Undo: rollback ${job.raw} is not the most recent one. Take back ${outcome.newer.size} " +
-                            "newer job(s) first ($listed$more) — /tracel undo, repeated, does them in order."
+                    "Undo: ${outcome.newer.size} newer rollback(s) by someone else changed the same blocks or items " +
+                            "($listed$more). Whoever ran them has to undo theirs first."
                 )
             }
 

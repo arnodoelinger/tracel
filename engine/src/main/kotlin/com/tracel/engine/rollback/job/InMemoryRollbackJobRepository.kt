@@ -5,6 +5,7 @@ import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
 import com.tracel.engine.ownership.SingleWriterGuard
+import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 
 /** In-memory [RollbackJobRepository]. */
@@ -19,7 +20,11 @@ public class InMemoryRollbackJobRepository : RollbackJobRepository {
         writer.checkIn()
         records[record.id] = record
         if (record.id !in stack) stack.addLast(record.id)
-        while (stack.size > RollbackJobRepository.UNDO_DEPTH) records.remove(stack.removeFirst())
+        val own = stack.filter { records[it]?.by == record.by }
+        for (evicted in own.take(maxOf(0, own.size - RollbackJobRepository.UNDO_DEPTH))) {
+            stack.remove(evicted)
+            records.remove(evicted)
+        }
     }
 
     @Reads
@@ -27,6 +32,10 @@ public class InMemoryRollbackJobRepository : RollbackJobRepository {
 
     @Reads
     override suspend fun undoable(limit: Int): List<RollbackJobId> = stack.reversed().take(limit)
+
+    @Reads
+    override suspend fun undoableBy(by: HolderId?, limit: Int): List<RollbackJobId> =
+        stack.reversed().filter { records[it]?.by == by }.take(limit)
 
     @Reads
     override suspend fun isUndoable(id: RollbackJobId): Boolean = id in stack

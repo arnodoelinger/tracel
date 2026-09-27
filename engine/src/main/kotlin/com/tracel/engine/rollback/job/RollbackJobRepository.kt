@@ -3,6 +3,7 @@ package com.tracel.engine.rollback.job
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.involution.InvolutionPlanner
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 
 /**
@@ -16,7 +17,7 @@ import com.tracel.model.id.RollbackJobId
 @Unstable
 public interface RollbackJobRepository {
     public companion object {
-        /** How many jobs [undoable] keeps for "undo that". */
+        /** How many jobs each admin's stack keeps for "undo that". */
         public const val UNDO_DEPTH: Int = 20
     }
 
@@ -34,8 +35,11 @@ public interface RollbackJobRepository {
     /** Job by [id], while its record is kept: [markUndone] and eviction past [UNDO_DEPTH] forget it. */
     public suspend fun find(id: RollbackJobId): RollbackJobRecord?
 
-    /** Newest-first IDs still on the undo stack, at most [limit] (capped by [UNDO_DEPTH] in storage). */
+    /** Newest-first IDs still on anyone's undo stack, at most [limit]. */
     public suspend fun undoable(limit: Int = 1): List<RollbackJobId>
+
+    /** Newest-first IDs on [by]'s own undo stack, at most [limit]. */
+    public suspend fun undoableBy(by: HolderId?, limit: Int = 1): List<RollbackJobId>
 
     /** Whether [id] is still on the undo stack. */
     public suspend fun isUndoable(id: RollbackJobId): Boolean

@@ -1,6 +1,7 @@
 package com.tracel.plugin.rollback.composer
 
 import com.tracel.engine.log.LookupFilter
+import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.rollback.RollbackGenius
@@ -55,7 +56,7 @@ class RollbackComposer(
 
     override suspend fun undo(job: RollbackJobId): UndoResult = tracked { undoTracked(job) }
 
-    override suspend fun lastUndoable(): RollbackJobId? = services.jobs.undoable(limit = 1).firstOrNull()
+    override suspend fun lastUndoable(by: HolderId?): RollbackJobId? = services.jobs.undoableBy(by, limit = 1).firstOrNull()
 
     internal inline fun <T> tracked(block: () -> T): T {
         inFlight.incrementAndGet()

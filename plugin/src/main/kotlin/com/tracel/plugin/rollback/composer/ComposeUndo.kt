@@ -1,5 +1,7 @@
 package com.tracel.plugin.rollback.composer
 
+import com.tracel.plugin.util.blockPos
+import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import com.tracel.engine.rollback.involution.InvolutionOutcome
 import com.tracel.engine.rollback.involution.InvolutionPlanner
@@ -32,9 +34,10 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
     val record = services.jobs.find(job) ?: return UndoResult.NotFound
     if (!services.jobs.isUndoable(job)) return UndoResult.AlreadyUndone
 
-    // Undo is a stack. Reach past the top and newer jobs have already moved this material;
-    // the take fails halfway and the world is half-undone.
-    val newer = services.jobs.undoable(limit = MAX_STACKED_JOBS).filter { it.raw > job.raw }
+    val mine = record.touches()
+    val newer = services.jobs.undoable(limit = MAX_STACKED_JOBS * MAX_STACKED_JOBS)
+        .filter { it.raw > job.raw }
+        .filter { other -> services.jobs.find(other)?.touches()?.any { it in mine } ?: false }
     if (newer.isNotEmpty()) return UndoResult.OutOfOrder(job, newer)
 
     val putBack = record.destroy.map { it.inverse() }
@@ -162,5 +165,14 @@ private suspend fun RollbackComposer.undoFrozen(
             putBackAgain()
             UndoResult.NotFound
         }
+    }
+}
+
+private fun RollbackJobRecord.touches(): Set<Any> = buildSet {
+    for (step in create + destroy) add(step.at)
+    for (holder in plan.holders) add(holder.blockPos() ?: holder)
+    when (val target = target) {
+        is RollbackTarget.Uniform -> add(target.holder.blockPos() ?: target.holder)
+        is RollbackTarget.PerRoot -> for (holder in target.byRoot.values) add(holder.blockPos() ?: holder)
     }
 }

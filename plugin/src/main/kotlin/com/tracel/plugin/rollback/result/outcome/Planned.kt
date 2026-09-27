@@ -19,4 +19,5 @@ data class Planned(
     val targetTimeMillis: Long? = null,
     val structural: Boolean = true,
     val covered: Set<HolderId>? = null,
+    val by: HolderId? = null,
 )

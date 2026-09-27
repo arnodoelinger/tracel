@@ -3,6 +3,7 @@ package com.tracel.engine.rollback.job
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 
 /**
@@ -39,4 +40,7 @@ public data class RollbackJobRecord(
      * An undo uses this time to restore the state that existed before the rollback.
      */
     public val executedAtMillis: Long = 0L,
+
+    /** Who ran it. */
+    public val by: HolderId? = null,
 )

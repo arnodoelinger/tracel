@@ -25,6 +25,9 @@ import kotlinx.coroutines.launch
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 
+/** Whose undo stack a job lands on: a player's own, or the console's. */
+internal fun CommandSender.actor(): HolderId? = (this as? Player)?.let { HolderId.Player(it.uniqueId) }
+
 /** Action responsible for orchestrating rollback operations, retries, and previews. */
 // TODO: improve this in future
 class RollbackAction(
@@ -183,7 +186,7 @@ class RollbackAction(
                 return
             }
             val outcome = try {
-                services.composite.apply(attempt, strict)
+                services.composite.apply(attempt.copy(by = sender.actor()), strict)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {

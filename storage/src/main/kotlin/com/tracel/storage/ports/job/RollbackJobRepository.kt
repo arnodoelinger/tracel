@@ -22,11 +22,16 @@ import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
 import com.tracel.storage.util.eachRow
 import com.tracel.engine.rollback.job.RollbackJobRepository as RollbackJobRepositoryPort
+import java.lang.foreign.MemorySegment
 
 /** A rollback plan, stored one step per record under `rbStep | job | index`. */
 class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRepositoryPort {
     private companion object {
-        val EMPTY = ByteArray(0)
+        /** The console's stack. Interned holders start at 1. */
+        const val CONSOLE = 0
+
+        /** A job saved before owners were kept: nobody's, so nobody can undo it by accident. */
+        const val UNOWNED = -1
 
         const val STEPS_PER_RECORD = 512
         const val BYTES_PER_RECORD = 1 shl 16
@@ -95,10 +100,96 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
             // The ledger already moved: a crash before finish must still leave something to undo,
             // even if it cannot put back what the contested pass had yet to remove.
             putHeader(record, destroyCount = 0)
-            put(Keys.rbRecent(record.id.raw), EMPTY)
-            evictPastDepth()
+            put(Keys.rbRecent(record.id.raw), ownerValue(record.by))
+            evictPastDepth(ownerValue(record.by))
         }
         return SaveHandle(record, runsWritten)
+    }
+
+    override suspend fun finish(handle: SaveHandle, destroy: List<StructureStep>) {
+        val record = handle.record
+        storage.write {
+            if (!exists(Keys.rbJob(record.id.raw))) return@write
+            runs(structureRuns(this, destroy)) { index, packed ->
+                put(Keys.rbStruct(record.id.raw, handle.fromRun + index), packed)
+            }
+            putHeader(record, destroyCount = destroy.size)
+        }
+    }
+
+    override suspend fun undoable(limit: Int): List<RollbackJobId> = storage.read {
+        val out = ArrayList<RollbackJobId>(limit)
+
+        scan(Keys.rbRecentPrefix()).use { cursor ->
+            while (out.size < limit && cursor.next()) {
+                out += RollbackJobId(Keys.invert(KeyReader.u64(cursor.key(), 1)))
+            }
+        }
+        out
+    }
+
+    override suspend fun undoableBy(by: HolderId?, limit: Int): List<RollbackJobId> = storage.read {
+        val out = ArrayList<RollbackJobId>(limit)
+        val owner = if (by == null) CONSOLE else storage.interning.findHolderId(this, by) ?: return@read out
+        scan(Keys.rbRecentPrefix()).use { cursor ->
+            while (out.size < limit && cursor.next()) {
+                if (ownerOf(cursor.value()) != owner) continue
+                out += RollbackJobId(Keys.invert(KeyReader.u64(cursor.key(), 1)))
+            }
+        }
+        out
+    }
+
+    override suspend fun isUndoable(id: RollbackJobId): Boolean = storage.read { exists(Keys.rbRecent(id.raw)) }
+
+    override suspend fun markUndone(id: RollbackJobId) {
+        storage.write { forget(id) }
+    }
+
+    override suspend fun find(id: RollbackJobId): RollbackJobRecord? = storage.read {
+        val header = get(Keys.rbJob(id.raw)) ?: return@read null
+        val uniformHolder = Records.rbJobRestoreTo(header)
+        val target = if (uniformHolder != 0) {
+            RollbackTarget.Uniform(storage.interning.resolveHolder(this, uniformHolder))
+        } else {
+            val byLot = mutableMapOf<LotId, HolderId>()
+            eachRow(Keys.rbTargetPrefix(id.raw)) { cursor ->
+                val lot = LotId(KeyReader.u64(cursor.key(), 9))
+                byLot[lot] = storage.interning.resolveHolder(this, Records.asInt(cursor.value()))
+            }
+            RollbackTarget.PerRoot(byLot)
+        }
+        val steps = ArrayList<RollbackStep>(Records.rbJobStepCount(header))
+        eachRow(Keys.rbStepPrefix(id.raw)) { cursor ->
+            Records.forEachPacked(cursor.value()) { part ->
+                steps += Records.decodeStep(part) { holderId -> storage.interning.resolveHolder(this, holderId) }
+            }
+        }
+        val structure = ArrayList<StructureStep>(Records.rbJobCreateCount(header) + Records.rbJobDestroyCount(header))
+        eachRow(Keys.rbStructPrefix(id.raw)) { cursor ->
+            Records.forEachPacked(cursor.value()) { part ->
+                Records.decodeStructureInto(
+                    part,
+                    { worldId -> storage.interning.resolveWorld(this, worldId) },
+                    { dataId -> storage.interning.resolveBlockData(this, dataId) },
+                    { typeId -> storage.interning.resolveEntityType(this, typeId) },
+                    structure,
+                )
+            }
+        }
+        val createCount = Records.rbJobCreateCount(header)
+        val by = get(Keys.rbRecent(id.raw))?.let(::ownerOf)?.takeIf { it > CONSOLE }?.let { storage.interning.resolveHolder(this, it) }
+
+        RollbackJobRecord(
+            id,
+            RollbackPlan(steps),
+            target,
+            structure.take(createCount),
+            structure.drop(createCount),
+            Records.rbJobTargetTime(header),
+            Records.rbJobExecutedAt(header),
+            by,
+        )
     }
 
     private fun StorageUnit.putHeader(record: RollbackJobRecord, destroyCount: Int) {
@@ -113,17 +204,6 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                 record.targetTimeMillis ?: 0L, record.targetTimeMillis != null, record.executedAtMillis,
             ),
         )
-    }
-
-    override suspend fun finish(handle: SaveHandle, destroy: List<StructureStep>) {
-        val record = handle.record
-        storage.write {
-            if (!exists(Keys.rbJob(record.id.raw))) return@write
-            runs(structureRuns(this, destroy)) { index, packed ->
-                put(Keys.rbStruct(record.id.raw, handle.fromRun + index), packed)
-            }
-            putHeader(record, destroyCount = destroy.size)
-        }
     }
 
     private fun structureRuns(unit: StorageUnit, steps: List<StructureStep>): List<ByteArray> {
@@ -182,22 +262,10 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                 ((at.z shr 4).toLong() and 0x1FFFFF shl 21) xor
                 ((at.y shr 4).toLong() and 0x1FFFFF)
 
-    override suspend fun undoable(limit: Int): List<RollbackJobId> = storage.read {
-        val out = ArrayList<RollbackJobId>(limit)
-        // Stored inverted, so the newest job is the first key a forward scan reaches
-        scan(Keys.rbRecentPrefix()).use { cursor ->
-            while (out.size < limit && cursor.next()) {
-                out += RollbackJobId(Keys.invert(KeyReader.u64(cursor.key(), 1)))
-            }
-        }
-        out
-    }
+    private fun StorageUnit.ownerValue(by: HolderId?): ByteArray =
+        Records.int(if (by == null) CONSOLE else storage.interning.internHolder(this, by))
 
-    override suspend fun isUndoable(id: RollbackJobId): Boolean = storage.read { exists(Keys.rbRecent(id.raw)) }
-
-    override suspend fun markUndone(id: RollbackJobId) {
-        storage.write { forget(id) }
-    }
+    private fun ownerOf(value: MemorySegment): Int = if (value.byteSize() < Int.SIZE_BYTES) UNOWNED else Records.asInt(value)
 
     private fun StorageUnit.forget(id: RollbackJobId) {
         val doomed = ArrayList<ByteArray>()
@@ -213,61 +281,17 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
         delete(Keys.rbRecent(id.raw))
     }
 
-    private fun StorageUnit.evictPastDepth() {
+    private fun StorageUnit.evictPastDepth(owner: ByteArray) {
         val doomed = ArrayList<RollbackJobId>()
+        val mine = Records.asInt(MemorySegment.ofArray(owner))
         var seen = 0
         eachRow(Keys.rbRecentPrefix()) { cursor ->
+            if (ownerOf(cursor.value()) != mine) return@eachRow
             seen++
             if (seen > RollbackJobRepositoryPort.UNDO_DEPTH) {
                 doomed += RollbackJobId(Keys.invert(cursor.keyU64(1)))
             }
         }
         for (id in doomed) forget(id)
-    }
-
-    override suspend fun find(id: RollbackJobId): RollbackJobRecord? = storage.read {
-        val header = get(Keys.rbJob(id.raw)) ?: return@read null
-        val uniformHolder = Records.rbJobRestoreTo(header)
-        val target = if (uniformHolder != 0) {
-            RollbackTarget.Uniform(storage.interning.resolveHolder(this, uniformHolder))
-        } else {
-            val byLot = mutableMapOf<LotId, HolderId>()
-            eachRow(Keys.rbTargetPrefix(id.raw)) { cursor ->
-                val lot = LotId(KeyReader.u64(cursor.key(), 9))
-                byLot[lot] = storage.interning.resolveHolder(this, Records.asInt(cursor.value()))
-            }
-            RollbackTarget.PerRoot(byLot)
-        }
-        val steps = ArrayList<RollbackStep>(Records.rbJobStepCount(header))
-        eachRow(Keys.rbStepPrefix(id.raw)) { cursor ->
-            Records.forEachPacked(cursor.value()) { part ->
-                steps += Records.decodeStep(part) { holderId -> storage.interning.resolveHolder(this, holderId) }
-            }
-        }
-        val structure = ArrayList<StructureStep>(Records.rbJobCreateCount(header) + Records.rbJobDestroyCount(header))
-        eachRow(Keys.rbStructPrefix(id.raw)) { cursor ->
-            Records.forEachPacked(cursor.value()) { part ->
-                Records.decodeStructureInto(
-                    part,
-                    { worldId -> storage.interning.resolveWorld(this, worldId) },
-                    { dataId -> storage.interning.resolveBlockData(this, dataId) },
-                    { typeId -> storage.interning.resolveEntityType(this, typeId) },
-                    structure,
-                )
-            }
-        }
-        val createCount = Records.rbJobCreateCount(header)
-
-        // rootOf is not persisted: a Uniform target never consults it, and a PerRoot target's
-        // map is already keyed by the roots the plan was built from.
-        RollbackJobRecord(
-            id,
-            RollbackPlan(steps),
-            target,
-            structure.take(createCount),
-            structure.drop(createCount),
-            Records.rbJobTargetTime(header),
-            Records.rbJobExecutedAt(header),
-        )
     }
 }
