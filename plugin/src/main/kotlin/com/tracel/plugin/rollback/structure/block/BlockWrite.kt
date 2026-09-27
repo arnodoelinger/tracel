@@ -42,6 +42,7 @@ internal fun StructureRestorer.apply(
  *
  * Compare parsed [BlockData], write once.
  */
+@Unstable
 internal fun StructureRestorer.applyPlain(block: Block, step: StructureStep.SetBlock, force: Boolean): Outcome {
     val targetData = BlockDataCache.of(step.target.data)
 
@@ -66,7 +67,7 @@ internal fun StructureRestorer.applyPlain(block: Block, step: StructureStep.SetB
     val standing = if (exact) null else live.asString
 
     if (!alreadyTarget && targetData != null) {
-        block.setBlockData(targetData, false)
+        block.paint(targetData)
     } else if (!alreadyTarget) {
         step.target.applyTo(block, physics = false)
     }
@@ -139,12 +140,8 @@ internal fun StructureRestorer.carryOver(block: Block, saved: List<ItemStack?>) 
     block.resyncCargo()
 }
 
-private fun Block.ticksOnly(): Boolean = when (runCatching { getState(false) }.getOrNull()) {
-    is Furnace, is BrewingStand, is Campfire -> true
-    else -> false
-}
-
-private fun Block.wakeBubbles() {
+@Unstable
+internal fun Block.wakeBubbles() {
     val drag = when (type) {
         Material.SOUL_SAND -> false
         Material.MAGMA_BLOCK -> true
@@ -157,15 +154,11 @@ private fun Block.wakeBubbles() {
         val source = (data as? Levelled)?.let { cell.type == Material.WATER && it.level == 0 } ?: false
         when {
             drag != null && (source || cell.type == Material.BUBBLE_COLUMN) ->
-                cell.setBlockData(
+                cell.paint(
                     (Material.BUBBLE_COLUMN.createBlockData() as BubbleColumn).also { it.isDrag = drag },
-                    false
                 )
 
-            drag == null && cell.type == Material.BUBBLE_COLUMN -> cell.setBlockData(
-                Material.WATER.createBlockData(),
-                false
-            )
+            drag == null && cell.type == Material.BUBBLE_COLUMN -> cell.paint(Material.WATER.createBlockData())
 
             else -> return
         }
@@ -173,7 +166,8 @@ private fun Block.wakeBubbles() {
     }
 }
 
-private fun Block.settleLeaves() {
+@Unstable
+internal fun Block.settleLeaves() {
     val start = distanceOf(this) ?: return
     val queue = ArrayDeque<Pair<Block, Int>>()
     queue += this to start
@@ -185,7 +179,7 @@ private fun Block.settleLeaves() {
             val leaves = next.blockData as? Leaves ?: continue
             if (leaves.isPersistent || distance + 1 >= leaves.distance) continue
             leaves.distance = distance + 1
-            next.setBlockData(leaves, false)
+            next.paint(leaves)
             if (distance + 1 < LEAF_MAX_DISTANCE) queue += next to distance + 1
         }
     }
@@ -203,7 +197,12 @@ private fun distanceOf(block: Block): Int? {
     }
     if (best < leaves.distance) {
         leaves.distance = best
-        block.setBlockData(leaves, false)
+        block.paint(leaves)
     }
     return best.takeIf { it < LEAF_MAX_DISTANCE }
+}
+
+private fun Block.ticksOnly(): Boolean = when (runCatching { getState(false) }.getOrNull()) {
+    is Furnace, is BrewingStand, is Campfire -> true
+    else -> false
 }

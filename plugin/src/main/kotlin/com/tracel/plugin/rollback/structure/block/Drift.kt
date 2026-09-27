@@ -80,13 +80,32 @@ private val WEATHERING = Regex("^(WAXED_)?(EXPOSED_|WEATHERED_|OXIDIZED_)?")
  */
 @Unstable
 internal fun Block.drifted(expected: BlockShape): Boolean {
-    val type = type
-    if (type.isAir || isLiquid || type.hasGravity() || type in NATURAL) return true
-    if (runCatching { isReplaceable }.getOrDefault(false)) return true
+    val data = blockData
+    return drifted(
+        type,
+        isLiquid,
+        runCatching { isReplaceable }.getOrDefault(false),
+        data is Ageable,
+        data is Waterlogged && data.isWaterlogged,
+        expected,
+    )
+}
+
+/** World moved on from [expected] by itself: fluid, fire, gravity, growth, weathering, a state flip. */
+@Unstable
+internal fun drifted(
+    type: Material,
+    liquid: Boolean,
+    replaceable: Boolean,
+    ageable: Boolean,
+    waterlogged: Boolean,
+    expected: BlockShape,
+): Boolean {
+    if (type.isAir || liquid || type.hasGravity() || type in NATURAL) return true
+    if (replaceable) return true
     val was = BlockDataCache.of(expected.data)?.material ?: return false
     if (type == was) return true
-    val data = blockData
-    if (data is Ageable || data is Waterlogged && data.isWaterlogged && was.isAir) return true
+    if (ageable || waterlogged && was.isAir) return true
     if (was == Material.WATER || was == Material.LAVA || was.isAir) return type in FLUID_MADE
     if (type in SOIL && was in SOIL) return true
     return WEATHERING.replace(type.name, "") == WEATHERING.replace(was.name, "")

@@ -21,8 +21,6 @@ import org.bukkit.inventory.InventoryHolder
 
 private const val NOT_A_CONTAINER = "block is no longer a container"
 
-private val RETRY_TICKS = longArrayOf(2, 4, 8, 16, 20)
-
 /** Applies [deltas] to whatever container lives at [holder]. */
 @Unstable
 internal suspend fun MaterialRestorer.applyToContainer(
@@ -96,14 +94,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
     val first = fill()
     if (first != NOT_A_CONTAINER) return first
 
-    // Not a container (!) yet
-    for (ticks in RETRY_TICKS) {
-        awaitHolderTicks(holder, ticks)
-        val again = fill()
-        if (again != NOT_A_CONTAINER) return again
-    }
-
-    // The ledger already put it here: on the ground beats nowhere
+    // The block rollback already finished
     return withContext(services.schedulers.region(holder)) {
         val world = worldOf(holder.world) ?: return@withContext first
         val moves = Moves()

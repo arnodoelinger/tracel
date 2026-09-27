@@ -4,6 +4,7 @@ import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
+import com.tracel.plugin.rollback.structure.block.paint
 import com.tracel.plugin.util.chunkKey
 import org.bukkit.Material
 import org.bukkit.World
@@ -36,7 +37,7 @@ internal fun fixSnowyGround(world: World, steps: List<StructureStep.SetBlock>, c
         val shouldBeSnowy = isSnowMaterial(world.getBlockAt(x, at.y, z).type)
         if (data.isSnowy != shouldBeSnowy) {
             data.isSnowy = shouldBeSnowy
-            below.setBlockData(data, false)
+            below.paint(data)
         }
     }
 }

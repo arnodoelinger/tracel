@@ -71,6 +71,7 @@ class PhaseTimings : RollbackTrace {
     }
 
     override fun render(): List<String> {
+        if (spans.isEmpty() && notes.isEmpty()) return emptyList()
         val total = started.elapsedNow()
         val top = spans.entries.filter { SEP !in it.key }.sortedByDescending { it.value }
         val measured = top.sumOf { it.value }.nanoseconds
@@ -105,7 +106,7 @@ class PhaseTimings : RollbackTrace {
                 (-unaccounted).readable(),
             )
         }
-        if (notes.isNotEmpty()) out += "  " + notes.entries.joinToString(", ") { "${it.key}=${it.value}" }
+        for ((name, value) in notes) out += "  $name=$value"
         return out
     }
 

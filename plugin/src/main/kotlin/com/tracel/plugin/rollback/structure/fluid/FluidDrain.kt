@@ -3,6 +3,9 @@ package com.tracel.plugin.rollback.structure.fluid
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.plugin.adapter.block.isFluidShape
+import com.tracel.plugin.rollback.structure.block.PalettePaste
+import com.tracel.plugin.rollback.structure.block.airBlockData
+import com.tracel.plugin.rollback.structure.block.paint
 import com.tracel.plugin.util.packed
 import com.tracel.plugin.util.unpackX
 import com.tracel.plugin.util.unpackY
@@ -15,6 +18,8 @@ internal const val FLOW_REACH = 8
 internal const val MAX_DRAINED = 4096
 
 private const val FALLING = 8
+
+private val NO_FLOW = Flow(Material.AIR, 0)
 
 // TODO: rewrite this stupid shit
 
@@ -60,42 +65,86 @@ internal fun drainFlowing(world: World, steps: List<StructureStep.SetBlock>, own
     for (seed in seeds) reach.remove(seed)
     if (reach.isEmpty()) return complete
 
-    val drained = HashSet<Long>()
-    var changed = true
-    while (changed) {
-        changed = false
-        for (pos in reach.keys) {
-            if (pos in drained || fed(world, pos, drained)) continue
-            drained += pos
-            changed = true
-        }
+    val flows = HashMap<Long, Flow>(reach.size * 2)
+    fun look(pos: Long): Flow? = flows.getOrPut(pos) { world.flowAt(pos) }
+    for (pos in reach.keys) {
+        look(pos)
+        look(packed(unpackX(pos), unpackY(pos) + 1, unpackZ(pos)))
+        for (face in HORIZONTAL) look(packed(unpackX(pos) + face.modX, unpackY(pos), unpackZ(pos) + face.modZ))
     }
+    val drained = drainOrder(reach.keys, flows)
 
     var left = MAX_DRAINED
-    for (pos in drained) {
-        if (left-- <= 0) return false
-        world.getBlockAt(unpackX(pos), unpackY(pos), unpackZ(pos)).setType(Material.AIR, false)
+    val air = airBlockData()
+    val paste = PalettePaste.tryOpen(world)
+    paste?.bind()
+    try {
+        for (pos in drained) {
+            if (left-- <= 0) return false
+            world.getBlockAt(unpackX(pos), unpackY(pos), unpackZ(pos)).paint(air)
+        }
+    } finally {
+        paste?.close()
     }
     return complete
 }
 
-private fun fed(world: World, pos: Long, drained: Set<Long>): Boolean {
+internal class Flow(val kind: Material, val level: Int)
+
+/** Cells that nothing still feeds, sources first only once their downstream is gone. One pass, no repeated world reads. */
+internal fun drainOrder(cells: Collection<Long>, flows: Map<Long, Flow>): List<Long> {
+    val pending = cells.toHashSet()
+    val drained = HashSet<Long>(pending.size)
+    val ready = ArrayDeque<Long>()
+    for (pos in pending) if (!fedBy(pos, drained, flows)) ready += pos
+    val order = ArrayList<Long>(pending.size)
+    while (ready.isNotEmpty()) {
+        val pos = ready.removeFirst()
+        if (!pending.remove(pos)) continue
+        drained += pos
+        order += pos
+        val x = unpackX(pos)
+        val y = unpackY(pos)
+        val z = unpackZ(pos)
+        consider(packed(x, y - 1, z), pending, drained, flows, ready)
+        for (face in HORIZONTAL) consider(packed(x + face.modX, y, z + face.modZ), pending, drained, flows, ready)
+    }
+    return order
+}
+
+private fun consider(
+    pos: Long,
+    pending: Set<Long>,
+    drained: Set<Long>,
+    flows: Map<Long, Flow>,
+    ready: ArrayDeque<Long>,
+) {
+    if (pos !in pending || fedBy(pos, drained, flows)) return
+    ready += pos
+}
+
+private fun fedBy(pos: Long, drained: Set<Long>, flows: Map<Long, Flow>): Boolean {
+    val here = flows[pos] ?: return true
+    if (here.kind == Material.AIR) return true
     val x = unpackX(pos)
     val y = unpackY(pos)
     val z = unpackZ(pos)
-    val block = world.getBlockAt(x, y, z)
-    val fluid = fluidOf(block) ?: return true
-    val level = levelOf(block)
-
-    val above = block.getRelative(BlockFace.UP)
-    if (packed(x, y + 1, z) !in drained && fluidOf(above) == fluid) return true
-    if (level >= FALLING) return false
-
+    val aboveKey = packed(x, y + 1, z)
+    val above = flows[aboveKey]
+    if (aboveKey !in drained && above != null && above.kind == here.kind) return true
+    if (here.level >= FALLING) return false
     for (face in HORIZONTAL) {
-        val side = block.getRelative(face)
-        if (packed(side.x, side.y, side.z) in drained || fluidOf(side) != fluid) continue
-        val feeds = levelOf(side)
-        if (feeds == 0 || feeds >= FALLING || feeds < level) return true
+        val sideKey = packed(x + face.modX, y, z + face.modZ)
+        if (sideKey in drained) continue
+        val side = flows[sideKey] ?: continue
+        if (side.kind != here.kind) continue
+        if (side.level == 0 || side.level >= FALLING || side.level < here.level) return true
     }
     return false
+}
+
+private fun World.flowAt(pos: Long): Flow {
+    val block = getBlockAt(unpackX(pos), unpackY(pos), unpackZ(pos))
+    val kind = fluidOf(block) ?: return NO_FLOW
+    return Flow(kind, levelOf(block))
 }

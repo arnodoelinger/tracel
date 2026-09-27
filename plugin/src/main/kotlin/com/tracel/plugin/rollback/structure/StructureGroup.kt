@@ -1,6 +1,8 @@
 package com.tracel.plugin.rollback.structure
 
+import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.leashHolder
@@ -31,6 +33,7 @@ import java.util.*
 private const val REATTACH_DELAY_TICKS = 5L
 
 /** Apply group structure. */
+@Unstable
 internal fun StructureRestorer.applyGroup(
     world: World,
     steps: List<StructureStep>,
@@ -104,81 +107,100 @@ internal fun StructureRestorer.applyGroup(
     val (standalone, rest) = placeable.partition { it.target.standsAlone() }
     val (gravity, attached) = rest.partition { it.target.hasGravity() }
 
-    trace.measure("$phase / set blocks") {
-        fun write(step: StructureStep.SetBlock) {
-            val block = world.blockAt(step.at)
-            val forced = force && (!driftOnly || block.drifted(step.expected))
-            when (val outcome = apply(block, step, forced, dumpHeldCargo)) {
-                is Applied -> {
-                    applied += outcome.step
-                    if (outcome.differed) overwritten++
-                    if (outcome.step.expected.extras != null) blockEntities++
+    val paste = PalettePaste.tryOpen(world)
+    paste?.bind()
+    try {
+        trace.measure("$phase / set blocks") {
+            fun write(step: StructureStep.SetBlock) {
+                val outcome = paste?.place(step, force, driftOnly) ?: run {
+                    val block = world.blockAt(step.at)
+                    val forced = force && (!driftOnly || block.drifted(step.expected))
+                    apply(block, step, forced, dumpHeldCargo)
                 }
+                when (outcome) {
+                    is Applied -> {
+                        applied += outcome.step
+                        if (outcome.differed) overwritten++
+                        if (outcome.step.expected.extras != null) blockEntities++
+                    }
 
-                is Refused -> {
-                    skipped += SkippedStep(step.at, outcome.reason)
+                    is Refused -> {
+                        skipped += SkippedStep(step.at, outcome.reason)
+                    }
+
+                    Unchanged -> Unit
                 }
+            }
 
-                Unchanged -> Unit
+            val (hanging, held) = attached.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
+            for (step in standalone + hanging + gravity) write(step)
+
+            fun sweep(steps: List<StructureStep.SetBlock>): List<StructureStep.SetBlock> {
+                val left = ArrayList<StructureStep.SetBlock>()
+                for (step in steps) if (step.target.unsupportedAt(world.blockAt(step.at))) left += step else write(step)
+                return left
+            }
+
+            var waiting = sweep(held.sortedBy { it.at.y })
+            if (waiting.isNotEmpty()) waiting = sweep(waiting.sortedByDescending { it.at.y })
+            while (waiting.isNotEmpty()) {
+                val (ready, still) = waiting.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
+                if (ready.isEmpty()) break
+                ready.forEach(::write)
+                waiting = still
+            }
+            for ((at) in waiting) skipped += SkippedStep(at, UNSUPPORTED)
+            val unwritten = waiting.mapTo(HashSet()) { it.at }
+
+            val planned = blocks.associateBy { it.at }
+            for ((at, target) in standalone + attached + gravity) {
+                if (at in unwritten || target.isAir()) continue
+                if (paste != null) {
+                    extinguish(paste, world, at, target, planned, unwritten, applied)
+                } else {
+                    val block = world.blockAt(at)
+                    if (block.isFire() && !target.isFire()) {
+                        val data = BlockDataCache.of(target.data)
+                        if (data != null && target.extras == null) block.paint(data) else target.applyTo(
+                            block,
+                            physics = false
+                        )
+                    }
+                    if (!target.isFire()) {
+                        val above = block.getRelative(BlockFace.UP)
+                        val abovePos = at.copy(y = at.y + 1)
+                        if (above.isFire() && planned[abovePos]?.target?.isFire() != true && abovePos !in unwritten) {
+                            val burning = above.toShape()
+                            above.paint(airBlockData())
+                            applied += StructureStep.SetBlock(abovePos, BlockShape.AIR, burning)
+                        }
+                    }
+                }
+            }
+        }
+        trace.add("${structurePhase.label} with nbt", blockEntities)
+        unpairOrphanedChests(world, applied)
+
+        // Second falling sweep: first ran before writes; a gravel wall takes long enough that the
+        // world outside (physics is off (!) here) can drop more onto it.
+        if (blocks.any { it.target.hasGravity() || it.expected.hasGravity() }) {
+            trace.measure("$phase / late falling") {
+                for (falling in overlappingFalling(world, blocks)) {
+                    if (!gone.add(falling.uniqueId)) continue
+                    falling.dropItem = false
+                    runCatching { falling.cancelDrop = true }
+                    applied += StructureStep.RemoveEntity(falling.toBlockPos(), falling.uniqueId, falling.toShape())
+                    falling.remove()
+                }
             }
         }
 
-        val (hanging, held) = attached.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
-        for (step in standalone + hanging + gravity) write(step)
-
-        fun sweep(steps: List<StructureStep.SetBlock>): List<StructureStep.SetBlock> {
-            val left = ArrayList<StructureStep.SetBlock>()
-            for (step in steps) if (step.target.unsupportedAt(world.blockAt(step.at))) left += step else write(step)
-            return left
-        }
-
-        var waiting = sweep(held.sortedBy { it.at.y })
-        if (waiting.isNotEmpty()) waiting = sweep(waiting.sortedByDescending { it.at.y })
-        while (waiting.isNotEmpty()) {
-            val (ready, still) = waiting.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
-            if (ready.isEmpty()) break
-            ready.forEach(::write)
-            waiting = still
-        }
-        for ((at) in waiting) skipped += SkippedStep(at, UNSUPPORTED)
-        val unwritten = waiting.mapTo(HashSet()) { it.at }
-
-        val planned = blocks.associateBy { it.at }
-        for ((at, target) in standalone + attached + gravity) {
-            if (at in unwritten) continue
-            val block = world.blockAt(at)
-            if (block.isFire() && !target.isFire()) {
-                target.applyTo(block, physics = false)
-            }
-            if (!target.isAir()) {
-                val above = block.getRelative(BlockFace.UP)
-                val abovePos = at.copy(y = at.y + 1)
-                if (above.isFire() && planned[abovePos]?.target?.isFire() != true && abovePos !in unwritten) {
-                    val burning = above.toShape()
-                    above.setType(Material.AIR, false)
-                    applied += StructureStep.SetBlock(abovePos, BlockShape.AIR, burning)
-                }
-            }
-        }
+        trace.measure("$phase / snowy ground") { fixSnowyGround(world, blocks, chunks) }
+    } finally {
+        val blocksWritten = paste?.written ?: 0
+        paste?.close()
+        if (blocksWritten > 0) trace.add("$phase / palette", blocksWritten)
     }
-    trace.add("${structurePhase.label} with nbt", blockEntities)
-    unpairOrphanedChests(world, applied)
-
-    // Second falling sweep: first ran before writes; a gravel wall takes long enough that the
-    // world outside (physics is off (!) here) can drop more onto it.
-    if (blocks.any { it.target.hasGravity() || it.expected.hasGravity() }) {
-        trace.measure("$phase / late falling") {
-            for (falling in overlappingFalling(world, blocks)) {
-                if (!gone.add(falling.uniqueId)) continue
-                falling.dropItem = false
-                runCatching { falling.cancelDrop = true }
-                applied += StructureStep.RemoveEntity(falling.toBlockPos(), falling.uniqueId, falling.toShape())
-                falling.remove()
-            }
-        }
-    }
-
-    trace.measure("$phase / snowy ground") { fixSnowyGround(world, blocks, chunks) }
 
     val looseEnds = mutableListOf<Pair<Entity, EntityShape>>()
     trace.measure("$phase / spawn") {
@@ -227,6 +249,38 @@ private fun StructureRestorer.reattachLater(
     }
 }
 
+/** Fire left on or above a restored block. Reads the section directly and only opens a Bukkit block when it is fire. */
+private fun extinguish(
+    paste: PalettePaste,
+    world: World,
+    at: BlockPos,
+    target: BlockShape,
+    planned: Map<BlockPos, StructureStep.SetBlock>,
+    unwritten: Set<BlockPos>,
+    applied: MutableList<StructureStep>,
+) {
+    if (!target.isFire() && paste.fireAt(world, at.x, at.y, at.z)) {
+        val block = world.blockAt(at)
+        val data = BlockDataCache.of(target.data)
+        if (data != null && target.extras == null) block.paint(data) else target.applyTo(block, physics = false)
+    }
+    if (target.isFire()) return
+    val above = at.copy(y = at.y + 1)
+    if (planned[above]?.target?.isFire() == true || above in unwritten) return
+    if (!paste.fireAt(world, above.x, above.y, above.z)) return
+    val block = world.getBlockAt(above.x, above.y, above.z)
+    val burning = block.toShape()
+    block.paint(airBlockData())
+    applied += StructureStep.SetBlock(above, BlockShape.AIR, burning)
+}
+
+private fun PalettePaste.fireAt(world: World, x: Int, y: Int, z: Int): Boolean {
+    val state = read(x, y, z)
+    if (state == null) return world.getBlockAt(x, y, z).isFire()
+    val material = material(state)
+    return material == Material.FIRE || material == Material.SOUL_FIRE
+}
+
 private fun unpairOrphanedChests(world: World, applied: List<StructureStep>) {
     for (step in applied) {
         if (step !is StructureStep.SetBlock) continue
@@ -237,7 +291,7 @@ private fun unpairOrphanedChests(world: World, applied: List<StructureStep>) {
         val data = partner.blockData as? Chest ?: continue
         if (data.type == Chest.Type.SINGLE || data.facing != was.facing) continue
         data.type = Chest.Type.SINGLE
-        partner.setBlockData(data, false)
+        partner.paint(data)
     }
 }
 

@@ -59,7 +59,7 @@ private fun BlockShape.touchesFluid(): Boolean {
     if (isFluidShape(this)) return true
     val data = BlockDataCache.of(data) ?: return true
     if (data is Waterlogged) return true
-    return !data.material.isSolid
+    return false
 }
 
 private fun BlockShape.feedsBubbles(): Boolean {

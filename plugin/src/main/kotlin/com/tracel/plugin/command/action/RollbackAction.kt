@@ -19,7 +19,6 @@ import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.rollback.trace.PhaseTimings
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.bukkit.command.CommandSender
@@ -96,30 +95,33 @@ class RollbackAction(
     }
 
     private suspend fun rollbackFiltered(sender: CommandSender, parsed: ParsedLookupArgs, filter: FilterResult.Ok) {
-        val trace = if (parsed.trace) PhaseTimings() else RollbackTrace.NONE
-        val replan: suspend () -> Planned? = {
-            try {
-                services.composite.plan(
-                    filter.filter,
-                    structure = !parsed.materialOnly && filter.actions.structural,
-                    material = !parsed.structureOnly && filter.actions.material,
-                    trace = trace,
-                )
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                sender.sendMessage("Rollback: could not work out what to do — ${failure.message ?: failure::class.java.simpleName}")
-                null
+        val trace = PhaseTimings()
+        try {
+            val replan: suspend () -> Planned? = {
+                try {
+                    services.composite.plan(
+                        filter.filter,
+                        structure = !parsed.materialOnly && filter.actions.structural,
+                        material = !parsed.structureOnly && filter.actions.material,
+                        trace = trace,
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Throwable) {
+                    sender.sendMessage("Rollback: could not work out what to do — ${failure.message ?: failure::class.java.simpleName}")
+                    null
+                }
             }
+            val planned = replan() ?: return
+            val halves = halvesOf(parsed, filter.actions)
+            if (parsed.preview) {
+                RollbackPresenter.preview(sender, planned, halves, services.entityRestoreLimit)
+            } else if (!askedAboutEntities(sender, planned, parsed.confirmed)) {
+                runRollback(sender, planned, halves, parsed.strict, replan)
+            }
+        } finally {
+            trace.render().forEach(sender::sendMessage)
         }
-        val planned = replan() ?: return
-        val halves = halvesOf(parsed, filter.actions)
-        if (parsed.preview) {
-            RollbackPresenter.preview(sender, planned, halves, services.entityRestoreLimit)
-        } else if (!askedAboutEntities(sender, planned, parsed.confirmed)) {
-            runRollback(sender, planned, halves, parsed.strict, replan)
-        }
-        if (parsed.trace) trace.render().forEach(sender::sendMessage)
     }
 
     private fun halvesOf(parsed: ParsedLookupArgs, actions: ActionFilter): String {
@@ -134,50 +136,60 @@ class RollbackAction(
     }
 
     private suspend fun byLot(sender: CommandSender, lot: LotId, restoreTo: HolderId.Player, parsed: ParsedLookupArgs) {
-        val flushed = services.flushCapture()
-        var witness = services.repo.version()
-        val outcome = runCatching {
-            RollbackPlanner(
-                services.repo,
-                services.worldQuery,
-                structural = false,
-                target = RollbackTarget.Uniform(restoreTo)
-            ).plan(listOf(lot))
-        }
-        val plan = outcome.getOrNull()
-        if (plan == null) {
-            sender.sendMessage("Rollback: could not plan for lot ${lot.raw} — ${outcome.exceptionOrNull()?.message}")
-            return
-        }
-
-        fun rollbackFor(fresh: RollbackPlan) = Planned(
-            CompositeRollbackPlan(emptyList(), fresh, emptyList()),
-            RollbackTarget.Uniform(restoreTo),
-            listOf(lot),
-            witness = witness,
-            flushed = flushed,
-            structural = false,
-        )
-
-        val planned = rollbackFor(plan)
-        val replan: suspend () -> Planned? = {
-            witness = services.repo.version()
-            runCatching {
-                RollbackPlanner(
-                    services.repo,
-                    services.worldQuery,
-                    structural = false,
-                    target = RollbackTarget.Uniform(restoreTo)
-                ).plan(listOf(lot))
-            }.map(::rollbackFor).getOrElse {
-                sender.sendMessage("Rollback: could not plan for lot ${lot.raw} — ${it.message}")
-                null
+        val trace = PhaseTimings()
+        try {
+            val flushed = services.flushCapture()
+            var witness = services.repo.version()
+            val outcome = trace.span("plan lot") {
+                runCatching {
+                    RollbackPlanner(
+                        services.repo,
+                        services.worldQuery,
+                        structural = false,
+                        target = RollbackTarget.Uniform(restoreTo)
+                    ).plan(listOf(lot))
+                }
             }
-        }
-        if (parsed.preview) {
-            RollbackPresenter.preview(sender, planned, "items only", services.entityRestoreLimit)
-        } else {
-            runRollback(sender, planned, "items only", parsed.strict, replan)
+            val plan = outcome.getOrNull()
+            if (plan == null) {
+                sender.sendMessage("Rollback: could not plan for lot ${lot.raw} — ${outcome.exceptionOrNull()?.message}")
+                return
+            }
+
+            fun rollbackFor(fresh: RollbackPlan) = Planned(
+                CompositeRollbackPlan(emptyList(), fresh, emptyList()),
+                RollbackTarget.Uniform(restoreTo),
+                listOf(lot),
+                witness = witness,
+                flushed = flushed,
+                structural = false,
+                trace = trace,
+            )
+
+            val planned = rollbackFor(plan)
+            val replan: suspend () -> Planned? = {
+                witness = services.repo.version()
+                trace.span("plan lot") {
+                    runCatching {
+                        RollbackPlanner(
+                            services.repo,
+                            services.worldQuery,
+                            structural = false,
+                            target = RollbackTarget.Uniform(restoreTo)
+                        ).plan(listOf(lot))
+                    }
+                }.map(::rollbackFor).getOrElse {
+                    sender.sendMessage("Rollback: could not plan for lot ${lot.raw} — ${it.message}")
+                    null
+                }
+            }
+            if (parsed.preview) {
+                RollbackPresenter.preview(sender, planned, "items only", services.entityRestoreLimit)
+            } else {
+                runRollback(sender, planned, "items only", parsed.strict, replan)
+            }
+        } finally {
+            trace.render().forEach(sender::sendMessage)
         }
     }
 
