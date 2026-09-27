@@ -3,18 +3,18 @@ package com.tracel.plugin.listener.material.machine
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
+import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.cargoTotals
-import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.block.toBlockPos
+import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.listener.TracelListener
 import org.bukkit.block.Block
-import com.tracel.model.holder.HolderId
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.event.Cancellable
 import org.bukkit.event.block.BlockCookEvent
 import org.bukkit.event.inventory.BrewEvent
 import org.bukkit.event.inventory.FurnaceBurnEvent
+import java.util.concurrent.ConcurrentHashMap
 
 /** Smelt event listener. */
 class SmeltListener(services: TracelServices) : TracelListener(services) {

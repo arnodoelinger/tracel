@@ -3,7 +3,7 @@ package com.tracel.plugin.listener.support.drop
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.util.ExpiringMap
-import java.util.UUID
+import java.util.*
 
 /** Crafts thrown straight from the result slot (Q, ctrl-Q). */
 internal object CraftDrop {

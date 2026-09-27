@@ -3,8 +3,8 @@ package com.tracel.plugin.rollback.structure.redstone
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.model.world.BlockPos
+import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.util.regionKey
@@ -17,11 +17,7 @@ import org.bukkit.block.Block
 import org.bukkit.block.data.AnaloguePowerable
 import org.bukkit.block.data.Lightable
 import org.bukkit.block.data.Powerable
-import org.bukkit.block.data.type.Lectern
-import org.bukkit.block.data.type.Observer
-import org.bukkit.block.data.type.Switch
-import org.bukkit.block.data.type.Tripwire
-import org.bukkit.block.data.type.TripwireHook
+import org.bukkit.block.data.type.*
 
 /** Update redstone around what the restore wrote with physics off. */
 @Unstable

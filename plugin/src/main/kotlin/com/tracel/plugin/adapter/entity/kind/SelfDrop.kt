@@ -1,10 +1,6 @@
 package com.tracel.plugin.adapter.entity.kind
 
-import org.bukkit.entity.ArmorStand
-import org.bukkit.entity.Boat
-import org.bukkit.entity.Entity
-import org.bukkit.entity.Hanging
-import org.bukkit.entity.Minecart
+import org.bukkit.entity.*
 
 /** Hangings, stands, boats, minecarts drop themselves as items. */
 internal object SelfDrop {

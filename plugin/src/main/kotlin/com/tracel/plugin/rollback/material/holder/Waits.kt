@@ -3,10 +3,10 @@ package com.tracel.plugin.rollback.material.holder
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.material.MaterialRestorer
-import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.bukkit.Bukkit
 import org.bukkit.Location
+import kotlin.coroutines.resume
 
 /** Global-region delay so a client tracker can catch a spawn packet. */
 internal suspend fun MaterialRestorer.awaitTicks(ticks: Long) {

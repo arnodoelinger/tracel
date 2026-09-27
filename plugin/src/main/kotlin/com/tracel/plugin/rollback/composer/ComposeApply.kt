@@ -1,18 +1,14 @@
 package com.tracel.plugin.rollback.composer
 
 import com.tracel.annotations.Unstable
-import kotlinx.coroutines.launch
-import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import com.tracel.engine.rollback.job.Reservation
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.rollback.result.outcome.Blocked
-import com.tracel.plugin.rollback.result.outcome.Planned
-import com.tracel.plugin.rollback.result.outcome.PreflightResult
-import com.tracel.plugin.rollback.result.outcome.RollbackResult
-import com.tracel.plugin.rollback.result.outcome.Unreachable
+import com.tracel.plugin.rollback.result.outcome.*
 import com.tracel.plugin.rollback.structure.StructurePass
+import com.tracel.plugin.rollback.structure.redstone.redstoneCells
+import kotlinx.coroutines.launch
 
 @Unstable
 private const val STALE_RETRIES = 3

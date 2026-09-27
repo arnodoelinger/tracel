@@ -10,19 +10,19 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.ChangeSubject
+import com.tracel.model.world.WorldChange
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
-import com.tracel.model.world.entity.vehicle
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.model.world.WorldChange
-import java.util.UUID
+import com.tracel.model.world.entity.vehicle
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class StructurePlannerTest {
     private val world = WorldId(UUID(0L, 1L))

@@ -1,12 +1,7 @@
 package com.tracel.plugin.adapter.block.capability.cargo
 
 import com.tracel.plugin.adapter.block.CargoSlots
-import com.tracel.plugin.adapter.block.special.BookshelfCargo
-import com.tracel.plugin.adapter.block.special.BrushableCargo
-import com.tracel.plugin.adapter.block.special.CampfireCargo
-import com.tracel.plugin.adapter.block.special.ChestHalfCargo
-import com.tracel.plugin.adapter.block.special.JukeboxCargo
-import com.tracel.plugin.adapter.block.special.LecternCargo
+import com.tracel.plugin.adapter.block.special.*
 import io.papermc.paper.block.TileStateInventoryHolder
 import org.bukkit.block.BlockState
 import org.bukkit.inventory.Inventory

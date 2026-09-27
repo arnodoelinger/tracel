@@ -1,11 +1,7 @@
 package com.tracel.plugin.adapter.entity
 
 import com.tracel.annotations.Unstable
-import com.tracel.model.world.entity.EntityExtras
-import com.tracel.model.world.entity.EntityShape
-import com.tracel.model.world.entity.leashHolder
-import com.tracel.model.world.entity.opaque
-import com.tracel.model.world.entity.vehicle
+import com.tracel.model.world.entity.*
 import com.tracel.plugin.adapter.entity.special.FallingBlockAdapter
 import com.tracel.plugin.adapter.entity.special.LeashKnotAdapter
 import com.tracel.plugin.adapter.entity.special.ShoulderAdapter
@@ -13,19 +9,11 @@ import com.tracel.plugin.adapter.entity.special.ZombieConversion
 import com.tracel.plugin.util.Warnings
 import com.tracel.plugin.util.anchorPoint
 import com.tracel.plugin.util.facingFromPose
-import org.bukkit.Bukkit
-import org.bukkit.Location
-import org.bukkit.NamespacedKey
-import org.bukkit.Registry
-import org.bukkit.World
-import org.bukkit.util.BoundingBox
+import org.bukkit.*
 import org.bukkit.attribute.Attribute
-import org.bukkit.entity.Entity
-import org.bukkit.entity.FallingBlock
-import org.bukkit.entity.Hanging
-import org.bukkit.entity.LivingEntity
-import org.bukkit.entity.Painting
-import java.util.UUID
+import org.bukkit.entity.*
+import org.bukkit.util.BoundingBox
+import java.util.*
 import java.util.logging.Logger
 
 private val logger = Logger.getLogger("EntitySpawn")

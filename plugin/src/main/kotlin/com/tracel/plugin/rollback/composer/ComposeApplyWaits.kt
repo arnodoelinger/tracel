@@ -1,6 +1,5 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.engine.rollback.job.Reservation
 import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.job.RollbackOutcome
@@ -9,19 +8,14 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.material.census.EntityCensus
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
-
 import com.tracel.plugin.rollback.structure.StructurePass
 import com.tracel.plugin.rollback.structure.StructurePhase
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.*
 import kotlin.coroutines.cancellation.CancellationException
 
 /** What the first wait left behind. */

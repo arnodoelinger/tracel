@@ -9,7 +9,7 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.rollback.composer.RollbackComposer
-import java.util.UUID
+import java.util.*
 
 /** Mobs that leave blocks behind them as they walk. */
 @Unstable

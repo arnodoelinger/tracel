@@ -3,12 +3,7 @@ package com.tracel.plugin.command
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.tracel.plugin.TracelServices
-import com.tracel.plugin.command.action.ExportAction
-import com.tracel.plugin.command.action.InspectAction
-import com.tracel.plugin.command.action.LookupAction
-import com.tracel.plugin.command.action.PurgeAction
-import com.tracel.plugin.command.action.RollbackAction
-import com.tracel.plugin.command.action.UndoAction
+import com.tracel.plugin.command.action.*
 import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter

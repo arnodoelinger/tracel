@@ -1,8 +1,8 @@
 package com.tracel.plugin.util
 
-import java.util.UUID
 import org.bukkit.Location
 import org.bukkit.entity.Player
+import java.util.*
 
 /**
  * Where `~` resolves.

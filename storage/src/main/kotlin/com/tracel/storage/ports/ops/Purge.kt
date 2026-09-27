@@ -1,12 +1,12 @@
 package com.tracel.storage.ports.ops
 
-import com.tracel.storage.TracelStorage
-import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.StorageUnit
+import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ffm.Bytes.readBytes
+import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
 
 /** Deletes the `Tracel`'s history. */

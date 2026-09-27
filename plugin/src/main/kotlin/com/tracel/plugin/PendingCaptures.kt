@@ -1,10 +1,10 @@
 package com.tracel.plugin
 
+import kotlinx.coroutines.delay
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.delay
 
 /**
  * Tracks captures accepted but not yet written.

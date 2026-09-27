@@ -1,6 +1,5 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
@@ -8,13 +7,9 @@ import com.tracel.engine.rollback.structure.StructurePlanner
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldChange
-import com.tracel.plugin.rollback.survey.NO_MATERIAL
-import com.tracel.plugin.rollback.survey.awayFromAirToAir
-import com.tracel.plugin.rollback.survey.awayFromEntitiesGone
-import com.tracel.plugin.rollback.survey.planMaterial
-import com.tracel.plugin.rollback.survey.withStructuralPartners
-import com.tracel.plugin.rollback.survey.withTrails
+import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.result.outcome.Planned
+import com.tracel.plugin.rollback.survey.*
 import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.storage.ports.log.QueryProbe
 

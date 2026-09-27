@@ -3,12 +3,7 @@ package com.tracel.plugin.rollback.structure.entity
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.id.WorldId
-import com.tracel.plugin.adapter.entity.cargoStacks
-import com.tracel.plugin.adapter.entity.emptyCargo
-import com.tracel.plugin.adapter.entity.sittingAt
-import com.tracel.plugin.adapter.entity.takeOffShoulder
-import com.tracel.plugin.adapter.entity.unleash
-import com.tracel.plugin.adapter.entity.unleashHeld
+import com.tracel.plugin.adapter.entity.*
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.util.Warnings
 import org.bukkit.Bukkit
@@ -22,7 +17,7 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.LeashHitch
 import org.bukkit.entity.Snowman
-import java.util.UUID
+import java.util.*
 
 // TODO: rewrite, should be improved
 

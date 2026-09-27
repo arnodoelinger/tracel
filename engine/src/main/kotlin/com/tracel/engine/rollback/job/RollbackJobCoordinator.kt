@@ -4,7 +4,6 @@ import com.tracel.engine.journal.CrashPoint
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotRepository
 import com.tracel.engine.ownership.LeaseAcquisition
-import com.tracel.engine.ownership.LotLease
 import com.tracel.engine.ownership.LotLeaseRegistry
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackPlanner

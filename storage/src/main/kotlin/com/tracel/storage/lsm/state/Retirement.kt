@@ -3,7 +3,7 @@ package com.tracel.storage.lsm.state
 import com.tracel.storage.lsm.segment.SegmentReader
 import com.tracel.storage.lsm.write.MemTable
 import java.nio.file.Files
-import java.util.TreeMap
+import java.util.*
 
 /**
  * When a segment file may actually be unmapped and deleted, and when an old version of a key may

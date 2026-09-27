@@ -2,7 +2,6 @@ package com.tracel.plugin.command.suggest.support
 
 import com.tracel.plugin.command.suggest.Suggestion
 import com.tracel.plugin.command.suggest.rank
-import kotlin.collections.plus
 
 internal data class QuantityUnit(
     val suffix: String,

@@ -6,17 +6,12 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.platform.storage.UnitOfWork
-import java.util.UUID
+import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import java.util.*
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.atomicfu.atomic
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 /** One entity appearing, changing or going away, as the region thread saw it. */
 public data class EntityChange(

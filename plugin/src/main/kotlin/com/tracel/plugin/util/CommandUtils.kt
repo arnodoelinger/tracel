@@ -4,7 +4,7 @@ import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.util.Vector
-import java.util.UUID
+import java.util.*
 import kotlin.math.floor
 
 /** @return the sender as a [Player], or sends [message] and returns `null`. */

@@ -2,7 +2,7 @@ package com.tracel.model.world.entity
 
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
-import java.util.UUID
+import java.util.*
 
 /**
  * An entity's structural detail like frame rotation, armor stand pose, painting art, for example.

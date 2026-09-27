@@ -9,18 +9,7 @@ import com.tracel.plugin.adapter.item.withCarried
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.block.Crafter
-import org.bukkit.inventory.AbstractHorseInventory
-import org.bukkit.inventory.ArmoredHorseInventory
-import org.bukkit.inventory.BrewerInventory
-import org.bukkit.inventory.ChiseledBookshelfInventory
-import org.bukkit.inventory.CookingRecipe
-import org.bukkit.inventory.EquipmentSlot
-import org.bukkit.inventory.FurnaceInventory
-import org.bukkit.inventory.Inventory
-import org.bukkit.inventory.ItemStack
-import org.bukkit.inventory.LlamaInventory
-import org.bukkit.inventory.RecipeChoice
-import org.bukkit.inventory.SaddledMountInventory
+import org.bukkit.inventory.*
 
 private const val HORSE_STORAGE_FROM = 2
 

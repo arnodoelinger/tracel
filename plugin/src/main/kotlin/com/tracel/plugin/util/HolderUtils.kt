@@ -1,10 +1,10 @@
 package com.tracel.plugin.util
 
+import com.tracel.engine.log.TransactionLog
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
-import com.tracel.engine.log.TransactionLog
-import java.util.UUID
+import java.util.*
 
 /** Where this holder sits, when it sits anywhere a block does. */
 fun HolderId.blockPos(): BlockPos? = when (this) {

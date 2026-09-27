@@ -16,10 +16,10 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
-import java.util.UUID
-import kotlin.coroutines.cancellation.CancellationException
-import java.util.logging.Level
+import java.util.*
 import java.util.concurrent.atomic.AtomicIntegerArray
+import java.util.logging.Level
+import kotlin.coroutines.cancellation.CancellationException
 
 /** Apply [steps]. Grouped by chunk, all dispatched at once. */
 internal suspend fun StructureRestorer.restoreSteps(

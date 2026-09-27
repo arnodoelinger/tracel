@@ -1,18 +1,14 @@
 package com.tracel.plugin.startup
 
 import com.tracel.plugin.startup.version.MinecraftVersion
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.bukkit.plugin.Plugin
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.util.logging.Level
 import java.util.logging.LogRecord
 import java.util.logging.Logger
-import org.bukkit.plugin.Plugin
 
 class MinecraftVersionTest {
     @Test

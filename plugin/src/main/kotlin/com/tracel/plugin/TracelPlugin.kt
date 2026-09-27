@@ -1,16 +1,15 @@
 package com.tracel.plugin
 
-import org.bukkit.Bukkit
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.startup.TracelRuntime
 import com.tracel.plugin.startup.enableTracel
 import com.tracel.plugin.util.killServer
 import com.tracel.plugin.util.serverIsStopping
 import com.tracel.plugin.util.stopping
-import java.util.logging.Level
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
 import org.bukkit.plugin.java.JavaPlugin
+import java.util.logging.Level
 
 /**
  * Entry point of `Tracel`.

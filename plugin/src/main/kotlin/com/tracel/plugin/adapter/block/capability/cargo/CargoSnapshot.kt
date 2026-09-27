@@ -2,8 +2,8 @@ package com.tracel.plugin.adapter.block.capability.cargo
 
 import com.tracel.plugin.adapter.block.special.ChiseledBookshelfCapture
 import com.tracel.plugin.adapter.block.special.JukeboxRecord
-import org.bukkit.block.BlockState
 import org.bukkit.block.Beehive
+import org.bukkit.block.BlockState
 import org.bukkit.block.BrushableBlock
 import org.bukkit.block.Campfire
 import org.bukkit.inventory.ItemStack

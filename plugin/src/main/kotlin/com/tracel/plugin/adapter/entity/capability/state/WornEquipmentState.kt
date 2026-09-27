@@ -1,10 +1,10 @@
 package com.tracel.plugin.adapter.entity.capability.state
 
 import com.tracel.plugin.adapter.entity.capability.cargo.EquipmentAsCargo
+import com.tracel.plugin.adapter.entity.capability.cargo.MobEquipmentCargo
 import org.bukkit.entity.Entity
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Mob
-import com.tracel.plugin.adapter.entity.capability.cargo.MobEquipmentCargo
 import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.InventoryHolder
 

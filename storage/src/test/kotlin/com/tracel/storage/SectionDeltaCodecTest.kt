@@ -1,20 +1,15 @@
 package com.tracel.storage
 
 import com.tracel.annotations.CauseKind
-import com.tracel.model.world.block.BlockDataKey
-import com.tracel.model.world.entity.EntityExtras
-import com.tracel.model.world.entity.EntityShape
-import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.entity.leashHolder
-import com.tracel.model.world.entity.opaque
-import com.tracel.model.world.entity.vehicle
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.entity.*
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.foreign.MemorySegment
-import java.util.UUID
+import java.util.*
 
 class SectionDeltaCodecTest {
     private class Built(

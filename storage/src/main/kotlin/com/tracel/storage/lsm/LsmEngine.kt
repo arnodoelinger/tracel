@@ -1,6 +1,5 @@
 package com.tracel.storage.lsm
 
-import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.read.LsmSnapshot
 import com.tracel.storage.lsm.read.SegmentRun
 import com.tracel.storage.lsm.segment.*
@@ -9,6 +8,7 @@ import com.tracel.storage.lsm.state.Retirement
 import com.tracel.storage.lsm.state.Version
 import com.tracel.storage.lsm.state.replayWals
 import com.tracel.storage.lsm.write.MemTable
+import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.write.WalSet
 import com.tracel.storage.spi.EngineSnapshot
 import com.tracel.storage.spi.EngineStats

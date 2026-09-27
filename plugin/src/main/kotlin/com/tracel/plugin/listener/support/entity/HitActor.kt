@@ -3,10 +3,10 @@ package com.tracel.plugin.listener.support.entity
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.util.ExpiringMap
-import java.util.UUID
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Entity
 import org.bukkit.persistence.PersistentDataType
+import java.util.*
 
 /**
  * Who last struck something that goes off, breaks or drops in one hit and names nobody itself: an end crystal,

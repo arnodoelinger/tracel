@@ -1,21 +1,21 @@
 package com.tracel.plugin.listener.material.machine
 
-import org.bukkit.inventory.Inventory
-import com.tracel.model.holder.HolderId
-import com.tracel.model.item.ItemKey
-import com.tracel.plugin.adapter.item.toItemKey
-import java.util.concurrent.ConcurrentHashMap
-import com.tracel.plugin.adapter.item.toItemTotals
-import com.tracel.model.id.WorldId
-import com.tracel.model.world.BlockPos
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
+import com.tracel.model.holder.HolderId
+import com.tracel.model.id.WorldId
+import com.tracel.model.item.ItemKey
+import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.toHolderId
+import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import org.bukkit.block.Crafter
 import org.bukkit.event.inventory.InventoryMoveItemEvent
+import org.bukkit.inventory.Inventory
+import java.util.concurrent.ConcurrentHashMap
 
 /** Hopper transfer listener. */
 class HopperListener(services: TracelServices) : TracelListener(services) {

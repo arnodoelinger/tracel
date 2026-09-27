@@ -5,7 +5,7 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.TxnId
-import java.util.UUID
+import java.util.*
 
 /** One action the causal closure found necessary to reclaim traced material. */
 public sealed interface RollbackStep {

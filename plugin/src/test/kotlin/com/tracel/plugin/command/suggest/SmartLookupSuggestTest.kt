@@ -1,9 +1,7 @@
 package com.tracel.plugin.command.suggest
 
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 

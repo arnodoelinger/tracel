@@ -1,13 +1,11 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.plugin.util.blockPos
-import com.tracel.engine.rollback.plan.RollbackTarget
-import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import com.tracel.engine.rollback.involution.InvolutionOutcome
 import com.tracel.engine.rollback.involution.InvolutionPlanner
 import com.tracel.engine.rollback.job.RollbackJobRecord
-import com.tracel.engine.rollback.plan.noiseMints
 import com.tracel.engine.rollback.job.RollbackJobRepository
+import com.tracel.engine.rollback.plan.RollbackTarget
+import com.tracel.engine.rollback.plan.noiseMints
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
@@ -15,15 +13,16 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
-import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
-
+import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import java.util.UUID
+import com.tracel.plugin.rollback.structure.redstone.redstoneCells
+import com.tracel.plugin.util.blockPos
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.util.*
 import kotlin.coroutines.cancellation.CancellationException
 
 internal const val MAX_STACKED_JOBS = RollbackJobRepository.UNDO_DEPTH

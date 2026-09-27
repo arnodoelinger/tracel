@@ -3,11 +3,9 @@ package com.tracel.plugin.util.whereabouts
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.plugin.util.EntityWhereabouts
-import java.util.UUID
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class EntityWhereaboutsTest {
     private val world = WorldId(UUID(0L, 1L))

@@ -1,6 +1,6 @@
 package com.tracel.plugin.rollback.structure
 
-import java.util.UUID
+import java.util.*
 
 /**
  * How one structure pass writes.

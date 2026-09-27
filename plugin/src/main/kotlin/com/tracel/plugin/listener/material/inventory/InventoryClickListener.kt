@@ -1,24 +1,17 @@
 package com.tracel.plugin.listener.material.inventory
 
 import com.tracel.annotations.Observes
-import com.tracel.plugin.TracelServices
-import com.tracel.plugin.listener.TracelListener
-import org.bukkit.entity.Player
-import org.bukkit.event.inventory.CraftItemEvent
-import org.bukkit.event.inventory.InventoryClickEvent
-import org.bukkit.event.inventory.InventoryCloseEvent
-import org.bukkit.event.inventory.InventoryOpenEvent
 import com.tracel.model.holder.HolderId
+import com.tracel.plugin.TracelServices
+import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.item.toHolderId
+import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.adapter.item.transientInputs
-import com.tracel.plugin.adapter.block.toBlockPos
-import org.bukkit.event.inventory.InventoryCreativeEvent
-import org.bukkit.event.inventory.InventoryDragEvent
-import org.bukkit.event.inventory.InventoryType
-import org.bukkit.event.inventory.InventoryAction
+import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.ContainerDrop
-import com.tracel.plugin.adapter.item.toItemKey
+import org.bukkit.entity.Player
+import org.bukkit.event.inventory.*
 import org.bukkit.inventory.CraftingInventory
 
 /**

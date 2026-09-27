@@ -3,9 +3,9 @@ package com.tracel.plugin.rollback.composer
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
-import java.util.UUID
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class CargoSidesTest {
     private val frame = UUID(7L, 7L)

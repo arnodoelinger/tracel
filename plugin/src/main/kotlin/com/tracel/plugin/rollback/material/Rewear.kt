@@ -21,13 +21,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import org.bukkit.inventory.ItemStack
-import org.bukkit.inventory.EquipmentSlot
-import org.bukkit.entity.ItemFrame
-import org.bukkit.entity.ArmorStand
 import org.bukkit.Bukkit
+import org.bukkit.entity.ArmorStand
+import org.bukkit.entity.ItemFrame
+import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.InventoryHolder
+import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.Damageable
 
 private data class Rewear(val lotId: LotId, val itemKey: ItemKey, val holder: HolderId, val current: Int?, val target: Int)

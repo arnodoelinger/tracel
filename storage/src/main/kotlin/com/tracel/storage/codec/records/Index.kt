@@ -1,8 +1,8 @@
 package com.tracel.storage.codec.records
 
 import com.tracel.annotations.CauseKind
-import com.tracel.model.world.ActionKind
 import com.tracel.model.log.LogKind
+import com.tracel.model.world.ActionKind
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8

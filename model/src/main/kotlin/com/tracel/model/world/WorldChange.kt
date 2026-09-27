@@ -6,7 +6,7 @@ import com.tracel.model.id.Seq
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
-import java.util.UUID
+import java.util.*
 
 /**
  * One entry in the world-change log: something in the world stopped looking one way and started

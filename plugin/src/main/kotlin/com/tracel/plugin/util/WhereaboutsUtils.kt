@@ -3,10 +3,10 @@ package com.tracel.plugin.util
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.storage.ports.world.GroundPositions
-import java.util.UUID
+import org.bukkit.entity.Entity
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
-import org.bukkit.entity.Entity
 
 /** Last chunk a tracked entity was seen in. */
 class EntityWhereabouts(private val capacity: Int = UNBOUNDED) {

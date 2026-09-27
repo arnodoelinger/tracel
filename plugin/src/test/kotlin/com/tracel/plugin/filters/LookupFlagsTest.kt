@@ -6,10 +6,7 @@ import com.tracel.plugin.command.args.ActionArgument
 import com.tracel.plugin.command.args.LookupScope
 import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.args.suggestLookupToken
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 private const val NOW = 1_756_000_000_000L

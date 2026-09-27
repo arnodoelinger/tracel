@@ -1,5 +1,7 @@
 package com.tracel.plugin.adapter.entity.capability.cargo
 
+import com.tracel.plugin.adapter.entity.capability.cargo.CargoSurfaces.RESYNC_DELAY_TICKS
+import com.tracel.plugin.adapter.entity.capability.cargo.CargoSurfaces.all
 import com.tracel.plugin.adapter.entity.special.ItemFrameCargo
 import org.bukkit.entity.Entity
 import org.bukkit.inventory.ItemStack

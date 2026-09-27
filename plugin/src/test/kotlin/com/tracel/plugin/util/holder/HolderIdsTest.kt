@@ -9,10 +9,7 @@ import com.tracel.plugin.util.blockPos
 import com.tracel.plugin.util.carriesCoordinates
 import com.tracel.plugin.util.entityUuid
 import com.tracel.plugin.util.namedByEntity
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 private val WORLD = WorldId(java.util.UUID(0L, 1L))

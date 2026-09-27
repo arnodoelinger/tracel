@@ -2,11 +2,7 @@ package com.tracel.plugin.rollback.material.cargo
 
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.material.MaterialRestorer
-import com.tracel.plugin.rollback.material.item.Moves
-import com.tracel.plugin.rollback.material.item.WornStacks
-import com.tracel.plugin.rollback.material.item.matches
-import com.tracel.plugin.rollback.material.item.stackFor
-import com.tracel.plugin.rollback.material.item.stacksOf
+import com.tracel.plugin.rollback.material.item.*
 import org.bukkit.entity.ItemFrame
 
 /** Applies [deltas] to a frame's single held item. */

@@ -15,9 +15,9 @@ import com.tracel.model.transaction.Transaction
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.namedByEntity
-import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import java.util.*
 
 /**
  * Turns the windowed transactions into a [MaterialSurvey]: where every lot roots,

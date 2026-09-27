@@ -1,6 +1,6 @@
 package com.tracel.plugin.listener.support.guard
 
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 /** Suppress capture mint while we spawn our own "Move", or the entity is double-credited. */

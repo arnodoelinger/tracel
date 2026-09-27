@@ -2,13 +2,13 @@ package com.tracel.tests.rollback
 
 import com.tracel.engine.rollback.structure.structuralPartnerOf
 import com.tracel.model.id.WorldId
-import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import java.util.UUID
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class StructurePairingTest {
     private val world = WorldId(UUID(0L, 1L))

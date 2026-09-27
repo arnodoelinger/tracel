@@ -1,10 +1,9 @@
 package com.tracel.engine.rollback.structure
 
-import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
-import java.util.UUID
+import java.util.*
 
 /** One stuff a rollback has to do to the world's shape. */
 public sealed interface StructureStep {

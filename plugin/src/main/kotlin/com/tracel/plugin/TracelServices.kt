@@ -1,6 +1,5 @@
 package com.tracel.plugin
 
-import com.tracel.plugin.rollback.structure.fluid.warmFluidShapes
 import com.tracel.engine.capture.CaptureCoordinator
 import com.tracel.engine.capture.SnapshotDiffer
 import com.tracel.engine.capture.WearCapture
@@ -10,6 +9,7 @@ import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobRepository
+import com.tracel.engine.rollback.plan.WorldQuery
 import com.tracel.engine.wear.WearLog
 import com.tracel.engine.world.EntityCaptureQueue
 import com.tracel.engine.world.WorldCaptureCoordinator
@@ -17,34 +17,34 @@ import com.tracel.engine.world.WorldLog
 import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.plugin.adapter.world.playerIsOnline
-import com.tracel.plugin.listener.session.InspectorState
 import com.tracel.plugin.listener.MaterialCapture
 import com.tracel.plugin.listener.ShapeCapture
+import com.tracel.plugin.listener.session.InspectorState
 import com.tracel.plugin.listener.support.drop.BlockDrop
-import com.tracel.plugin.listener.support.drop.HullDrop
 import com.tracel.plugin.listener.support.drop.BlockReleaseQueue
-import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
-import com.tracel.plugin.listener.support.guard.SpawnGuard
-import com.tracel.plugin.rollback.composer.RollbackComposer
-import com.tracel.plugin.rollback.RollbackGenius
+import com.tracel.plugin.listener.support.drop.HullDrop
 import com.tracel.plugin.listener.support.guard.FreezeGuard
-import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.listener.support.guard.SelfManagedWorldGuard
+import com.tracel.plugin.listener.support.guard.SpawnGuard
+import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
+import com.tracel.plugin.rollback.RollbackGenius
+import com.tracel.plugin.rollback.composer.RollbackComposer
+import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.structure.StructureRestorer
+import com.tracel.plugin.rollback.structure.fluid.warmFluidShapes
 import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.plugin.util.GroundWhereabouts
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
+import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
-import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
 import org.bukkit.plugin.Plugin
 import java.nio.file.Path
-import com.tracel.engine.rollback.plan.WorldQuery
 
 private const val WHEREABOUTS_KEPT = 200_000
 

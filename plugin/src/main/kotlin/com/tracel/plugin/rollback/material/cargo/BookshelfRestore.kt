@@ -8,9 +8,9 @@ import com.tracel.plugin.rollback.material.item.matches
 import com.tracel.plugin.rollback.material.item.stackFor
 import com.tracel.plugin.rollback.material.item.stacksOf
 import org.bukkit.block.ChiseledBookshelf
-import org.bukkit.block.data.type.ChiseledBookshelf as ChiseledBookshelfData
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
+import org.bukkit.block.data.type.ChiseledBookshelf as ChiseledBookshelfData
 
 /** Applies [deltas] on bookshelf books. */
 internal fun MaterialRestorer.applyBookshelf(

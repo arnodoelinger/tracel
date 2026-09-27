@@ -11,13 +11,13 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.census.findVanished
 import com.tracel.plugin.rollback.material.census.locateDestinations
-import com.tracel.plugin.rollback.survey.WorldCensus
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.RestorationReport
+import com.tracel.plugin.rollback.survey.WorldCensus
 import com.tracel.plugin.rollback.trace.RollbackTrace
-import java.util.UUID
-import java.util.logging.Logger
 import kotlinx.coroutines.CompletableDeferred
+import java.util.*
+import java.util.logging.Logger
 
 /** [MaterialHalf] wired to real Bukkit state — inventories, entity cargo, ground drops. */
 class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, WorldCensus {

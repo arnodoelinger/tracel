@@ -6,35 +6,30 @@ import com.tracel.annotations.Priority
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.ActionKind
+import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.TracelServices
-import com.tracel.plugin.adapter.block.container
-import com.tracel.plugin.adapter.block.cargoSlots
-import com.tracel.plugin.adapter.block.cargoTotals
-import com.tracel.plugin.adapter.block.toHolderId
+import com.tracel.plugin.adapter.block.*
 import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DragonEggCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
-import com.tracel.plugin.adapter.block.toBlockPos
 import io.papermc.paper.block.TileStateInventoryHolder
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Material
 import org.bukkit.block.Block
-import com.tracel.plugin.listener.support.cell.ColumnCell
-import org.bukkit.block.data.type.Bed
-import org.bukkit.block.data.Bisected
 import org.bukkit.block.BlockFace
 import org.bukkit.block.Campfire
 import org.bukkit.block.Jukebox
+import org.bukkit.block.data.Bisected
+import org.bukkit.block.data.type.Bed
 import org.bukkit.entity.Player
 import org.bukkit.event.block.Action
 import org.bukkit.event.entity.EntityInteractEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.inventory.ItemStack
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 /** Clicks that mutate block state without place / break / grow. */
 @Unstable

@@ -10,11 +10,11 @@ import com.tracel.plugin.rollback.structure.claim
 import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
-import java.util.concurrent.atomic.AtomicIntegerArray
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicIntegerArray
 
 /** Drain and settle over everything a job wrote, once per region, after the last pass. */
 internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep>, drain: Boolean): StructureReport {

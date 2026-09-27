@@ -1,6 +1,6 @@
 package com.tracel.plugin.rollback.structure.entity
 
-import java.util.UUID
+import java.util.*
 
 /** Despawn status. */
 internal sealed interface Despawn {

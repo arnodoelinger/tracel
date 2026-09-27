@@ -11,8 +11,8 @@ import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.trace.RollbackTrace
-import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
+import java.util.*
 
 /** Transaction-log half as composition sees it: make the world agree with what the ledger already did. */
 interface MaterialHalf {

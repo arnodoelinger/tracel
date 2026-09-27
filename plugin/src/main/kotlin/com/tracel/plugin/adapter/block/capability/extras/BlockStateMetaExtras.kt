@@ -2,11 +2,11 @@ package com.tracel.plugin.adapter.block.capability.extras
 
 import com.tracel.model.world.block.BlockExtras
 import org.bukkit.Nameable
+import org.bukkit.NamespacedKey
 import org.bukkit.block.BlockState
+import org.bukkit.block.Crafter
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BlockStateMeta
-import org.bukkit.NamespacedKey
-import org.bukkit.block.Crafter
 import org.bukkit.persistence.PersistentDataType
 
 internal val DISABLED_SLOTS: NamespacedKey = NamespacedKey("tracel", "disabled_slots")

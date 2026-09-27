@@ -3,10 +3,10 @@ package com.tracel.plugin.listener.support.drop
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import java.util.UUID
+import org.bukkit.World
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import org.bukkit.World
 import java.util.concurrent.atomic.AtomicLong
 
 /** Claim windows that bind vanilla item spawns to the block they left. */

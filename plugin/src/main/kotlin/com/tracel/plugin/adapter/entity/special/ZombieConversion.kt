@@ -4,7 +4,6 @@ import com.tracel.annotations.Unstable
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Zombie
 import org.bukkit.entity.ZombieVillager
-import org.bukkit.entity.PigZombie
 
 /**
  * Abort in-flight type changes after an NBT spawn.

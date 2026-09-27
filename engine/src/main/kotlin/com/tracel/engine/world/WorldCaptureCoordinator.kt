@@ -7,9 +7,9 @@ import com.tracel.model.id.Seq
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.WorldChange
-import java.util.UUID
+import com.tracel.model.world.entity.EntityShape
+import java.util.*
 
 /**
  * Turns captured edits into [WorldChange]s and appends them — the world-log sibling of

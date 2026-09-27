@@ -3,7 +3,7 @@ package com.tracel.tests.support
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
-import java.util.UUID
+import java.util.*
 
 object Fixtures {
     val diamond: ItemKey = ItemKey("minecraft:diamond")

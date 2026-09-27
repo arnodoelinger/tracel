@@ -2,10 +2,7 @@ package com.tracel.plugin.util.concurrent
 
 import com.tracel.plugin.util.ExpiringMap
 import com.tracel.plugin.util.ExpiringSet
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 private const val TTL = 30_000L

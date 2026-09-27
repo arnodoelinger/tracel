@@ -3,7 +3,6 @@ package com.tracel.plugin.adapter.item
 import com.tracel.model.item.ItemKey
 import org.bukkit.inventory.CraftingInventory
 import org.bukkit.inventory.ItemStack
-import kotlin.collections.iterator
 
 /** Reads `Inventory.contents`, including the result slot of a [CraftingInventory]. */
 fun Array<ItemStack?>.toItemTotals(): Map<ItemKey, Long> = asIterable().toItemTotals()

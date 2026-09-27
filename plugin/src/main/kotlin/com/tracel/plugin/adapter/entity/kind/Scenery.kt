@@ -1,17 +1,7 @@
 package com.tracel.plugin.adapter.entity.kind
 
 import com.tracel.annotations.Unstable
-import org.bukkit.entity.AbstractArrow
-import org.bukkit.entity.ArmorStand
-import org.bukkit.entity.Boat
-import org.bukkit.entity.Display
-import org.bukkit.entity.EnderCrystal
-import org.bukkit.entity.Entity
-import org.bukkit.entity.FallingBlock
-import org.bukkit.entity.Hanging
-import org.bukkit.entity.Interaction
-import org.bukkit.entity.Minecart
-import org.bukkit.entity.TNTPrimed
+import org.bukkit.entity.*
 
 /** Player-created scenery. */
 @Unstable

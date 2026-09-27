@@ -10,7 +10,7 @@ import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.TxnId
 import com.tracel.model.id.WorldId
-import com.tracel.model.world.*
+import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape

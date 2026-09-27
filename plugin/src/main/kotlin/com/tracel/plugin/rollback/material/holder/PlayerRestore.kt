@@ -1,32 +1,24 @@
 package com.tracel.plugin.rollback.material.holder
 
 import com.tracel.annotations.Unstable
-import org.bukkit.Bukkit
-import kotlinx.coroutines.launch
-import java.util.UUID
-import com.tracel.plugin.rollback.material.deliverPending
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.item.toItemTotals
-import com.tracel.plugin.adapter.item.heldTotals
-import com.tracel.plugin.adapter.item.openGrid
+import com.tracel.plugin.adapter.item.*
 import com.tracel.plugin.adapter.world.playerOf
 import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer
-import com.tracel.plugin.rollback.material.item.Moves
-import com.tracel.plugin.rollback.material.item.WornStacks
-import com.tracel.plugin.rollback.material.item.applyDelta
+import com.tracel.plugin.rollback.material.deliverPending
+import com.tracel.plugin.rollback.material.item.*
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.spillInRegion
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.tracel.plugin.rollback.material.item.matches
+import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
-import com.tracel.plugin.rollback.material.item.PendingWorn
-import com.tracel.plugin.adapter.item.transientInputSlots
 import org.bukkit.inventory.EquipmentSlot
+import java.util.*
 
 @Unstable
 private const val STORAGE_SLOTS = 36

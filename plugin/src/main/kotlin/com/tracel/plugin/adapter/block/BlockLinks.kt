@@ -1,6 +1,5 @@
 package com.tracel.plugin.adapter.block
 
-import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.plugin.adapter.block.special.DoubleChest

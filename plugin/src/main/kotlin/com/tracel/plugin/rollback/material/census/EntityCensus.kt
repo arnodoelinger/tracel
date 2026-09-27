@@ -1,7 +1,7 @@
 package com.tracel.plugin.rollback.material.census
 
 import com.tracel.model.holder.HolderId
-import java.util.UUID
+import java.util.*
 
 /** Entity-named holders. */
 class EntityCensus(

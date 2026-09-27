@@ -1,7 +1,5 @@
 package com.tracel.plugin.listener.material.item
 
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.listener.support.entity.HitActor
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
@@ -10,27 +8,18 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.TracelServices
-import com.tracel.plugin.adapter.entity.cargoStacks
+import com.tracel.plugin.adapter.entity.*
 import com.tracel.plugin.adapter.entity.kind.dropsSelf
-import com.tracel.plugin.adapter.entity.emptyCargo
 import com.tracel.plugin.adapter.entity.kind.hullItemKey
-import com.tracel.plugin.adapter.entity.toCargoHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
-import com.tracel.plugin.adapter.entity.toPlacedEntityId
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.listener.support.entity.HitActor
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
-import com.tracel.plugin.util.ExpiringMap
 import com.tracel.plugin.listener.world.entity.isCommand
+import com.tracel.plugin.util.ExpiringMap
 import org.bukkit.Bukkit
-import org.bukkit.entity.AbstractVillager
-import org.bukkit.entity.LivingEntity
-import org.bukkit.entity.ArmorStand
-import org.bukkit.entity.ChestedHorse
-import org.bukkit.entity.Mob
-import org.bukkit.entity.Entity
-import org.bukkit.entity.ItemFrame
-import org.bukkit.entity.Player
+import org.bukkit.entity.*
 import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.entity.EntityPlaceEvent
 import org.bukkit.event.hanging.HangingBreakByEntityEvent
@@ -42,7 +31,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.vehicle.VehicleCreateEvent
 import org.bukkit.event.vehicle.VehicleDestroyEvent
 import org.bukkit.inventory.InventoryHolder
-import java.util.UUID
+import java.util.*
 
 /**
  * Entity cargo listener.

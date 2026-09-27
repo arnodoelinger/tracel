@@ -2,7 +2,6 @@ package com.tracel.plugin.util
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.collections.iterator
 
 /**
  * A concurrent map whose entries expire after [ttlMillis].

@@ -3,11 +3,7 @@ package com.tracel.plugin.adapter.entity.kind
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.item.toItemKey
 import org.bukkit.Material
-import org.bukkit.entity.AbstractArrow
-import org.bukkit.entity.Entity
-import org.bukkit.entity.Firework
-import org.bukkit.entity.ThrowableProjectile
-import org.bukkit.entity.Projectile
+import org.bukkit.entity.*
 import org.bukkit.inventory.ItemStack
 
 /** True if a player can pick this arrow up. */

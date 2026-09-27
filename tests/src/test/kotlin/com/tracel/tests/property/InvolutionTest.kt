@@ -9,6 +9,7 @@ import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.involution.InvolutionExecutor
 import com.tracel.engine.rollback.involution.InvolutionPlanner
+import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.engine.rollback.job.InMemoryRollbackJobRepository
 import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackPlanner
@@ -18,7 +19,6 @@ import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
-import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
@@ -26,10 +26,7 @@ import com.tracel.tests.support.Fixtures.itemEntity
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertInstanceOf
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class InvolutionTest {

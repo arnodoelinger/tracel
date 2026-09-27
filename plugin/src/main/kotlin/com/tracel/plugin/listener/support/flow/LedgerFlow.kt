@@ -1,6 +1,5 @@
 package com.tracel.plugin.listener.support.flow
 
-import com.tracel.plugin.listener.support.drop.BlockDrop
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
@@ -9,6 +8,7 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.listener.support.drop.BlockDrop
 
 val WORLDGEN_SOURCE: HolderId.Source = HolderId.Source(SourceKind.WORLDGEN)
 val DESTROYED_SINK: HolderId.Sink = HolderId.Sink(SinkKind.UNATTRIBUTED)

@@ -2,15 +2,7 @@ package com.tracel.plugin.listener.support.entity
 
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
-import org.bukkit.entity.Creeper
-import org.bukkit.entity.EnderCrystal
-import org.bukkit.entity.Ghast
-import org.bukkit.entity.Entity
-import org.bukkit.entity.Explosive
-import org.bukkit.entity.Fireball
-import org.bukkit.entity.Player
-import org.bukkit.entity.TNTPrimed
-import org.bukkit.entity.Wither
+import org.bukkit.entity.*
 import org.bukkit.entity.minecart.ExplosiveMinecart
 import org.bukkit.event.entity.EntityExplodeEvent
 

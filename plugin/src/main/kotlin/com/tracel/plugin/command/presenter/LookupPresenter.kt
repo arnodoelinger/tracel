@@ -2,10 +2,10 @@ package com.tracel.plugin.command.presenter
 
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
-import com.tracel.plugin.dialog.renderLookupResult
-import com.tracel.plugin.dialog.renderWorldChange
 import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.args.ScopeArgument
+import com.tracel.plugin.dialog.renderLookupResult
+import com.tracel.plugin.dialog.renderWorldChange
 import org.bukkit.command.CommandSender
 
 // TODO: rewrite

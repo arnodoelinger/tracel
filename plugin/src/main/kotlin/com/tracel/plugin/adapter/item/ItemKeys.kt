@@ -2,10 +2,8 @@ package com.tracel.plugin.adapter.item
 
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
-import java.security.MessageDigest
-import java.util.HexFormat
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
+import com.tracel.plugin.TracelPlugin
+import com.tracel.plugin.adapter.item.PendingItemForms.seen
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 import org.bukkit.Material
@@ -13,9 +11,11 @@ import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BundleMeta
 import org.bukkit.inventory.meta.CrossbowMeta
 import org.bukkit.inventory.meta.Damageable
+import java.security.MessageDigest
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.milliseconds
-import com.tracel.plugin.TracelPlugin
-import kotlin.collections.iterator
 
 private val PLAIN_BYTES = ConcurrentHashMap<Material, ByteArray>()
 private val NOT_AN_ITEM = ByteArray(0)

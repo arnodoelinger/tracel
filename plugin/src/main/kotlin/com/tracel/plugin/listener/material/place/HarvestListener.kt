@@ -7,14 +7,13 @@ import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices
-import com.tracel.plugin.adapter.entity.toBlockPos
+import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toHolderId
+import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
-import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
-import com.tracel.plugin.listener.support.flow.harvestFlows
 import io.papermc.paper.event.block.PlayerShearBlockEvent
 import org.bukkit.World
 import org.bukkit.event.block.BlockShearEntityEvent

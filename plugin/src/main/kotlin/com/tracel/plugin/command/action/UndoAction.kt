@@ -3,9 +3,9 @@ package com.tracel.plugin.command.action
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.TracelServices
+import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
 import com.tracel.plugin.command.presenter.RollbackPresenter.resurrections
-import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable

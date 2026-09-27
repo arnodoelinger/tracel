@@ -1,8 +1,8 @@
 package com.tracel.plugin.listener.support.guard
 
 import com.tracel.model.holder.HolderId
-import java.util.concurrent.ConcurrentHashMap
 import com.tracel.plugin.listener.session.FreezeGuardListener
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Holders mid-restore, closed to hoppers / droppers / minecarts.

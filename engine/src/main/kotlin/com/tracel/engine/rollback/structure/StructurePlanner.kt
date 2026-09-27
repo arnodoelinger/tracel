@@ -1,14 +1,13 @@
 package com.tracel.engine.rollback.structure
 
-import java.util.UUID
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.WorldChange
+import com.tracel.model.world.entity.EntityShape
+import java.util.*
 
 // TODO: rewrite, this must not exist here
 @RunsOn(ThreadContext.ASYNC)

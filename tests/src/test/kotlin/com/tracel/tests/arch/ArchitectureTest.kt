@@ -5,14 +5,7 @@ import com.lemonappdev.konsist.api.ext.list.modifierprovider.withPublicOrDefault
 import com.lemonappdev.konsist.api.ext.list.withAnnotationOf
 import com.lemonappdev.konsist.api.verify.assertFalse
 import com.lemonappdev.konsist.api.verify.assertTrue
-import com.tracel.annotations.Consume
-import com.tracel.annotations.Journaled
-import com.tracel.annotations.Observes
-import com.tracel.annotations.Reads
-import com.tracel.annotations.RequiresLease
-import com.tracel.annotations.RunsOn
-import com.tracel.annotations.SingleWriter
-import com.tracel.annotations.Snapshot
+import com.tracel.annotations.*
 import org.junit.jupiter.api.Test
 
 class ArchitectureTest {

@@ -1,50 +1,31 @@
 package com.tracel.plugin.rollback.structure
 
-import com.tracel.plugin.rollback.structure.block.Unchanged
-import com.tracel.plugin.rollback.structure.block.drifted
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.leashHolder
 import com.tracel.model.world.entity.vehicle
+import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.applyTo
-import com.tracel.plugin.adapter.block.toShape
-import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.isFluidShape
-import com.tracel.plugin.adapter.entity.applyLeash
-import com.tracel.plugin.adapter.entity.applyVehicle
-import com.tracel.plugin.adapter.entity.spawnInto
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.adapter.entity.toShape
+import com.tracel.plugin.adapter.block.toShape
+import com.tracel.plugin.adapter.entity.*
 import com.tracel.plugin.listener.support.cell.FluidCell
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
-import com.tracel.plugin.rollback.structure.block.Applied
-import com.tracel.plugin.rollback.structure.block.Refused
-import com.tracel.plugin.rollback.structure.block.apply
-import com.tracel.plugin.rollback.structure.block.blockAt
-import com.tracel.plugin.rollback.structure.block.UNSUPPORTED
-import com.tracel.plugin.rollback.structure.block.hangingCells
-import com.tracel.plugin.rollback.structure.block.hasGravity
-import com.tracel.plugin.rollback.structure.block.isAir
-import com.tracel.plugin.rollback.structure.block.isFire
-import com.tracel.plugin.rollback.structure.block.isSolid
-import com.tracel.plugin.rollback.structure.block.loadChunks
-import com.tracel.plugin.rollback.structure.block.overlappingFalling
-import com.tracel.plugin.rollback.structure.block.standsAlone
-import com.tracel.plugin.rollback.structure.block.unsupportedAt
+import com.tracel.plugin.rollback.structure.block.*
 import com.tracel.plugin.rollback.structure.entity.Despawn
 import com.tracel.plugin.rollback.structure.entity.despawn
 import com.tracel.plugin.rollback.structure.fluid.fixSnowyGround
 import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.Warnings
 import com.tracel.plugin.util.chunkKey
-import java.util.UUID
 import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.BlockFace
 import org.bukkit.block.data.type.Chest
-import com.tracel.plugin.adapter.block.BlockDataCache
 import org.bukkit.entity.Entity
+import java.util.*
 
 /** Other region's spawn should be done. */
 private const val REATTACH_DELAY_TICKS = 5L

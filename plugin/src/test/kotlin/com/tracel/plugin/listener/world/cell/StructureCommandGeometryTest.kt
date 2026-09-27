@@ -1,9 +1,7 @@
 package com.tracel.plugin.listener.world.cell
 
 import com.tracel.plugin.util.ParsedBlockPos
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class StructureCommandGeometryTest {

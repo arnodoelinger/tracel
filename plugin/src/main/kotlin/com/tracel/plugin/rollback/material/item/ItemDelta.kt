@@ -7,10 +7,10 @@ import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.util.Warnings
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Material
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
+import java.util.concurrent.ConcurrentHashMap
 
 /** Apply one key. Overflow as stacks, shortfall named. */
 internal fun MaterialRestorer.applyDelta(

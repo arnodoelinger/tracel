@@ -1,6 +1,5 @@
 package com.tracel.storage
 
-import com.tracel.model.holder.HolderId
 import com.tracel.storage.ports.world.GroundPositions
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block

@@ -1,30 +1,18 @@
 package com.tracel.plugin.rollback.structure.block
 
-import org.bukkit.block.data.type.Leaves
-import org.bukkit.Tag
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.adapter.block.BlockDataCache
-import com.tracel.plugin.adapter.block.applyTo
-import com.tracel.plugin.adapter.block.cargoSlots
-import com.tracel.plugin.adapter.block.holdsAnything
-import com.tracel.plugin.adapter.block.mayHaveTile
-import com.tracel.plugin.adapter.block.resyncCargo
-import com.tracel.plugin.adapter.block.snapshot
-import com.tracel.plugin.adapter.block.takeAll
-import com.tracel.plugin.adapter.block.toShape
+import com.tracel.plugin.adapter.block.*
 import com.tracel.plugin.rollback.structure.StructureRestorer
-import org.bukkit.block.Block
-import org.bukkit.block.data.type.BubbleColumn
-import org.bukkit.block.data.Levelled
-import org.bukkit.block.BlockFace
 import org.bukkit.Material
-import org.bukkit.block.BrewingStand
-import org.bukkit.block.Campfire
-import org.bukkit.block.Furnace
+import org.bukkit.Tag
+import org.bukkit.block.*
 import org.bukkit.block.data.BlockData
+import org.bukkit.block.data.Levelled
+import org.bukkit.block.data.type.BubbleColumn
+import org.bukkit.block.data.type.Leaves
 import org.bukkit.inventory.ItemStack
 
 private val LEAF_FACES = arrayOf(BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST)

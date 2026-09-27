@@ -3,20 +3,16 @@ package com.tracel.plugin.adapter.entity
 import com.tracel.annotations.Unstable
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.entity.EntityExtras
-import com.tracel.model.world.entity.EntityShape
-import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.model.world.entity.leashed
-import com.tracel.model.world.entity.riding
+import com.tracel.model.world.entity.*
 import com.tracel.plugin.adapter.entity.special.FallingBlockAdapter
 import com.tracel.plugin.util.Warnings
 import com.tracel.storage.codec.records.World
 import io.papermc.paper.entity.EntitySerializationFlag
-import java.util.logging.Level
-import java.util.logging.Logger
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
+import java.util.logging.Level
+import java.util.logging.Logger
 
 private val logger = Logger.getLogger("EntityShapes")
 

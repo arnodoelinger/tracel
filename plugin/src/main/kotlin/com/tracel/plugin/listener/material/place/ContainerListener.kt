@@ -4,19 +4,14 @@ import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
-import org.bukkit.block.ShulkerBox
-import org.bukkit.block.Lectern
-import org.bukkit.event.player.PlayerTakeLecternBookEvent
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.listener.support.lectern.LecternPages
-import com.tracel.plugin.adapter.block.accountMovesTo
-import com.tracel.plugin.adapter.block.cargoSlots
-import com.tracel.plugin.adapter.block.resyncCargo
-import com.tracel.plugin.adapter.block.takeAll
-import com.tracel.plugin.adapter.block.toHolderId
+import com.tracel.plugin.adapter.block.*
 import com.tracel.plugin.listener.TracelListener
-import org.bukkit.event.block.BlockBreakEvent
+import com.tracel.plugin.listener.support.lectern.LecternPages
 import com.tracel.plugin.listener.world.entity.ExplosionListener
+import org.bukkit.block.Lectern
+import org.bukkit.block.ShulkerBox
+import org.bukkit.event.block.BlockBreakEvent
+import org.bukkit.event.player.PlayerTakeLecternBookEvent
 
 /**
  * Container break listener.
