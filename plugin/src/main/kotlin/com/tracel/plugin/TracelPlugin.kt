@@ -18,8 +18,6 @@ import org.bukkit.plugin.java.JavaPlugin
 class TracelPlugin : JavaPlugin() {
     private var runtime: TracelRuntime? = null
 
-    private val SHUTDOWN_WAIT_MILLIS = 5_000L
-
     override fun onEnable() {
         try {
             runtime = enableTracel(this)
@@ -34,7 +32,7 @@ class TracelPlugin : JavaPlugin() {
         val run = runtime
         stopping(logger, "storage") {
             val live = run ?: return@stopping
-            val clean = live.storage.closeAfter(SHUTDOWN_WAIT_MILLIS) {
+            val clean = live.storage.closeAfter(5_000L) {
                 stopping(logger, "the last captures") { live.lastCaptures() }
                 live.drain.cancel()
                 live.entityDrain.cancel()
@@ -45,7 +43,7 @@ class TracelPlugin : JavaPlugin() {
                     it.join()
                 }
             }
-            if (!clean) logger.warning("Tracel stopped waiting for its last writes after $SHUTDOWN_WAIT_MILLIS ms; the rest still goes")
+            if (!clean) logger.warning("Tracel stopped waiting for its last writes after 5 seconds; the rest still goes")
         }
         logger.info("Tracel disabled.")
         if (!serverIsStopping()) {
