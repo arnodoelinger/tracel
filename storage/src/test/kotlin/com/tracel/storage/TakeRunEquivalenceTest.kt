@@ -33,10 +33,6 @@ import org.junit.jupiter.params.provider.ValueSource
 import java.nio.file.Path
 import kotlin.random.Random
 
-/**
- * A rollback taking runs whole against the same rollback walked lot by lot: same history, two stores,
- * and after the job both have to hold exactly the same things in exactly the same order.
- */
 class TakeRunEquivalenceTest {
     private val holders: List<HolderId> = listOf(
         block(0, 64, 0), block(1, 64, 0), block(2, 64, 0), player(1), player(2), player(3),
@@ -44,7 +40,7 @@ class TakeRunEquivalenceTest {
     private val items = listOf(ItemKey("minecraft:diamond"), ItemKey("minecraft:stick"))
     private val plank = ItemKey("minecraft:oak_planks")
 
-    /** The same store with the shortcut switched off: every root walks. */
+    // The same store with the shortcut switched off: every root walks
     private class Walked(private val inner: LotRepository) : LotRepository by inner {
         override suspend fun placedRuns(roots: Collection<LotId>): PlacedRuns = PlacedRuns(emptyList(), roots.distinct())
     }
