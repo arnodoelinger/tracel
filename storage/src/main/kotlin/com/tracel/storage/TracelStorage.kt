@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.nio.file.Path
 import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.milliseconds
@@ -43,6 +44,10 @@ class TracelStorage private constructor(
 ) : UnitOfWork, AutoCloseable {
     private val lock = Mutex()
     private val writer = SingleWriterGuard()
+
+    private val closed = AtomicBoolean(false)
+
+    private val replaced = CopyOnWriteArrayList<() -> Unit>()
 
     /** Reads inside the current unit of work, or opens a throwaway one if there is none. */
     suspend fun <T> read(block: StorageUnit.() -> T): T {
@@ -83,6 +88,53 @@ class TracelStorage private constructor(
      * each per game event.
      */
     suspend fun <T> batched(block: suspend () -> T): T = suspendingUnit(block)
+
+    /**
+     * Runs [block] with no unit of work open anywhere, on the storage thread: the drainer and every other
+     * writer wait. For replacing the store wholesale, where one batch landing mid-wipe resurrects old data.
+     */
+    suspend fun <T> alone(block: () -> T): T = lock.withLock { withContext(dispatcher) { block() } }
+
+    /** Runs [action] whenever the store is replaced wholesale, for whoever caches what was in it. */
+    fun afterReplace(action: () -> Unit) {
+        replaced += action
+    }
+
+    /** Re-reads interned ids after the store was replaced under them. Call inside [alone]. */
+    fun reloadInterning() {
+        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::reload)
+        replaced.forEach { it() }
+    }
+
+    /**
+     * Runs [last] to its end or for [timeoutMillis], whichever comes first, then closes. Blocks the
+     * caller, so shutdown only: that is the one place something has to wait for the last writes.
+     *
+     * @return whether [last] finished in time.
+     */
+    fun closeAfter(timeoutMillis: Long, last: suspend () -> Unit): Boolean {
+        val done = CountDownLatch(1)
+        var finished = false
+        CoroutineScope(SupervisorJob() + dispatcher).launch {
+            try {
+                finished = withTimeoutOrNull(timeoutMillis.milliseconds) { last() } != null
+            } finally {
+                done.countDown()
+            }
+        }
+        done.await(timeoutMillis + CLOSE_GRACE_MILLIS, TimeUnit.MILLISECONDS)
+        close()
+        return finished
+    }
+
+    /** Closes the storage and releases all associated resources. */
+    override fun close() {
+        if (!closed.compareAndSet(false, true)) return
+        engine.close()
+        ring.close()
+        executor.shutdown()
+        readerPool.shutdown()
+    }
 
     private suspend fun <T> readOnly(block: StorageUnit.() -> T): T = withContext(readers) {
         StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(block)
@@ -130,49 +182,6 @@ class TracelStorage private constructor(
                 result
             }
         }
-    }
-
-    /**
-     * Runs [block] with no unit of work open anywhere, on the storage thread: the drainer and every other
-     * writer wait. For replacing the store wholesale, where one batch landing mid-wipe resurrects old data.
-     */
-    suspend fun <T> alone(block: () -> T): T = lock.withLock { withContext(dispatcher) { block() } }
-
-    /** Re-reads interned ids after the store was replaced under them. Call inside [alone]. */
-    fun reloadInterning() {
-        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::reload)
-    }
-
-    /**
-     * Runs [last] to its end or for [timeoutMillis], whichever comes first, then closes. Blocks the
-     * caller, so shutdown only: that is the one place something has to wait for the last writes.
-     *
-     * @return whether [last] finished in time.
-     */
-    fun closeAfter(timeoutMillis: Long, last: suspend () -> Unit): Boolean {
-        val done = CountDownLatch(1)
-        var finished = false
-        CoroutineScope(SupervisorJob() + dispatcher).launch {
-            try {
-                finished = withTimeoutOrNull(timeoutMillis.milliseconds) { last() } != null
-            } finally {
-                done.countDown()
-            }
-        }
-        done.await(timeoutMillis + CLOSE_GRACE_MILLIS, TimeUnit.MILLISECONDS)
-        close()
-        return finished
-    }
-
-    private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
-
-    /** Idempotent: an off-heap arena closed twice throws, and closing twice is easy to arrange. */
-    override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-        engine.close()
-        ring.close()
-        executor.shutdown()
-        readerPool.shutdown()
     }
 
     private class OpenUnit(

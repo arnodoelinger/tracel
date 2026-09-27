@@ -9,6 +9,12 @@ import com.tracel.model.id.RollbackJobId
  */
 public interface Journal {
     public suspend fun markCompleted(job: RollbackJobId, stepIndex: Int)
+
+    /** Steps [from] until [until], exclusive. */
+    public suspend fun markCompleted(job: RollbackJobId, from: Int, until: Int) {
+        for (index in from until until) markCompleted(job, index)
+    }
+
     public suspend fun isCompleted(job: RollbackJobId, stepIndex: Int): Boolean
     public suspend fun completed(job: RollbackJobId, count: Int): Set<Int>
 }

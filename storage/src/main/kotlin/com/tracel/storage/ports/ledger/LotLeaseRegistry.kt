@@ -8,90 +8,142 @@ import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.util.eachRow
+import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import com.tracel.engine.ownership.LotLeaseRegistry as LotLeaseRegistryPort
 
-/**
- * The durable half of ownership. A lease record survives the process dying.
- *
- * Kept twice — by lot, and by job — because both directions get asked. `lease | lot` answers
- * "who holds this", which [tryReserve] needs per lot; `leaseJob | job | lot` answers "what does
- * this job hold", which [release] and [transfer] need without scanning every lease on the disk.
- */
+/** The durable half of ownership. A lease survives the process dying. */
 class LotLeaseRegistry(private val storage: TracelStorage) : LotLeaseRegistryPort() {
-    /**
-     * Try to reserve the given lots for the given job.
-     *
-     * @return a map of lots that are already held by other jobs.
-     */
+    private class Held(val lots: HashSet<Long>, val acquiredAt: Long, val legacy: Boolean)
+
+    private var loaded = false
+    private val jobs = HashMap<Long, Held>()
+    private val owners = HashMap<Long, Long>()
+
+    init {
+        storage.afterReplace {
+            jobs.clear()
+            owners.clear()
+            loaded = false
+        }
+    }
+
     override suspend fun tryReserve(job: RollbackJobId, lotIds: Set<LotId>): Map<LotId, RollbackJobId> =
         storage.write {
+            load()
             val conflicts = HashMap<LotId, RollbackJobId>()
-            val held = HashSet<LotId>()
             for (lotId in lotIds) {
-                val existing = get(Keys.lease(lotId.raw)) ?: continue
-                val owner = RollbackJobId(Records.leaseJobId(existing))
-                if (owner != job) conflicts[lotId] = owner else held += lotId
+                val owner = owners[lotId.raw] ?: continue
+                if (owner != job.raw) conflicts[lotId] = RollbackJobId(owner)
             }
             if (conflicts.isNotEmpty()) return@write conflicts
 
+            val before = jobs[job.raw]
+            val lots = HashSet<Long>((before?.lots?.size ?: 0) + lotIds.size)
+            before?.lots?.let(lots::addAll)
+            for (lotId in lotIds) lots += lotId.raw
             val now = System.currentTimeMillis()
-            for (lotId in lotIds) {
-                put(Keys.lease(lotId.raw), Records.lease(job.raw, now))
-                if (lotId !in held) put(Keys.leaseJob(job.raw, lotId.raw), EMPTY)
-            }
+            put(Keys.leaseSet(job.raw), encode(now, lots))
+            swap(job.raw, Held(lots, now, before?.legacy == true))
             emptyMap()
         }
 
-    /** Release all lots held by the given job. */
     override suspend fun release(job: RollbackJobId) {
         storage.write {
-            val lotIds = lotsOf(job)
-            for (lotId in lotIds) {
-                delete(Keys.lease(lotId))
-                delete(Keys.leaseJob(job.raw, lotId))
-            }
+            load()
+            val held = jobs[job.raw] ?: return@write
+            forget(job.raw, held)
+            swap(job.raw, null)
         }
     }
 
-    /** Transfer all lots held by one job to another. */
     override suspend fun transfer(from: RollbackJobId, to: RollbackJobId): Set<LotId> = storage.write {
-        val lotIds = lotsOf(from)
-        if (lotIds.isEmpty()) return@write emptySet()
+        load()
+        val moving = jobs[from.raw] ?: return@write emptySet()
+        val before = jobs[to.raw]
+        val lots = HashSet<Long>(moving.lots.size + (before?.lots?.size ?: 0))
+        before?.lots?.let(lots::addAll)
+        lots += moving.lots
         val now = System.currentTimeMillis()
-        for (lotId in lotIds) {
-            put(Keys.lease(lotId), Records.lease(to.raw, now))
-            delete(Keys.leaseJob(from.raw, lotId))
-            put(Keys.leaseJob(to.raw, lotId), EMPTY)
-        }
-        lotIds.mapTo(HashSet(), ::LotId)
+        forget(from.raw, moving)
+        swap(from.raw, null)
+        put(Keys.leaseSet(to.raw), encode(now, lots))
+        swap(to.raw, Held(lots, now, before?.legacy == true))
+        moving.lots.mapTo(HashSet(), ::LotId)
     }
 
-    /** Reap leases that have been abandoned for too long. */
     override suspend fun reapAbandoned(nowMillis: Long, maxAgeMillis: Long): Set<RollbackJobId> = storage.write {
+        load()
         val threshold = nowMillis - maxAgeMillis
-        val abandoned = HashSet<RollbackJobId>()
-        val stale = ArrayList<Pair<Long, Long>>()
-        eachRow(Keys.leasePrefix()) { cursor ->
-            val value = cursor.value()
-            if (Records.leaseAcquiredAt(value) >= threshold) return@eachRow
-            val jobId = Records.leaseJobId(value)
-            abandoned += RollbackJobId(jobId)
-            stale += jobId to KeyReader.u64(cursor.key(), 1)
+        val stale = jobs.filterValues { it.acquiredAt < threshold }
+        for ((job, held) in stale) {
+            forget(job, held)
+            swap(job, null)
         }
-        for ((jobId, lotId) in stale) {
-            delete(Keys.lease(lotId))
-            delete(Keys.leaseJob(jobId, lotId))
-        }
-        abandoned
+        stale.keys.mapTo(HashSet(), ::RollbackJobId)
     }
 
-    private fun StorageUnit.lotsOf(job: RollbackJobId): List<Long> {
-        val out = ArrayList<Long>()
-        eachRow(Keys.leaseJobPrefix(job.raw)) { cursor -> out += KeyReader.u64(cursor.key(), 9) }
-        return out
+    private fun StorageUnit.load() {
+        if (loaded) return
+        eachRow(Keys.tagPrefix(Keys.LEASE_SET)) { cursor ->
+            val (acquiredAt, lots) = decode(cursor.value())
+            adopt(KeyReader.u64(cursor.key(), 1), lots, acquiredAt, legacy = false)
+        }
+        eachRow(Keys.tagPrefix(Keys.LEASE)) { cursor ->
+            val value = cursor.value()
+            val lot = KeyReader.u64(cursor.key(), 1)
+            adopt(Records.leaseJobId(value), hashSetOf(lot), Records.leaseAcquiredAt(value), legacy = true)
+        }
+        loaded = true
+    }
+
+    private fun adopt(job: Long, lots: HashSet<Long>, acquiredAt: Long, legacy: Boolean) {
+        val had = jobs[job]
+        if (had != null) lots += had.lots
+        val held = Held(lots, minOf(acquiredAt, had?.acquiredAt ?: acquiredAt), legacy || had?.legacy == true)
+        jobs[job] = held
+        for (lot in lots) owners[lot] = job
+    }
+
+    private fun StorageUnit.forget(job: Long, held: Held) {
+        delete(Keys.leaseSet(job))
+        if (!held.legacy) return
+        for (lot in held.lots) {
+            delete(Keys.lease(lot))
+            delete(Keys.leaseJob(job, lot))
+        }
+    }
+
+    private fun StorageUnit.swap(job: Long, next: Held?) {
+        val previous = jobs[job]
+        index(job, previous, next)
+        afterAbort { index(job, next, previous) }
+    }
+
+    private fun index(job: Long, from: Held?, to: Held?) {
+        from?.lots?.forEach { if (owners[it] == job) owners.remove(it) }
+        if (to == null) jobs.remove(job) else {
+            jobs[job] = to
+            for (lot in to.lots) owners[lot] = job
+        }
     }
 
     private companion object {
-        val EMPTY = ByteArray(0)
+        fun encode(acquiredAt: Long, lots: Set<Long>): ByteArray {
+            val out = ByteBuffer.allocate(8 + 8 * lots.size).order(ByteOrder.LITTLE_ENDIAN)
+            out.putLong(acquiredAt)
+            for (lot in lots) out.putLong(lot)
+            return out.array()
+        }
+
+        fun decode(value: MemorySegment): Pair<Long, HashSet<Long>> {
+            val layout = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN)
+            val count = ((value.byteSize() - 8) / 8).toInt()
+            val lots = HashSet<Long>(count * 2)
+            for (i in 0 until count) lots += value.get(layout, 8L + 8L * i)
+            return value.get(layout, 0L) to lots
+        }
     }
 }

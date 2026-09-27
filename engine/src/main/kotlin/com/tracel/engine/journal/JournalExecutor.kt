@@ -92,14 +92,8 @@ public class JournalExecutor(
                                 plan = if (direct) plan else null,
                                 target = if (direct) target else null,
                             )
-                            var marked = from
-                            while (marked < until) {
-                                if (!isSet(words, marked)) {
-                                    journal.markCompleted(job, marked)
-                                    setBit(words, marked)
-                                }
-                                marked++
-                            }
+                            journal.markCompleted(job, from, until)
+                            for (marked in from until until) setBit(words, marked)
                         }
                         if (needRelease) {
                             if (!direct) executor.release(job, plan, target, nextTxnId())

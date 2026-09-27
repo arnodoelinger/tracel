@@ -45,6 +45,7 @@ import com.tracel.storage.spi.EngineCursor
  * | 1D   | `rbTarget / jobId / rootLotId`                                            | holderId             | prefix                  |
  * | 21   | `cslot / holderId / ~seq`                                                 | packed slot layout   | prefix, newest first    |
  * | 23   | `wear / lotId / seq`                                                      | epochMillis, damage  | prefix, oldest first    |
+ * | 24   | `leaseSet / jobId`                                                        | acquiredAt, lotIds   | full scan on open       |
  */
 object Keys {
     fun tagName(tag: Byte): String = when (tag) {
@@ -72,6 +73,7 @@ object Keys {
         INTERN_REVERSE -> "internRv"
         WCHG -> "wchg"
         WCHG_AT -> "wchgAt"
+        WCHG_AT_SECTION -> "wchgSec"
         WCHG_ENTITY -> "wchgEnt"
         TXN_LOT -> "txnLot"
         BLOCK_LEASE -> "blockLease"
@@ -80,6 +82,7 @@ object Keys {
         ITEM_FORM -> "itemForm"
         CONTAINER_SLOT -> "cslot"
         WEAR -> "wear"
+        LEASE_SET -> "leaseSet"
         else -> "tag%02x".format(tag.toInt() and 0xff)
     }
 
@@ -118,6 +121,7 @@ object Keys {
     const val CONTAINER_SLOT: Byte = 0x21
     const val GROUND_AT: Byte = 0x22
     const val WEAR: Byte = 0x23
+    const val LEASE_SET: Byte = 0x24
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -225,6 +229,8 @@ object Keys {
         KeyWriter(17).tag(LEASE_JOB).u64(jobId).u64(lotId).done()
 
     fun leaseJobPrefix(jobId: Long): ByteArray = KeyWriter(9).tag(LEASE_JOB).u64(jobId).done()
+
+    fun leaseSet(jobId: Long): ByteArray = KeyWriter(9).tag(LEASE_SET).u64(jobId).done()
 
     fun rbStep(jobId: Long, stepIndex: Int): ByteArray =
         KeyWriter(13).tag(RB_STEP).u64(jobId).u32(stepIndex).done()
@@ -352,6 +358,7 @@ object Keys {
         CONTAINER_SLOT,
         GROUND_AT,
         WEAR,
+        LEASE_SET,
     )
 }
 
