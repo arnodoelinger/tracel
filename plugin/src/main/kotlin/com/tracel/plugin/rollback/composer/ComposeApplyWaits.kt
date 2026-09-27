@@ -13,7 +13,7 @@ import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
-import com.tracel.plugin.rollback.structure.CargoPolicy
+
 import com.tracel.plugin.rollback.structure.StructurePass
 import com.tracel.plugin.rollback.structure.StructurePhase
 import kotlinx.coroutines.CompletableDeferred
@@ -66,8 +66,13 @@ internal suspend fun RollbackComposer.ledgerAndStructure(
                 structureHalf.restore(
                     layout.createNow,
                     // Forward: un-ledgered cargo in a container is real; refuse, and don't dump
-                    StructurePass(force = !strict, phase = StructurePhase.RESTORE, dumpHeldCargo = false, driftOnly = true),
-                    CargoPolicy(keepCargoFor = layout.keepCargoFor),
+                    StructurePass(
+                        force = !strict,
+                        phase = StructurePhase.RESTORE,
+                        dumpHeldCargo = false,
+                        driftOnly = true,
+                        keepCargoFor = layout.keepCargoFor,
+                    ),
                     trace = planned.trace,
                 )
             }
@@ -79,8 +84,14 @@ internal suspend fun RollbackComposer.ledgerAndStructure(
             planned.trace.span("remove blocks") {
                 structureHalf.restore(
                     layout.prompt,
-                    StructurePass(force = !strict, phase = StructurePhase.REMOVE, dumpHeldCargo = false, driftOnly = true),
-                    CargoPolicy(ledgerCargoFor = layout.ledgerCargoFor, ledgerHeldBy = layout.ledgerHeldBy),
+                    StructurePass(
+                        force = !strict,
+                        phase = StructurePhase.REMOVE,
+                        dumpHeldCargo = false,
+                        driftOnly = true,
+                        ledgerCargoFor = layout.ledgerCargoFor,
+                        ledgerHeldBy = layout.ledgerHeldBy,
+                    ),
                     trace = planned.trace,
                 )
             }
@@ -157,8 +168,9 @@ internal suspend fun RollbackComposer.materialAndContested(
                         phase = StructurePhase.CONTESTED,
                         dumpHeldCargo = false,
                         driftOnly = true,
+                        ledgerCargoFor = layout.ledgerCargoFor,
+                        ledgerHeldBy = layout.ledgerHeldBy,
                     ),
-                    CargoPolicy(ledgerCargoFor = layout.ledgerCargoFor, ledgerHeldBy = layout.ledgerHeldBy),
                     trace = planned.trace,
                 )
             }

@@ -2,12 +2,11 @@ package com.tracel.plugin.rollback.composer
 
 import com.tracel.annotations.Unstable
 import kotlinx.coroutines.launch
-import com.tracel.plugin.rollback.structure.redstoneCells
+import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import com.tracel.engine.rollback.job.Reservation
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.model.world.BlockPos
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.PreflightResult

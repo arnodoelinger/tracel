@@ -1,5 +1,7 @@
 package com.tracel.plugin.rollback.structure
 
+import java.util.UUID
+
 /**
  * How one structure pass writes.
  *
@@ -10,4 +12,7 @@ data class StructurePass(
     val phase: StructurePhase = StructurePhase.BLOCKS,
     val dumpHeldCargo: Boolean = force,
     val driftOnly: Boolean = false,
+    val keepCargoFor: Set<UUID> = emptySet(),
+    val ledgerCargoFor: Set<UUID> = emptySet(),
+    val ledgerHeldBy: Set<UUID> = emptySet(),
 )

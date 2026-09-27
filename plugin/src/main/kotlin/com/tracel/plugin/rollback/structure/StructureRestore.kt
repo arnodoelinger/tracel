@@ -114,3 +114,19 @@ internal fun StructureRestorer.claim(
     groups: List<List<StructureStep>>,
     claimed: AtomicIntegerArray,
 ): List<StructureStep> = claimOwned(index, groups, claimed) { ownsChunkAt(dispatchAt(it)) }
+
+/** Claim owned groups without touching the world. */
+private fun claimOwned(
+    index: Int,
+    groups: List<List<StructureStep>>,
+    claimed: AtomicIntegerArray,
+    owns: (StructureStep) -> Boolean,
+): List<StructureStep> {
+    val mine = ArrayList<StructureStep>()
+    for (other in groups.indices) {
+        if (other != index && (claimed.get(other) != 0 || !owns(groups[other].first()))) continue
+        if (!claimed.compareAndSet(other, 0, 1)) continue
+        mine += groups[other]
+    }
+    return mine
+}

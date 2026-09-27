@@ -19,7 +19,6 @@ interface StructureHalf {
     suspend fun restore(
         steps: List<StructureStep>,
         pass: StructurePass = StructurePass(),
-        cargo: CargoPolicy = CargoPolicy.NONE,
         trace: RollbackTrace = RollbackTrace.NONE, // TODO: remove me
     ): StructureReport
 

@@ -1,4 +1,4 @@
-package com.tracel.plugin.rollback.structure
+package com.tracel.plugin.rollback.structure.redstone
 
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
@@ -6,6 +6,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.world.worldOf
+import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll

@@ -1,6 +1,6 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.plugin.rollback.structure.redstoneCells
+import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import com.tracel.engine.rollback.involution.InvolutionOutcome
 import com.tracel.engine.rollback.involution.InvolutionPlanner
 import com.tracel.engine.rollback.job.RollbackJobRecord
@@ -11,13 +11,12 @@ import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
-import com.tracel.model.world.BlockPos
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
-import com.tracel.plugin.rollback.structure.CargoPolicy
+
 import com.tracel.plugin.rollback.structure.StructurePass
 import java.util.UUID
 import kotlinx.coroutines.async
@@ -76,7 +75,9 @@ private suspend fun RollbackComposer.undoFrozen(
 
     // The ledger does not wait on the world: put-back and the books run side by side, like a forward apply
     val (restored, undone) = coroutineScope {
-        val putting = async { structureHalf.restore(putBack, StructurePass(force = true), CargoPolicy(keepCargoFor = undoKeepCargoFor)) }
+        val putting = async {
+            structureHalf.restore(putBack, StructurePass(force = true, keepCargoFor = undoKeepCargoFor))
+        }
         val ledger = async {
             try {
                 Result.success(services.undo.undo(job))
@@ -103,14 +104,14 @@ private suspend fun RollbackComposer.undoFrozen(
     }
 
     // What players put into a restored chest since is theirs: refuse the cell, never empty it into nothing
-    val takingAway = StructurePass(force = true, dumpHeldCargo = false)
+    val takingAway = StructurePass(force = true, dumpHeldCargo = false, ledgerCargoFor = undoLedgerCargoFor)
 
     return when (outcome) {
         is InvolutionOutcome.Undone -> {
             val material = materialHalf.undoRestore(outcome.steps, job, record.plan.noiseMints(), asOf = record.executedAtMillis)
             services.undoJournal.markCompleted(job, MATERIAL_RETURNED)
             if (record.executedAtMillis > 0L) materialHalf.rewearUndo(outcome.steps, record.executedAtMillis)
-            val removed = structureHalf.restore(takeAway, takingAway, CargoPolicy(ledgerCargoFor = undoLedgerCargoFor))
+            val removed = structureHalf.restore(takeAway, takingAway)
             structureHalf.settleFluids(restored.applied + removed.applied, drain = false)
 
             // Return-to-vanished-drop from an entity hull
@@ -140,7 +141,7 @@ private suspend fun RollbackComposer.undoFrozen(
 
         // Ledger already undone, job still on the stack: finish takeAway
         is InvolutionOutcome.AlreadyUndone -> if (services.undoJournal.isCompleted(job, MATERIAL_RETURNED)) {
-            val removed = structureHalf.restore(takeAway, takingAway, CargoPolicy(ledgerCargoFor = undoLedgerCargoFor))
+            val removed = structureHalf.restore(takeAway, takingAway)
             structureHalf.settleFluids(restored.applied + removed.applied, drain = false)
             services.jobs.markUndone(job)
             UndoResult.AlreadyUndone

@@ -1,13 +1,12 @@
-package com.tracel.plugin.rollback.structure
+package com.tracel.plugin.rollback.structure.fluid
 
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
-import com.tracel.plugin.rollback.structure.fluid.MAX_DRAINED
-import com.tracel.plugin.rollback.structure.fluid.drainFlowing
-import com.tracel.plugin.rollback.structure.fluid.settleFluids
+import com.tracel.plugin.rollback.structure.StructureRestorer
+import com.tracel.plugin.rollback.structure.claim
 import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey

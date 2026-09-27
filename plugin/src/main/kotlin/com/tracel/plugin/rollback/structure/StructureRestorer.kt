@@ -5,6 +5,8 @@ import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.StructureReport
+import com.tracel.plugin.rollback.structure.fluid.settleWritten
+import com.tracel.plugin.rollback.structure.redstone.wakeRedstoneAt
 import com.tracel.plugin.rollback.trace.RollbackTrace
 import java.util.logging.Logger
 
@@ -21,11 +23,10 @@ class StructureRestorer(internal val services: TracelServices) : StructureHalf {
     override suspend fun restore(
         steps: List<StructureStep>,
         pass: StructurePass,
-        cargo: CargoPolicy,
         trace: RollbackTrace,
     ): StructureReport = restoreSteps(
         steps, pass.force, trace, pass.phase,
-        cargo.keepCargoFor, cargo.ledgerCargoFor, cargo.ledgerHeldBy, pass.dumpHeldCargo, pass.driftOnly,
+        pass.keepCargoFor, pass.ledgerCargoFor, pass.ledgerHeldBy, pass.dumpHeldCargo, pass.driftOnly,
     )
 
     override suspend fun settleFluids(written: List<StructureStep>, drain: Boolean): StructureReport =
