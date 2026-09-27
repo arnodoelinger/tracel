@@ -24,8 +24,10 @@ public class InvolutionPlanner(private val repo: LotRepository) {
     /** A holder that vanished since needs nothing special: its lots burned when it did, so nothing is payable off it. */
     public suspend fun plan(job: RollbackJobRecord, resuming: Boolean = false): List<InvolutionStep> = repo.reading {
         val books = Books(repo, byLot = !resuming)
-        job.plan.steps.asReversed().mapNotNull { step ->
+        val steps = job.plan.steps.flatMap { if (it is RollbackStep.TakeRun) it.takes() else listOf(it) }
+        steps.asReversed().mapNotNull { step ->
             val delivered = when (step) {
+                is RollbackStep.TakeRun -> error("runs were expanded above")
                 is RollbackStep.Take -> job.target.destinationFor(job.plan, step.lotId)
                 is RollbackStep.Mint -> job.target.destinationFor(job.plan, step.lotId)
                 is RollbackStep.Debt -> job.target.destinationFor(job.plan, step.lotId)
@@ -48,6 +50,7 @@ public class InvolutionPlanner(private val repo: LotRepository) {
         step: RollbackStep,
         restoreTo: HolderId
     ): InvolutionStep? = when (step) {
+        is RollbackStep.TakeRun -> error("runs are expanded before they get here")
         is RollbackStep.Take -> {
             val itemKey = repo.lot(step.lotId).itemKey
             books.payable(restoreTo, itemKey, step.quantity, step.lotId)?.let { qty ->

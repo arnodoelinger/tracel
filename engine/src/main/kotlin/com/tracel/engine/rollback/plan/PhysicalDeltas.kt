@@ -41,12 +41,25 @@ public suspend fun physicalDeltas(
             taken.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
         }
 
+        // A run's lots share one item and, mostly, one destination: summed per destination
+        fun RollbackStep.TakeRun.perDestination(): Map<HolderId, Long> {
+            val out = LinkedHashMap<HolderId, Long>()
+            for (k in 0 until size) out.merge(destinationFor(lotAt(k)), quantities[k], Long::plus)
+            return out
+        }
+
+        val runs = HashMap<RollbackStep.TakeRun, Pair<ItemKey, Map<HolderId, Long>>>()
         for (step in plan.steps) {
             if (step is RollbackStep.Take) takenAdd(
                 destinationFor(step.lotId),
                 ledger.itemKeyOf(step.lotId),
                 step.quantity.raw
             )
+            if (step is RollbackStep.TakeRun) {
+                val run = ledger.itemKeyOf(step.lotAt(0)) to step.perDestination()
+                runs[step] = run
+                for ((dest, quantity) in run.second) takenAdd(dest, run.first, quantity)
+            }
         }
 
         for (step in plan.steps) {
@@ -55,6 +68,14 @@ public suspend fun physicalDeltas(
                     val key = ledger.itemKeyOf(step.lotId)
                     add(step.holder, key, -step.quantity.raw)
                     add(destinationFor(step.lotId), key, step.quantity.raw)
+                }
+
+                is RollbackStep.TakeRun -> {
+                    val (key, byDest) = runs.getValue(step)
+                    for ((dest, quantity) in byDest) {
+                        add(step.holder, key, -quantity)
+                        add(dest, key, quantity)
+                    }
                 }
 
                 is RollbackStep.Mint -> {

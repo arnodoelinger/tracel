@@ -14,13 +14,21 @@ public data class RollbackPlan(
     public val settled: Set<LotId> = emptySet(),
 ) {
     public val mintCount: Int get() = steps.count { it is RollbackStep.Mint || it is RollbackStep.Debt }
-    public val takeCount: Int get() = steps.count { it is RollbackStep.Take }
+    public val takeCount: Int
+        get() = steps.sumOf { step ->
+            when (step) {
+                is RollbackStep.Take -> 1
+                is RollbackStep.TakeRun -> step.size
+                else -> 0
+            }
+        }
     public val unmakeCount: Int get() = steps.count { it is RollbackStep.Unmake }
 
     public val holders: Set<HolderId>
         get() = buildSet {
             for (step in steps) when (step) {
                 is RollbackStep.Take -> add(step.holder)
+                is RollbackStep.TakeRun -> add(step.holder)
                 is RollbackStep.Unmake -> {
                     add(step.holder)
                     for ((_, holder) in step.outputs) add(holder)
@@ -34,6 +42,7 @@ public data class RollbackPlan(
         get() = buildSet {
             for (step in steps) when (step) {
                 is RollbackStep.Take -> add(step.lotId)
+                is RollbackStep.TakeRun -> for (k in 0 until step.size) add(step.lotAt(k))
                 is RollbackStep.Mint -> add(step.lotId)
                 is RollbackStep.Debt -> add(step.lotId)
                 is RollbackStep.Unmake -> {

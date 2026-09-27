@@ -86,6 +86,14 @@ public interface LotRepository : UnitOfWork {
         return out
     }
 
+    /**
+     * Of [roots], those sitting placed and untouched since — no edge out of them — grouped by the
+     * pack they share, so a planner can take each group whole instead of walking lot by lot.
+     *
+     * A store without packs finds none: everything is [PlacedRuns.rest], and walked.
+     */
+    public suspend fun placedRuns(roots: Collection<LotId>): PlacedRuns = PlacedRuns(emptyList(), roots.distinct())
+
     /** [currentHolderOf] for many lots in one snapshot. Missing ids are absent from the map. */
     public suspend fun currentHoldersOf(ids: Collection<LotId>): Map<LotId, HolderId> {
         if (ids.isEmpty()) return emptyMap()

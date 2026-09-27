@@ -4,6 +4,7 @@ import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
 import com.tracel.annotations.Unstable
 import com.tracel.engine.ledger.LotRepository
+import com.tracel.engine.ledger.PlacedRun
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
@@ -39,6 +40,10 @@ public class RollbackPlanner(
 
     private val placedLots = mutableSetOf<LotId>()
 
+    private companion object {
+        const val MAX_RUN = 4096
+    }
+
     /**
      * Builds a rollback plan for [rootLots].
      *
@@ -55,7 +60,17 @@ public class RollbackPlanner(
         lotCache.clear()
         holderCache.clear()
 
-        var frontier = rootLots.distinct()
+        val found = repo.placedRuns(rootLots)
+        val runs = ArrayList<PlacedRun>(found.runs.size)
+        val walked = ArrayList<LotId>(found.rest)
+        for (run in found.runs) {
+            if (run.holder.takenAsIs()) runs += run else for (lot in run.lots) walked += LotId(lot)
+        }
+        var runLots = LongArray(0)
+        for (run in runs) runLots += run.lots
+        runLots.sort()
+
+        var frontier = walked.distinct()
         while (frontier.isNotEmpty()) {
             // TODO: changes here can silently make valid rollback targets unreachable,
             //  needs a proper fix
@@ -92,7 +107,7 @@ public class RollbackPlanner(
         val rootOf = mutableMapOf<LotId, LotId>()
         val settled = mutableSetOf<LotId>()
         val stack = ArrayDeque<Pair<LotId, LotId>>()
-        for (root in rootLots.distinct().sortedByDescending { it.raw }) stack.addLast(root to root)
+        for (root in walked.distinct().sortedByDescending { it.raw }) stack.addLast(root to root)
 
         while (stack.isNotEmpty()) {
             val (lotId, root) = stack.removeLast()
@@ -121,10 +136,46 @@ public class RollbackPlanner(
         }
 
         val leaves = leafSteps.filterNot { step ->
-            step is RollbackStep.Take && (step.lotId in unmade || step.holder == homeOf(rootOf[step.lotId]))
+            step is RollbackStep.Take && (step.lotId in unmade || step.holder == homeOf(rootOf[step.lotId]) ||
+                    runLots.binarySearch(step.lotId.raw) >= 0)
         }
-        RollbackPlan(stillConsumed(unmakeSteps.values.toList()) + leaves, rootOf, settled)
+        // A run lot is its own root even where the walk reached it through another one first
+        if (runLots.isNotEmpty()) rootOf.keys.removeAll { it !in unmade && runLots.binarySearch(it.raw) >= 0 }
+        RollbackPlan(stillConsumed(unmakeSteps.values.toList()) + leaves + takeRuns(runs, unmade), rootOf, settled)
     }
+
+    // TODO: too dangerous but it works
+    private fun takeRuns(runs: List<PlacedRun>, unmade: Set<LotId>): List<RollbackStep> {
+        if (runs.isEmpty()) return emptyList()
+        val byHolder = LinkedHashMap<HolderId, Pair<ArrayList<Long>, ArrayList<Long>>>()
+        for (run in runs) {
+            val (lots, quantities) = byHolder.getOrPut(run.holder) { ArrayList<Long>() to ArrayList() }
+            for (k in run.lots.indices) {
+                val lot = LotId(run.lots[k])
+                if (lot in unmade || homeOf(lot) == run.holder) continue
+                lots += run.lots[k]
+                quantities += run.quantities[k]
+            }
+        }
+        val out = ArrayList<RollbackStep>()
+        for ((holder, entries) in byHolder) {
+            val (lots, quantities) = entries
+            var from = 0
+            while (from < lots.size) {
+                val until = minOf(from + MAX_RUN, lots.size) // TODO: max?
+                out += RollbackStep.TakeRun(
+                    LongArray(until - from) { lots[from + it] },
+                    LongArray(until - from) { quantities[from + it] },
+                    holder,
+                )
+                from = until
+            }
+        }
+        return out
+    }
+
+    private fun HolderId.takenAsIs(): Boolean =
+        this !in vanished && this !is HolderId.Sink && (!isPlacedThing() || reclaimedByStructure())
 
     private fun homeOf(root: LotId?): HolderId? = when (val to = target) {
         null -> null
@@ -186,6 +237,7 @@ public class RollbackPlanner(
                 val lot = lotOf(lotId)
                 return ResolvedLocation.Holder(lotId, HolderId.Sink(SinkKind.UNTRACKED_GAP), lot.quantity)
             }
+            // TODO: do not reorder this in alpha, but should be changed in future
             for (transform in transforms.sortedByDescending { it.craftedBy.raw }) {
                 when (val outputLocation = resolve(transform.child, depth + 1)) {
                     is ResolvedLocation.Holder -> {

@@ -61,6 +61,11 @@ internal suspend fun MaterialRestorer.rewearPlan(
                         fresh = ends[step.lotId]?.fresh == true
                     )
 
+                is RollbackStep.TakeRun -> for (k in 0 until step.size) {
+                    val lot = step.lotAt(k)
+                    ends[lot] = WearEnd(lot, lot, target.destinationFor(plan, lot), fresh = ends[lot]?.fresh == true)
+                }
+
                 is RollbackStep.Mint -> services.ledger.compensationOf(step.lotId, job)?.let {
                     ends[it] = WearEnd(step.lotId, it, target.destinationFor(plan, step.lotId), fresh = true)
                 }

@@ -42,9 +42,75 @@ public class RollbackExecutor(
         ledger.prefetchLots(lotsNamedBy(steps))
 
         val flows = ArrayList<Flow>(steps.size)
-        for (step in steps) {
-            val dest = if (plan != null && target != null) destinationOf(plan, target, step) else null
-            flows += applyOne(job, step, txn, dest)
+        fun routeOf(step: RollbackStep): HolderId? =
+            if (plan != null && target != null) destinationOf(plan, target, step) else null
+
+        var i = 0
+        while (i < steps.size) {
+            val step = steps[i]
+            val dest = routeOf(step)
+            val batchable = (step is RollbackStep.Take && dest != null) ||
+                    (step is RollbackStep.TakeRun && plan != null && target != null)
+            if (!batchable || plan == null || target == null) {
+                flows += applyOne(job, step, txn, dest)
+                i++
+                continue
+            }
+
+            // A run of takes, grouped by where from and where to: one bulk move each, so lots that
+            // sit together in a pack move as the pack. Takes name distinct lots, so they commute.
+            val uniform = (target as? RollbackTarget.Uniform)?.holder
+            var end = i
+            val routes = LinkedHashMap<Pair<HolderId, HolderId>, ArrayList<LotId>>()
+            while (end < steps.size) {
+                val next = steps[end]
+                if (next is RollbackStep.Take) {
+                    val to = routeOf(next) ?: break
+                    routes.getOrPut(next.holder to to) { ArrayList() } += next.lotId
+                } else if (next is RollbackStep.TakeRun) {
+                    for (k in 0 until next.size) {
+                        val lot = next.lotAt(k)
+                        val to = uniform ?: target.destinationFor(plan, lot)
+                        routes.getOrPut(next.holder to to) { ArrayList(next.size) } += lot
+                    }
+                } else {
+                    break
+                }
+                end++
+            }
+            val moved = HashMap<LotId, Quantity>()
+            for ((route, lots) in routes) moved += ledger.moveExactAll(route.first, route.second, lots)
+
+            for (index in i until end) {
+                when (val done = steps[index]) {
+                    is RollbackStep.Take -> {
+                        val quantity = moved.getValue(done.lotId)
+                        check(quantity == done.quantity) {
+                            "lot ${done.lotId} holds ${quantity.raw} at ${done.holder}, the plan expected ${done.quantity.raw}"
+                        }
+                        val to = routeOf(done) ?: error("lot ${done.lotId} lost its destination mid-batch")
+                        flows += Flow(ledger.itemKeyOf(done.lotId), quantity, done.holder, to, FlowKind.MOVE)
+                    }
+
+                    is RollbackStep.TakeRun -> {
+                        // One flow per destination
+                        val itemKey = ledger.itemKeyOf(done.lotAt(0))
+                        val sent = LinkedHashMap<HolderId, Long>()
+                        for (k in 0 until done.size) {
+                            val lot = done.lotAt(k)
+                            val quantity = moved.getValue(lot).raw
+                            check(quantity == done.quantities[k]) {
+                                "lot $lot holds $quantity at ${done.holder}, the plan expected ${done.quantities[k]}"
+                            }
+                            sent.merge(uniform ?: target.destinationFor(plan, lot), quantity, Long::plus)
+                        }
+                        for ((to, quantity) in sent) flows += Flow(itemKey, Quantity(quantity), done.holder, to, FlowKind.MOVE)
+                    }
+
+                    else -> error("a batch of takes held a ${done::class.simpleName}")
+                }
+            }
+            i = end
         }
 
         var from = 0
@@ -76,6 +142,7 @@ public class RollbackExecutor(
         for (step in steps) {
             when (step) {
                 is RollbackStep.Take -> ids += step.lotId
+                is RollbackStep.TakeRun -> ids += step.lotAt(0)
                 is RollbackStep.Mint -> ids += step.lotId
                 is RollbackStep.Debt -> ids += step.lotId
                 is RollbackStep.Unmake -> {
@@ -102,6 +169,20 @@ public class RollbackExecutor(
                     "lot ${step.lotId} holds ${moved.raw} at ${step.holder}, the plan expected ${step.quantity.raw}"
                 }
                 listOf(Flow(itemKey, moved, step.holder, escrow, FlowKind.MOVE))
+            }
+
+            // Only ever reached without a plan to route it: into escrow, whole, for release to deliver
+            is RollbackStep.TakeRun -> {
+                val moved = ledger.moveExactAll(step.holder, escrow, List(step.size) { step.lotAt(it) })
+                var total = 0L
+                for (k in 0 until step.size) {
+                    val quantity = moved.getValue(step.lotAt(k)).raw
+                    check(quantity == step.quantities[k]) {
+                        "lot ${step.lotAt(k)} holds $quantity at ${step.holder}, the plan expected ${step.quantities[k]}"
+                    }
+                    total += quantity
+                }
+                listOf(Flow(ledger.itemKeyOf(step.lotAt(0)), Quantity(total), step.holder, escrow, FlowKind.MOVE))
             }
 
             is RollbackStep.Mint -> {
@@ -156,7 +237,22 @@ public class RollbackExecutor(
             val moved = LinkedHashMap<Pair<HolderId, ItemKey>, Long>()
 
             for (step in plan.steps) {
+                if (step is RollbackStep.TakeRun) {
+                    val itemKey = ledger.itemKeyOf(step.lotAt(0))
+                    val byDestination = LinkedHashMap<HolderId, ArrayList<LotId>>()
+                    for (k in 0 until step.size) {
+                        val lot = step.lotAt(k)
+                        if (ledger.currentHolderOf(lot) != escrow) continue
+                        byDestination.getOrPut(target.destinationFor(plan, lot)) { ArrayList() } += lot
+                    }
+                    for ((destination, lots) in byDestination) {
+                        val sent = ledger.moveExactAll(escrow, destination, lots).values.sumOf { it.raw }
+                        moved.merge(destination to itemKey, sent, Long::plus)
+                    }
+                    continue
+                }
                 val traced = when (step) {
+                    is RollbackStep.TakeRun -> continue
                     is RollbackStep.Take -> step.lotId
                     is RollbackStep.Mint -> step.lotId
                     is RollbackStep.Debt -> step.lotId
@@ -189,6 +285,7 @@ public class RollbackExecutor(
 
     private fun destinationOf(plan: RollbackPlan, target: RollbackTarget, step: RollbackStep): HolderId? = when (step) {
         is RollbackStep.Take -> target.destinationFor(plan, step.lotId)
+        is RollbackStep.TakeRun -> null
         is RollbackStep.Mint -> target.destinationFor(plan, step.lotId)
         is RollbackStep.Debt -> target.destinationFor(plan, step.lotId)
         is RollbackStep.Unmake -> null

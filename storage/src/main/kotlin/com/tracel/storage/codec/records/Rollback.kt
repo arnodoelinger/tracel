@@ -55,6 +55,9 @@ object Rollback {
     /** An [RollbackStep.Unmake] with multiple outputs or output holders. */
     private const val STEP_UNMAKE_MANY: Byte = 4
 
+    /** An [RollbackStep.TakeRun]: holder, count, every lot, then every quantity. */
+    private const val STEP_TAKE_RUN: Byte = 5
+
     /**
      * Binary codec for structure and rollback steps.
      *
@@ -286,6 +289,15 @@ object Rollback {
             putI32(17, holderId(step.holder))
         }
 
+        is RollbackStep.TakeRun -> recordBytes(9 + 16 * step.size) {
+            putI8(0, STEP_TAKE_RUN); putI32(1, holderId(step.holder)); putI32(5, step.size)
+            val quantitiesAt = 9L + 8L * step.size
+            for (k in 0 until step.size) {
+                putI64(9L + 8L * k, step.lots[k])
+                putI64(quantitiesAt + 8L * k, step.quantities[k])
+            }
+        }
+
         is RollbackStep.Mint -> recordBytes(18) {
             putI8(0, STEP_MINT); putI64(1, step.lotId.raw); putI64(9, step.quantity.raw)
             putI8(17, step.reason.ordinal.toByte())
@@ -330,6 +342,16 @@ object Rollback {
     fun decodeStep(v: MemorySegment, holder: (Int) -> HolderId): RollbackStep =
         when (val kind = v.i8(0)) {
             STEP_TAKE -> RollbackStep.Take(LotId(v.i64(1)), Quantity(v.i64(9)), holder(v.i32(17)))
+            STEP_TAKE_RUN -> {
+                val count = v.i32(5)
+                val quantitiesAt = 9L + 8L * count
+                RollbackStep.TakeRun(
+                    LongArray(count) { v.i64(9L + 8L * it) },
+                    LongArray(count) { v.i64(quantitiesAt + 8L * it) },
+                    holder(v.i32(1)),
+                )
+            }
+
             STEP_MINT -> RollbackStep.Mint(LotId(v.i64(1)), Quantity(v.i64(9)), SinkKind.entries[v.i8(17).toInt()])
             STEP_DEBT -> RollbackStep.Debt(LotId(v.i64(1)), Quantity(v.i64(9)), UUID(v.i64(17), v.i64(25)))
             STEP_UNMAKE -> {

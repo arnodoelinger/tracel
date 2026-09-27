@@ -16,6 +16,35 @@ public sealed interface RollbackStep {
         public val holder: HolderId,
     ) : RollbackStep
 
+    /**
+     * Many [Take]s at once: lots that sit together at [holder], untouched since they were traced, each its own root.
+     *
+     * Same meaning as one [Take] per lot, in [lots] order.
+     */
+    public class TakeRun(
+        public val lots: LongArray,
+        public val quantities: LongArray,
+        public val holder: HolderId,
+    ) : RollbackStep {
+        init {
+            require(lots.size == quantities.size && lots.isNotEmpty()) { "a run of ${lots.size} lots and ${quantities.size} quantities" }
+        }
+
+        public val size: Int get() = lots.size
+
+        public fun lotAt(i: Int): LotId = LotId(lots[i])
+
+        public fun takes(): List<Take> = List(lots.size) { Take(LotId(lots[it]), Quantity(quantities[it]), holder) }
+
+        override fun equals(other: Any?): Boolean =
+            other is TakeRun && holder == other.holder && lots.contentEquals(other.lots) &&
+                    quantities.contentEquals(other.quantities)
+
+        override fun hashCode(): Int = (holder.hashCode() * 31 + lots.contentHashCode()) * 31 + quantities.contentHashCode()
+
+        override fun toString(): String = "TakeRun(${lots.size} lots at $holder)"
+    }
+
     /** [lotId] was burned; nothing is left to take, so a replacement is minted instead. */
     public data class Mint(
         public val lotId: LotId,

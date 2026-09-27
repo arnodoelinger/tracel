@@ -4,6 +4,8 @@ import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.annotations.Consume
 import com.tracel.engine.ledger.LotPortion
+import com.tracel.engine.ledger.PlacedRun
+import com.tracel.engine.ledger.PlacedRuns
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.*
 import com.tracel.model.item.ItemKey
@@ -220,6 +222,37 @@ class LotRepository(
                 if (holder != null) out[LotId(at)] = holder
             }
             out
+        }
+    }
+
+    override suspend fun placedRuns(roots: Collection<LotId>): PlacedRuns {
+        if (roots.isEmpty()) return PlacedRuns(emptyList(), emptyList())
+        val unique = roots.distinct()
+        val sorted = rawsOf(unique)
+        return storage.read {
+            val edged = HashSet<Long>()
+            walkWanted(Keys.EDGE_FROM, sorted, 0, sorted.size, Keys::edgeFromPrefix) { at, _ -> edged += at }
+            val byPack = LinkedHashMap<Long, HashSet<Long>>()
+            walkWanted(Keys.LOT_PACK, sorted, 0, sorted.size, Keys::lotPack) { at, cursor ->
+                if (at !in edged) byPack.getOrPut(Records.asLong(cursor.value())) { HashSet() } += at
+            }
+            val runs = ArrayList<PlacedRun>(byPack.size)
+            val taken = HashSet<Long>()
+            for ((packId, chosen) in byPack) {
+                val pack = packs.read(this, packId) ?: continue
+                val lots = LongArray(chosen.size)
+                val quantities = LongArray(chosen.size)
+                var n = 0
+                for (i in 0 until pack.size) if (pack.lots[i] in chosen) {
+                    lots[n] = pack.lots[i]
+                    quantities[n] = pack.remaining[i]
+                    n++
+                }
+                if (n == 0) continue
+                runs += PlacedRun(interning.resolveHolder(this, pack.holderId), lots.copyOf(n), quantities.copyOf(n))
+                for (k in 0 until n) taken += lots[k]
+            }
+            PlacedRuns(runs, unique.filter { it.raw !in taken })
         }
     }
 
