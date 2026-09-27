@@ -25,10 +25,7 @@ public sealed interface LotEdge {
     /**
      * [parent] was consumed as a crafting ingredient; [child] is the crafted
      * output. [producedAt] is where the output landed at the moment of
-     * crafting — fixed here rather than looked up later, because by the time
-     * a rollback needs it the output may have moved, split, or been consumed
-     * by a second craft, none of which should change where undoing *this*
-     * craft puts its ingredients back.
+     * crafting.
      */
     public data class Transform(
         override val child: LotId,

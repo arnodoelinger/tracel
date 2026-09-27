@@ -5,7 +5,8 @@ A fast, modern block logging and rollback system for Minecraft servers — from 
 Built for modern Minecraft servers, with performance, concurrency, and reliable storage in mind.
 
 > [!CAUTION]
-> **Warning! Tracel is currently in active development and is in an early alpha stage.** Use Tracel with extreme caution and always keep backups of your server and world data.
+> **Warning! Tracel is currently in active development and is in an early alpha stage.** Use Tracel with extreme caution
+and always keep backups of your server and world data.
 
 ## Features
 

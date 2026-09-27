@@ -1,5 +1,3 @@
-import org.gradle.api.tasks.PathSensitivity
-
 plugins {
     id("tracel.pure-kotlin")
     id("java-test-fixtures")

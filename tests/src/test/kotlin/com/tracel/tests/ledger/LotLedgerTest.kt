@@ -4,10 +4,11 @@ import com.tracel.model.id.Quantity
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
+import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import com.tracel.tests.support.assertFails
-import org.junit.jupiter.api.Assertions.assertEquals
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class LotLedgerTest {
@@ -79,5 +80,34 @@ class LotLedgerTest {
 
         assertEquals(mapOf(diamond to Quantity(6)), harness.ledger.totalsAt(chest))
         assertEquals(2, harness.repo.accountQueue(chest, diamond).size, "both lots must still be placed")
+    }
+
+    @Test
+    fun `draining to several places hands each the oldest lots, exactly as withdrawing one at a time did`() = runTest {
+        val world = LedgerHarness()
+        val escrow = block(0, 64, 0)
+        val first = player(1)
+        val second = player(2)
+
+        val oldest = world.ledger.mint(escrow, diamond, Quantity(2), world.nextTxn())
+        world.ledger.mint(escrow, diamond, Quantity(4), world.nextTxn())
+
+        val handed = world.ledger.drain(
+            escrow,
+            diamond,
+            listOf(first to 3L, second to 3L),
+            world.nextTxn(),
+        )
+
+        assertEquals(listOf(first, second), handed.map { it.first }, "each destination is served in the order given")
+        assertEquals(3L, handed[0].second.sumOf { it.quantity.raw })
+        assertEquals(3L, handed[1].second.sumOf { it.quantity.raw })
+        assertEquals(
+            oldest.id,
+            handed[0].second.first().lotId,
+            "the first destination gets the oldest lot — that is what FIFO means and a rollback depends on it",
+        )
+        assertTrue(handed[1].second.none { it.lotId == oldest.id }, "and the second cannot be given it twice")
+        assertNull(world.ledger.totalAt(escrow, diamond), "escrow is left empty")
     }
 }

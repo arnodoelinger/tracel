@@ -1,16 +1,13 @@
 package com.tracel.platform.scheduler
 
+import com.tracel.annotations.RunsOn
 import com.tracel.model.holder.HolderId
 import kotlinx.coroutines.CoroutineDispatcher
-import java.util.UUID
+import java.util.*
 
 /**
- * Bridges [com.tracel.annotations.RunsOn]'s named thread contexts to real
+ * Bridges [RunsOn]'s named thread contexts to real
  * [CoroutineDispatcher]s.
- *
- * [region] and [entity] are factories because which thread they mean depends on which
- * region or entity — unlike [global], [async] and [storage], which are always the same
- * one thread (or thread pool) for the life of the plugin.
  */
 public interface TracelSchedulers {
     /** The region thread that currently owns [location]. */

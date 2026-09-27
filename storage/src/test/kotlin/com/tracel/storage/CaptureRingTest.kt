@@ -74,7 +74,17 @@ class CaptureRingTest {
             val threads = (0 until producers).map { p ->
                 Thread {
                     start.await()
-                    repeat(each) { i -> stack.gate.move(CauseKind.HOPPER, null, (p * each + i).toLong(), diamond, chest, steve, 1) }
+                    repeat(each) { i ->
+                        stack.gate.move(
+                            CauseKind.HOPPER,
+                            null,
+                            (p * each + i).toLong(),
+                            diamond,
+                            chest,
+                            steve,
+                            1
+                        )
+                    }
                     done.countDown()
                 }.apply { isDaemon = true; startupName(p); start() }
             }

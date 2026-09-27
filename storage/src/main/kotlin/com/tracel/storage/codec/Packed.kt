@@ -7,6 +7,14 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.block.BlockDataKey
+import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.storage.codec.Packed.BLOCK
+import com.tracel.storage.codec.Packed.ENTITY
+import com.tracel.storage.codec.Packed.ITEM_ENTITY
+import com.tracel.storage.codec.Packed.PLACED_BLOCK
+import com.tracel.storage.codec.Packed.PLACED_ENTITY
+import com.tracel.storage.codec.Packed.PLAYER
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8
@@ -15,7 +23,7 @@ import com.tracel.storage.ffm.Bytes.putI64
 import com.tracel.storage.ffm.Bytes.putI8
 import com.tracel.storage.ffm.Bytes.readBytes
 import java.lang.foreign.MemorySegment
-import java.util.UUID
+import java.util.*
 
 /**
  * Binary encodings of the two things worth interning.
@@ -24,10 +32,12 @@ import java.util.UUID
  * | :-------------------------------------- | :-------------------- | :-------------------------- | :------------------------------------------------------------------------------------------------ |
  * | Holder: Block / PlacedBlock             | `0` / `1` / 29        | `+0` tag (u8)               | `+1` world UUID (i64 + i64) / `+17` x (i32) / `+21` y (i32) / `+25` z (i32)                       |
  * | Holder: Player / Entity / ItemEntity    | `2` / `3` / `4` | 17  | `+0` tag (u8)               | `+1` entity UUID (i64 + i64)                                                                      |
+ * | Holder: PlacedEntity / EnderChest       | `8` / `9` / 17        | `+0` tag (u8)               | `+1` entity UUID (i64 + i64)                                                                      |
  * | Holder: Escrow                          | `5` / 9               | `+0` tag (u8)               | `+1` jobId (i64)                                                                                  |
  * | Holder: Source / Sink                   | `6` / `7` / 2         | `+0` tag (u8)               | `+1` kind ordinal (u8)                                                                            |
- * | WorldId                                 | —       / 16          | `+0` world UUID (i64 + i64) | —                                                                                                  |
+ * | WorldId                                 | —       / 16          | `+0` world UUID (i64 + i64) | —                                                                                                 |
  * | ItemKey                                 | —       / `4 + M + D` | `+0` materialLen (u16 BE)   | `+2` material (UTF-8) / `+2+M` decorationLen (u16 BE) / `+4+M` decoration (UTF-8)                 |
+ * | BlockDataKey / EntityTypeKey            | —       / `2 + N`     | `+0` length (u16 BE)        | `+2` text (UTF-8)                                                                                 |
  */
 object Packed {
     private const val BLOCK: Byte = 0
@@ -38,6 +48,8 @@ object Packed {
     private const val ESCROW: Byte = 5
     private const val SOURCE: Byte = 6
     private const val SINK: Byte = 7
+    private const val PLACED_ENTITY: Byte = 8
+    private const val ENDER_CHEST: Byte = 9
 
     /**
      * Encodes a [HolderId] into its compact fixed-size binary representation.
@@ -49,7 +61,9 @@ object Packed {
         is HolderId.Block -> block(BLOCK, holder.world, holder.x, holder.y, holder.z)
         is HolderId.PlacedBlock -> block(PLACED_BLOCK, holder.world, holder.x, holder.y, holder.z)
         is HolderId.Player -> uuid(PLAYER, holder.uuid)
+        is HolderId.EnderChest -> uuid(ENDER_CHEST, holder.uuid)
         is HolderId.Entity -> uuid(ENTITY, holder.uuid)
+        is HolderId.PlacedEntity -> uuid(PLACED_ENTITY, holder.uuid)
         is HolderId.ItemEntity -> uuid(ITEM_ENTITY, holder.uuid)
         is HolderId.Escrow -> ByteArray(9).also {
             val s = MemorySegment.ofArray(it)
@@ -71,7 +85,9 @@ object Packed {
         BLOCK -> HolderId.Block(WorldId(UUID(v.i64(1), v.i64(9))), v.i32(17), v.i32(21), v.i32(25))
         PLACED_BLOCK -> HolderId.PlacedBlock(WorldId(UUID(v.i64(1), v.i64(9))), v.i32(17), v.i32(21), v.i32(25))
         PLAYER -> HolderId.Player(UUID(v.i64(1), v.i64(9)))
+        ENDER_CHEST -> HolderId.EnderChest(UUID(v.i64(1), v.i64(9)))
         ENTITY -> HolderId.Entity(UUID(v.i64(1), v.i64(9)))
+        PLACED_ENTITY -> HolderId.PlacedEntity(UUID(v.i64(1), v.i64(9)))
         ITEM_ENTITY -> HolderId.ItemEntity(UUID(v.i64(1), v.i64(9)))
         ESCROW -> HolderId.Escrow(RollbackJobId(v.i64(1)))
         SOURCE -> HolderId.Source(SourceKind.entries[v.i8(1).toInt()])
@@ -115,9 +131,22 @@ object Packed {
         val material = String(v.readBytes(2, materialLen), Charsets.UTF_8)
         val at = 2L + materialLen
         val decorationLen = ((v.i8(at).toInt() and 0xFF) shl 8) or (v.i8(at + 1).toInt() and 0xFF)
-        val decoration = if (decorationLen == 0) null else ContentHash(String(v.readBytes(at + 2, decorationLen), Charsets.UTF_8))
+        val decoration =
+            if (decorationLen == 0) null else ContentHash(String(v.readBytes(at + 2, decorationLen), Charsets.UTF_8))
         return ItemKey(material, decoration)
     }
+
+    /** Encodes a [BlockDataKey]. */
+    fun blockData(blockData: BlockDataKey): ByteArray = text(blockData.value)
+
+    /** Decodes block data. */
+    fun decodeBlockData(v: MemorySegment): BlockDataKey = BlockDataKey(decodeText(v))
+
+    /** Encodes an [EntityTypeKey] — `minecraft:chest_boat`. Same shape as [blockData]. */
+    fun entityType(entityType: EntityTypeKey): ByteArray = text(entityType.value)
+
+    /** Decodes entity type. */
+    fun decodeEntityType(v: MemorySegment): EntityTypeKey = EntityTypeKey(decodeText(v))
 
     /**
      * Serializes a [WorldId] into 16 raw big-endian bytes (128-bit UUID).
@@ -130,6 +159,39 @@ object Packed {
         s.putI64(0, world.uuid.mostSignificantBits)     // Bits 0–63
         s.putI64(8, world.uuid.leastSignificantBits)    // Bits 64–127
     }
+
+    /**
+     * Encodes a UTF-8 string with a 2-byte big-endian length prefix.
+     *
+     * @return byte array of size `2 + utf8.length`
+     */
+    private fun text(value: String): ByteArray {
+        val utf8 = value.toByteArray(Charsets.UTF_8)
+        val out = ByteArray(2 + utf8.size)
+        out[0] = (utf8.size ushr 8).toByte()
+        out[1] = utf8.size.toByte()
+        utf8.copyInto(out, 2)
+        return out
+    }
+
+    /**
+     * Decodes a UTF-8 string from a 2-byte big-endian length prefix.
+     *
+     * @param v segment containing the length-prefixed UTF-8 string
+     * @return reconstituted string
+     */
+    private fun decodeText(v: MemorySegment): String {
+        val length = ((v.i8(0).toInt() and 0xFF) shl 8) or (v.i8(1).toInt() and 0xFF)
+        return String(v.readBytes(2, length), Charsets.UTF_8)
+    }
+
+    /**
+     * Reads back what [world] wrote.
+     *
+     * @param v segment containing the world identifier
+     * @return decoded world identifier
+     */
+    fun decodeWorld(v: MemorySegment): WorldId = WorldId(UUID(v.i64(0), v.i64(8)))
 
     /**
      * Helper for encoding spatial block holders (29 bytes).
@@ -153,7 +215,7 @@ object Packed {
     /**
      * Helper for encoding UUID-based entity holders (17 bytes).
      *
-     * @param tag discriminator byte ([PLAYER], [ENTITY], or [ITEM_ENTITY])
+     * @param tag discriminator byte ([PLAYER], [ENTITY], [PLACED_ENTITY], or [ITEM_ENTITY])
      * @param uuid entity unique identifier
      */
     private fun uuid(tag: Byte, uuid: UUID): ByteArray = ByteArray(17).also {

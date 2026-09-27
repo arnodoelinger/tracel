@@ -1,5 +1,8 @@
 package com.tracel.engine.ledger
 
+import com.tracel.annotations.Consume
+import com.tracel.annotations.RunsOn
+import com.tracel.annotations.ThreadContext
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
@@ -41,8 +44,9 @@ import com.tracel.platform.storage.UnitOfWork
  *
  * @see <a href="https://en.wikipedia.org/wiki/FIFO_and_LIFO_accounting">FIFO and LIFO accounting</a>
  */
+@RunsOn(ThreadContext.STORAGE)
 public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
-    /** A brand-new batch enters the ledger with no prior lot — e.g. a mob drop, worldgen, a rollback compensation. */
+    /** New lot with no history: drop, worldgen, rollback mint. */
     public suspend fun mint(holder: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): Lot = atomically {
         val lot = repo.createLot(itemKey, quantity, txn)
         repo.place(holder, lot.id, quantity)
@@ -50,81 +54,42 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
     }
 
     /**
-     * Takes [quantity] of [itemKey] out of [holder], oldest lots first,
-     * splitting the last lot it has to touch. Throws if the account does not
-     * hold enough — callers are expected to check first, since a shortfall
-     * here means the caller's own bookkeeping is wrong, not that this is a
-     * normal, recoverable outcome.
+     * FIFO withdraw. Splits the last lot if needed.
      *
-     * The shortfall check happens before anything is mutated. Deliberately. It used to run
-     * at the end, after the loop had already retired every lot it managed to reach: a withdrawal
-     * of 10 from an account holding 4 removed those 4 from the account, then threw — and since
-     * every caller catches that throw as the ordinary "untracked material" case and moves on,
-     * the 4 units were silently destroyed, with no [com.tracel.model.transaction.Transaction]
-     * ever logged to say so at all. Checking first makes a failed withdrawal a true no-op, which
-     * is what every caller already assumed it was.
+     * Checks the balance first and throws without touching the account — a failed
+     * withdraw used to eat whatever it could reach, then throw.
      */
-    public suspend fun withdraw(holder: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): List<LotPortion> = atomically {
+    @Consume
+    public suspend fun withdraw(holder: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): List<LotPortion> =
+        atomically {
+            val available = repo.totalOf(holder, itemKey)
+            check(available >= quantity.raw) {
+                "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have $available"
+            }
+
+            repo.takeFifo(holder, itemKey, quantity, txn)
+        }
+
+    /** Same FIFO as [withdraw], one pass for several destinations. */
+    @Consume
+    public suspend fun drain(
+        holder: HolderId,
+        itemKey: ItemKey,
+        owed: List<Pair<HolderId, Long>>,
+        txn: TxnId,
+    ): List<Pair<HolderId, List<LotPortion>>> = atomically {
+        val wanted = owed.sumOf { it.second }
         val available = repo.totalOf(holder, itemKey)
-        check(available >= quantity.raw) {
-            "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have $available"
+        check(available >= wanted) {
+            "insufficient balance at $holder for $itemKey: owed $wanted, have $available"
         }
-
-        var stillNeeded = quantity.raw
-        val taken = mutableListOf<LotPortion>()
-        var page = FIRST_PAGE
-
-        while (stillNeeded > 0) {
-            val queue = repo.accountQueue(holder, itemKey, limit = page)
-            check(queue.isNotEmpty()) {
-                "insufficient balance at $holder for $itemKey: needed ${quantity.raw}, short by $stillNeeded"
-            }
-
-            for ((_, lot, remaining) in queue) {
-                if (stillNeeded <= 0) break
-                val inThisLot = remaining.raw
-
-                if (inThisLot <= stillNeeded) {
-                    // This lot is entirely consumed, so it is retired from the account and added to the withdrawal
-                    repo.remove(holder, lot.id)
-                    taken += LotPortion(lot.id, remaining)
-                    stillNeeded -= inThisLot
-                } else {
-                    // Two new lots are created: one for the portion taken, one for the portion kept
-                    val takenQty = Quantity(stillNeeded)
-                    val keptQty = Quantity(inThisLot - stillNeeded)
-                    val takenLot = repo.createLot(itemKey, takenQty, txn)
-                    val keptLot = repo.createLot(itemKey, keptQty, txn)
-                    repo.recordEdge(LotEdge.Split(takenLot.id, lot.id, takenQty))
-                    repo.recordEdge(LotEdge.Split(keptLot.id, lot.id, keptQty))
-
-                    // The remaining portion occupies the same place in the queue — for all who come after,
-                    // it remains the "oldest" lot in this account.
-                    repo.replace(holder, lot.id, keptLot.id, keptQty)
-                    taken += LotPortion(takenLot.id, takenQty)
-                    stillNeeded = 0
-                }
-            }
-
-            page = (page * 2).coerceAtMost(MAX_PAGE)
-        }
-
-        taken
+        repo.drainFifo(holder, itemKey, owed, txn)
     }
 
     /**
-     * Withdraws [lotId] specifically, wherever it sits in [holder]'s queue —
-     * skipping FIFO order entirely.
+     * Pulls this [lotId] out of [holder], ignoring FIFO.
      *
-     * A rollback's `Take` step needs this, not the ordinary [withdraw]: after
-     * an `Unmake` restores a craft's ingredients, the traced lot and an untouched
-     * sibling both sit in the same account, and a plain FIFO withdrawal could easily
-     * grab the sibling instead.
-     *
-     * Both would leave the same total behind, which is exactly the kind of bug
-     * a test that only checks quantities would miss — the two are only
-     * interchangeable in count, not in which material a rollback is actually
-     * supposed to reclaim.
+     * Rollback Take needs the traced lot, not whichever sibling is oldest in the queue.
      */
     public suspend fun withdrawExact(holder: HolderId, lotId: LotId): LotPortion = atomically {
         val remaining = repo.placementOf(holder, lotId)?.remaining
@@ -133,70 +98,177 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         LotPortion(lotId, remaining)
     }
 
-    /** Places previously-withdrawn portions at [holder] — the other half of a move. */
+    /** Moves one lot to another holder, same FIFO slot. */
+    public suspend fun moveExact(from: HolderId, to: HolderId, lotId: LotId): Quantity = atomically {
+        repo.rehome(from, to, lotId)
+    }
+
+    /** [moveExact] for many lots at once; a whole pack of them moves as one. */
+    public suspend fun moveExactAll(from: HolderId, to: HolderId, lotIds: List<LotId>): Map<LotId, Quantity> =
+        atomically { repo.rehomeAll(from, to, lotIds) }
+
+    /** Puts already-withdrawn portions onto [holder]. */
     public suspend fun deposit(holder: HolderId, portions: List<LotPortion>): Unit = atomically {
-        for ((lotId, quantity) in portions) repo.place(holder, lotId, quantity)
+        repo.placeAll(holder, portions)
     }
 
     /**
-     * Withdraws and deposits at the matching `HolderId.Sink` — not nowhere.
-     *
-     * A sink is still a holder as far as this ledger is concerned, exactly
-     * like a real one; that is what lets `RollbackPlanner` treat "this lot's
-     * material is sitting in lava" and "this lot's material is sitting in a
-     * chest" as the same kind of question, one that just happens to have a
-     * different answer. [LotLedger.census] is what excludes sinks from "real"
-     * counts — a burned unit still exists in the ledger's own bookkeeping,
-     * but not in the game world.
+     * Withdraw and place on a [HolderId.Sink]. Sinks are real holders here;
+     * [census] is what leaves them out of the world total.
      */
-    public suspend fun burn(holder: HolderId, itemKey: ItemKey, quantity: Quantity, reason: SinkKind, txn: TxnId): List<LotPortion> =
+    public suspend fun burn(
+        holder: HolderId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        reason: SinkKind,
+        txn: TxnId
+    ): List<LotPortion> =
         atomically {
             val portions = withdraw(holder, itemKey, quantity, txn)
             deposit(HolderId.Sink(reason), portions)
             portions
         }
 
-    /** Withdraw immediately followed by deposit — a plain relocation. */
-    public suspend fun move(from: HolderId, to: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): List<LotPortion> =
+    /** Withdraw from [from], deposit on [to]. */
+    public suspend fun move(
+        from: HolderId,
+        to: HolderId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId
+    ): List<LotPortion> =
         atomically {
             val portions = withdraw(from, itemKey, quantity, txn)
             deposit(to, portions)
             portions
         }
 
+    /** Sends [lotId] back to [to], falling back to FIFO for whatever of [quantity] it cannot cover. */
+    public suspend fun moveBack(
+        from: HolderId,
+        to: HolderId,
+        lotId: LotId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId,
+    ): Unit = atomically {
+        val traced = repo.placementOf(from, lotId)?.remaining?.raw ?: 0L
+        when {
+            traced > quantity.raw -> deposit(to, listOf(takeExactly(from, lotId, quantity, txn)))
+            traced == quantity.raw -> repo.rehome(from, to, lotId)
+
+            // Moved or split since: follow its pieces, as a withdrawal does, before any FIFO fallback
+            else -> deposit(to, withdrawBack(from, lotId, itemKey, quantity, txn))
+        }
+    }
+
     /**
-     * Re-places a lot that was previously fully withdrawn, without creating a
-     * new one. This is the mechanical half of undoing a craft: the consumed
-     * ingredient lots still exist, they were just sitting nowhere — restoring
-     * them is exactly like [mint], except the lot already has a history.
+     * Burns [lotId] where it sits at [from], falling back to FIFO for whatever of [quantity] it
+     * cannot cover — the burn-side twin of [moveBack].
      */
-    public suspend fun restore(holder: HolderId, lotId: LotId, quantity: Quantity) {
+    public suspend fun burnBack(
+        from: HolderId,
+        lotId: LotId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        reason: SinkKind,
+        txn: TxnId,
+    ): Unit = atomically {
+        deposit(HolderId.Sink(reason), withdrawBack(from, lotId, itemKey, quantity, txn))
+    }
+
+    /** [lotId] and the pieces it split into first, FIFO only for what they cannot cover. */
+    private suspend fun withdrawBack(
+        from: HolderId,
+        lotId: LotId,
+        itemKey: ItemKey,
+        quantity: Quantity,
+        txn: TxnId,
+    ): List<LotPortion> {
+        var owed = quantity.raw
+        val taken = ArrayList<LotPortion>()
+        val frontier = ArrayDeque(listOf(lotId))
+        val seen = HashSet<LotId>()
+        while (owed > 0L && frontier.isNotEmpty()) {
+            val id = frontier.removeFirst()
+            if (!seen.add(id)) continue
+            val placed = repo.placementOf(from, id)?.remaining
+            if (placed == null) {
+                for (edge in repo.edgesFrom(id)) if (edge is LotEdge.Split) frontier += edge.child
+            } else if (placed.raw <= owed) {
+                taken += withdrawExact(from, id)
+                owed -= placed.raw
+            } else {
+                taken += takeExactly(from, id, Quantity(owed), txn)
+                owed = 0L
+            }
+        }
+        if (owed > 0L && !from.isPseudo()) taken += withdraw(from, itemKey, Quantity(owed), txn)
+        return taken
+    }
+
+    private suspend fun takeExactly(holder: HolderId, lotId: LotId, quantity: Quantity, txn: TxnId): LotPortion {
+        val placed = repo.placementOf(holder, lotId) ?: error("lot $lotId is not currently placed at $holder")
+        val left = (placed.remaining - quantity) ?: return withdrawExact(holder, lotId)
+        val taken = repo.createLot(placed.lot.itemKey, quantity, txn)
+        val kept = repo.createLot(placed.lot.itemKey, left, txn)
+        repo.recordEdge(LotEdge.Split(taken.id, lotId, quantity))
+        repo.recordEdge(LotEdge.Split(kept.id, lotId, left))
+        repo.replace(holder, lotId, kept.id, left)
+        return LotPortion(taken.id, quantity)
+    }
+
+    private fun HolderId.isPseudo(): Boolean = this is HolderId.Source || this is HolderId.Sink
+
+    /** Puts a previously withdrawn lot back. Same lot id, no new history. */
+    public suspend fun restore(holder: HolderId, lotId: LotId, quantity: Quantity): Unit = atomically {
+        repo.currentHolderOf(lotId)?.let { error("lot $lotId is already placed at $it") }
         repo.place(holder, lotId, quantity)
     }
 
     /**
-     * Consumes [ingredients] and produces one [product], recording a
-     * [LotEdge.Transform] from every consumed portion to the new output lot.
-     * Those edges are what let a rollback later work out exactly how many
-     * units of a traced ingredient a crafted item is holding — see
-     * `RollbackPlanner` for why that matters.
+     * Consume [ingredients], mint [product], record a [LotEdge.Transform] per portion.
+     * Returns consumed lots grouped by ingredient, plus the output.
      */
-    public suspend fun craft(ingredients: List<Ingredient>, product: Product, txn: TxnId): Lot = atomically {
-        val consumed = ingredients.flatMap { withdraw(it.holder, it.itemKey, it.quantity, txn) }
+    public suspend fun craft(ingredients: List<Ingredient>, product: Product, txn: TxnId): CraftResult = atomically {
+        val consumed = ingredients.map { withdraw(it.holder, it.itemKey, it.quantity, txn) }
         val outputLot = repo.createLot(product.itemKey, product.quantity, txn)
         repo.place(product.holder, outputLot.id, product.quantity)
-        for ((lotId, quantity) in consumed) {
+        for ((lotId, quantity) in consumed.flatten()) {
             repo.recordEdge(LotEdge.Transform(outputLot.id, lotId, quantity, txn, product.holder))
         }
-        outputLot
+        CraftResult(outputLot, consumed)
     }
 
-    /**
-     * Mints a replacement for a lot that could not be physically recovered
-     * during a rollback (burned in lava, consumed as fuel, ...), recording a
-     * [LotEdge.Compensate] so the mint stays traceable to what it stands in for.
-     */
-    public suspend fun compensate(holder: HolderId, originalLotId: LotId, quantity: Quantity, txn: TxnId, job: RollbackJobId): Lot =
+    /** The exact inverse of the [withdrawExact] + [restore] pair an unmake does. */
+    public suspend fun recraft(
+        holder: HolderId,
+        outputs: List<Pair<HolderId, LotPortion>>,
+        inputs: List<Pair<LotId, Quantity>>,
+        txn: TxnId,
+    ): Unit = atomically {
+        val output = outputs.firstOrNull()?.second?.lotId
+        for ((lotId, quantity) in inputs) {
+            val taken = withdrawBack(holder, lotId, repo.lot(lotId).itemKey, quantity, txn)
+            if (output == null) continue
+
+            // A split piece or a FIFO stand-in went into the remade output too: without the edge it just
+            // vanished, and a later rollback of its own history found it gone and put nothing back.
+            for ((piece, amount) in taken) {
+                if (piece != lotId) repo.recordEdge(LotEdge.Transform(output, piece, amount, txn, holder))
+            }
+        }
+        for ((at, portion) in outputs) restore(at, portion.lotId, portion.quantity)
+    }
+
+    /** Mint a stand-in for a lot that is gone, linked with [LotEdge.Compensate]. */
+    public suspend fun compensate(
+        holder: HolderId,
+        originalLotId: LotId,
+        quantity: Quantity,
+        txn: TxnId,
+        job: RollbackJobId
+    ): Lot =
         atomically {
             val itemKey = repo.lot(originalLotId).itemKey
             val lot = repo.createLot(itemKey, quantity, txn)
@@ -205,61 +277,44 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
             lot
         }
 
-    /** The item key of [lotId], or throws if it does not exist. */
+    /** The lot [job] minted in place of [originalLotId], if it minted one. */
+    public suspend fun compensationOf(originalLotId: LotId, job: RollbackJobId): LotId? =
+        repo.findCompensateEdge(originalLotId, job)?.child
+
+    /** Drop the Compensate edge for this job, if it exists. */
+    public suspend fun uncompensate(originalLotId: LotId, job: RollbackJobId): Unit = atomically {
+        val edge = repo.findCompensateEdge(originalLotId, job) ?: return@atomically
+        repo.removeEdge(edge.parent, edge.child)
+    }
+
+    public suspend fun prefetchLots(ids: Collection<LotId>): Unit = repo.prefetchLots(ids)
+
     public suspend fun itemKeyOf(lotId: LotId): ItemKey = repo.lot(lotId).itemKey
 
-    /** The quantity of [lotId], or throws if it does not exist. */
     public suspend fun quantityOf(lotId: LotId): Quantity = repo.lot(lotId).quantity
 
-    /** Where [lotId] currently sits, or `null` if nothing places it anywhere right now. */
     public suspend fun currentHolderOf(lotId: LotId): HolderId? = repo.currentHolderOf(lotId)
 
-    /** Sum of everything currently placed at [holder] for [itemKey], or `null` if there is none. */
+    /** Total of [itemKey] at [holder], or `null` if none. */
     public suspend fun totalAt(holder: HolderId, itemKey: ItemKey): Quantity? =
         repo.totalOf(holder, itemKey).takeIf { it > 0 }?.let(::Quantity)
 
-    /**
-     * Everything [holder] is currently believed to hold, summed by item key.
-     * Lots with zero remaining are omitted.
-     */
-    public suspend fun totalsAt(holder: HolderId): Map<ItemKey, Quantity> =
-        repo.totalsAt(holder).filterValues { it > 0 }.mapValues { (_, total) -> Quantity(total) }
-
-    /**
-     * How many units of [itemKey] exist in the game world right now — real
-     * holders and escrow (material mid-rollback, still real, just in transit),
-     * but not `Source` or `Sink`: nothing physically sits at those, they are
-     * bookkeeping for "appeared from nowhere" and "destroyed", not places.
-     *
-     * Counting them would make every burn and every mint invisible to this
-     * number, which defeats the point of having it — I4 is exactly the claim
-     * that this number only ever changes through an explicit mint or burn.
-     */
-    public suspend fun census(itemKey: ItemKey): Long =
-        repo.allPlacements(itemKey)
-            .filterNot { it.holder is HolderId.Source || it.holder is HolderId.Sink }
-            .sumOf { it.remaining.raw }
-
-    /**
-     * Removes [lotId]'s placement at [holder] outright, bypassing the normal
-     * FIFO withdrawal scan.
-     *
-     * Used only to destroy a specific known lot (an unmade craft's output) —
-     * never to take "some amount of an item key", which is what [withdraw] is for.
-     *
-     * Requires that [lotId] is still placed under its own id, i.e. it was never
-     * itself partially withdrawn since creation; `RollbackPlanner` guarantees that
-     * before this is ever called.
-     */
-    public suspend fun destroy(holder: HolderId, lotId: LotId) {
-        repo.remove(holder, lotId)
+    /** All item keys [holder] currently holds, zeros omitted. */
+    public suspend fun totalsAt(holder: HolderId): Map<ItemKey, Quantity> {
+        val raw = repo.totalsAt(holder)
+        if (raw.isEmpty()) return emptyMap()
+        val out = HashMap<ItemKey, Quantity>(raw.size)
+        for ((key, total) in raw) {
+            if (total > 0L) out[key] = Quantity(total)
+        }
+        return if (out.isEmpty()) emptyMap() else out
     }
 
-    private companion object {
-        /** How much of an account queue a withdrawal reads before it asks for more. */
-        const val FIRST_PAGE = 16
+    /** Units of [itemKey] on real holders and escrow. Not Source/Sink. */
+    public suspend fun census(itemKey: ItemKey): Long = repo.census(itemKey)
 
-        /** Where the doubling stops — a page big enough that another round trip is the cheap part. */
-        const val MAX_PAGE = 4096
+    /** Drops this lot's placement, silently if there is none. Not a FIFO take. */
+    public suspend fun destroy(holder: HolderId, lotId: LotId) {
+        repo.remove(holder, lotId)
     }
 }

@@ -6,6 +6,9 @@ package com.tracel.platform.storage
  */
 public interface UnitOfWork {
     public suspend fun <T> atomically(block: suspend () -> T): T
+
+    /** One consistent snapshot, no commit. */
+    public suspend fun <T> reading(block: suspend () -> T): T = block()
 }
 
 /** Direct unit of work. */

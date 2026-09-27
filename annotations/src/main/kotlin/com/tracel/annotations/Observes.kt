@@ -16,7 +16,14 @@ public enum class CauseKind {
     WORLD,
     PLUGIN,
     UNKNOWN,
+    WEAR,
 }
+
+/**
+ * Rollback and undo bookkeeping. The job record is the reversible layer; lookup must not treat
+ * these as ordinary history, or every undo / rollback round-trip would re-read itself.
+ */
+public val CauseKind.isBookkeeping: Boolean get() = this == CauseKind.ROLLBACK || this == CauseKind.INVOLUTION
 
 /** Which holders the generated listener marks dirty for the end-of-tick diff. */
 public enum class Tracked {
@@ -31,20 +38,11 @@ public enum class Tracked {
 }
 
 /**
- * Marks a function as an event capture point.
- *
- * The generated code covers the `Listener` class, its registration, the
- * cancelled-event filter, marking [tracks] holders dirty, and opening a
- * transaction with [cause]. The annotated function is left with only the part
- * that is actually specific to the event.
- *
- * The event type is read from the function's single parameter. The Kotlin
- * signature already carries it.
+ * Marks a function as an event capture point. Replaces `Bukkit`'s `@EventHandler`.
  *
  * ```
- * @Observes(priority = Priority.LOWEST, cause = CauseKind.PLAYER_ACTION,
- *           tracks = [Tracked.TOP_INVENTORY, Tracked.PLAYER_INVENTORY])
- * fun onClick(event: InventoryClickEvent) { /* Only the specifics */ }
+ * @Observes
+ * fun onPlace(event: BlockPlaceEvent) { /* specifics */ }
  * ```
  */
 @Target(AnnotationTarget.FUNCTION)

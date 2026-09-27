@@ -27,8 +27,15 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    System.getProperties().forEach { (key, value) ->
+        val name = key.toString()
+        if (!name.startsWith("tracel.")) return@forEach
+        systemProperty(name, value.toString())
+        inputs.property(name, value.toString())
+    }
     testLogging {
         events("failed")
+        showStandardStreams = System.getProperty("tracel.bench") != null
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
 }

@@ -6,16 +6,12 @@ import com.tracel.engine.log.InMemoryTransactionLog
 import com.tracel.engine.ownership.InMemoryLotLeaseRegistry
 import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.ownership.LotLease
-import com.tracel.engine.rollback.InMemoryRollbackJobRepository
-import com.tracel.engine.rollback.RollbackPlan
+import com.tracel.engine.rollback.job.InMemoryRollbackJobRepository
+import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 
-/**
- * A fresh ledger plus a monotonic transaction-id source, so tests do not have
- * to hand-roll either.
- */
 class LedgerHarness {
     val repo: InMemoryLotRepository = InMemoryLotRepository()
     val ledger: LotLedger = LotLedger(repo)

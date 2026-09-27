@@ -7,17 +7,11 @@ import com.tracel.model.flow.isBalanced
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
-/**
- * Conservation: whatever [TransactionBalancer] produces from a set of
- * raw inventory deltas always balances, and any amount it cannot match to a
- * real source or destination becomes an explicit, typed mint or burn — never
- * a silent gap.
- */
 class ConservationTest {
 
     @Test

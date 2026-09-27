@@ -13,7 +13,6 @@ import java.util.concurrent.atomic.AtomicReference
  * letting two threads interleave mutations of the same in-memory state.
  */
 public class SingleWriterGuard {
-    /** The thread that first called [checkIn] and thus owns the right to write. */
     private val owner = AtomicReference<Thread?>(null)
 
     /**

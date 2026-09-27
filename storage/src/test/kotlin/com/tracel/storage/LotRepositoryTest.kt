@@ -5,22 +5,16 @@ import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
 import com.tracel.model.lot.LotEdge
-import com.tracel.storage.ports.rebuildTotals
+import com.tracel.storage.ports.ops.rebuildTotals
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.placedBlock
 import com.tracel.tests.support.Fixtures.player
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
@@ -150,21 +144,22 @@ class LotRepositoryTest {
     }
 
     @Test
-    fun `a PlacedBlock holder round-trips through the codec, distinct from a Block holder`(@TempDir dir: Path) = runTest {
-        val chest = placedBlock(0, 64, 0)
-        val lotId = Stack(dir).use { stack ->
-            val lot = stack.repo.createLot(diamond, Quantity(10), TxnId(1))
-            stack.repo.place(chest, lot.id, Quantity(10))
-            stack.repo.place(block(0, 64, 0), stack.repo.createLot(diamond, Quantity(3), TxnId(1)).id, Quantity(3))
-            lot.id
-        }
+    fun `a PlacedBlock holder round-trips through the codec, distinct from a Block holder`(@TempDir dir: Path) =
+        runTest {
+            val chest = placedBlock(0, 64, 0)
+            val lotId = Stack(dir).use { stack ->
+                val lot = stack.repo.createLot(diamond, Quantity(10), TxnId(1))
+                stack.repo.place(chest, lot.id, Quantity(10))
+                stack.repo.place(block(0, 64, 0), stack.repo.createLot(diamond, Quantity(3), TxnId(1)).id, Quantity(3))
+                lot.id
+            }
 
-        Stack(dir).use { stack ->
-            assertEquals(chest, stack.repo.currentHolderOf(lotId))
-            assertEquals(10L, stack.repo.accountQueue(chest, diamond).single().remaining.raw)
-            assertEquals(3L, stack.repo.totalOf(block(0, 64, 0), diamond), "a Block is not a PlacedBlock")
+            Stack(dir).use { stack ->
+                assertEquals(chest, stack.repo.currentHolderOf(lotId))
+                assertEquals(10L, stack.repo.accountQueue(chest, diamond).single().remaining.raw)
+                assertEquals(3L, stack.repo.totalOf(block(0, 64, 0), diamond), "a Block is not a PlacedBlock")
+            }
         }
-    }
 
     @Test
     fun `writes from any thread still all land on the one storage thread`(@TempDir dir: Path) = runTest {
@@ -174,7 +169,13 @@ class LotRepositoryTest {
                 val lots = coroutineScope {
                     listOf(
                         async(Dispatchers.Default) { stack.repo.createLot(diamond, Quantity(1), TxnId(1)) },
-                        async(intruder.asCoroutineDispatcher()) { stack.repo.createLot(diamond, Quantity(2), TxnId(2)) },
+                        async(intruder.asCoroutineDispatcher()) {
+                            stack.repo.createLot(
+                                diamond,
+                                Quantity(2),
+                                TxnId(2)
+                            )
+                        },
                         async { withContext(Dispatchers.IO) { stack.repo.createLot(diamond, Quantity(3), TxnId(3)) } },
                     ).awaitAll()
                 }
@@ -203,5 +204,108 @@ class LotRepositoryTest {
             while (cursor.next()) count++
         }
         return count
+    }
+
+    @Test
+    fun `relocating an account moves every lot, its quantities and its queue order`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val from = block(0, 64, 0)
+            val to = block(0, 64, 1)
+            val first = stack.ledger.mint(from, diamond, Quantity(3), stack.counters.nextTxnId())
+            val second = stack.ledger.mint(from, diamond, Quantity(5), stack.counters.nextTxnId())
+
+            stack.repo.relocate(from, to)
+
+            assertNull(stack.ledger.totalAt(from, diamond), "nothing is left at the old address")
+            assertEquals(8L, stack.ledger.totalAt(to, diamond)?.raw)
+            assertEquals(
+                listOf(first.id, second.id),
+                stack.repo.accountQueue(to, diamond).map { it.lot.id },
+                "a pushed chest keeps its FIFO order, or the next withdrawal takes the wrong lot",
+            )
+            assertEquals(to, stack.repo.currentHolderOf(first.id))
+        }
+    }
+
+    @Test
+    fun `relocating into an occupied account merges by queue position, not by arrival`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val from = block(0, 64, 0)
+            val to = block(0, 64, 1)
+            val older = stack.ledger.mint(from, diamond, Quantity(1), stack.counters.nextTxnId())
+            val newer = stack.ledger.mint(to, diamond, Quantity(1), stack.counters.nextTxnId())
+
+            stack.repo.relocate(from, to)
+
+            assertEquals(
+                listOf(older.id, newer.id),
+                stack.repo.accountQueue(to, diamond).map { it.lot.id },
+                "the relocated lot is older and must still be spent first",
+            )
+        }
+    }
+
+    @Test
+    fun `relocating an empty account, or one onto itself, changes nothing`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val here = block(0, 64, 0)
+            stack.ledger.mint(here, diamond, Quantity(2), stack.counters.nextTxnId())
+
+            stack.repo.relocate(block(9, 9, 9), here)
+            stack.repo.relocate(here, here)
+
+            assertEquals(2L, stack.ledger.totalAt(here, diamond)?.raw)
+        }
+    }
+
+
+    @Test
+    fun `batch reads agree with the one-at-a-time reads, dense and sparse`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val repo = stack.repo
+            val chest = block(0, 64, 0)
+            val parents = ArrayList<LotId>()
+            repeat(200) { i ->
+                val parent = repo.createLot(diamond, Quantity(4), TxnId(1))
+                val child = repo.createLot(diamond, Quantity(2), TxnId(1))
+                repo.recordEdge(LotEdge.Split(child.id, parent.id, Quantity(2)))
+                repo.place(chest, parent.id, Quantity(4))
+                parents += parent.id
+            }
+
+            for (ids in listOf(parents, parents.take(8))) {
+                repo.forget()
+                assertEquals(ids.associateWith { repo.edgesFrom(it) }, repo.edgesFromAll(ids))
+                repo.forget()
+                assertEquals(ids.associateWith { repo.lot(it) }, repo.lotsOfAll(ids))
+                repo.forget()
+                assertEquals(
+                    ids.associateWith { repo.currentHolderOf(it)!! },
+                    repo.currentHoldersOf(ids),
+                )
+                repo.forget()
+                val children = ids.map { LotId(it.raw + 1) }
+                assertEquals(children.associateWith { repo.edgesInto(it) }, repo.edgesIntoAll(children))
+                repo.forget()
+                val mixed = ids + children
+                assertEquals(mixed.associateWith { repo.edgesFrom(it) }, repo.edgesFromAll(mixed))
+            }
+        }
+    }
+
+    @Test
+    fun `prefetching lots warms the cache without inventing the ones that do not exist`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            val repo = stack.repo
+            val made = (1..200).map { repo.createLot(diamond, Quantity(it.toLong()), TxnId(1)) }
+            repo.forget()
+
+            val asked = made.map { it.id } + (900_000L..900_050L).map { LotId(it) }
+            repo.prefetchLots(asked)
+
+            for (lot in made) assertEquals(lot, repo.lot(lot.id))
+            val absent = runCatching { repo.lot(LotId(900_000)) }.exceptionOrNull()
+            assertTrue(absent is IllegalStateException, "a lot that does not exist must still say so, got $absent")
+        }
     }
 }

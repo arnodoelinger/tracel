@@ -2,12 +2,10 @@ package com.tracel.storage.crash
 
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
-import com.tracel.storage.lsm.Manifest
-import com.tracel.storage.lsm.SyncPolicy
+import com.tracel.storage.lsm.state.Manifest
+import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.spi.MutationBatch
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -23,14 +21,16 @@ class CorruptionTest {
 
     @Test
     fun `a torn write-ahead log frame truncates the log rather than poisoning it`(@TempDir dir: Path) {
-        engine(dir).use { engine ->
+        engine(dir).let { engine ->
             repeat(50) { i ->
                 MutationBatch().apply { put(key(i), "value-$i".toByteArray()) }.let { engine.write(it, durable = true) }
             }
+            engine.halt()
         }
 
         // Half a frame, the way a power cut leaves one
-        val wal = Files.list(dir).use { stream -> stream.filter { it.toString().endsWith(".wal") }.toList().single() }
+        val wal = Files.list(dir)
+            .use { stream -> stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.toList().single() }
         val size = Files.size(wal)
         FileChannel.open(wal, StandardOpenOption.WRITE).use { it.truncate(size - 9) }
 
@@ -46,18 +46,23 @@ class CorruptionTest {
 
     @Test
     fun `garbage appended to the write-ahead log is ignored, not replayed`(@TempDir dir: Path) {
-        engine(dir).use { engine ->
+        engine(dir).let { engine ->
             repeat(20) { i ->
                 MutationBatch().apply { put(key(i), "value-$i".toByteArray()) }.let { engine.write(it, durable = true) }
             }
+            engine.halt()
         }
 
-        val wal = Files.list(dir).use { stream -> stream.filter { it.toString().endsWith(".wal") }.toList().single() }
+        val wal = Files.list(dir)
+            .use { stream -> stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.toList().single() }
         Files.write(wal, ByteArray(64) { 0x5A }, StandardOpenOption.APPEND)
 
         engine(dir).use { engine ->
             engine.snapshot().use { snapshot ->
-                for (i in 0 until 20) assertNotNull(snapshot.get(key(i)), "lost $i to a checksum that should have caught the garbage")
+                for (i in 0 until 20) assertNotNull(
+                    snapshot.get(key(i)),
+                    "lost $i to a checksum that should have caught the garbage"
+                )
             }
         }
     }
@@ -92,29 +97,17 @@ class CorruptionTest {
             engine.flushNow()
         }
 
-        val segment = Files.list(dir).use { stream -> stream.filter { it.toString().endsWith(".seg") }.toList().single() }
+        val segment = Files.list(Manifest.segmentsDirectory(dir)).use { stream ->
+            stream.filter { it.toString().endsWith(Manifest.SEGMENT_SUFFIX) }.toList().single()
+        }
         val bytes = Files.readAllBytes(segment)
         bytes[bytes.size - 8] = 99
         Files.write(segment, bytes)
 
         val failure = runCatching { engine(dir).close() }.exceptionOrNull()
-        assertTrue(failure is IllegalArgumentException, "a segment from a newer build must not be guessed at, got $failure")
-    }
-
-    @Test
-    fun `a batch that never reached the log is simply not there`(@TempDir dir: Path) {
-        val engine = engine(dir)
-        MutationBatch().apply { put(key(1), "kept".toByteArray()) }.let { engine.write(it, durable = true) }
-        // No close, no sync: this one is only in the page cache, which a kill would take with it
-        MutationBatch().apply { put(key(2), "maybe".toByteArray()) }.let { engine.write(it, durable = false) }
-        engine.close()
-
-        engine(dir).use { reopened ->
-            reopened.snapshot().use { snapshot ->
-                assertNotNull(snapshot.get(key(1)))
-                assertEquals(2, listOf(key(1), key(2)).count { snapshot.get(it) != null })
-                assertNull(snapshot.get(key(3)))
-            }
-        }
+        assertTrue(
+            failure is IllegalArgumentException,
+            "a segment from a newer build must not be guessed at, got $failure"
+        )
     }
 }

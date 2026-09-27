@@ -5,8 +5,9 @@ import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.journal.SimulatedCrash
 import com.tracel.engine.ledger.LotLedger
-import com.tracel.engine.rollback.RollbackExecutor
-import com.tracel.engine.rollback.RollbackPlanner
+import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.plan.RollbackPlanner
+import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
@@ -21,11 +22,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/**
- * Crash safety: interrupting a rollback right before any single step —
- * a take, a mint, or the final release out of escrow — and resuming from the
- * same journal afterward must still reach the correct final state.
- */
 class CrashSafetyTest {
     private data class Scenario(val world: LedgerHarness, val chest: HolderId.Block, val rootLot: LotId)
 
@@ -56,15 +52,30 @@ class CrashSafetyTest {
             // failed, the second attempt would just "do everything from scratch", and matching the expected final
             // state would prove nothing.
             val crash = runCatching {
-                JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), journal, world.leases, world::nextTxn)
-                    .execute(lease, plan, restoreTo = chest, crashPoint = CrashPoint.before(crashAt))
+                JournalExecutor(
+                    RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                    journal,
+                    world.leases,
+                    world::nextTxn
+                )
+                    .execute(
+                        lease,
+                        plan,
+                        target = RollbackTarget.Uniform(chest),
+                        crashPoint = CrashPoint.before(crashAt)
+                    )
             }.exceptionOrNull()
             assertTrue(crash is SimulatedCrash, "crash before step $crashAt should actually have fired, got $crash")
 
             // New exectutor, same journal, same job id, same plan: must resume from the crash point and reach
             // the correct final state.
-            JournalExecutor(RollbackExecutor(world.ledger, world.log, world::nextSeq), journal, world.leases, world::nextTxn)
-                .execute(lease, plan, restoreTo = chest)
+            JournalExecutor(
+                RollbackExecutor(world.ledger, world.log, world::nextSeq),
+                journal,
+                world.leases,
+                world::nextTxn
+            )
+                .execute(lease, plan, target = RollbackTarget.Uniform(chest))
 
             assertEquals(10L, world.ledger.totalAt(chest, diamond)?.raw, "crash before step $crashAt")
             assertEquals(10L, world.ledger.census(diamond), "crash before step $crashAt: no duplication, no loss")
@@ -73,6 +84,10 @@ class CrashSafetyTest {
     }
 
     private suspend fun assertNothingLeftInEscrow(ledger: LotLedger, job: RollbackJobId) {
-        assertEquals(null, ledger.totalAt(HolderId.Escrow(job), diamond), "escrow must be fully drained once a job completes")
+        assertEquals(
+            null,
+            ledger.totalAt(HolderId.Escrow(job), diamond),
+            "escrow must be fully drained once a job completes"
+        )
     }
 }

@@ -1,5 +1,6 @@
 package com.tracel.storage
 
+import com.tracel.annotations.Unstable
 import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.capture.CaptureRing
@@ -8,17 +9,15 @@ import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.nio.file.Path
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The one door into the store. You better not touch storage at all.
@@ -26,16 +25,29 @@ import kotlin.coroutines.CoroutineContext
  * Every port goes through [read] or [write] and none of them cares which thread its caller
  * happened to be on. Only one unit of work is ever open at a time, guarded by a suspending
  * [Mutex].
+ *
+ * @see StorageUnit
+ * @see Interning
+ * @see CaptureRing
+ * @see KeyValueEngine
+ * @see LsmEngine
+ * @see UnitOfWork
  */
 class TracelStorage private constructor(
     val engine: KeyValueEngine,
     val interning: Interning,
     val ring: CaptureRing,
-    private val executor: ExecutorService,
+    private val executor: ScheduledExecutorService,
     val dispatcher: CoroutineDispatcher,
+    private val readerPool: ExecutorService,
+    private val readers: CoroutineDispatcher,
 ) : UnitOfWork, AutoCloseable {
     private val lock = Mutex()
     private val writer = SingleWriterGuard()
+
+    private val closed = AtomicBoolean(false)
+
+    private val replaced = CopyOnWriteArrayList<() -> Unit>()
 
     /** Reads inside the current unit of work, or opens a throwaway one if there is none. */
     suspend fun <T> read(block: StorageUnit.() -> T): T {
@@ -47,6 +59,7 @@ class TracelStorage private constructor(
     suspend fun <T> write(block: StorageUnit.() -> T): T {
         val open = currentCoroutineContext()[OpenUnit]
         return if (open != null) {
+            check(!open.readOnly) { "write inside reading { } — a snapshot is not a unit of work" }
             writer.checkIn()
             open.joined().block()
         } else {
@@ -57,6 +70,16 @@ class TracelStorage private constructor(
     override suspend fun <T> atomically(block: suspend () -> T): T =
         if (currentCoroutineContext()[OpenUnit] != null) block() else suspendingUnit(block)
 
+    override suspend fun <T> reading(block: suspend () -> T): T {
+        val open = currentCoroutineContext()[OpenUnit]
+        if (open != null) return block()
+        return withContext(readers) {
+            StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+                withContext(OpenUnit(unit, Thread.currentThread(), readOnly = true)) { block() }
+            }
+        }
+    }
+
     /**
      * Runs [block] inside one unit of work and commits it as one batch.
      *
@@ -66,54 +89,110 @@ class TracelStorage private constructor(
      */
     suspend fun <T> batched(block: suspend () -> T): T = suspendingUnit(block)
 
-    private suspend fun <T> readOnly(block: StorageUnit.() -> T): T = withContext(dispatcher) {
-        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(block)
+    /**
+     * Runs [block] with no unit of work open anywhere, on the storage thread: the drainer and every other
+     * writer wait. For replacing the store wholesale, where one batch landing mid-wipe resurrects old data.
+     */
+    suspend fun <T> alone(block: () -> T): T = lock.withLock { withContext(dispatcher) { block() } }
+
+    /** Runs [action] whenever the store is replaced wholesale, for whoever caches what was in it. */
+    fun afterReplace(action: () -> Unit) {
+        replaced += action
     }
 
-    private suspend fun <T> unit(block: StorageUnit.() -> T): T = lock.withLock {
-        withContext(dispatcher) {
-            val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
-            open.use {
-                val result = withContext(OpenUnit(open, Thread.currentThread())) { open.block() }
-                engine.write(open.batch, durable = true)
-                result
+    /** Re-reads interned ids after the store was replaced under them. Call inside [alone]. */
+    fun reloadInterning() {
+        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::reload)
+        replaced.forEach { it() }
+    }
+
+    /**
+     * Runs [last] to its end or for [timeoutMillis], whichever comes first, then closes. Blocks the
+     * caller, so shutdown only: that is the one place something has to wait for the last writes.
+     *
+     * @return whether [last] finished in time.
+     */
+    fun closeAfter(timeoutMillis: Long, last: suspend () -> Unit): Boolean {
+        val done = CountDownLatch(1)
+        var finished = false
+        CoroutineScope(SupervisorJob() + dispatcher).launch {
+            try {
+                finished = withTimeoutOrNull(timeoutMillis.milliseconds) { last() } != null
+            } finally {
+                done.countDown()
             }
         }
+        done.await(timeoutMillis + CLOSE_GRACE_MILLIS, TimeUnit.MILLISECONDS)
+        close()
+        return finished
     }
 
-    private suspend fun <T> suspendingUnit(block: suspend () -> T): T = lock.withLock {
-        withContext(dispatcher) {
-            val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
-            open.use {
-                val result = withContext(OpenUnit(open, Thread.currentThread())) { block() }
-                engine.write(open.batch, durable = true)
-                result
-            }
-        }
-    }
-
-    private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
-
-    /** Idempotent: an off-heap arena closed twice throws, and closing twice is easy to arrange. */
+    /** Closes the storage and releases all associated resources. */
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         engine.close()
         ring.close()
         executor.shutdown()
+        readerPool.shutdown()
     }
 
-    /** Carries the open unit to everything nested inside it. */
-    private class OpenUnit(private val unit: StorageUnit, private val thread: Thread) :
-        AbstractCoroutineContextElement(OpenUnit) {
-        /**
-         * The open unit, once it is established that we are still on the thread that opened it.
-         * A unit that hops to a region or entity thread mid-flight and then reaches back into
-         * storage would be handing one write batch to two threads at once, so it fails here.
-         */
+    private suspend fun <T> readOnly(block: StorageUnit.() -> T): T = withContext(readers) {
+        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(block)
+    }
+
+    // TODO: rewrite
+    //  unstable and unsafe
+    @Unstable
+    private suspend fun <T> unit(block: StorageUnit.() -> T): T = lock.withLock {
+        withContext(dispatcher) {
+            val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
+            open.use {
+                val result = try {
+                    withContext(OpenUnit(open, Thread.currentThread())) { open.block() }.also {
+                        WriteLog.dump(open.batch)
+                        engine.write(open.batch, durable = true)
+                    }
+                } catch (failure: Throwable) {
+                    open.aborted()
+                    throw failure
+                }
+                open.committed()
+                result
+            }
+        }
+    }
+
+    // TODO: rewrite
+    //  unstable and unsafe
+    @Unstable
+    private suspend fun <T> suspendingUnit(block: suspend () -> T): T = lock.withLock {
+        withContext(dispatcher) {
+            val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
+            open.use {
+                val result = try {
+                    withContext(OpenUnit(open, Thread.currentThread())) { block() }.also {
+                        WriteLog.dump(open.batch)
+                        engine.write(open.batch, durable = true)
+                    }
+                } catch (failure: Throwable) {
+                    open.aborted()
+                    throw failure
+                }
+                open.committed()
+                result
+            }
+        }
+    }
+
+    private class OpenUnit(
+        private val unit: StorageUnit,
+        private val thread: Thread,
+        val readOnly: Boolean = false,
+    ) : AbstractCoroutineContextElement(OpenUnit) {
         fun joined(): StorageUnit {
             check(thread === Thread.currentThread()) {
                 "unit of work opened on ${thread.name} was re-entered from ${Thread.currentThread().name} — " +
-                    "an atomically { } block must not leave the storage thread"
+                        "an atomically { } block must not leave the storage thread"
             }
             return unit
         }
@@ -122,30 +201,38 @@ class TracelStorage private constructor(
     }
 
     companion object {
-        /**
-         * Opens (or creates) the store at [path].
-         *
-         * [engineFactory] is the swap seam: the shipped build passes an [LsmEngine], and the
-         * benchmarks pass whatever they are measuring.
-         */
+        const val DEFAULT_RING_SLOTS = 1 shl 16
+        const val MAX_READERS = 16
+        private const val CLOSE_GRACE_MILLIS = 1_000L
+
+        /** Opens (or creates) the store at [path]. */
         fun open(
             path: Path,
             ringSlots: Int = DEFAULT_RING_SLOTS,
-            engineFactory: (Path) -> KeyValueEngine = { LsmEngine(it, LsmConfig()) },
+            lsm: LsmConfig = LsmConfig(),
+            engineFactory: (Path) -> KeyValueEngine = { LsmEngine(it, lsm) },
         ): TracelStorage {
             val engine = engineFactory(path)
-            val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "Tracel-Storage") }
+            val executor = Executors.newSingleThreadScheduledExecutor { runnable -> Thread(runnable, "Tracel-Storage") }
             val interning = Interning()
             StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::restore)
+
+            // These threads only ever decode records already in memory or in a
+            // mapped file; more of them than cores buys queueing, not throughput.
+            val readerCount = Runtime.getRuntime().availableProcessors().coerceIn(2, MAX_READERS)
+            val readerPool = Executors.newFixedThreadPool(readerCount) { runnable ->
+                Thread(runnable, "Tracel-Read").apply { isDaemon = true }
+            }
+
             return TracelStorage(
                 engine,
                 interning,
                 CaptureRing(ringSlots, interning),
                 executor,
                 executor.asCoroutineDispatcher(),
+                readerPool,
+                readerPool.asCoroutineDispatcher(),
             )
         }
-
-        const val DEFAULT_RING_SLOTS = 1 shl 16
     }
 }

@@ -1,10 +1,8 @@
 package com.tracel.storage
 
 import com.tracel.engine.ownership.LeaseAcquisition
-import com.tracel.engine.rollback.LotContribution
-import com.tracel.engine.rollback.RollbackJobRecord
-import com.tracel.engine.rollback.RollbackPlan
-import com.tracel.engine.rollback.RollbackStep
+import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.plan.*
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
@@ -16,28 +14,39 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 
-/** The smaller ports: progress, ownership, plans, deliveries, counters. */
 class PortsTest {
     @Test
-    fun `journal progress survives a reopen and does not cross between rollback and undo`(@TempDir dir: Path) = runTest {
-        val job = RollbackJobId(4)
-        Stack(dir).use { stack ->
-            stack.journal.markCompleted(job, 3)
-            assertTrue(stack.journal.isCompleted(job, 3))
-            assertFalse(stack.involutionJournal.isCompleted(job, 3), "undo progress is not rollback progress")
+    fun `journal progress survives a reopen and does not cross between rollback and undo`(@TempDir dir: Path) =
+        runTest {
+            val job = RollbackJobId(4)
+            Stack(dir).use { stack ->
+                stack.journal.markCompleted(job, 3)
+                assertTrue(stack.journal.isCompleted(job, 3))
+                assertFalse(stack.involutionJournal.isCompleted(job, 3), "undo progress is not rollback progress")
+            }
+            Stack(dir).use { stack ->
+                assertTrue(
+                    stack.journal.isCompleted(job, 3),
+                    "a journal that forgets across a restart is not a journal"
+                )
+                assertFalse(stack.journal.isCompleted(job, 4))
+            }
         }
+
+    @Test
+    fun `completed is the marked steps, not a probe of every index up to count`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
-            assertTrue(stack.journal.isCompleted(job, 3), "a journal that forgets across a restart is not a journal")
-            assertFalse(stack.journal.isCompleted(job, 4))
+            val job = RollbackJobId(9)
+            stack.journal.markCompleted(job, 0)
+            stack.journal.markCompleted(job, 7)
+            assertEquals(setOf(0, 7), stack.journal.completed(job, 10_000))
+            assertEquals(emptySet<Int>(), stack.journal.completed(RollbackJobId(8), 10_000))
         }
     }
 
@@ -129,7 +138,7 @@ class PortsTest {
                 RollbackPlan(
                     listOf(
                         RollbackStep.Unmake(
-                            LotId(10),
+                            listOf(UnmadeOutput(LotId(10), steve)),
                             listOf(LotContribution(LotId(11), Quantity(4)), LotContribution(LotId(12), Quantity(5))),
                             TxnId(99),
                             steve,
@@ -139,7 +148,7 @@ class PortsTest {
                         RollbackStep.Debt(LotId(14), Quantity(1), UUID(7, 8)),
                     ),
                 ),
-                restoreTo = chest,
+                target = RollbackTarget.Uniform(chest),
             )
             stack.jobs.save(record)
             assertEquals(record, stack.jobs.find(RollbackJobId(3)))
@@ -151,7 +160,13 @@ class PortsTest {
     fun `a plan with more than ten steps still comes back in order`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             val steps = (1..40).map { RollbackStep.Take(LotId(it.toLong()), Quantity(1), player(1)) }
-            stack.jobs.save(RollbackJobRecord(RollbackJobId(1), RollbackPlan(steps), block(0, 64, 0)))
+            stack.jobs.save(
+                RollbackJobRecord(
+                    RollbackJobId(1),
+                    RollbackPlan(steps),
+                    RollbackTarget.Uniform(block(0, 64, 0))
+                )
+            )
             val found = stack.jobs.find(RollbackJobId(1))?.plan?.steps.orEmpty()
             assertEquals(steps, found, "step 10 must not sort before step 9")
         }

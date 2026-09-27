@@ -1,12 +1,6 @@
 package com.tracel.model.id
 
-/**
- * A positive count of units of one item key.
- *
- * Wrapping `Long` in its own type turns "quantity went negative somewhere" from
- * a silent bug into a crash at the exact call site that caused it — Kotlin's
- * `require` runs in the constructor, before the bad value can spread anywhere.
- */
+/** A positive count of units of one item key. */
 @JvmInline
 public value class Quantity(public val raw: Long) : Comparable<Quantity> {
     init {
@@ -15,6 +9,7 @@ public value class Quantity(public val raw: Long) : Comparable<Quantity> {
 
     override fun compareTo(other: Quantity): Int = raw.compareTo(other.raw)
 
+    /** Adds two quantities together. */
     public operator fun plus(other: Quantity): Quantity = Quantity(raw + other.raw)
 
     /** Null if `other` is not strictly smaller — there would be nothing left. */

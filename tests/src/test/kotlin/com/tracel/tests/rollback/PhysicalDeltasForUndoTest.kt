@@ -1,16 +1,18 @@
 package com.tracel.tests.rollback
 
-import com.tracel.engine.ledger.Ingredient
 import com.tracel.engine.ledger.Product
 import com.tracel.engine.rollback.involution.InvolutionStep
-import com.tracel.engine.rollback.physicalDeltasForUndo
+import com.tracel.engine.rollback.involution.RemakeInput
+import com.tracel.engine.rollback.involution.RemakeOutput
+import com.tracel.engine.rollback.plan.physicalDeltasForUndo
+import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
-import org.junit.jupiter.api.Assertions.assertEquals
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class PhysicalDeltasForUndoTest {
@@ -19,7 +21,7 @@ class PhysicalDeltasForUndoTest {
         val chest = block(0, 64, 0)
         val steve = player(1)
 
-        val steps = listOf(InvolutionStep.Return(diamond, Quantity(5), from = steve, to = chest))
+        val steps = listOf(InvolutionStep.Return(diamond, Quantity(5), from = steve, to = chest, lotId = LotId(1)))
 
         assertEquals(mapOf(steve to mapOf(diamond to -5L), chest to mapOf(diamond to 5L)), physicalDeltasForUndo(steps))
     }
@@ -34,13 +36,28 @@ class PhysicalDeltasForUndoTest {
     }
 
     @Test
+    fun `a Retract of a stack a Return already emptied is not a second take`() = runTest {
+        val chest = block(0, 64, 0)
+        val drop = com.tracel.tests.support.Fixtures.itemEntity(3)
+        val steps = listOf(
+            InvolutionStep.Return(diamond, Quantity(64), from = chest, to = drop, lotId = LotId(1)),
+            InvolutionStep.Retract(diamond, Quantity(64), from = chest, originalLot = LotId(2)),
+        )
+        assertEquals(
+            mapOf(chest to mapOf(diamond to -64L), drop to mapOf(diamond to 64L)),
+            physicalDeltasForUndo(steps),
+        )
+    }
+
+    @Test
     fun `a Remake step debits every ingredient and credits the product, all at the same holder`() = runTest {
         val steve = player(1)
 
         val steps = listOf(
             InvolutionStep.Remake(
-                ingredients = listOf(Ingredient(steve, diamond, Quantity(9))),
+                outputs = listOf(RemakeOutput(LotId(2), Quantity(1), steve)),
                 product = Product(steve, diamondBlock, Quantity(1)),
+                inputs = listOf(RemakeInput(LotId(1), diamond, Quantity(9))),
             )
         )
 

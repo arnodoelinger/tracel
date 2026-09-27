@@ -1,42 +1,12 @@
 package com.tracel.engine.ownership
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.annotations.LeaseStore
+import com.tracel.annotations.RunsOn
+import com.tracel.annotations.SingleWriter
+import com.tracel.annotations.ThreadContext
 
-/** In-memory [LotLeaseRegistry]. */
-public class InMemoryLotLeaseRegistry : LotLeaseRegistry() {
-    private data class Entry(val job: RollbackJobId, val acquiredAtMillis: Long)
-
-    private val writer = SingleWriterGuard()
-    private val holders = mutableMapOf<LotId, Entry>()
-
-    override suspend fun tryReserve(job: RollbackJobId, lotIds: Set<LotId>): Map<LotId, RollbackJobId> {
-        writer.checkIn()
-        val conflicts = lotIds.mapNotNull { lotId -> holders[lotId]?.takeIf { it.job != job }?.let { lotId to it.job } }.toMap()
-        if (conflicts.isNotEmpty()) return conflicts
-
-        val now = System.currentTimeMillis()
-        for (lotId in lotIds) holders[lotId] = Entry(job, now)
-        return emptyMap()
-    }
-
-    override suspend fun release(job: RollbackJobId) {
-        writer.checkIn()
-        holders.entries.removeAll { it.value.job == job }
-    }
-
-    override suspend fun transfer(from: RollbackJobId, to: RollbackJobId): Set<LotId> {
-        writer.checkIn()
-        val now = System.currentTimeMillis()
-        val toTransfer = holders.filterValues { it.job == from }.keys.toSet()
-        for (lotId in toTransfer) holders[lotId] = Entry(to, now)
-        return toTransfer
-    }
-
-    override suspend fun reapAbandoned(nowMillis: Long, maxAgeMillis: Long): Set<RollbackJobId> {
-        writer.checkIn()
-        val abandoned = holders.values.filter { nowMillis - it.acquiredAtMillis > maxAgeMillis }.mapTo(mutableSetOf()) { it.job }
-        holders.entries.removeAll { it.value.job in abandoned }
-        return abandoned
-    }
-}
+/** In-memory [LotLeaseRegistry]. Mutators live on the generated [InMemoryLotLeaseRegistryStore]. */
+@LeaseStore
+@SingleWriter
+@RunsOn(ThreadContext.STORAGE)
+public class InMemoryLotLeaseRegistry : InMemoryLotLeaseRegistryStore()

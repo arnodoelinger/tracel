@@ -5,6 +5,8 @@ import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.spi.EngineSnapshot
 import com.tracel.storage.spi.MutationBatch
 import java.lang.foreign.MemorySegment
+import java.util.logging.Level
+import java.util.logging.Logger
 
 /**
  * One unit of storage work: a snapshot to read from and a batch to write into, committed
@@ -15,9 +17,13 @@ class StorageUnit(
     val batch: MutationBatch,
     val ownerThread: Thread,
 ) : AutoCloseable {
+    private var onCommit: ArrayList<() -> Unit>? = null
+    private var onAbort: ArrayList<() -> Unit>? = null
+    private val hookLogger = Logger.getLogger(StorageUnit::class.java.name)
+
     fun get(key: ByteArray): MemorySegment? {
-        val wrapped = Key(key)
-        if (batch.touches(wrapped)) return batch.valueOf(wrapped)?.let(MemorySegment::ofArray)
+        val overlay = batch.lookup(Key(key))
+        if (overlay !== MutationBatch.MISSING) return (overlay as ByteArray?)?.let(MemorySegment::ofArray)
         return snapshot.get(key)
     }
 
@@ -45,8 +51,46 @@ class StorageUnit(
         batch.release(mark)
     }
 
-    fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor =
-        OverlayCursor(batch, snapshot.scan(prefix, from), prefix, from)
+    /** Runs [action] once the batch has landed. A unit that throws never does. */
+    fun afterCommit(action: () -> Unit) {
+        (onCommit ?: ArrayList<() -> Unit>().also { onCommit = it }) += action
+    }
+
+    /** What [afterCommit] queued, for whoever just wrote the batch. */
+    fun committed() {
+        onCommit?.forEach { hook ->
+            runCatching(hook).onFailure {
+                hookLogger.log(
+                    Level.WARNING,
+                    "a commit hook failed",
+                    it
+                )
+            }
+        }
+    }
+
+    /** Runs [action] if the batch never lands: whatever was cached off it is a lie. */
+    fun afterAbort(action: () -> Unit) {
+        (onAbort ?: ArrayList<() -> Unit>().also { onAbort = it }) += action
+    }
+
+    /** What [afterAbort] queued, for whoever just dropped the batch. */
+    fun aborted() {
+        onAbort?.forEach { hook ->
+            runCatching(hook).onFailure {
+                hookLogger.log(
+                    Level.WARNING,
+                    "an abort hook failed",
+                    it
+                )
+            }
+        }
+    }
+
+    fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor {
+        if (batch.isEmpty()) return snapshot.scan(prefix, from)
+        return OverlayCursor(batch, snapshot.scan(prefix, from), prefix, from)
+    }
 
     override fun close() {
         snapshot.close()
@@ -54,12 +98,12 @@ class StorageUnit(
 }
 
 private class OverlayCursor(
-    batch: MutationBatch,
+    private val batch: MutationBatch,
     private val committed: EngineCursor,
     private val prefix: ByteArray,
     from: ByteArray,
 ) : EngineCursor {
-    private val pending = batch.from(Key(from))
+    private var pending = batch.keysFrom(Key(from))
     private var pendingKey: Key? = null
     private var pendingValue: ByteArray? = null
     private var committedValid = committed.next()
@@ -132,7 +176,22 @@ private class OverlayCursor(
 
     override fun key(): ByteArray = currentKey ?: error("cursor is not positioned")
 
+    override fun keyLength(): Int = key().size
+
+    override fun keyByte(at: Int): Byte = key()[at]
+
     override fun value(): MemorySegment = currentValue ?: error("cursor is not positioned")
+
+    override fun skipTo(from: ByteArray) {
+        committed.skipTo(from)
+        committedValid = committed.next()
+        pending = batch.keysFrom(Key(from))
+        pendingKey = null
+        pendingValue = null
+        advancePending()
+        currentKey = null
+        currentValue = null
+    }
 
     override fun close() {
         committed.close()
@@ -140,10 +199,10 @@ private class OverlayCursor(
 
     private fun advancePending() {
         while (pending.hasNext()) {
-            val entry = pending.next()
-            if (!entry.key.startsWith(prefix)) break
-            pendingKey = entry.key
-            pendingValue = entry.value
+            val key = pending.next()
+            if (!key.startsWith(prefix)) break
+            pendingKey = key
+            pendingValue = batch.valueOf(key)
             return
         }
         pendingKey = null

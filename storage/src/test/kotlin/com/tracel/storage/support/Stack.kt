@@ -3,26 +3,33 @@ package com.tracel.storage.support
 import com.tracel.engine.capture.CaptureCoordinator
 import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.world.WorldCaptureCoordinator
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.Drainer
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
-import com.tracel.storage.ports.Counters
-import com.tracel.storage.ports.Journal
-import com.tracel.storage.ports.LotLeaseRegistry
-import com.tracel.storage.ports.LotRepository
-import com.tracel.storage.ports.RollbackJobRepository
-import com.tracel.storage.ports.TransactionLog
-import com.tracel.storage.ports.PendingDeliveryRepository
+import com.tracel.storage.ports.container.ContainerSlotLog
+import com.tracel.storage.ports.job.Journal
+import com.tracel.storage.ports.job.RollbackJobRepository
+import com.tracel.storage.ports.ledger.LotLeaseRegistry
+import com.tracel.storage.ports.ledger.LotRepository
+import com.tracel.storage.ports.ledger.PendingDeliveryRepository
+import com.tracel.storage.ports.log.TransactionLog
+import com.tracel.storage.ports.log.WorldLog
+import com.tracel.storage.ports.ops.Counters
 import java.nio.file.Path
 
-class Stack(path: Path) : AutoCloseable {
-    val storage: TracelStorage = TracelStorage.open(path) { LsmEngine(it, LsmConfig()) }
+class Stack(path: Path, config: LsmConfig = LsmConfig()) : AutoCloseable {
+    val storage: TracelStorage = TracelStorage.open(path) { LsmEngine(it, config) }
     val counters: Counters = Counters(storage)
     val repo: LotRepository = LotRepository(storage, counters)
     val ledger: LotLedger = LotLedger(repo)
     val log: TransactionLog = TransactionLog(storage)
+    val worldLog: WorldLog = WorldLog(storage)
+    val containerSlots: ContainerSlotLog = ContainerSlotLog(storage, counters)
+    val worldCapture: WorldCaptureCoordinator =
+        WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
     val leases: LotLeaseRegistry = LotLeaseRegistry(storage)
     val jobs: RollbackJobRepository = RollbackJobRepository(storage)
     val journal: Journal = Journal.forRollback(storage)
@@ -40,6 +47,7 @@ class Stack(path: Path) : AutoCloseable {
             val flows = ledger.releaseFlows(from, to)
             if (flows.isNotEmpty()) capture.recordDirect(flows, epochMillis, cause, causedBy)
         },
+        worldSink = { edits -> worldCapture.record(edits) },
     )
 
     suspend fun drain(): Int {

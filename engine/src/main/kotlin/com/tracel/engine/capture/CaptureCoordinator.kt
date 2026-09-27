@@ -9,17 +9,16 @@ import com.tracel.engine.ledger.Product
 import com.tracel.engine.log.TransactionLog
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
+import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.id.Seq
 import com.tracel.model.id.TxnId
 import com.tracel.model.transaction.Transaction
+import com.tracel.model.world.BlockPos
 
-/**
- * The full capture pipeline in one call: raw deltas -> balanced [com.tracel.model.flow.Flow]s ->
- * applied to the ledger -> appended to the log as one [Transaction].
- */
+/** Balances inventory deltas, applies them to the ledger, and logs one [Transaction]. */
 public class CaptureCoordinator(
     private val ledger: LotLedger,
     private val log: TransactionLog,
@@ -27,72 +26,102 @@ public class CaptureCoordinator(
     private val nextSeq: suspend () -> Seq,
 ) {
     /**
-     * Balances [deltas] and, if anything actually changed, applies the result to the ledger and
-     * appends it to the log. Returns `null` for an empty diff — a capture pass that saw nothing
-     * move is not a transaction, and recording one anyway would just be log noise.
+     * @return `null` when nothing moved — an empty diff is not a transaction.
+     *
+     * [mintShortfall] is for callers stating physical truth they watched happen. It names
+     * the holders whose ignorance is permanent.
+     *
+     * @see shortfallMints
      */
-    public suspend fun record(deltas: List<InventoryDelta>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
+    public suspend fun record(
+        deltas: List<InventoryDelta>,
+        epochMillis: Long,
+        cause: CauseKind,
+        causedBy: HolderId?,
+        at: BlockPos? = null,
+        mintShortfall: ((HolderId) -> Boolean)? = null,
+    ): Transaction? {
         val flows = TransactionBalancer().balance(deltas)
         if (flows.isEmpty()) return null
-        return applyAndLog(flows, epochMillis, cause, causedBy)
+        return applyAndLog(flows, epochMillis, cause, causedBy, at, mintShortfall)
     }
 
     /**
-     * Records a craft directly through [LotLedger.craft]. Ingredients and product are
-     * already fully resolved by the caller, there is nothing left for [TransactionBalancer]
-     * to balance.
+     * Crafts through the ledger. Ingredients are already resolved, so
+     * the balancer is skipped.
      */
-    public suspend fun recordCraft(ingredients: List<Ingredient>, product: Product, epochMillis: Long, causedBy: HolderId?): Transaction =
+    public suspend fun recordCraft(
+        ingredients: List<Ingredient>,
+        product: Product,
+        epochMillis: Long,
+        causedBy: HolderId?,
+        at: BlockPos? = null,
+    ): Transaction =
         ledger.atomically {
             val txn = nextTxnId()
-            ledger.craft(ingredients, product, txn)
+            val crafted = ledger.craft(ingredients, product, txn)
 
             val flows = craftFlows(ingredients, product)
 
-            val transaction = Transaction(txn, nextSeq(), epochMillis, CauseKind.CRAFT, causedBy, flows)
+            val lots = crafted.consumed.flatMapIndexed { i, portions ->
+                portions.map { FlowLot(i, it.lotId, it.quantity) }
+            } + FlowLot(ingredients.size, crafted.output.id, product.quantity)
+
+            val transaction = Transaction(txn, nextSeq(), epochMillis, CauseKind.CRAFT, causedBy, flows, lots, at)
             log.append(transaction)
             transaction
         }
 
     /**
-     * Applies a caller-resolved [flows] directly, skipping [TransactionBalancer] entirely.
-     *
-     * For cases where the caller already knows exactly what happened and [TransactionBalancer]'s
-     * defaults would be wrong.
+     * Logs [flows] as-is. Use when the caller already knows the moves and balancing would
+     * get them wrong.
      */
-    public suspend fun recordDirect(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction? {
+    public suspend fun recordDirect(
+        flows: List<Flow>,
+        epochMillis: Long,
+        cause: CauseKind,
+        causedBy: HolderId?,
+        at: BlockPos? = null,
+        mintShortfall: ((HolderId) -> Boolean)? = null,
+    ): Transaction? {
         if (flows.isEmpty()) return null
-        return applyAndLog(flows, epochMillis, cause, causedBy)
+        return applyAndLog(flows, epochMillis, cause, causedBy, at, mintShortfall)
     }
 
-    /**
-     * All or nothing: if any withdrawal is impossible, the whole transaction is invalid and must be
-     * rejected.
-     *
-     * We're not schizophrenic enough to try to apply a partial transaction and then roll it
-     * back if one flow fails, right?
-     */
-    private suspend fun applyAndLog(flows: List<Flow>, epochMillis: Long, cause: CauseKind, causedBy: HolderId?): Transaction =
+    /** Rejects the whole transaction if any withdrawal cannot be satisfied. */
+    private suspend fun applyAndLog(
+        flows: List<Flow>,
+        epochMillis: Long,
+        cause: CauseKind,
+        causedBy: HolderId?,
+        at: BlockPos?,
+        mintShortfall: ((HolderId) -> Boolean)?,
+    ): Transaction =
         ledger.atomically {
-            ledger.checkAllWithdrawalsSatisfiable(flows)
+            // Prepended: the mint has to land before the withdrawal that needs it,
+            // and it belongs in the logged flows so the row says where the material came from.
+            val all = if (mintShortfall == null) flows else ledger.shortfallMints(flows, mintShortfall) + flows
+            ledger.checkAllWithdrawalsSatisfiable(all)
 
             val txn = nextTxnId()
-            for (flow in flows) ledger.apply(flow, txn)
+            val lots = all.flatMapIndexed { i, flow ->
+                ledger.apply(flow, txn).map { FlowLot(i, it.lotId, it.quantity) }
+            }
 
-            val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, flows)
+            val transaction = Transaction(txn, nextSeq(), epochMillis, cause, causedBy, all, lots, at)
             log.append(transaction)
             transaction
         }
 }
 
-/**
- * Converts a craft's ingredients and product into the [Flow]s that would be recorded for it.
- *
- * This is the same as what [TransactionBalancer] would produce, but the caller already knows
- * exactly what happened and [TransactionBalancer]'s defaults would be wrong, so it can skip
- * the balancing step and just call this to get the right flows.
- */
+/** Flows a craft would log: ingredients consumed, product minted. */
 public fun craftFlows(ingredients: List<Ingredient>, product: Product): List<Flow> =
     ingredients.map {
         Flow(it.itemKey, it.quantity, it.holder, HolderId.Sink(SinkKind.CRAFT_CONSUME), FlowKind.TRANSFORM_IN)
-    } + Flow(product.itemKey, product.quantity, HolderId.Source(SourceKind.CRAFT), product.holder, FlowKind.TRANSFORM_OUT)
+    } + Flow(
+        product.itemKey,
+        product.quantity,
+        HolderId.Source(SourceKind.CRAFT),
+        product.holder,
+        FlowKind.TRANSFORM_OUT
+    )

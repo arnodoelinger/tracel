@@ -2,11 +2,15 @@ package com.tracel.storage.capture
 
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
+import com.tracel.engine.world.BlockEdit
+import com.tracel.engine.world.BlockEdits
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.ActionKind
 
 /**
- * What a listener actually calls. Wraps [CaptureRing] in the four shapes real capture code has,
+ * What a listener actually calls. Wraps [CaptureRing] in the five shapes real capture code has,
  * so no listener has to think about claims, slots, or publication order.
  *
  * Every one of these returns `false` when the event was dropped, which happens when the ring is
@@ -30,6 +34,7 @@ class CaptureGate(private val ring: CaptureRing) {
         val fromId = ring.holderId(from)
         val toId = ring.holderId(to)
         val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (causedBy != null && causedById == 0) return false
         if (itemKeyId == 0 || fromId == 0 || toId == 0) return false
 
         val claim = ring.begin(cause, causedById, epochMillis, 2)
@@ -52,6 +57,7 @@ class CaptureGate(private val ring: CaptureRing) {
         val itemKeyId = ring.itemKeyId(itemKey)
         val holderId = ring.holderId(holder)
         val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (causedBy != null && causedById == 0) return false
         if (itemKeyId == 0 || holderId == 0) return false
 
         val claim = ring.begin(cause, causedById, epochMillis, 1)
@@ -67,12 +73,13 @@ class CaptureGate(private val ring: CaptureRing) {
         if (deltas.size > CaptureRing.MAX_DELTAS) return false
 
         val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (causedBy != null && causedById == 0) return false
         val claim = ring.begin(cause, causedById, epochMillis, deltas.size)
         if (claim == CaptureRing.REJECTED) return false
         for (i in deltas.indices) {
             val delta = deltas[i]
-            val holderId = ring.holderId(delta.holder)
-            val itemKeyId = ring.itemKeyId(delta.itemKey)
+            val holderId = runCatching { ring.holderId(delta.holder) }.getOrDefault(0)
+            val itemKeyId = runCatching { ring.itemKeyId(delta.itemKey) }.getOrDefault(0)
             if (holderId == 0 || itemKeyId == 0) {
                 // Publish it anyway: an event with an unresolvable id is dropped on the drain
                 // side, and abandoning a claim would leave a hole the consumer would wait on
@@ -86,11 +93,59 @@ class CaptureGate(private val ring: CaptureRing) {
         return true
     }
 
+    /**
+     * Block edits that happened together — the world log's hot path.
+     *
+     * Only takes edits whose shapes carry no extras, because a sign's text is variable-length and
+     * a ring slot is 24 bytes. Returns `false` for anything else so the caller knows to go the
+     * slow way round rather than quietly losing it.
+     */
+    fun blocks(
+        cause: CauseKind,
+        action: ActionKind,
+        causedBy: HolderId?,
+        epochMillis: Long,
+        world: WorldId,
+        edits: List<BlockEdit>,
+    ): Boolean {
+        if (edits.isEmpty()) return true
+        if (edits.size > CaptureRing.MAX_DELTAS) return false
+        if (edits.any { it.before.extras != null || it.after.extras != null }) return false
+
+        val worldId = ring.worldId(world)
+        val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (causedBy != null && causedById == 0) return false
+        if (worldId == 0) return false
+
+        val befores = IntArray(edits.size)
+        val afters = IntArray(edits.size)
+        for (i in edits.indices) {
+            befores[i] = ring.blockDataId(edits[i].before.data)
+            afters[i] = ring.blockDataId(edits[i].after.data)
+            if (befores[i] == 0 || afters[i] == 0) return false
+        }
+        val claim = ring.beginWorld(cause, action, causedById, epochMillis, worldId, edits.size)
+        if (claim == CaptureRing.REJECTED) return false
+        for (i in edits.indices) {
+            val edit = edits[i]
+            ring.block(claim, i, edit.at.x, edit.at.y, edit.at.z, befores[i], afters[i])
+        }
+        ring.commit(claim, edits.size)
+        return true
+    }
+
+    /** Block edits the ring cannot carry. */
+    fun parkedBlocks(edits: BlockEdits): Boolean = ring.park(edits.cause, edits.epochMillis, edits)
+
+    /** Item deltas that carry a place. */
+    fun parkedDeltas(placed: PlacedDeltas): Boolean = ring.park(placed.cause, placed.epochMillis, placed)
+
     /** Everything [from] held went to [to] — see [CaptureRing.release]. */
     fun release(cause: CauseKind, causedBy: HolderId?, epochMillis: Long, from: HolderId, to: HolderId): Boolean {
         val fromId = ring.holderId(from)
         val toId = ring.holderId(to)
         val causedById = causedBy?.let(ring::holderId) ?: 0
+        if (causedBy != null && causedById == 0) return false
         if (fromId == 0 || toId == 0) return false
         return ring.release(cause, causedById, epochMillis, fromId, toId)
     }

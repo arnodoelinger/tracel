@@ -3,9 +3,8 @@ package com.tracel.tests.support
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
-import java.util.UUID
+import java.util.*
 
-/** Reusable holders and item keys, so each test reads as its own story instead of UUID setup. */
 object Fixtures {
     val diamond: ItemKey = ItemKey("minecraft:diamond")
     val diamondBlock: ItemKey = ItemKey("minecraft:diamond_block")

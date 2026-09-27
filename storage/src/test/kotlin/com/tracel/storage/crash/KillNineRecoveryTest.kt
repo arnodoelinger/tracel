@@ -21,7 +21,9 @@ class KillNineRecoveryTest {
             "--enable-native-access=ALL-UNNAMED",
             CrashHarness::class.java.name,
             ledgerDir.toString(),
-        ).redirectErrorStream(false).start()
+        )
+            .redirectError(dir.resolve("harness.err").toFile())
+            .start()
 
         var acknowledged = 0L
         try {
@@ -47,7 +49,7 @@ class KillNineRecoveryTest {
             assertTrue(
                 survived >= acknowledged,
                 "the process acknowledged $acknowledged durable moves but only $survived survived — " +
-                    "that is data loss after an fsync returned",
+                        "that is data loss after an fsync returned",
             )
             assertEquals(
                 100_000L,
@@ -66,7 +68,11 @@ class KillNineRecoveryTest {
                 1,
             )
             stack.drain()
-            assertEquals(before + 1, stack.ledger.totalAt(player(1), diamond)?.raw, "the recovered store must still accept writes")
+            assertEquals(
+                before + 1,
+                stack.ledger.totalAt(player(1), diamond)?.raw,
+                "the recovered store must still accept writes"
+            )
         }
     }
 }

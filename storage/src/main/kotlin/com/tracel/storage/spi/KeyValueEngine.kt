@@ -34,6 +34,9 @@ interface KeyValueEngine : AutoCloseable {
     /** Flushes and compacts everything, then waits for it. */
     fun compactEverything()
 
+    /** Throws the whole store away and leaves an empty one behind. */
+    fun wipe()
+
     /** Numbers worth putting in a bug report. */
     fun stats(): EngineStats
 
@@ -58,14 +61,32 @@ interface EngineSnapshot : AutoCloseable {
 interface EngineCursor : AutoCloseable {
     fun next(): Boolean
 
-    /** The current key. A fresh array — cursors hand out keys that outlive their position. */
     fun key(): ByteArray
 
-    /** The current value, read-only and valid only until the next [next]. */
     fun value(): MemorySegment
+
+    fun keyLength(): Int = key().size
+
+    fun keyByte(at: Int): Byte = key()[at]
+
+    fun keyU32(at: Int): Int {
+        val key = key()
+        return ((key[at].toInt() and 0xFF) shl 24) or ((key[at + 1].toInt() and 0xFF) shl 16) or
+                ((key[at + 2].toInt() and 0xFF) shl 8) or (key[at + 3].toInt() and 0xFF)
+    }
+
+    fun keyU64(at: Int): Long {
+        val key = key()
+        var value = 0L
+        for (i in 0 until 8) value = (value shl 8) or (key[at + i].toLong() and 0xFF)
+        return value
+    }
+
+    fun skipTo(from: ByteArray)
 }
 
 data class EngineStats(
+    val syncs: Long,
     val liveBytes: Long,
     val segmentCount: Int,
     val memtableBytes: Long,
@@ -77,7 +98,8 @@ data class EngineStats(
 
 /** An ordered set of puts and deletes, applied as one. */
 class MutationBatch {
-    private val entries = java.util.TreeMap<Key, ByteArray?>()
+    private val entries = HashMap<Key, ByteArray?>()
+    private val ordered = java.util.TreeSet<Key>()
     private val undoKeys = ArrayList<Key>()
     private val undoValues = ArrayList<ByteArray?>()
     private var journaling = false
@@ -85,83 +107,79 @@ class MutationBatch {
     val size: Int get() = entries.size
 
     fun put(key: ByteArray, value: ByteArray) {
-        val wrapped = Key(key)
-        journal(wrapped)
-        entries[wrapped] = value
+        write(Key(key), value, journalled = true)
     }
 
     fun delete(key: ByteArray) {
-        val wrapped = Key(key)
-        journal(wrapped)
-        entries[wrapped] = null
+        write(Key(key), null, journalled = true)
     }
 
-    /**
-     * A write the undo journal deliberately does not cover.
-     *
-     * Interning is the only caller. An id handed out to a rolled-back event is still cached in
-     * memory, so unwinding its mapping would leave a live ID with nothing on disk explaining
-     * what it means — and interning is monotone, so persisting one nobody ended up using costs
-     * a few bytes and no correctness at all.
-     */
     fun putPinned(key: ByteArray, value: ByteArray) {
-        entries[Key(key)] = value
+        write(Key(key), value, journalled = false)
     }
 
     fun isEmpty(): Boolean = entries.isEmpty()
 
     fun clear() {
         entries.clear()
+        ordered.clear()
         undoKeys.clear()
         undoValues.clear()
     }
 
-    /** Opens a savepoint. Everything written after it can be undone by [rollbackTo]. */
     fun mark(): Int {
         journaling = true
         return undoKeys.size
     }
 
-    /** Unwinds every journalled write made since [mark], newest first. */
     fun rollbackTo(mark: Int) {
         for (i in undoKeys.size - 1 downTo mark) {
             val key = undoKeys[i]
             val previous = undoValues[i]
-            if (previous === ABSENT) entries.remove(key) else entries[key] = previous
+            if (previous === ABSENT) {
+                entries.remove(key)
+                ordered.remove(key)
+            } else {
+                entries[key] = previous
+            }
         }
         truncate(mark)
     }
 
-    /** Keeps everything written since [mark] and forgets how to undo it. */
     fun release(mark: Int) {
         truncate(mark)
     }
 
-    /** True when this batch has an opinion about [key] — a value or a deletion. */
-    fun touches(key: Key): Boolean = entries.containsKey(key)
-
-    /** This batch's value for [key]; `null` is a deletion, so check [touches] first. */
-    fun valueOf(key: Key): ByteArray? = entries[key]
-
-    /** Entries at or after [from], in key order — the overlay half of a read-your-writes scan. */
-    fun from(from: Key): Iterator<Map.Entry<Key, ByteArray?>> = entries.tailMap(from, true).entries.iterator()
-
-    /** Iterates in key order. A `null` value means a deletion. */
-    fun forEach(action: (ByteArray, ByteArray?) -> Unit) {
-        entries.forEach { (key, value) -> action(key.bytes, value) }
+    fun lookup(key: Key): Any? {
+        val value = entries[key]
+        if (value != null) return value
+        return if (entries.containsKey(key)) null else MISSING
     }
 
-    /** Sum of key and value bytes. The engine adds its own per-entry overhead on top. */
+    fun touches(key: Key): Boolean = entries.containsKey(key)
+
+    fun valueOf(key: Key): ByteArray? = entries[key]
+
+    fun keysFrom(from: Key): Iterator<Key> = ordered.tailSet(from, true).iterator()
+
+    fun forEach(action: (ByteArray, ByteArray?) -> Unit) {
+        ordered.forEach { key -> action(key.bytes, entries[key]) }
+    }
+
     fun byteSize(): Long {
         var total = 0L
         entries.forEach { (key, value) -> total += key.size + (value?.size ?: 0) }
         return total
     }
 
-    private fun journal(key: Key) {
-        if (!journaling) return
-        undoKeys += key
-        undoValues += if (entries.containsKey(key)) entries[key] else ABSENT
+    private fun write(key: Key, value: ByteArray?, journalled: Boolean) {
+        val had = entries.containsKey(key)
+        if (journalled && journaling) {
+            undoKeys += key
+            undoValues += if (had) entries[key] else ABSENT
+        }
+        entries[key] = value
+        if (!had) ordered.add(key)
     }
 
     private fun truncate(mark: Int) {
@@ -172,7 +190,8 @@ class MutationBatch {
         if (mark == 0) journaling = false
     }
 
-    private companion object {
-        val ABSENT = ByteArray(0)
+    companion object {
+        val MISSING: Any = Any()
+        private val ABSENT = ByteArray(0)
     }
 }

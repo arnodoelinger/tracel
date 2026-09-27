@@ -12,18 +12,6 @@ import com.tracel.model.item.ItemKey
 /**
  * Turns raw "this holder gained / lost N units" observations into a balanced
  * list of [Flow]s, without needing to know why the change happened.
- *
- * Capture code does not have to correctly interpret every `Bukkit` inventory
- * event to get this right — shift-clicks, drags, hopper transfers all produce
- * the same kind of evidence: some holders end up with more of an item, others
- * with less.
- *
- * This class pairs the losses against the gains, and whatever cannot be matched
- * becomes an explicit, typed mint or burn instead of silently vanishing.
- *
- * Being wrong about why something moved is recoverable; being wrong about how much
- * moved is not — so this is built to never get the second one wrong, even with
- * no idea about the first.
  */
 public class TransactionBalancer {
     public fun balance(deltas: List<InventoryDelta>): List<Flow> =
@@ -32,11 +20,22 @@ public class TransactionBalancer {
             .flatMap { (itemKey, sameItem) -> balanceOneItem(itemKey, sameItem) }
 
     private fun balanceOneItem(itemKey: ItemKey, deltas: List<InventoryDelta>): List<Flow> {
-        val gains = deltas.filter { it.delta > 0 }.sortedBy { it.holder.stableSortKey() }
-            .mapTo(ArrayDeque()) { Unpaired(it.holder, it.delta, it.fromGap) }
-        val losses = deltas.filter { it.delta < 0 }.sortedBy { it.holder.stableSortKey() }
-            .mapTo(ArrayDeque()) { Unpaired(it.holder, -it.delta, it.fromGap) }
+        val gainList = deltas.filter { it.delta > 0 }.sortedBy { it.holder.stableSortKey() }
+            .mapTo(ArrayList()) { Unpaired(it.holder, it.delta, it.fromGap) }
+        val lossList = deltas.filter { it.delta < 0 }.sortedBy { it.holder.stableSortKey() }
+            .mapTo(ArrayList()) { Unpaired(it.holder, -it.delta, it.fromGap) }
         val flows = mutableListOf<Flow>()
+
+        val unmatched = gainList.iterator()
+        while (unmatched.hasNext()) {
+            val gain = unmatched.next()
+            val loss = lossList.firstOrNull { it.amount == gain.amount } ?: continue
+            lossList.remove(loss)
+            unmatched.remove()
+            flows += Flow(itemKey, Quantity(gain.amount), loss.holder, gain.holder, FlowKind.MOVE)
+        }
+        val gains = ArrayDeque(gainList)
+        val losses = ArrayDeque(lossList)
 
         while (gains.isNotEmpty() && losses.isNotEmpty()) {
             val gain = gains.removeFirst()
@@ -59,4 +58,6 @@ public class TransactionBalancer {
         }
         return flows
     }
+
+    internal data class Unpaired(val holder: HolderId, val amount: Long, val fromGap: Boolean)
 }

@@ -4,16 +4,12 @@ import com.tracel.engine.capture.SnapshotDiffer
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
+import com.tracel.tests.support.Fixtures.player
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
-/**
- * The mechanism the whole capture design leans on: what moved is derived from what an
- * inventory contains now versus what it contained last time, never from interpreting the
- * `Bukkit` event that caused it.
- */
 class SnapshotDifferTest {
     @Test
     fun `the first snapshot of a holder produces gains, not deltas from nothing`() = runTest {
@@ -136,14 +132,14 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `adjust on a holder with no prior snapshot still works, starting from empty`() = runTest {
-        val differ = SnapshotDiffer()
+    fun `adjust on a holder with no snapshot leaves it to the ledger, which already has the move`() = runTest {
+        val differ = SnapshotDiffer { mapOf(diamond to 5L) }
         val groundItem = block(0, 64, 0)
 
         differ.adjust(groundItem, diamond, 5L)
 
         val deltas = differ.diff(groundItem, mapOf(diamond to 5L))
-        assertTrue(deltas.isEmpty())
+        assertTrue(deltas.isEmpty(), "counted once, by the ledger baseline, not a second time as pending")
     }
 
     @Test
@@ -185,14 +181,25 @@ class SnapshotDifferTest {
     }
 
     @Test
-    fun `an adjust booked before the first diff is folded into the ledger baseline`() = runTest {
+    fun `an adjust before the first diff is not counted on top of the ledger that booked it`() = runTest {
         val player = block(0, 64, 0)
-        val differ = SnapshotDiffer { mapOf(diamond to 10L) }
+        val differ = SnapshotDiffer { mapOf(diamond to 6L) }
 
         differ.adjust(player, diamond, -4L)
 
         val deltas = differ.diff(player, mapOf(diamond to 6L))
-        assertTrue(deltas.isEmpty(), "10 believed, 4 dropped, 6 held")
+        assertTrue(deltas.isEmpty(), "10 believed, 4 dropped through the ring, 6 held: no phantom mint")
+    }
+
+    @Test
+    fun `a drop the seeded snapshot never saw arrive does not read back as a gain`() = runTest {
+        val differ = SnapshotDiffer()
+        val steve = player(1)
+        differ.diff(steve, emptyMap())
+        differ.adjust(steve, diamond, -2L)
+
+        val deltas = differ.diff(steve, emptyMap())
+        assertTrue(deltas.isEmpty(), "the stack that just left must not come back as a phantom gain")
     }
 
     @Test

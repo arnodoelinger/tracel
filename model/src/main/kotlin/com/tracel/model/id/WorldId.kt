@@ -1,6 +1,6 @@
 package com.tracel.model.id
 
-import java.util.UUID
+import java.util.*
 
 /** Identifies a Minecraft world. */
 @JvmInline

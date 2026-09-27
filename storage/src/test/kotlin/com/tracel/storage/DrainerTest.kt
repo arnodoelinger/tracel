@@ -8,18 +8,8 @@ import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -75,68 +65,76 @@ class DrainerTest {
         // Real time, not the test scheduler's: the drainer runs on a real thread of its own, and
         // a virtual clock would time out ten seconds into a wait that has not happened yet.
         withContext(Dispatchers.Default) {
-        Stack(dir).use { stack ->
-            seed(stack, 100)
-            val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
-            val job: Job = stack.drainer.start(scope)
+            Stack(dir).use { stack ->
+                seed(stack, 100)
+                val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
+                val job: Job = stack.drainer.start(scope)
 
-            repeat(50) { stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1) }
-            withTimeout(10_000.milliseconds) {
-                while (stack.drainer.events < 50L) delay(5.milliseconds)
+                repeat(50) { stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1) }
+                withTimeout(10_000.milliseconds) {
+                    while (stack.drainer.events < 50L) delay(5.milliseconds)
+                }
+
+                job.cancel()
+                withTimeout(10_000.milliseconds) { job.join() }
+                assertTrue(job.isCancelled, "cancellation has to actually work")
+
+                val settled = stack.drainer.events
+                stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1)
+                delay(100.milliseconds)
+                assertEquals(settled, stack.drainer.events)
+                scope.cancel()
             }
-
-            job.cancel()
-            withTimeout(10_000.milliseconds) { job.join() }
-            assertTrue(job.isCancelled, "cancellation has to actually work")
-
-            val settled = stack.drainer.events
-            stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1)
-            delay(100.milliseconds)
-            assertEquals(settled, stack.drainer.events)
-            scope.cancel()
-        }
         }
     }
 
     @Test
     fun `readers see a consistent view while the drainer is writing`(@TempDir dir: Path) = runTest {
         withContext(Dispatchers.Default) {
-        Stack(dir).use { stack ->
-            seed(stack, 5_000)
-            val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
-            stack.drainer.start(scope)
+            Stack(dir).use { stack ->
+                seed(stack, 5_000)
+                val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
+                stack.drainer.start(scope)
 
-            try {
-                coroutineScope {
-                    val writer = async {
-                        repeat(3_000) {
-                            stack.gate.move(CauseKind.HOPPER, null, System.currentTimeMillis(), diamond, chest, steve, 1)
-                            if (it % 200 == 0) delay(1.milliseconds)
-                        }
-                    }
-                    val readers = (1..4).map {
-                        async {
-                            var reads = 0
-                            while (reads < 100) {
-                                // The invariant every read must see, at every instant: what Steve
-                                // holds plus what the chest holds is always exactly what was minted.
-                                val total = stack.storage.atomically {
-                                    (stack.ledger.totalAt(steve, diamond)?.raw ?: 0L) +
-                                        (stack.ledger.totalAt(chest, diamond)?.raw ?: 0L)
-                                }
-                                assertEquals(5_000L, total, "a reader saw a torn intermediate state")
-                                reads++
-                                delay(1.milliseconds)
+                try {
+                    coroutineScope {
+                        val writer = async {
+                            repeat(3_000) {
+                                stack.gate.move(
+                                    CauseKind.HOPPER,
+                                    null,
+                                    System.currentTimeMillis(),
+                                    diamond,
+                                    chest,
+                                    steve,
+                                    1
+                                )
+                                if (it % 200 == 0) delay(1.milliseconds)
                             }
-                            reads
                         }
+                        val readers = (1..4).map {
+                            async {
+                                var reads = 0
+                                while (reads < 100) {
+                                    // The invariant every read must see, at every instant: what Steve
+                                    // holds plus what the chest holds is always exactly what was minted.
+                                    val total = stack.storage.atomically {
+                                        (stack.ledger.totalAt(steve, diamond)?.raw ?: 0L) +
+                                                (stack.ledger.totalAt(chest, diamond)?.raw ?: 0L)
+                                    }
+                                    assertEquals(5_000L, total, "a reader saw a torn intermediate state")
+                                    reads++
+                                    delay(1.milliseconds)
+                                }
+                                reads
+                            }
+                        }
+                        (listOf(writer) + readers).awaitAll()
                     }
-                    (listOf(writer) + readers).awaitAll()
+                } finally {
+                    scope.cancel()
                 }
-            } finally {
-                scope.cancel()
             }
-        }
         }
     }
 
@@ -156,4 +154,84 @@ class DrainerTest {
             assertEquals(steve, move.flows.single().destination)
         }
     }
+
+    @Test
+    fun `an idle drain loop writes nothing at all`(@TempDir dir: Path) = runTest {
+        withContext(Dispatchers.Default) {
+            Stack(dir).use { stack ->
+                seed(stack, 10)
+                stack.drain()
+                stack.storage.engine.sync()
+
+                val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
+                val job = stack.drainer.start(scope)
+                val before = stack.storage.engine.stats()
+                val walBefore = walBytes(dir)
+
+                delay(1_000.milliseconds)
+
+                val after = stack.storage.engine.stats()
+                assertEquals(
+                    before.syncs, after.syncs,
+                    "a quiet server forced the disk ${after.syncs - before.syncs} times in one idle second",
+                )
+                job.cancel()
+                withTimeout(10_000.milliseconds) { job.join() }
+                scope.cancel()
+
+                assertEquals(
+                    before.writes, after.writes,
+                    "a quiet server must not commit anything: ${after.writes - before.writes} commits in a second of nothing",
+                )
+                assertEquals(walBefore, walBytes(dir), "the log grew while nothing happened")
+            }
+        }
+    }
+
+    @Test
+    fun `events trickling in one at a time cost one commit each, not more`(@TempDir dir: Path) = runTest {
+        withContext(Dispatchers.Default) {
+            Stack(dir).use { stack ->
+                seed(stack, 100)
+                stack.drain()
+
+                val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
+                val job = stack.drainer.start(scope)
+                val before = stack.storage.engine.stats().writes
+                val syncsBefore = stack.storage.engine.stats().syncs
+
+                val trickled = 20
+                repeat(trickled) {
+                    stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1)
+                    delay(20.milliseconds)
+                }
+                withTimeout(10_000.milliseconds) {
+                    while (stack.drainer.events < trickled.toLong()) delay(5.milliseconds)
+                }
+
+                val commits = stack.storage.engine.stats().writes - before
+                val syncs = stack.storage.engine.stats().syncs - syncsBefore
+                job.cancel()
+                withTimeout(10_000.milliseconds) { job.join() }
+                scope.cancel()
+
+                assertTrue(
+                    commits <= trickled.toLong() * 2,
+                    "$trickled trickled events cost $commits commits — the loop is committing its own idleness",
+                )
+                assertTrue(syncs > 0, "the sync counter is not wired up — it never moved")
+                assertTrue(
+                    syncs <= trickled.toLong() * 2,
+                    "$trickled trickled events forced the disk $syncs times",
+                )
+            }
+        }
+    }
+
+    private fun walBytes(dir: Path): Long =
+        java.nio.file.Files.list(dir).use { stream ->
+            stream.filter { it.toString().endsWith(".tracel-log") }
+                .mapToLong { java.nio.file.Files.size(it) }
+                .sum()
+        }
 }
