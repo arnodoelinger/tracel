@@ -1,5 +1,6 @@
 package com.tracel.plugin.util.command
 
+import com.tracel.plugin.util.CommandOrigin
 import com.tracel.plugin.util.ParsedBlockPos
 import com.tracel.plugin.util.parseBlockPos
 import com.tracel.plugin.util.tokenize

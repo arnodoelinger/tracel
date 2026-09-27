@@ -7,12 +7,12 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import java.util.concurrent.CompletableFuture
 
-/** Suggestions for the flags of `/tracel lookup`. */
-internal object LookupSuggest : SuggestionProvider<CommandSourceStack> {
+/** Suggestions for the flags of `/tracel rollback`. `undo` is its own literal. */
+internal object RollbackSuggest : SuggestionProvider<CommandSourceStack> {
     /** Suggests a list of completions. */
     fun suggest(line: String, lists: SuggestLists): List<Suggestion> {
         val (previous, current) = splitTrailing(line)
-        return FlagSuggest.complete(FlagProfile.LOOKUP, current, previous, lists)
+        return FlagSuggest.complete(FlagProfile.ROLLBACK, current, previous, lists)
     }
 
     override fun getSuggestions(

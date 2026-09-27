@@ -1,6 +1,7 @@
 package com.tracel.plugin.command.args
 
 import com.tracel.plugin.command.suggest.LookupSuggest
+import com.tracel.plugin.command.suggest.SuggestLists
 
 data class ParsedLookupArgs(
     val users: Set<String> = emptySet(),
@@ -135,14 +136,15 @@ fun suggestLookupToken(
     causeNames: List<String>,
     itemNames: List<String> = emptyList(),
     blockNames: List<String> = emptyList(),
-): List<String> = LookupSuggest.computeSuggestions(
-    currentToken = partial,
-    previousTokens = emptyList(),
-    onlinePlayers = onlinePlayerNames,
-    worldNames = worldNames,
-    actionNames = causeNames,
-    itemNames = itemNames,
-    blockNames = blockNames,
+): List<String> = LookupSuggest.suggest(
+    line = partial,
+    lists = SuggestLists(
+        onlinePlayers = onlinePlayerNames,
+        worldNames = worldNames,
+        actionNames = causeNames,
+        itemNames = itemNames,
+        blockNames = blockNames,
+    ),
 ).map { it.text }
 
 private fun ParsedLookupArgs.within(window: TimeExpr): ParsedLookupArgs =

@@ -15,6 +15,8 @@ object RollbackPresenter {
     private const val PREVIEW_LINES = 10
     private const val LISTED_JOBS = 5
 
+    private const val NOTHING = "nothing, the world already matches"
+
     val USAGE: List<String> = listOf(
         "Usage: /tracel rollback u:<player> t:<time> [scope:<Nb|Nc>] [i:<item>] [#blocks|#items|#explosion] [#preview]"
     )
@@ -56,7 +58,8 @@ object RollbackPresenter {
     }
 
     fun report(sender: CommandSender, done: RollbackResult.Done) {
-        sender.sendMessage("Rolled back: ${summary(done)}. /tracel rollback undo to take it back.")
+        if (appliedNothing(done)) sender.sendMessage("Rolled back: $NOTHING.")
+        else sender.sendMessage("Rolled back: ${summary(done)}. /tracel rollback undo to take it back.")
         warnIfShortWindow(sender, done.plan)
 
         val minted = done.plan.composite.material.mintCount
@@ -122,6 +125,9 @@ object RollbackPresenter {
         }
     }
 
+    /** Whether [done] changed nothing at all: no block, no entity, no item. */
+    fun appliedNothing(done: RollbackResult.Done): Boolean = summary(done) == NOTHING
+
     /**
      * What the rollback actually did. Counted from the plan, a second run of the same rollback over a world
      * that already matched said it restored everything again.
@@ -138,7 +144,7 @@ object RollbackPresenter {
             if (material.unmakeCount > 0) add("${material.unmakeCount} uncrafted")
             if (material.mintCount > 0) add("${material.mintCount} compensated")
         }
-        return if (parts.isEmpty()) "nothing, the world already matches" else parts.joinToString(", ")
+        return if (parts.isEmpty()) NOTHING else parts.joinToString(", ")
     }
 
     fun summary(planned: Planned): String {

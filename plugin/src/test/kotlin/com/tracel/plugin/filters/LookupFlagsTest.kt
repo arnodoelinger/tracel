@@ -2,9 +2,8 @@ package com.tracel.plugin.filters
 
 import com.tracel.annotations.CauseKind
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.command.args.ACTION_NAMES
+import com.tracel.plugin.command.args.ActionArgument
 import com.tracel.plugin.command.args.LookupScope
-import com.tracel.plugin.command.args.parseActionFilter
 import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.args.suggestLookupToken
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -82,7 +81,7 @@ class LookupFlagsTest {
             "i:st",
             onlinePlayerNames = emptyList(),
             worldNames = emptyList(),
-            causeNames = ACTION_NAMES,
+            causeNames = ActionArgument.NAMES,
             itemNames = listOf("stick", "stone", "string"),
             blockNames = listOf("stone", "sand"),
         )
@@ -92,17 +91,17 @@ class LookupFlagsTest {
             "b:s",
             onlinePlayerNames = emptyList(),
             worldNames = emptyList(),
-            causeNames = ACTION_NAMES,
+            causeNames = ActionArgument.NAMES,
             itemNames = listOf("stick"),
             blockNames = listOf("stone", "sand"),
         )
-        assertEquals(listOf("b:stone", "b:sand"), blocks)
+        assertEquals(listOf("b:sand", "b:stone"), blocks)
 
         val times = suggestLookupToken(
             "t:1",
             onlinePlayerNames = emptyList(),
             worldNames = emptyList(),
-            causeNames = ACTION_NAMES,
+            causeNames = ActionArgument.NAMES,
         )
         assertTrue("t:1h" in times)
         assertTrue("t:1d" in times)
@@ -111,7 +110,7 @@ class LookupFlagsTest {
             "a:b",
             onlinePlayerNames = emptyList(),
             worldNames = emptyList(),
-            causeNames = ACTION_NAMES,
+            causeNames = ActionArgument.NAMES,
         )
         assertTrue("a:block" in actions)
     }
@@ -120,14 +119,14 @@ class LookupFlagsTest {
 class ActionFilterTest {
     @Test
     fun `no action filter selects both halves`() {
-        val filter = parseActionFilter(emptySet())
+        val filter = ActionArgument.parse(emptySet())
         assertTrue(filter.structural)
         assertTrue(filter.material)
     }
 
     @Test
     fun `a block filter leaves the ledger alone`() {
-        val filter = parseActionFilter(setOf("block"))
+        val filter = ActionArgument.parse(setOf("block"))
         assertTrue(filter.structural)
         assertFalse(filter.material)
         assertEquals(
@@ -138,7 +137,7 @@ class ActionFilterTest {
 
     @Test
     fun `a container filter leaves the world alone`() {
-        val filter = parseActionFilter(setOf("container"))
+        val filter = ActionArgument.parse(setOf("container"))
         assertTrue(filter.material)
         assertFalse(filter.structural)
         assertTrue(CauseKind.PLAYER_ACTION in filter.causes)
@@ -146,21 +145,21 @@ class ActionFilterTest {
 
     @Test
     fun `an explosion is both a crater and the chests in it`() {
-        val filter = parseActionFilter(setOf("explosion"))
+        val filter = ActionArgument.parse(setOf("explosion"))
         assertTrue(filter.structural)
         assertTrue(filter.material)
     }
 
     @Test
     fun `naming one of each keeps both`() {
-        val filter = parseActionFilter(setOf("block", "container"))
+        val filter = ActionArgument.parse(setOf("block", "container"))
         assertTrue(filter.structural)
         assertTrue(filter.material)
     }
 
     @Test
     fun `an unknown action is reported and changes neither half`() {
-        val filter = parseActionFilter(setOf("wat"))
+        val filter = ActionArgument.parse(setOf("wat"))
         assertEquals(listOf("wat"), filter.unknown)
         assertTrue(filter.structural)
         assertTrue(filter.material)
@@ -168,7 +167,7 @@ class ActionFilterTest {
 
     @Test
     fun `a raw cause name narrows both logs`() {
-        val filter = parseActionFilter(setOf("hopper"))
+        val filter = ActionArgument.parse(setOf("hopper"))
         assertTrue(CauseKind.HOPPER in filter.causes)
         assertTrue(filter.structural)
         assertTrue(filter.material)

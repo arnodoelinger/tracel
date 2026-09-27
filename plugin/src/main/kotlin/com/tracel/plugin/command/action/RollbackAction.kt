@@ -192,6 +192,7 @@ class RollbackAction(
             }
             when (outcome) {
                 is RollbackResult.Done -> {
+                    if (RollbackPresenter.appliedNothing(outcome)) services.atomically { services.jobs.markUndone(outcome.job) }
                     RollbackPresenter.report(sender, outcome)
                     return
                 }
