@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.cell
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.toBlockPos
@@ -7,7 +7,7 @@ import java.util.UUID
 import org.bukkit.block.Block
 
 /** Who last clicked a dragon egg. */
-internal object DragonEggClicks {
+internal object DragonEggCell {
     private const val TTL_MS = 5_000L
 
     private val byEgg = ExpiringMap<BlockPos, UUID>(TTL_MS, 1_024)

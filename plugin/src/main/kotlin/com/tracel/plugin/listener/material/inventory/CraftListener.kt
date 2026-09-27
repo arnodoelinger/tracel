@@ -22,9 +22,9 @@ import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.adapter.item.withCursor
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.BlockRelease
-import com.tracel.plugin.listener.support.CraftDrops
-import com.tracel.plugin.listener.support.isLedgeredHolder
+import com.tracel.plugin.listener.support.drop.BlockRelease
+import com.tracel.plugin.listener.support.drop.CraftDrop
+import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import java.util.logging.Level
 import java.util.logging.Logger
 import org.bukkit.block.Container
@@ -55,7 +55,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
 
         // Player holders have no coords; without the bench (or feet for 2 x 2) "scope:" never sees "a:craft"
         val where = event.inventory.location?.block?.toBlockPos() ?: player.toBlockPos()
-        if (event.click == ClickType.DROP || event.click == ClickType.CONTROL_DROP) CraftDrops.expect(player.uniqueId)
+        if (event.click == ClickType.DROP || event.click == ClickType.CONTROL_DROP) CraftDrop.expect(player.uniqueId)
 
         material.craftOwed(player.uniqueId)
         later(player) {
@@ -76,7 +76,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
         where: BlockPos,
         productDamage: Int?,
     ) {
-        val thrown = CraftDrops.take(player.uniqueId)
+        val thrown = CraftDrop.take(player.uniqueId)
         val matrix = grid.matrix.toItemTotals()
         val consumed = before.lostRelativeTo(matrix)
         if (consumed.isEmpty()) return

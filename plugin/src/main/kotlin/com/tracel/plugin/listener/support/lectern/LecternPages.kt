@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.lectern
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.util.ExpiringMap

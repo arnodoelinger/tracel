@@ -7,7 +7,7 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.DESTROYED_SINK
+import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
 import io.papermc.paper.event.block.CompostItemEvent
 import io.papermc.paper.event.entity.EntityCompostItemEvent
 import org.bukkit.entity.Player

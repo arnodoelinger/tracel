@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.cell
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.toBlockPos
@@ -7,7 +7,7 @@ import java.util.UUID
 import org.bukkit.block.Block
 
 /** Who lit a fire, carried along as it spreads, so the house it burns down is theirs to roll back. */
-internal object FireActor {
+internal object FireCell {
     private const val TTL_MS = 120_000L
     private const val MAX_REMEMBERED = 100_000
 

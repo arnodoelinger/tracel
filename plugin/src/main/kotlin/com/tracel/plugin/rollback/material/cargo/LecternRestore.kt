@@ -8,7 +8,7 @@ import com.tracel.plugin.rollback.material.item.stackFor
 import com.tracel.plugin.rollback.material.item.stacksOf
 import org.bukkit.block.Lectern
 import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.listener.support.LecternPages
+import com.tracel.plugin.listener.support.lectern.LecternPages
 
 /**
  * Applies [deltas] to a lectern's single book slot directly.

@@ -1,5 +1,6 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.entity
 
+import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
@@ -32,12 +33,12 @@ internal fun TracelServices.damageBlame(event: EntityDamageEvent): DamageBlame {
     }
     if (event is EntityDamageByBlockEvent) {
         val block = event.damager
-        val who = block?.let { RecentColumnActor.playerAt(it) }?.let(HolderId::Player)
+        val who = block?.let { ColumnCell.playerAt(it) }?.let(HolderId::Player)
         return DamageBlame(who, if (blast) CauseKind.EXPLOSION else causeFor(who))
     }
     // Environmental damage has no damager; the column is the only actor we have
     if (event.cause !in ENVIRONMENTAL) return DamageBlame(null, CauseKind.WORLD)
-    val who = RecentColumnActor.playerWhoDisturbed(event.entity)?.let(HolderId::Player)
+    val who = ColumnCell.playerWhoDisturbed(event.entity)?.let(HolderId::Player)
     return DamageBlame(who, causeFor(who))
 }
 

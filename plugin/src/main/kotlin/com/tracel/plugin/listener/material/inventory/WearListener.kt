@@ -3,7 +3,7 @@ package com.tracel.plugin.listener.material.inventory
 import com.tracel.annotations.Observes
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.isLedgeredHolder
+import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import org.bukkit.entity.Player
 import org.bukkit.event.player.PlayerItemDamageEvent
 import org.bukkit.event.player.PlayerItemMendEvent

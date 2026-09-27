@@ -20,16 +20,16 @@ import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.listener.session.InspectorState
 import com.tracel.plugin.listener.MaterialCapture
 import com.tracel.plugin.listener.ShapeCapture
-import com.tracel.plugin.listener.support.BlockDropCorrelator
-import com.tracel.plugin.listener.support.HullDropCorrelator
-import com.tracel.plugin.listener.support.BlockReleaseQueue
-import com.tracel.plugin.listener.support.RedstoneTriggerTracker
-import com.tracel.plugin.listener.support.SelfManagedSpawnGuard
+import com.tracel.plugin.listener.support.drop.BlockDrop
+import com.tracel.plugin.listener.support.drop.HullDrop
+import com.tracel.plugin.listener.support.drop.BlockReleaseQueue
+import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
+import com.tracel.plugin.listener.support.guard.SpawnGuard
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.RollbackGenius
-import com.tracel.plugin.listener.support.FrozenHolders
+import com.tracel.plugin.listener.support.guard.FreezeGuard
 import com.tracel.plugin.rollback.material.MaterialRestorer
-import com.tracel.plugin.listener.support.SelfManagedWorldGuard
+import com.tracel.plugin.listener.support.guard.SelfManagedWorldGuard
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.plugin.util.GroundWhereabouts
@@ -109,16 +109,16 @@ class TracelServices(
     val selfManagedWorld: SelfManagedWorldGuard = SelfManagedWorldGuard()
     val structureRestorer: StructureRestorer = StructureRestorer(this)
     val composite: RollbackGenius = RollbackComposer(this, structureRestorer, restorer, restorer)
-    val redstoneTriggers: RedstoneTriggerTracker = RedstoneTriggerTracker()
+    val redstoneTriggers: RedstoneTrigger = RedstoneTrigger()
     val whereabouts: EntityWhereabouts = EntityWhereabouts(capacity = WHEREABOUTS_KEPT)
     val groundWhereabouts: GroundWhereabouts = GroundWhereabouts(GroundPositions(storage))
-    val selfManagedSpawns: SelfManagedSpawnGuard = SelfManagedSpawnGuard()
-    val blockDrops: BlockDropCorrelator = BlockDropCorrelator()
-    val hullDrops: HullDropCorrelator = HullDropCorrelator()
+    val selfManagedSpawns: SpawnGuard = SpawnGuard()
+    val blockDrops: BlockDrop = BlockDrop()
+    val hullDrops: HullDrop = HullDrop()
     val blockReleases: BlockReleaseQueue = BlockReleaseQueue(this)
     val inspectors: InspectorState = InspectorState()
     val pendingCaptures: PendingCaptures = PendingCaptures()
-    val frozen: FrozenHolders = FrozenHolders()
+    val frozen: FreezeGuard = FreezeGuard()
     val worldQuery: WorldQuery = WorldQuery(::playerIsOnline)
     var flushCapture: suspend () -> Boolean = { true }
 

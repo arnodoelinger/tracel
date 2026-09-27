@@ -1,5 +1,6 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.flow
 
+import com.tracel.plugin.listener.support.drop.BlockDrop
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
@@ -9,26 +10,13 @@ import com.tracel.model.holder.SourceKind
 import com.tracel.model.id.Quantity
 import com.tracel.model.item.ItemKey
 
-/**
- * Mint unseen, then move what left, then burn believed leftovers.
- *
- * A move of unrecorded stock is `insufficient balance` (swallowed at FINE) and the floor item
- * has no lot — same as never recording it. Mint is the fact the block existed, not a fudge:
- * natural terrain otherwise stays an untraceable drop.
- */
-
 val WORLDGEN_SOURCE: HolderId.Source = HolderId.Source(SourceKind.WORLDGEN)
-
 val DESTROYED_SINK: HolderId.Sink = HolderId.Sink(SinkKind.UNATTRIBUTED)
 
-/**
- * Vanilla-claimed drops vs believed stock: surplus is mint-then-move; unclaimed believed is burn
- * (blast ate it).
- */
 internal fun flowsFor(
     holder: HolderId,
     believed: Map<ItemKey, Long>,
-    result: BlockDropCorrelator.ReleaseResult,
+    result: BlockDrop.ReleaseResult,
 ): List<Flow> {
     val available = believed.toMutableMap()
     val mints = mutableListOf<Flow>()
@@ -50,9 +38,6 @@ internal fun flowsFor(
     return mints + moves + burns
 }
 
-/**
- * Self-spawned drops: [release] is physical truth; [believed] is ledger history only.
- */
 internal fun releaseFlows(
     holder: HolderId,
     believed: Map<ItemKey, Long>,
@@ -71,10 +56,6 @@ internal fun releaseFlows(
     return mints + moves + burns
 }
 
-/**
- * Mint onto the plant then move: a direct mint into the hand has no block on the spatial index,
- * so a region rollback resets the bush and leaves the berries.
- */
 internal fun harvestFlows(
     totals: Map<ItemKey, Long>,
     from: HolderId,
@@ -93,9 +74,4 @@ internal fun worldgenMintFlows(
     Flow(itemKey, Quantity(amount), WORLDGEN_SOURCE, into, FlowKind.MINT)
 }
 
-/**
- * Only players: their inventory is live and never credited later. Minting a ground item whose
- * block->ground claim is still in flight duplicates the lot (pickup already emptied the entity).
- * Pre-plugin chests mint on the slow path, which can tell unseen from not-yet-credited.
- */
 internal fun ignoranceIsPermanent(holder: HolderId): Boolean = holder is HolderId.Player

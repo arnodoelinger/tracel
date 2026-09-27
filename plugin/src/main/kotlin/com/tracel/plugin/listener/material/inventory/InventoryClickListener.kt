@@ -17,7 +17,7 @@ import org.bukkit.event.inventory.InventoryCreativeEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.inventory.InventoryType
 import org.bukkit.event.inventory.InventoryAction
-import com.tracel.plugin.listener.support.ContainerDrops
+import com.tracel.plugin.listener.support.drop.ContainerDrop
 import com.tracel.plugin.adapter.item.toItemKey
 import org.bukkit.inventory.CraftingInventory
 
@@ -45,7 +45,7 @@ class InventoryClickListener(services: TracelServices) : TracelListener(services
             val from = view.topInventory.toHolderId()
             val stack = event.currentItem
             if ((from is HolderId.Block || from is HolderId.Entity) && stack != null && !stack.type.isAir) {
-                ContainerDrops.expect(player.uniqueId, from, stack.toItemKey())
+                ContainerDrop.expect(player.uniqueId, from, stack.toItemKey())
             }
         }
         material.scheduleReconcile(

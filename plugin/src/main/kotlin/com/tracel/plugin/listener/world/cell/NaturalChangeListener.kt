@@ -13,9 +13,9 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.DragonEggClicks
-import com.tracel.plugin.listener.support.FluidDisturbance
-import com.tracel.plugin.listener.support.RecentColumnActor
+import com.tracel.plugin.listener.support.cell.DragonEggCell
+import com.tracel.plugin.listener.support.cell.FluidCell
+import com.tracel.plugin.listener.support.cell.ColumnCell
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
@@ -45,7 +45,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     @Observes
     fun onForm(event: BlockFormEvent) {
         if (event is BlockSpreadEvent || event is EntityBlockFormEvent) return
-        val by = RecentColumnActor.fluidPlayerAt(event.block)?.let(HolderId::Player)
+        val by = ColumnCell.fluidPlayerAt(event.block)?.let(HolderId::Player)
         shape.became(event.block, event.newState, if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD, by)
     }
 
@@ -114,10 +114,10 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     @Observes
     fun onFromTo(event: BlockFromToEvent) {
         val egg = event.block.type == Material.DRAGON_EGG
-        val by = if (egg) DragonEggClicks.lastAt(event.block)
-        else RecentColumnActor.fluidPlayerAt(event.block) ?: RecentColumnActor.fluidPlayerAt(event.toBlock)
-        if (by != null && !egg) RecentColumnActor.rememberFluidAround(by, event.toBlock, 1, refresh = false)
-        FluidDisturbance.onFlow(event.block.toBlockPos(), event.toBlock.toBlockPos())
+        val by = if (egg) DragonEggCell.lastAt(event.block)
+        else ColumnCell.fluidPlayerAt(event.block) ?: ColumnCell.fluidPlayerAt(event.toBlock)
+        if (by != null && !egg) ColumnCell.rememberFluidAround(by, event.toBlock, 1, refresh = false)
+        FluidCell.onFlow(event.block.toBlockPos(), event.toBlock.toBlockPos())
         val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
         val causedBy = by?.let { HolderId.Player(it) }
         if (egg) shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, listOf(event.block, event.toBlock))
@@ -126,8 +126,8 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
 
     @Observes
     fun onFluidLevel(event: FluidLevelChangeEvent) {
-        val by = RecentColumnActor.fluidPlayerAt(event.block)
-        FluidDisturbance.inherit(
+        val by = ColumnCell.fluidPlayerAt(event.block)
+        FluidCell.inherit(
             event.block.toBlockPos(),
             BlockFace.entries.filter { it.isCartesian }.map { event.block.getRelative(it).toBlockPos() },
         )

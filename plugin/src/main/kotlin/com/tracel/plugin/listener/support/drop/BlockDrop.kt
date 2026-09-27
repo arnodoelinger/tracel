@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.drop
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 /** Claim windows that bind vanilla item spawns to the block they left. */
 @Unstable
-class BlockDropCorrelator {
+class BlockDrop {
     data class ClaimedDrop(val itemKey: ItemKey, val quantity: Long, val entity: HolderId)
     data class ReleaseResult(val unclaimed: Map<ItemKey, Long>, val claimed: List<ClaimedDrop>)
 

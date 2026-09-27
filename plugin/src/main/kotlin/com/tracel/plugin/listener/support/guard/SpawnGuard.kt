@@ -1,10 +1,10 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.guard
 
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /** Suppress capture mint while we spawn our own "Move", or the entity is double-credited. */
-class SelfManagedSpawnGuard {
+class SpawnGuard {
     private val active = ThreadLocal.withInitial { false } // Nested spawn is same thread; Folia region-local
     private val tracked = ConcurrentHashMap.newKeySet<UUID>()
 

@@ -16,7 +16,7 @@ import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.command.TracelCommand
 import com.tracel.plugin.listener.api.registerObserved
 import com.tracel.plugin.listener.listenersOf
-import com.tracel.plugin.listener.support.ignoranceIsPermanent
+import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
 import com.tracel.plugin.readSettings
 import com.tracel.plugin.scheduler.TracelSchedulers
 import com.tracel.plugin.startup.version.MinecraftVersion

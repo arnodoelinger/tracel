@@ -15,7 +15,7 @@ import com.tracel.plugin.adapter.entity.applyVehicle
 import com.tracel.plugin.adapter.entity.spawnInto
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.entity.toShape
-import com.tracel.plugin.listener.support.FluidDisturbance
+import com.tracel.plugin.listener.support.cell.FluidCell
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.block.Applied
@@ -87,7 +87,7 @@ internal fun StructureRestorer.applyGroup(
     // Seed fluid disturbance before any write. Drain also touches fluids; a few hundred blocks
     // later water is already moving. Follow the water.
     val wetted = blocks.filter { isFluidShape(it.target) || isFluidShape(it.expected) }
-    if (wetted.isNotEmpty()) FluidDisturbance.disturb(wetted.map { it.at })
+    if (wetted.isNotEmpty()) FluidCell.disturb(wetted.map { it.at })
 
     // Despawn first
     val gone = HashSet<UUID>(removals.size)

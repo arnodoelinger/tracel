@@ -13,8 +13,8 @@ import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.BlockRelease
-import com.tracel.plugin.listener.support.harvestFlows
+import com.tracel.plugin.listener.support.drop.BlockRelease
+import com.tracel.plugin.listener.support.flow.harvestFlows
 import io.papermc.paper.event.block.PlayerShearBlockEvent
 import org.bukkit.World
 import org.bukkit.event.block.BlockShearEntityEvent

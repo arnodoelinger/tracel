@@ -6,7 +6,7 @@ import org.bukkit.event.player.PlayerShearEntityEvent
 import com.tracel.plugin.util.ExpiringMap
 import org.bukkit.entity.ItemFrame
 import com.tracel.plugin.adapter.entity.toCargoHolderId
-import com.tracel.plugin.listener.support.HitBy
+import com.tracel.plugin.listener.support.entity.HitActor
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
@@ -21,18 +21,16 @@ import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.item.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.totalsOf
-import com.tracel.plugin.listener.support.CraftDrops
-import com.tracel.plugin.listener.support.ContainerDrops
+import com.tracel.plugin.listener.support.drop.CraftDrop
+import com.tracel.plugin.listener.support.drop.ContainerDrop
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.BlockRelease
-import com.tracel.plugin.listener.support.CREATIVE_SINK
-import com.tracel.plugin.listener.support.CREATIVE_SOURCE
-import com.tracel.plugin.listener.support.DESTROYED_SINK
-import com.tracel.plugin.listener.support.harvestFlows
-import com.tracel.plugin.listener.support.isLedgeredHolder
+import com.tracel.plugin.listener.support.drop.BlockRelease
+import com.tracel.plugin.listener.support.flow.CREATIVE_SINK
+import com.tracel.plugin.listener.support.flow.CREATIVE_SOURCE
+import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
+import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Bukkit
 import org.bukkit.entity.Item
 import org.bukkit.inventory.ItemStack
@@ -40,7 +38,7 @@ import org.bukkit.Location
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityDropItemEvent
 import org.bukkit.event.entity.EntityDamageEvent
-import com.tracel.plugin.listener.support.damageBlame
+import com.tracel.plugin.listener.support.entity.damageBlame
 import java.util.concurrent.atomic.AtomicLong
 import org.bukkit.event.entity.EntityPickupItemEvent
 import org.bukkit.event.entity.EntityRemoveEvent
@@ -131,7 +129,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         }
 
         val throwerPlayer = thrower?.let { Bukkit.getPlayer(it) }
-        val outOf = thrower?.let { ContainerDrops.take(it, itemKey) }
+        val outOf = thrower?.let { ContainerDrop.take(it, itemKey) }
         if (thrower != null && outOf != null) {
             material.adjust(outOf, itemKey, -qty)
             material.positioned(
@@ -144,8 +142,8 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             )
             return
         }
-        if (thrower != null && CraftDrops.expecting(thrower)) {
-            CraftDrops.add(thrower, CraftDrops.Thrown(groundHolder, itemKey, qty))
+        if (thrower != null && CraftDrop.expecting(thrower)) {
+            CraftDrop.add(thrower, CraftDrop.Thrown(groundHolder, itemKey, qty))
             return
         }
 
@@ -290,7 +288,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             val stack = event.itemDrop.itemStack
             material.adjust(holder, stack.toItemKey(), -stack.amount.toLong())
             pendingDrops.put(event.itemDrop.uniqueId, holder)
-            HitBy.of(entity)?.let { dropBlame.put(event.itemDrop.uniqueId, it) }
+            HitActor.of(entity)?.let { dropBlame.put(event.itemDrop.uniqueId, it) }
             return
         }
         if (entity.dropsManagedCargo()) return

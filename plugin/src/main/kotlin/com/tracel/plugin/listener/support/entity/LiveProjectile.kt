@@ -1,11 +1,11 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.entity
 
 import com.tracel.model.holder.HolderId
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /** Booked projectiles still in the world. */
-internal object LiveProjectiles {
+internal object LiveProjectile {
     private val uuids = ConcurrentHashMap.newKeySet<UUID>()
 
     fun add(uuid: UUID) {

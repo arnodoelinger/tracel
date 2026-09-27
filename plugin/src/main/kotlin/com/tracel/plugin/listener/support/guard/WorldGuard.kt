@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.guard
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.util.ExpiringMap
@@ -12,7 +12,7 @@ private const val WRITTEN_KEPT = 1 shl 20
  * undoes the repair.
  *
  * Every restorer write is nested in [whileRestoring] on the region thread; listeners check
- * [isRestoring] first. Same thread-local as [SelfManagedSpawnGuard]: events are synchronous and
+ * [isRestoring] first. Same thread-local as [SpawnGuard]: events are synchronous and
  * nested, so the flag marks exactly those writes.
  */
 class SelfManagedWorldGuard {

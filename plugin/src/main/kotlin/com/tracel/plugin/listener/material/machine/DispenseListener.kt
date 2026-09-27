@@ -1,6 +1,6 @@
 package com.tracel.plugin.listener.material.machine
 
-import com.tracel.plugin.listener.support.DispensedBy
+import com.tracel.plugin.listener.support.cell.DispenseCell
 import org.bukkit.block.data.Directional
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
@@ -13,7 +13,7 @@ import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.BlockRelease
+import com.tracel.plugin.listener.support.drop.BlockRelease
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.block.BlockDispenseArmorEvent
@@ -45,7 +45,7 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
         val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.WORLD
 
         val facing = (block.blockData as? Directional)?.facing
-        if (by != null && facing != null && item.type.name.endsWith("_SPAWN_EGG")) DispensedBy.fired(block.getRelative(facing), by)
+        if (by != null && facing != null && item.type.name.endsWith("_SPAWN_EGG")) DispenseCell.fired(block.getRelative(facing), by)
 
         // Straight onto a body
         val armor = event as? BlockDispenseArmorEvent

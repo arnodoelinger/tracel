@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.entity
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
@@ -13,7 +13,7 @@ import org.bukkit.persistence.PersistentDataType
  * a TNT minecart, an armor stand, a framed item.
  */
 @Unstable
-internal object HitBy {
+internal object HitActor {
     private const val TTL_MS = 10_000L
 
     private val byEntity = ExpiringMap<UUID, HolderId>(TTL_MS, 16_384)

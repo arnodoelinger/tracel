@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.material.item
 
 import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.listener.support.HitBy
+import com.tracel.plugin.listener.support.entity.HitActor
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
@@ -19,7 +19,7 @@ import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.adapter.entity.toPlacedEntityId
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.isLedgeredHolder
+import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.util.ExpiringMap
 import com.tracel.plugin.listener.world.entity.isCommand
 import org.bukkit.Bukkit
@@ -113,7 +113,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onVehicleDestroy(event: VehicleDestroyEvent) {
-        destroyed(event.vehicle, (event.attacker as? Player)?.let { HolderId.Player(it.uniqueId) } ?: HitBy.of(event.vehicle))
+        destroyed(event.vehicle, (event.attacker as? Player)?.let { HolderId.Player(it.uniqueId) } ?: HitActor.of(event.vehicle))
     }
 
     @Observes
@@ -124,7 +124,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         if (event.entity is Player) return
 
         withholdManagedCargo(event)
-        destroyed(event.entity, event.entity.killer?.let { HolderId.Player(it.uniqueId) } ?: HitBy.of(event.entity))
+        destroyed(event.entity, event.entity.killer?.let { HolderId.Player(it.uniqueId) } ?: HitActor.of(event.entity))
     }
 
     private fun withholdManagedCargo(event: EntityDeathEvent) {

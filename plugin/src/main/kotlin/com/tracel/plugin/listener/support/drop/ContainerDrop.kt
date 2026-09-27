@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.drop
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
@@ -6,7 +6,7 @@ import com.tracel.plugin.util.ExpiringMap
 import java.util.UUID
 
 /** Temporary storage for items dropped directly from container slots. */
-internal object ContainerDrops {
+internal object ContainerDrop {
     data class Pending(val from: HolderId, val itemKey: ItemKey)
 
     private const val TTL_MS = 1_000L

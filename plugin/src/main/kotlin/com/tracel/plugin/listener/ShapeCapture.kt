@@ -12,7 +12,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.listener.support.FluidDisturbance
+import com.tracel.plugin.listener.support.cell.FluidCell
 import com.tracel.plugin.adapter.block.isFluidShape
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.launch
@@ -187,7 +187,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
     @Suppress("RedundantIf")
     private fun isSettlingFluid(edit: BlockEdit): Boolean {
         if (!edit.before.isFluidOrAir() || !edit.after.isFluidOrAir()) return false
-        return FluidDisturbance.isDisturbed(edit.at)
+        return FluidCell.isDisturbed(edit.at)
     }
 
     private fun BlockShape.isFluidOrAir(): Boolean {

@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.drop
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
@@ -10,7 +10,7 @@ import org.bukkit.Location
 
 /** Binds a hull drop to the [HolderId.PlacedEntity] that died. */
 @Unstable
-class HullDropCorrelator {
+class HullDrop {
     private data class Claim(
         val world: UUID,
         val x: Double,

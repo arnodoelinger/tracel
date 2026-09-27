@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.cell
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.toBlockPos
@@ -10,7 +10,7 @@ import com.destroystokyo.paper.event.block.BlockDestroyEvent
  * Cells whose drop a specific listener already opened a claim window for, so the catch-all
  * [BlockDestroyEvent] does not open a second one for the same block.
  */
-internal object ReleasedCells {
+internal object ReleasedCell {
     private const val TTL_MS = 1_000L
 
     private val cells = ExpiringSet<BlockPos>(TTL_MS)

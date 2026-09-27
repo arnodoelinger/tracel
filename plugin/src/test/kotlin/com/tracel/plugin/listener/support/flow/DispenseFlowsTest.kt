@@ -1,5 +1,6 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.flow
 
+import com.tracel.plugin.listener.support.drop.BlockDrop
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
@@ -23,9 +24,9 @@ class DispenseFlowsTest {
         val flows = flowsFor(
             dispenser,
             believed = mapOf(diamond to 1L),
-            result = BlockDropCorrelator.ReleaseResult(
+            result = BlockDrop.ReleaseResult(
                 unclaimed = emptyMap(),
-                claimed = listOf(BlockDropCorrelator.ClaimedDrop(diamond, 1L, ground)),
+                claimed = listOf(BlockDrop.ClaimedDrop(diamond, 1L, ground)),
             ),
         )
 
@@ -41,7 +42,7 @@ class DispenseFlowsTest {
         val flows = flowsFor(
             dispenser,
             believed = mapOf(arrow to 1L),
-            result = BlockDropCorrelator.ReleaseResult(unclaimed = mapOf(arrow to 1L), claimed = emptyList()),
+            result = BlockDrop.ReleaseResult(unclaimed = mapOf(arrow to 1L), claimed = emptyList()),
         )
 
         val burn = flows.single()
@@ -56,9 +57,9 @@ class DispenseFlowsTest {
         val flows = flowsFor(
             dispenser,
             believed = emptyMap(),
-            result = BlockDropCorrelator.ReleaseResult(
+            result = BlockDrop.ReleaseResult(
                 unclaimed = emptyMap(),
-                claimed = listOf(BlockDropCorrelator.ClaimedDrop(diamond, 1L, ground)),
+                claimed = listOf(BlockDrop.ClaimedDrop(diamond, 1L, ground)),
             ),
         )
 

@@ -1,11 +1,11 @@
 package com.tracel.plugin.listener.world.entity
 
-import com.tracel.plugin.listener.support.DispensedBy
+import com.tracel.plugin.listener.support.cell.DispenseCell
 import org.bukkit.event.entity.CreatureSpawnEvent
 import org.bukkit.entity.ItemFrame
 import org.bukkit.entity.minecart.ExplosiveMinecart
 import org.bukkit.entity.EnderCrystal
-import com.tracel.plugin.listener.support.HitBy
+import com.tracel.plugin.listener.support.entity.HitActor
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
@@ -26,10 +26,10 @@ import com.tracel.plugin.adapter.entity.kind.logsWorldShape
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.entity.toShape
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.RecentColumnActor
-import com.tracel.plugin.listener.support.damageBlame
-import com.tracel.plugin.listener.support.explosionActor
-import com.tracel.plugin.listener.support.isBlastSource
+import com.tracel.plugin.listener.support.cell.ColumnCell
+import com.tracel.plugin.listener.support.entity.damageBlame
+import com.tracel.plugin.listener.support.entity.explosionActor
+import com.tracel.plugin.listener.support.entity.isBlastSource
 import com.tracel.plugin.util.ExpiringMap
 import com.tracel.plugin.util.ExpiringSet
 import io.papermc.paper.event.player.PlayerNameEntityEvent
@@ -168,7 +168,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (entity.ticksLived > 0) return
         val reason = (event as? CreatureSpawnEvent)?.spawnReason ?: runCatching { entity.entitySpawnReason }.getOrNull()
         val transformed = transformedBy.remove(entity.uniqueId)
-        val dispensed = if (reason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) DispensedBy.at(entity.location.block) else null
+        val dispensed = if (reason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) DispenseCell.at(entity.location.block) else null
         if (dispensed != null) {
             markMadeBy(entity, dispensed)
             record(ActionKind.ENTITY_SPAWN, entity.uniqueId, entity.toShape(), entity.toBlockPos(), dispensed, after = true)
@@ -184,7 +184,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
             val by = transformed?.who
                 ?: placedBy.remove(uuid)?.who
                 ?: summoner[entity.world.uid]?.takeIf { reason == CreatureSpawnEvent.SpawnReason.COMMAND }
-                ?: RecentColumnActor.playerAt(loc.block)?.let(HolderId::Player)
+                ?: ColumnCell.playerAt(loc.block)?.let(HolderId::Player)
             markMadeBy(entity, by)
             record(ActionKind.ENTITY_SPAWN, uuid, spawned, at, by, after = true)
             return
@@ -194,8 +194,8 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
             if (uuid in recordedSpawn) return@later
             val by = placed?.who
                 ?: summoner[loc.world.uid]?.takeIf { falling == null }
-                ?: falling?.let { RecentColumnActor.playerWhoDisturbed(it)?.let(HolderId::Player) }
-                ?: RecentColumnActor.playerAt(loc.block)?.let(HolderId::Player)
+                ?: falling?.let { ColumnCell.playerWhoDisturbed(it)?.let(HolderId::Player) }
+                ?: ColumnCell.playerAt(loc.block)?.let(HolderId::Player)
             record(ActionKind.ENTITY_SPAWN, uuid, spawned, at, by, after = true)
         }
     }
@@ -237,7 +237,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val who = (attacker as? Player)?.let { HolderId.Player(it.uniqueId) }
             ?: ((attacker as? Projectile)?.shooter as? Player)?.let { HolderId.Player(it.uniqueId) }
             ?: return
-        HitBy.hit(event.vehicle, who)
+        HitActor.hit(event.vehicle, who)
     }
 
     @Observes
@@ -245,13 +245,13 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (restoring) return
         val entity = event.entity
         if (entity is ItemFrame) {
-            services.damageBlame(event).who?.let { HitBy.hit(entity, it) }
+            services.damageBlame(event).who?.let { HitActor.hit(entity, it) }
             return
         }
         if (entity is ArmorStand || entity is EnderCrystal || entity is ExplosiveMinecart) {
             val who = services.damageBlame(event).who
             if (who != null) {
-                HitBy.hit(entity, who)
+                HitActor.hit(entity, who)
                 if (entity.logsWorldShape() && removedBy[entity.uniqueId]?.who == null) removedBy.put(entity.uniqueId, Blame(who))
             }
             if (entity !is ArmorStand) return
@@ -287,7 +287,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val block = event.clickedBlock ?: return
         if (event.item?.type?.spawnsAnEntity() != true) return
         val player = event.player
-        RecentColumnActor.rememberAround(player.uniqueId, block, SPAWN_REACH)
+        ColumnCell.rememberAround(player.uniqueId, block, SPAWN_REACH)
         sweepForFreshSpawns(player, HolderId.Player(player.uniqueId))
     }
 
@@ -402,7 +402,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     @Observes
     fun onTntPrime(event: TNTPrimeEvent) {
         val player = event.primingEntity as? Player ?: return
-        RecentColumnActor.remember(player.uniqueId, event.block)
+        ColumnCell.remember(player.uniqueId, event.block)
     }
 
     @Observes

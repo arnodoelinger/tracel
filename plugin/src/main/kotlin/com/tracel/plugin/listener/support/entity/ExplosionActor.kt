@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.entity
 
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
@@ -37,11 +37,11 @@ fun TracelServices.explosionActor(entity: Entity, depth: Int = 0): HolderId? {
         is Fireball -> when (val shooter = entity.shooter) {
             is Player -> HolderId.Player(shooter.uniqueId)
             is Entity -> explosionActor(shooter, depth + 1)
-            else -> HitBy.builderOf(entity)
+            else -> HitActor.builderOf(entity)
         }
         is Player -> HolderId.Player(entity.uniqueId)
-        is EnderCrystal, is ExplosiveMinecart -> HitBy.of(entity) ?: redstoneTriggers.recentExplosionNear(entity.location)
-        is Wither -> HitBy.builderOf(entity)
+        is EnderCrystal, is ExplosiveMinecart -> HitActor.of(entity) ?: redstoneTriggers.recentExplosionNear(entity.location)
+        is Wither -> HitActor.builderOf(entity)
         else -> null
     }
 }
@@ -50,7 +50,7 @@ private fun TracelServices.igniterOf(tnt: TNTPrimed, depth: Int): HolderId? {
     if (depth >= MAX_IGNITION_CHAIN_DEPTH) return null
     return when (val source = tnt.source) {
         null -> redstoneTriggers.recentPressNear(tnt.world, tnt.location.blockX, tnt.location.blockY, tnt.location.blockZ)
-            ?: HitBy.builderOf(tnt)
+            ?: HitActor.builderOf(tnt)
             ?: redstoneTriggers.recentExplosionNear(tnt.location)
         is Player -> HolderId.Player(source.uniqueId)
         else -> explosionActor(source, depth + 1)

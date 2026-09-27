@@ -9,7 +9,7 @@ import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.BlockRelease
+import com.tracel.plugin.listener.support.drop.BlockRelease
 import org.bukkit.entity.Player
 import org.bukkit.event.block.BlockDispenseLootEvent
 import org.bukkit.event.world.LootGenerateEvent

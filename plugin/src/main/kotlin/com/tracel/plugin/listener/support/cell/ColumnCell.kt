@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.cell
 
 import com.tracel.annotations.Unstable
 import com.tracel.plugin.util.ExpiringMap
@@ -9,7 +9,7 @@ import org.bukkit.entity.Entity
 // TODO: rewrite
 
 @Unstable
-internal object RecentColumnActor {
+internal object ColumnCell {
     // Water needs longer than gravel; 5s left streams still spreading unattributed
     private const val TTL_MS = 30_000L
 

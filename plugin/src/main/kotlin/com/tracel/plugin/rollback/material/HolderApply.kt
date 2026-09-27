@@ -10,7 +10,7 @@ import com.tracel.plugin.rollback.material.holder.fillEntityCargo
 import com.tracel.plugin.rollback.material.holder.takeGroundItem
 import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.spill.Spill
-import com.tracel.plugin.listener.support.LiveProjectiles
+import com.tracel.plugin.listener.support.entity.LiveProjectile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
@@ -65,10 +65,10 @@ internal suspend fun MaterialRestorer.dispatch(
 }
 
 private suspend fun MaterialRestorer.takeProjectile(holder: HolderId.PlacedEntity, deltas: Map<ItemKey, Long>): String? {
-    if (holder.uuid !in LiveProjectiles || deltas.values.any { it > 0L }) return null
+    if (holder.uuid !in LiveProjectile || deltas.values.any { it > 0L }) return null
     return withContext(services.schedulers.entity(holder.uuid)) {
         val projectile = Bukkit.getEntity(holder.uuid) as? Projectile ?: return@withContext "the projectile is no longer there"
-        LiveProjectiles.remove(holder.uuid)
+        LiveProjectile.remove(holder.uuid)
         services.selfManagedWorld.whileRestoring { projectile.remove() }
         null
     }

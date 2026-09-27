@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.guard
 
 import com.tracel.model.holder.HolderId
 import java.util.concurrent.ConcurrentHashMap
@@ -15,7 +15,7 @@ import com.tracel.plugin.listener.session.FreezeGuardListener
  *
  * @see [FreezeGuardListener]
  */
-class FrozenHolders {
+class FreezeGuard {
     private val frozen = ConcurrentHashMap<HolderId, Int>()
 
     /** Whether an automated transfer touching [holder] has to wait. */

@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.redstone
 
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
@@ -15,7 +15,7 @@ import org.bukkit.World
 // TODO: rewrite
 
 @Unstable
-class RedstoneTriggerTracker {
+class RedstoneTrigger {
     private data class Detonation(val origin: ExplosionOrigin, val causedBy: HolderId, val atMillis: Long)
 
     private val presses: Cache<BlockKey, HolderId> = Caffeine.newBuilder()

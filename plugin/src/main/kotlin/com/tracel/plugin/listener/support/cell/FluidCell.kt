@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support
+package com.tracel.plugin.listener.support.cell
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
@@ -7,7 +7,7 @@ import com.tracel.plugin.util.ExpiringMap
 // TODO: rewrite
 
 @Unstable
-internal object FluidDisturbance {
+internal object FluidCell {
     private const val MAX_REMEMBERED = 250_000
     const val MAX_SETTLING_MILLIS = 120_000L
     private const val CLAIM_MILLIS = 30_000L

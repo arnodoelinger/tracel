@@ -8,7 +8,7 @@ import org.bukkit.block.ShulkerBox
 import org.bukkit.block.Lectern
 import org.bukkit.event.player.PlayerTakeLecternBookEvent
 import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.listener.support.LecternPages
+import com.tracel.plugin.listener.support.lectern.LecternPages
 import com.tracel.plugin.adapter.block.accountMovesTo
 import com.tracel.plugin.adapter.block.cargoSlots
 import com.tracel.plugin.adapter.block.resyncCargo
