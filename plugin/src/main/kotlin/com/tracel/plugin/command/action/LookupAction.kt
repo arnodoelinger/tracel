@@ -32,17 +32,7 @@ class LookupAction(private val services: TracelServices) {
             sender.sendMessage("Unknown player(s): ${unresolvedUsers.joinToString(", ")}")
             return
         }
-        val unresolvedExcluded = parsed.excludedUsers.filter { resolvePlayerUuid(it) == null }
-        if (unresolvedExcluded.isNotEmpty()) {
-            sender.sendMessage("Unknown player(s) to exclude: ${unresolvedExcluded.joinToString(", ")}")
-            return
-        }
-        if (parsed.lot != null) {
-            sender.sendMessage("Lookup: l: only works with rollback; a lookup cannot list one lot's history.")
-            return
-        }
         val users = parsed.users.mapNotNull { resolvePlayerUuid(it) }
-        val excludedUsers = parsed.excludedUsers.mapNotNull { resolvePlayerUuid(it) }
 
         val actions = ActionArgument.parse(parsed.actions)
         if (actions.unknown.isNotEmpty()) {
@@ -80,7 +70,6 @@ class LookupAction(private val services: TracelServices) {
 
         val filter = LookupFilter(
             holders = users.map(HolderId::Player).toSet(),
-            excludedHolders = excludedUsers.map(HolderId::Player).toSet(),
             material = parsed.item?.let { MaterialAliases.resolve(it).first },
             blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
             causes = actions.causes,

@@ -18,10 +18,11 @@ object RollbackPresenter {
     private const val NOTHING = "nothing, the world already matches"
 
     val USAGE: List<String> = listOf(
-        "Usage: /tracel rollback u:<player> t:<time> [scope:<Nb|Nc>] [i:<item>] [#blocks|#items|#explosion] [#preview]"
+        "Usage: /tracel rollback t:<time> s:<Nb|Nc|block|chunk> [u:<player>] [i:<item>] [#blocks|#items|#explosion] [#preview]",
+        "t: and s: are required. Prefixes are optional: /tracel rollback 10m 20b Steve"
     )
 
-    const val UNDO_USAGE: String = "Usage: /tracel rollback undo (or /tracel undo)"
+    const val UNDO_USAGE: String = "Usage: /tracel restore"
 
     fun usage(sender: CommandSender) {
         USAGE.forEach(sender::sendMessage)
@@ -59,7 +60,7 @@ object RollbackPresenter {
 
     fun report(sender: CommandSender, done: RollbackResult.Done) {
         if (appliedNothing(done)) sender.sendMessage("Rolled back: $NOTHING.")
-        else sender.sendMessage("Rolled back: ${summary(done)}. /tracel rollback undo to take it back.")
+        else sender.sendMessage("Rolled back: ${summary(done)}. /tracel restore to take it back.")
         warnIfShortWindow(sender, done.plan)
 
         val minted = done.plan.composite.material.mintCount

@@ -12,7 +12,7 @@ import org.bukkit.command.CommandSender
 object LookupPresenter {
     const val LOOKUP_PAGE: Int = 100
 
-    const val USAGE: String = "Usage: /tracel lookup u:<name> t:<2h|today|yesterday> scope:<Nb|Nc> " +
+    const val USAGE: String = "Usage: /tracel lookup u:<name> t:<2h|today|yesterday> s:<Nb|Nc|block|chunk> " +
             "w:<world> i:<item> a:<action> -u:<name>"
 
     fun usage(sender: CommandSender) {
@@ -44,7 +44,7 @@ object LookupPresenter {
             .forEach(sender::sendMessage)
 
         if (results.size + worldChanges.size >= limit) {
-            sender.sendMessage("Showing the newest $limit — narrow it with t:, u:, i: or scope: to see the rest.")
+            sender.sendMessage("Showing the newest $limit — narrow it with t:, u:, i: or s: to see the rest.")
         }
     }
 

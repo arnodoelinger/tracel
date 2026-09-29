@@ -30,6 +30,72 @@ class LookupFlagsTest {
     }
 
     @Test
+    fun `s is scope, short`() {
+        assertEquals(LookupScope.Blocks(20), parseLookupArgs(listOf("s:20b"), NOW).scope)
+        assertEquals(LookupScope.CurrentBlock, parseLookupArgs(listOf("s:block"), NOW).scope)
+        assertEquals("world_nether", parseLookupArgs(listOf("s:world_nether"), NOW).world)
+        assertEquals(0, com.tracel.plugin.command.args.RollbackArgument.missingBounds(
+            parseLookupArgs(listOf("t:10m", "s:2c"), NOW)).size)
+    }
+
+    @Test
+    fun `scope block is the block you stand on, not a world`() {
+        val parsed = parseLookupArgs(listOf("scope:block"), NOW)
+        assertEquals(LookupScope.CurrentBlock, parsed.scope)
+        assertEquals(null, parsed.world)
+    }
+
+    @Test
+    fun `a rollback needs both a time and a scope`() {
+        fun missing(vararg flags: String) =
+            com.tracel.plugin.command.args.RollbackArgument.missingBounds(parseLookupArgs(flags.toList(), NOW))
+
+        assertEquals(2, missing().size)
+        assertEquals(1, missing("t:10m").size)
+        assertEquals(1, missing("scope:20b").size)
+        assertEquals(1, missing("t:10m", "scope:world_nether").size, "a world is not a scope")
+        assertEquals(0, missing("t:10m", "scope:block").size)
+        assertEquals(0, missing("time:1h", "scope:2c", "u:Alice").size)
+    }
+
+    private val known = com.tracel.plugin.command.suggest.SuggestLists(
+        onlinePlayers = listOf("Steve", "Alex"),
+        worldNames = listOf("world", "world_nether"),
+        itemNames = listOf("diamond", "stone"),
+        blockNames = listOf("stone", "dirt"),
+    )
+
+    @Test
+    fun `bare tokens are read for what they look like`() {
+        val parsed = parseLookupArgs(listOf("10m", "20b", "Steve", "kill"), NOW, known)
+        assertEquals(NOW - 600_000, parsed.since)
+        assertEquals(LookupScope.Blocks(20), parsed.scope)
+        assertEquals(setOf("Steve"), parsed.users)
+        assertEquals(setOf("kill"), parsed.actions)
+        assertTrue(parsed.errors.isEmpty())
+
+        assertEquals(LookupScope.CurrentBlock, parseLookupArgs(listOf("block"), NOW, known).scope)
+        assertEquals(LookupScope.Chunks(2), parseLookupArgs(listOf("2c"), NOW, known).scope)
+        assertEquals("world_nether", parseLookupArgs(listOf("WORLD_NETHER"), NOW, known).world)
+        assertEquals("diamond", parseLookupArgs(listOf("minecraft:diamond"), NOW, known).item)
+        assertTrue(parseLookupArgs(listOf("-Alex"), NOW, known).errors.isNotEmpty(), "no exclusion by name")
+    }
+
+    @Test
+    fun `a bare name nobody knows is taken for a player, and a bare number asks for a unit`() {
+        assertEquals(setOf("Herobrine"), parseLookupArgs(listOf("Herobrine"), NOW, known).users)
+        val number = parseLookupArgs(listOf("10"), NOW, known).errors.single()
+        assertTrue("10m" in number && "10b" in number)
+    }
+
+    @Test
+    fun `a misspelled flag says which one was meant`() {
+        val hint = parseLookupArgs(listOf("scop:20b"), NOW, known).errors.single()
+        assertTrue("scope:" in hint, hint)
+        assertTrue("did you mean" !in parseLookupArgs(listOf("zzzzz:1"), NOW, known).errors.single())
+    }
+
+    @Test
     fun `a world and a radius are different fields, in either order`() {
         val worldFirst = parseLookupArgs(listOf("w:nether", "scope:20b"), NOW)
         val radiusFirst = parseLookupArgs(listOf("scope:20b", "w:nether"), NOW)
@@ -57,7 +123,7 @@ class LookupFlagsTest {
     @Test
     fun `an unparseable flag value is an error, not silence`() {
         assertTrue(parseLookupArgs(listOf("l:many"), NOW).errors.isNotEmpty())
-        assertTrue(parseLookupArgs(listOf("nonsense"), NOW).errors.isNotEmpty())
+        assertTrue(parseLookupArgs(listOf("no!nsense"), NOW).errors.isNotEmpty())
         assertTrue(parseLookupArgs(listOf("limit:5"), NOW).errors.isNotEmpty())
         assertTrue(parseLookupArgs(listOf("offset:5"), NOW).errors.isNotEmpty())
         assertTrue(parseLookupArgs(listOf("#structure"), NOW).errors.isNotEmpty())

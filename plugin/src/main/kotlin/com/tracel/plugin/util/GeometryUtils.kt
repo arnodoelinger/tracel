@@ -111,9 +111,12 @@ fun Location.toLookupRegion(
         is LookupScope.Blocks -> Pair((scope.radius shr 4) + 1, scope.radius)
         is LookupScope.Chunks -> Pair(scope.radius, null)
         LookupScope.CurrentChunk -> Pair(0, null)
+        LookupScope.CurrentBlock -> Pair(0, 0)
     }
 
-    val (minY, maxY) = if (blockRadius != null && !horizontalOnly) {
+    val (minY, maxY) = if (scope == LookupScope.CurrentBlock && !horizontalOnly) {
+        Pair(blockY - 1, blockY)
+    } else if (blockRadius != null && !horizontalOnly) {
         Pair(blockY - blockRadius, blockY + blockRadius)
     } else {
         Pair(Int.MIN_VALUE, Int.MAX_VALUE)
