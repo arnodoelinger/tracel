@@ -1,4 +1,4 @@
-package com.tracel.plugin.command.suggest
+package com.tracel.plugin.command.suggest.support
 
 import com.destroystokyo.paper.event.brigadier.AsyncPlayerSendSuggestionsEvent
 import com.mojang.brigadier.suggestion.Suggestions

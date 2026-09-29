@@ -1,11 +1,10 @@
-package com.tracel.plugin.command.preset
+package com.tracel.plugin.command.suggest
 
 import com.mojang.brigadier.context.CommandContext
 import com.mojang.brigadier.suggestion.SuggestionProvider
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
-import com.tracel.plugin.command.suggest.Suggestion
-import com.tracel.plugin.command.suggest.reply
+import com.tracel.plugin.command.preset.Presets
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import org.bukkit.entity.Player
 import java.util.concurrent.CompletableFuture

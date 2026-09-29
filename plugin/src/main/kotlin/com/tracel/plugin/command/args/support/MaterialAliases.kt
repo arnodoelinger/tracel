@@ -1,4 +1,4 @@
-package com.tracel.plugin.command.args
+package com.tracel.plugin.command.args.support
 
 import org.bukkit.Material
 
@@ -8,16 +8,6 @@ import org.bukkit.Material
  * or a rollback takes the item back and leaves the block standing.
  */
 internal object MaterialAliases {
-    private val blocksByItem: Map<Material, Set<String>> by lazy {
-        val out = HashMap<Material, MutableSet<String>>()
-        for (block in Material.entries) {
-            if (block.isLegacy || !block.isBlock) continue
-            val item = runCatching { block.createBlockData().placementMaterial }.getOrNull() ?: continue
-            out.getOrPut(item) { HashSet() } += block.key.toString()
-        }
-        out
-    }
-
     /** @return the item name for the ledger and every block id it stands as, for the world log. */
     fun resolve(name: String): Pair<String, Set<String>> {
         val material = Material.matchMaterial(name) ?: return name to emptySet()
@@ -29,5 +19,15 @@ internal object MaterialAliases {
         val blocks =
             blocksByItem[item].orEmpty() + (if (material.isBlock) setOf(material.key.toString()) else emptySet())
         return item.name to blocks
+    }
+
+    private val blocksByItem: Map<Material, Set<String>> by lazy {
+        val out = HashMap<Material, MutableSet<String>>()
+        for (block in Material.entries) {
+            if (block.isLegacy || !block.isBlock) continue
+            val item = runCatching { block.createBlockData().placementMaterial }.getOrNull() ?: continue
+            out.getOrPut(item) { HashSet() } += block.key.toString()
+        }
+        out
     }
 }

@@ -5,6 +5,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.args.*
 import com.tracel.plugin.command.args.ScopeLimits.isOversized
+import com.tracel.plugin.command.args.support.MaterialAliases
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.util.resolvePlayerUuid
 import com.tracel.plugin.util.toLookupRegion

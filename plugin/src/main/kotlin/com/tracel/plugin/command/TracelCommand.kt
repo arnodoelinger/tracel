@@ -7,10 +7,10 @@ import com.tracel.plugin.command.action.*
 import com.tracel.plugin.command.args.LookupScope
 import com.tracel.plugin.command.highlight.Highlights
 import com.tracel.plugin.command.args.ParsedLookupArgs
-import com.tracel.plugin.command.preset.PresetAction
+import com.tracel.plugin.command.action.PresetAction
 import com.tracel.plugin.command.suggest.PlayerNameSuggest
-import com.tracel.plugin.command.who.WhoAction
-import com.tracel.plugin.command.preset.PresetNameSuggest
+import com.tracel.plugin.command.action.WhoAction
+import com.tracel.plugin.command.suggest.PresetNameSuggest
 import com.tracel.plugin.command.preset.PresetStore
 import com.tracel.plugin.command.preset.Presets
 import com.tracel.plugin.command.preset.parseWithPresets

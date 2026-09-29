@@ -3,6 +3,7 @@ package com.tracel.plugin.command.args
 import com.tracel.engine.log.LookupFilter
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.command.args.ScopeLimits.isOversized
+import com.tracel.plugin.command.args.support.MaterialAliases
 import com.tracel.plugin.util.resolvePlayerUuid
 import com.tracel.plugin.util.toLookupRegion
 import com.tracel.plugin.util.toWorldId
