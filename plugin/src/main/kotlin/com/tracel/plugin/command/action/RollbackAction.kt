@@ -1,16 +1,12 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.engine.rollback.plan.RollbackPlan
-import com.tracel.engine.rollback.plan.RollbackPlanner
-import com.tracel.engine.rollback.plan.RollbackTarget
-import com.tracel.engine.rollback.structure.CompositeRollbackPlan
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.args.ActionFilter
 import com.tracel.plugin.command.args.FilterResult
 import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.args.RollbackArgument
+import com.tracel.plugin.command.highlight.Highlights
 import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
 import com.tracel.plugin.command.presenter.RollbackPresenter.resurrections
@@ -29,8 +25,9 @@ internal fun CommandSender.actor(): HolderId? = (this as? Player)?.let { HolderI
 
 /** Action responsible for orchestrating rollback operations, retries, and previews. */
 // TODO: improve this in future
-class RollbackAction(
+class RollbackAction internal constructor(
     private val services: TracelServices,
+    private val highlights: Highlights? = null,
 ) {
     /**
      * Orchestrates rollback operations, retries, and previews, and then
@@ -52,27 +49,6 @@ class RollbackAction(
 
         if (parsed.structureOnly && parsed.materialOnly) {
             sender.sendMessage("Rollback: #blocks and #items are opposites — give one or neither.")
-            return
-        }
-
-        val lot = parsed.lot
-        if (lot != null) {
-            val restoreTo = (sender as? Player)?.let { HolderId.Player(it.uniqueId) }
-            if (restoreTo == null) {
-                sender.sendMessage("Rollback: l:$lot needs somewhere to put the material — run it as a player.")
-                return
-            }
-            if (!services.composite.claimGate()) {
-                sender.sendMessage("Rollback: another rollback or undo is currently running — wait for it to finish.")
-                return
-            }
-            services.scope.launch {
-                try {
-                    byLot(sender, LotId(lot), restoreTo, parsed)
-                } finally {
-                    services.composite.releaseGate()
-                }
-            }
             return
         }
 
@@ -116,6 +92,10 @@ class RollbackAction(
             val halves = halvesOf(parsed, filter.actions)
             if (parsed.preview) {
                 RollbackPresenter.preview(sender, planned, halves, services.entityRestoreLimit)
+                if (sender is Player && highlights != null) {
+                    val ghosts = highlights.ghost(sender, planned.composite.create + planned.composite.destroy, GHOST_SECONDS)
+                    if (ghosts > 0) sender.sendMessage("  Ghost: $ghosts blocks shown to you for ${GHOST_SECONDS}s — only you see them, the world is untouched.")
+                }
             } else if (!askedAboutEntities(sender, planned, parsed.confirmed)) {
                 runRollback(sender, planned, halves, parsed.strict, replan)
             }
@@ -132,64 +112,6 @@ class RollbackAction(
             structure -> "blocks only"
             material -> "items only"
             else -> "neither half"
-        }
-    }
-
-    private suspend fun byLot(sender: CommandSender, lot: LotId, restoreTo: HolderId.Player, parsed: ParsedLookupArgs) {
-        val trace = PhaseTimings()
-        try {
-            val flushed = services.flushCapture()
-            var witness = services.repo.version()
-            val outcome = trace.span("plan lot") {
-                runCatching {
-                    RollbackPlanner(
-                        services.repo,
-                        services.worldQuery,
-                        structural = false,
-                        target = RollbackTarget.Uniform(restoreTo)
-                    ).plan(listOf(lot))
-                }
-            }
-            val plan = outcome.getOrNull()
-            if (plan == null) {
-                sender.sendMessage("Rollback: could not plan for lot ${lot.raw} — ${outcome.exceptionOrNull()?.message}")
-                return
-            }
-
-            fun rollbackFor(fresh: RollbackPlan) = Planned(
-                CompositeRollbackPlan(emptyList(), fresh, emptyList()),
-                RollbackTarget.Uniform(restoreTo),
-                listOf(lot),
-                witness = witness,
-                flushed = flushed,
-                structural = false,
-                trace = trace,
-            )
-
-            val planned = rollbackFor(plan)
-            val replan: suspend () -> Planned? = {
-                witness = services.repo.version()
-                trace.span("plan lot") {
-                    runCatching {
-                        RollbackPlanner(
-                            services.repo,
-                            services.worldQuery,
-                            structural = false,
-                            target = RollbackTarget.Uniform(restoreTo)
-                        ).plan(listOf(lot))
-                    }
-                }.map(::rollbackFor).getOrElse {
-                    sender.sendMessage("Rollback: could not plan for lot ${lot.raw} — ${it.message}")
-                    null
-                }
-            }
-            if (parsed.preview) {
-                RollbackPresenter.preview(sender, planned, "items only", services.entityRestoreLimit)
-            } else {
-                runRollback(sender, planned, "items only", parsed.strict, replan)
-            }
-        } finally {
-            trace.render().forEach(sender::sendMessage)
         }
     }
 
@@ -260,5 +182,6 @@ class RollbackAction(
 
     companion object {
         const val STALE_ATTEMPTS = 3
+        const val GHOST_SECONDS = 12
     }
 }
