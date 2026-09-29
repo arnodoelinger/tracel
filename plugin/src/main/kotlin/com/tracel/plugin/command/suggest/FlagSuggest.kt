@@ -1,8 +1,12 @@
 package com.tracel.plugin.command.suggest
 
+import com.tracel.plugin.command.args.ScopeLimits
+import com.tracel.plugin.command.args.TimeArgument
 import com.tracel.plugin.command.suggest.support.QuantityUnit
 import com.tracel.plugin.command.suggest.support.ago
 import com.tracel.plugin.command.suggest.support.around
+import com.tracel.plugin.command.suggest.support.past
+import com.tracel.plugin.command.suggest.support.presetsOf
 import com.tracel.plugin.command.suggest.support.suggestQuantity
 
 
@@ -14,13 +18,11 @@ private enum class FlagKind {
 
 private enum class FlagGroup {
     USERS,
-    EXCLUDED_USERS,
     TIME,
     SCOPE,
     WORLD,
     MATERIAL,
     ACTION,
-    LOT,
     PREVIEW,
     MODE_BLOCKS,
     MODE_ITEMS,
@@ -112,13 +114,6 @@ private val FLAGS: List<FlagToken> = listOf(
         profiles = BOTH
     ),
     FlagToken(
-        aliases = listOf("-u:", "-user:"),
-        tooltip = "Player name to exclude, comma-separated",
-        kind = FlagKind.SET,
-        group = FlagGroup.EXCLUDED_USERS,
-        profiles = BOTH
-    ),
-    FlagToken(
         aliases = listOf("t:", "time:", "after:", "before:"),
         tooltip = "When it happened",
         kind = FlagKind.VALUE,
@@ -126,8 +121,8 @@ private val FLAGS: List<FlagToken> = listOf(
         profiles = BOTH
     ),
     FlagToken(
-        aliases = listOf("scope:"),
-        tooltip = "Radius around you, or a world name",
+        aliases = listOf("s:", "scope:"),
+        tooltip = "Radius around you: 20b, 2c, block or chunk",
         kind = FlagKind.VALUE,
         group = FlagGroup.SCOPE,
         profiles = BOTH
@@ -159,45 +154,27 @@ private val FLAGS: List<FlagToken> = listOf(
         kind = FlagKind.SET,
         group = FlagGroup.ACTION,
         profiles = BOTH
-    ),
-    FlagToken(
-        aliases = listOf("l:", "lot:"),
-        tooltip = "One lot id",
-        kind = FlagKind.VALUE,
-        group = FlagGroup.LOT,
-        profiles = ROLLBACK_ONLY
     )
 )
 
-private val DURATION_PRESETS = listOf(
-    "15m" to "Past 15 minutes",
-    "30m" to "Past 30 minutes",
-    "1h" to "Past 1 hour",
-    "2h" to "Past 2 hours",
-    "6h" to "Past 6 hours",
-    "12h" to "Past 12 hours",
-    "1d" to "Past 24 hours",
-    "3d" to "Past 3 days",
-    "7d" to "Past 7 days",
-)
+private val TIME_PRESETS = listOf("10s", "30s", "1m", "5m", "10m", "30m", "1h", "3h", "6h", "12h", "1d", "3d", "7d")
 
 private val NAMED_DAYS = listOf(
     "today" to "Since midnight today",
     "yesterday" to "Since midnight yesterday",
 )
 
-private val SCOPE_PRESETS = listOf(
-    "5b" to "5 blocks around you",
-    "10b" to "10 blocks around you",
-    "20b" to "20 blocks around you",
-    "50b" to "50 blocks around you",
-    "100b" to "100 blocks around you",
-    "1c" to "1 chunk around you",
-    "2c" to "2 chunks around you",
-    "5c" to "5 chunks around you",
+private val SCOPE_PRESETS = listOf("4b", "8b", "16b", "32b", "64b", "128b", "1c", "2c", "4c", "8c")
+
+private val WINDOW_UNITS = listOf(
+    QuantityUnit("s") { past(it, "second") },
+    QuantityUnit("m") { past(it, "minute") },
+    QuantityUnit("h") { past(it, "hour") },
+    QuantityUnit("d") { past(it, "day") },
+    QuantityUnit("w") { past(it, "week") },
 )
 
-private val TIME_UNITS = listOf(
+private val POINT_UNITS = listOf(
     QuantityUnit("s") { ago(it, "second") },
     QuantityUnit("m") { ago(it, "minute") },
     QuantityUnit("h") { ago(it, "hour") },
@@ -209,6 +186,25 @@ private val SCOPE_UNITS = listOf(
     QuantityUnit("b") { around(it, "block") },
     QuantityUnit("c") { around(it, "chunk") },
 )
+
+private val SPAN_PARTS = listOf(
+    604_800_000L to "week",
+    86_400_000L to "day",
+    3_600_000L to "hour",
+    60_000L to "minute",
+    1_000L to "second",
+)
+
+private fun spanOf(text: String): String? {
+    var left = TimeArgument.parseDuration(text) ?: return null
+    val parts = ArrayList<String>()
+    for ((millis, noun) in SPAN_PARTS) {
+        val n = left / millis
+        left %= millis
+        if (n > 0) parts += if (n == 1L) "1 $noun" else "$n ${noun}s"
+    }
+    return parts.joinToString(" ").ifEmpty { null }
+}
 
 private val ACTION_TIPS = mapOf(
     "block" to "Blocks placed, broken, or changed",
@@ -249,7 +245,7 @@ internal object FlagSuggest {
             return suggestValue(matched.flag, matched.alias, current, lists)
         }
 
-        return FLAGS
+        val flags = FLAGS
             .filter { profile in it.profiles && available(it, used, typed) }
             .flatMap { flag ->
                 flag.aliases
@@ -259,6 +255,57 @@ internal object FlagSuggest {
                     }
                     .map { Suggestion(it, flag.tooltip) }
             }
+        return flags + bare(typed, used, lists)
+    }
+
+    private fun bare(typed: String, used: Set<FlagGroup>, lists: SuggestLists): List<Suggestion> {
+        if (typed.isEmpty()) return lists.presets.take(5).map { Suggestion("@${it.first}", it.second) }
+        if (typed.startsWith("@")) {
+            val needle = typed.substring(1).lowercase()
+            return lists.presets.filter { it.first.startsWith(needle) }.map { Suggestion("@${it.first}", it.second) }
+        }
+        if (typed.startsWith("#")) return emptyList()
+        val out = ArrayList<Suggestion>()
+        if (typed.first().isDigit()) {
+            if (FlagGroup.TIME !in used) {
+                out += suggestQuantity(
+                    prefix = "",
+                    raw = typed,
+                    units = WINDOW_UNITS,
+                    presets = presetsOf(TIME_PRESETS, WINDOW_UNITS),
+                    compound = true,
+                )
+            }
+            if (FlagGroup.SCOPE !in used) {
+                out += suggestQuantity(
+                    prefix = "",
+                    raw = typed,
+                    units = SCOPE_UNITS,
+                    presets = presetsOf(SCOPE_PRESETS, SCOPE_UNITS),
+                    allowed = { unit, amount ->
+                        amount <= if (unit.suffix == "b") ScopeLimits.MAX_BLOCK_RADIUS else ScopeLimits.MAX_CHUNK_RADIUS
+                    },
+                )
+            }
+            return out
+        }
+        val needle = typed
+        for (name in rank(lists.onlinePlayers, needle, limit = 10)) out += Suggestion(name, "Player $name")
+        if (FlagGroup.SCOPE !in used) {
+            for ((word, tip) in listOf("block" to "The block you are standing on", "chunk" to "The chunk you are standing in")) {
+                if (word.startsWith(needle.lowercase())) out += Suggestion(word, tip)
+            }
+        }
+        if (FlagGroup.TIME !in used) {
+            for ((word, tip) in NAMED_DAYS) if (word.startsWith(needle.lowercase())) out += Suggestion(word, tip)
+        }
+        if (FlagGroup.WORLD !in used) {
+            for (name in rank(lists.worldNames, needle, limit = 5)) out += Suggestion(name, "World $name")
+        }
+        if (FlagGroup.ACTION !in used) {
+            for (name in rank(lists.actionNames, needle, limit = 8)) out += Suggestion(name, ACTION_TIPS[name] ?: "Action $name")
+        }
+        return out
     }
 
     private fun available(flag: FlagToken, used: Set<FlagGroup>, typed: String): Boolean {
@@ -280,27 +327,38 @@ internal object FlagSuggest {
     ): List<Suggestion> {
         val raw = current.substring(alias.length)
         return when (flag.group) {
-            FlagGroup.USERS, FlagGroup.EXCLUDED_USERS ->
+            FlagGroup.USERS ->
                 suggestCsv(alias, raw, lists.onlinePlayers) { "Player $it" }
 
             FlagGroup.ACTION ->
                 suggestCsv(alias, raw, lists.actionNames) { ACTION_TIPS[it] ?: "Action $it" }
 
-            FlagGroup.TIME -> suggestQuantity(
-                prefix = alias,
-                raw = raw,
-                units = TIME_UNITS,
-                presets = DURATION_PRESETS + if (alias == "t:" || alias == "time:") NAMED_DAYS else emptyList(),
-                compound = true,
-            )
+            FlagGroup.TIME -> {
+                val window = alias == "t:" || alias == "time:"
+                val units = if (window) WINDOW_UNITS else POINT_UNITS
+                suggestQuantity(
+                    prefix = alias,
+                    raw = raw,
+                    units = units,
+                    presets = presetsOf(TIME_PRESETS, units) + if (window) NAMED_DAYS else emptyList(),
+                    compound = true,
+                    describeWhole = { text -> spanOf(text)?.let { if (window) "Past $it" else "$it ago" } },
+                )
+            }
 
             FlagGroup.SCOPE -> suggestQuantity(
                 prefix = alias,
                 raw = raw,
                 units = SCOPE_UNITS,
-                presets = SCOPE_PRESETS,
-                words = listOf("chunk" to "The chunk you are standing in") +
+                presets = presetsOf(SCOPE_PRESETS, SCOPE_UNITS),
+                words = listOf(
+                    "block" to "The block you are standing on",
+                    "chunk" to "The chunk you are standing in",
+                ) +
                         lists.worldNames.map { it to "Scope to world $it" },
+                allowed = { unit, amount ->
+                    amount <= if (unit.suffix == "b") ScopeLimits.MAX_BLOCK_RADIUS else ScopeLimits.MAX_CHUNK_RADIUS
+                },
             )
 
             FlagGroup.WORLD ->
@@ -313,7 +371,6 @@ internal object FlagSuggest {
                 rank(names, raw, limit = 30).map { Suggestion("$alias$it", "$kind $it") }
             }
 
-            FlagGroup.LOT -> emptyList()
             else -> emptyList()
         }
     }

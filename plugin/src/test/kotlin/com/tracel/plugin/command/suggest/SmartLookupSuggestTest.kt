@@ -19,7 +19,7 @@ class SmartLookupSuggestTest {
         val suggestions = RollbackSuggest.suggest("", lists)
         val flags = suggestions.map { it.text }
 
-        assertFalse("undo" in flags)
+        assertFalse("undo" in flags, "taking a rollback back is /tracel restore")
         assertTrue("u:" in flags)
         assertTrue("t:" in flags)
         assertTrue("#preview" in flags)
@@ -36,12 +36,12 @@ class SmartLookupSuggestTest {
     fun `lookup does not offer rollback-only flags`() {
         val flags = LookupSuggest.suggest("", lists).map { it.text }
         assertTrue("u:" in flags)
-        assertTrue("scope:" in flags)
+        assertTrue("s:" in flags)
+        assertFalse("scope:" in flags, "the long form is for whoever types it out")
         assertTrue("#blocks" in flags)
         assertFalse("undo" in flags)
         assertFalse("#preview" in flags)
         assertFalse("#strict" in flags)
-        assertFalse("l:" in flags)
     }
 
     @Test
@@ -53,7 +53,8 @@ class SmartLookupSuggestTest {
         assertFalse("time:" in flags)
         assertFalse("#preview" in flags)
         assertTrue("i:" in flags)
-        assertTrue("scope:" in flags)
+        assertTrue("s:" in flags)
+        assertFalse("scope:" in flags, "the long form is for whoever types it out")
         assertTrue("#blocks" in flags)
     }
 
@@ -92,7 +93,8 @@ class SmartLookupSuggestTest {
         val times = LookupSuggest.suggest("t:1", lists).map { it.text }
         assertTrue("t:1h" in times)
         assertTrue("t:1d" in times)
-        assertTrue("t:15m" in times)
+        assertTrue("t:10m" in times)
+        assertFalse("t:12" in times, "a bare number is never a suggestion")
 
         val items = LookupSuggest.suggest("i:dia", lists).map { it.text }
         assertEquals(listOf("i:diamond", "i:diamond_sword"), items)
@@ -101,7 +103,7 @@ class SmartLookupSuggestTest {
     @Test
     fun `any radius offers blocks and chunks after the digits`() {
         val open = LookupSuggest.suggest("scope:100", lists)
-        assertEquals(listOf("scope:100b", "scope:100c"), open.map { it.text })
+        assertEquals(listOf("scope:100b"), open.map { it.text }, "100 chunks is past the 64-chunk limit")
 
         val blocks = LookupSuggest.suggest("scope:100b", lists).map { it.text }
         assertEquals(listOf("scope:100b"), blocks)
@@ -115,15 +117,39 @@ class SmartLookupSuggestTest {
     }
 
     @Test
-    fun `a single digit radius also offers the next digit`() {
+    fun `a single digit radius offers units, not more digits`() {
         val four = LookupSuggest.suggest("scope:4", lists).map { it.text }
         assertTrue("scope:4b" in four)
         assertTrue("scope:4c" in four)
-        assertTrue((0..9).all { "scope:4$it" in four })
-        assertFalse("scope:40b" in four)
+        assertTrue("scope:4c" in four)
+        assertTrue(four.none { it.length == "scope:4".length + 1 && it.last().isDigit() })
 
         val longer = LookupSuggest.suggest("scope:40", lists).map { it.text }
         assertEquals(listOf("scope:40b", "scope:40c"), longer)
+    }
+
+    @Test
+    fun `an empty scope offers presets in size order and never a bare number`() {
+        val texts = LookupSuggest.suggest("scope:", lists).map { it.text }
+        assertEquals(
+            listOf(
+                "scope:4b", "scope:8b", "scope:16b", "scope:32b", "scope:64b", "scope:128b",
+                "scope:1c", "scope:2c", "scope:4c", "scope:8c",
+                "scope:block", "scope:chunk", "scope:world", "scope:world_nether", "scope:world_the_end",
+            ),
+            texts,
+        )
+        assertEquals("4 blocks around you", LookupSuggest.suggest("scope:", lists).first().tooltip)
+        assertEquals(listOf("scope:block"), LookupSuggest.suggest("scope:bl", lists).map { it.text })
+    }
+
+    @Test
+    fun `a radius over the limit is not offered`() {
+        val huge = LookupSuggest.suggest("scope:5000", lists).map { it.text }
+        assertTrue(huge.isEmpty(), "past 1024 blocks and 64 chunks there is nothing to offer")
+
+        val chunks = LookupSuggest.suggest("scope:500", lists).map { it.text }
+        assertEquals(listOf("scope:500b"), chunks)
     }
 
     @Test
@@ -134,9 +160,18 @@ class SmartLookupSuggestTest {
 
         val applied = done.list.associate { it.text to it.apply(full) }
         assertEquals("${full}b", applied["scope:4b"])
-        assertEquals("${full}0", applied["scope:40"])
         assertTrue(done.list.first { it.text == "scope:4b" }.tooltip.string.contains("block"))
         assertTrue(done.list.first { it.text == "scope:4c" }.tooltip.string.contains("chunk"))
+    }
+
+    @Test
+    fun `suggestions keep the order they were given`() {
+        val full = "/tracel lookup scope:"
+        val builder = SuggestionsBuilder(full, "/tracel lookup ".length)
+        val done = builder.reply(LookupSuggest.suggest("scope:", lists)).join()
+        val texts = done.list.map { it.text }
+        assertTrue(texts.indexOf("scope:4b") < texts.indexOf("scope:16b"))
+        assertTrue(texts.indexOf("scope:16b") < texts.indexOf("scope:128b"))
     }
 
     @Test
@@ -152,7 +187,7 @@ class SmartLookupSuggestTest {
         val four = LookupSuggest.suggest("t:4", lists).map { it.text }
         assertTrue("t:4h" in four)
         assertTrue("t:4d" in four)
-        assertTrue((0..9).all { "t:4$it" in four })
+        assertTrue(four.none { it.length == "t:4".length + 1 && it.last().isDigit() })
 
         val continued = LookupSuggest.suggest("t:1h30", lists).map { it.text }
         assertTrue("t:1h30m" in continued)
@@ -162,12 +197,50 @@ class SmartLookupSuggestTest {
 
         val openHour = LookupSuggest.suggest("t:1h3", lists).map { it.text }
         assertTrue("t:1h3m" in openHour)
-        assertTrue("t:1h30" in openHour)
+        assertFalse("t:1h30" in openHour)
 
         val after = LookupSuggest.suggest("after:1", lists).map { it.text }
         assertTrue("after:1h" in after)
         assertFalse("after:today" in after)
         assertTrue("t:today" in LookupSuggest.suggest("t:to", lists).map { it.text })
+    }
+
+    @Test
+    fun `an empty time offers windows in size order, described as the past`() {
+        val list = LookupSuggest.suggest("t:", lists)
+        val texts = list.map { it.text }
+        assertEquals("t:10s", texts.first())
+        assertTrue(texts.indexOf("t:1m") < texts.indexOf("t:10m"))
+        assertTrue(texts.indexOf("t:10m") < texts.indexOf("t:1h"))
+        assertTrue("t:today" in texts)
+        assertEquals("Past 10 seconds", list.first().tooltip)
+        assertEquals("Past 1 minute", list.first { it.text == "t:1m" }.tooltip)
+        assertTrue(texts.none { it.length == 3 && it.last().isDigit() })
+    }
+
+    @Test
+    fun `a whole typed duration says what it means`() {
+        val list = LookupSuggest.suggest("t:1h30m", lists)
+        assertEquals(listOf("t:1h30m"), list.map { it.text })
+        assertEquals("Past 1 hour 30 minutes", list.single().tooltip)
+        assertEquals("2 days ago", LookupSuggest.suggest("after:2d", lists).first { it.text == "after:2d" }.tooltip)
+    }
+
+    @Test
+    fun `a bare number offers a time and a scope, a bare name offers players and words`() {
+        val digits = LookupSuggest.suggest("10", lists).map { it.text }
+        assertTrue("10m" in digits && "10h" in digits, "10 as a time")
+        assertTrue("10b" in digits && "10c" in digits, "10 as a scope")
+
+        val timeTaken = LookupSuggest.suggest("t:1h 10", lists).map { it.text }
+        assertTrue("10m" !in timeTaken && "10b" in timeTaken)
+
+        val names = LookupSuggest.suggest("Al", lists).map { it.text }
+        assertEquals("Alice", names.first { it.startsWith("Al") })
+        assertTrue(LookupSuggest.suggest("-al", lists).isEmpty(), "there is no exclusion by name")
+        assertTrue("world_nether" in LookupSuggest.suggest("nether", lists).map { it.text })
+        assertTrue("chunk" in LookupSuggest.suggest("ch", lists).map { it.text })
+        assertTrue(LookupSuggest.suggest("", lists).none { it.text == "Alice" }, "nothing bare until something is typed")
     }
 
     @Test
@@ -182,5 +255,14 @@ class SmartLookupSuggestTest {
         } finally {
             directory.toFile().deleteRecursively()
         }
+    }
+
+    @Test
+    fun `scope is s in the first suggestions and scope when typed out`() {
+        assertTrue(LookupSuggest.suggest("", lists).any { it.text == "s:" })
+        assertEquals(listOf("scope:"), LookupSuggest.suggest("sco", lists).map { it.text })
+        val both = LookupSuggest.suggest("s", lists).map { it.text }
+        assertTrue("s:" in both && "scope:" in both)
+        assertEquals(listOf("s:20b", "s:20c"), LookupSuggest.suggest("s:20", lists).map { it.text })
     }
 }

@@ -13,6 +13,7 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.command.TracelCommand
+import com.tracel.plugin.command.suggest.CommandOrderListener
 import com.tracel.plugin.listener.api.registerObserved
 import com.tracel.plugin.listener.listenersOf
 import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
@@ -215,6 +216,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             "${listener.javaClass.simpleName} is in Listeners.kt with no @Observes handler on it"
         }
     }
+    plugin.server.pluginManager.registerEvents(CommandOrderListener(), plugin)
     plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
         TracelCommand.register(event.registrar(), services)
     }

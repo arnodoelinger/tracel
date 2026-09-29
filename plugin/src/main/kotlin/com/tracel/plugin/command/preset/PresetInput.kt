@@ -1,0 +1,33 @@
+package com.tracel.plugin.command.preset
+
+import com.tracel.plugin.command.args.ParsedLookupArgs
+import com.tracel.plugin.command.args.filledFrom
+import com.tracel.plugin.command.args.parseLookupArgs
+import com.tracel.plugin.command.suggest.SuggestLists
+import java.util.UUID
+
+/**
+ * Parses flag tokens where any `@name` stands for a saved preset.
+ *
+ * What is typed wins: `@grief t:30m` is the preset with its time replaced. Presets fill only what is still empty,
+ * left to right.
+ */
+internal fun parseWithPresets(
+    tokens: List<String>,
+    owner: UUID?,
+    store: PresetStore?,
+    now: Long,
+    known: SuggestLists,
+): ParsedLookupArgs {
+    val (refs, typed) = tokens.partition { it.startsWith("@") && it.length > 1 }
+    var result = parseLookupArgs(typed, now, known)
+    for (ref in refs) {
+        val preset = store?.find(ref.substring(1), owner)
+        result = if (preset == null) {
+            result.copy(errors = result.errors + "unknown preset $ref — /tracel preset list")
+        } else {
+            result.filledFrom(parseLookupArgs(preset.tokens, now, known))
+        }
+    }
+    return result
+}

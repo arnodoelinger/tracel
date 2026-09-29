@@ -5,7 +5,6 @@ import com.tracel.plugin.command.suggest.SuggestLists
 
 data class ParsedLookupArgs(
     val users: Set<String> = emptySet(),
-    val excludedUsers: Set<String> = emptySet(),
     val item: String? = null,
     val actions: Set<String> = emptySet(),
     val since: Long? = null,
@@ -13,7 +12,6 @@ data class ParsedLookupArgs(
     val scope: LookupScope? = null,
     val world: String? = null,
     val horizontalOnly: Boolean = false,
-    val lot: Long? = null,
     val preview: Boolean = false,
     val structureOnly: Boolean = false,
     val materialOnly: Boolean = false,
@@ -100,11 +98,6 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Flag("#wide") { it.copy(horizontalOnly = true) },
     LookupArgument.Flag("#trace") { it.copy(trace = true) },
 
-    LookupArgument.Multi(
-        "-user:",
-        { it.excludedUsers },
-        { r, v -> r.copy(excludedUsers = v) },
-        { it.onlinePlayerNames }),
     LookupArgument.Multi("user:", { it.users }, { r, v -> r.copy(users = v) }, { it.onlinePlayerNames }),
     LookupArgument.Value("item:", { r, v -> r.copy(item = v) }, { it.itemNames }),
     LookupArgument.Value("block:", { r, v -> r.copy(item = v) }, { it.blockNames }),
@@ -129,14 +122,17 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
         { v, now -> TimeArgument.parseExpr(v, now) },
         { r, v -> r.within(v) },
         { TimeArgument.timeSuggestions() }),
-    LookupArgument.Parsed("lot:", { v, _ -> v.toLongOrNull() }, { r, v -> r.copy(lot = v) }),
 
     // Aliases
-    LookupArgument.Multi("-u:", { it.excludedUsers }, { r, v -> r.copy(excludedUsers = v) }, { it.onlinePlayerNames }),
     LookupArgument.Multi("u:", { it.users }, { r, v -> r.copy(users = v) }, { it.onlinePlayerNames }),
     LookupArgument.Value("i:", { r, v -> r.copy(item = v) }, { it.itemNames }),
     LookupArgument.Value("b:", { r, v -> r.copy(item = v) }, { it.blockNames }),
     LookupArgument.Multi("a:", { it.actions }, { r, v -> r.copy(actions = v) }, { it.causeNames }),
+    LookupArgument.Parsed(
+        "s:",
+        { v, _ -> ScopeArgument.parse(v) },
+        { r, v -> r.withScope(v) },
+        { ScopeArgument.suggestions(it.worldNames) }),
     LookupArgument.Parsed(
         "w:",
         { v, _ -> v.takeIf(String::isNotBlank) },
@@ -147,15 +143,70 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
         { v, now -> TimeArgument.parseExpr(v, now) },
         { r, v -> r.within(v) },
         { TimeArgument.timeSuggestions() }),
-    LookupArgument.Parsed("l:", { v, _ -> v.toLongOrNull() }, { r, v -> r.copy(lot = v) }),
 )
 
-fun parseLookupArgs(args: List<String>, nowMillis: Long): ParsedLookupArgs =
+/**
+ * Parses flag tokens. A token that is no flag is read for what it looks like ([SmartInput]): `10m` is a time,
+ * `20b` a scope, a name is a player, a world, an action or an item — [known] says which names exist.
+ */
+internal fun parseLookupArgs(args: List<String>, nowMillis: Long, known: SuggestLists = SuggestLists()): ParsedLookupArgs =
     args.fold(ParsedLookupArgs()) { result, token ->
         val argument = LOOKUP_ARGUMENTS.firstOrNull { it.matches(token) }
-        argument?.apply(result, token, nowMillis)
-            ?: result.copy(errors = result.errors + "unrecognized flag: $token")
+        argument?.apply(result, token, nowMillis) ?: SmartInput.read(result, token, nowMillis, known)
     }
+
+private object SmartInput {
+    private val SCOPE = Regex("""\d+[bc]""")
+    private val NUMBER = Regex("""\d+""")
+    private val NAME = Regex("""[A-Za-z0-9_.]{3,16}""")
+
+    fun read(args: ParsedLookupArgs, token: String, now: Long, known: SuggestLists): ParsedLookupArgs {
+        val lower = token.lowercase()
+        TimeArgument.parseExpr(lower, now)?.let { return args.within(it) }
+        if (SCOPE.matches(lower) || lower == "block" || lower == "chunk") {
+            ScopeArgument.parse(lower)?.let { return args.withScope(it) }
+        }
+        if (lower in ActionArgument.NAMES) return args.copy(actions = args.actions + lower)
+        known.onlinePlayers.firstOrNull { it.equals(token, ignoreCase = true) }
+            ?.let { return args.copy(users = args.users + it) }
+        known.worldNames.firstOrNull { it.equals(token, ignoreCase = true) }
+            ?.let { return args.copy(world = it) }
+        val material = lower.removePrefix("minecraft:")
+        if (material in known.itemNames || material in known.blockNames) return args.copy(item = material)
+
+        if (NUMBER.matches(token)) {
+            return args.copy(errors = args.errors + "$token needs a unit: ${token}m is a time, ${token}b a scope")
+        }
+        if (NAME.matches(token)) return args.copy(users = args.users + token)
+        return args.copy(errors = args.errors + unrecognized(token))
+    }
+
+    private fun unrecognized(token: String): String {
+        val head = token.substringBefore(':', "").lowercase()
+        if (head.isEmpty() || ':' !in token) return "unrecognized: $token"
+        val near = LOOKUP_ARGUMENTS.map { it.prefix }
+            .filter { it.endsWith(":") }
+            .map { it to editDistance("$head:", it) }
+            .filter { it.second <= 2 }
+            .minByOrNull { it.second }
+            ?.first
+        return if (near == null) "unrecognized flag: $token" else "unrecognized flag: $token — did you mean $near?"
+    }
+
+    private fun editDistance(a: String, b: String): Int {
+        var row = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val next = IntArray(b.length + 1)
+            next[0] = i
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                next[j] = minOf(next[j - 1] + 1, row[j] + 1, row[j - 1] + cost)
+            }
+            row = next
+        }
+        return row[b.length]
+    }
+}
 
 fun suggestLookupToken(
     partial: String,
@@ -181,3 +232,22 @@ private fun ParsedLookupArgs.within(window: TimeExpr): ParsedLookupArgs =
 private fun later(a: Long?, b: Long?): Long? = if (a == null) b else if (b == null) a else maxOf(a, b)
 
 private fun earlier(a: Long?, b: Long?): Long? = if (a == null) b else if (b == null) a else minOf(a, b)
+
+/** What is set here stays; what is empty here comes from [preset]. Errors of both are kept. */
+internal fun ParsedLookupArgs.filledFrom(preset: ParsedLookupArgs): ParsedLookupArgs = copy(
+    users = users.ifEmpty { preset.users },
+    item = item ?: preset.item,
+    actions = actions.ifEmpty { preset.actions },
+    since = if (since == null && until == null) preset.since else since,
+    until = if (since == null && until == null) preset.until else until,
+    scope = scope ?: preset.scope,
+    world = world ?: preset.world,
+    horizontalOnly = horizontalOnly || preset.horizontalOnly,
+    preview = preview || preset.preview,
+    structureOnly = structureOnly || preset.structureOnly,
+    materialOnly = materialOnly || preset.materialOnly,
+    strict = strict || preset.strict,
+    confirmed = confirmed || preset.confirmed,
+    trace = trace || preset.trace,
+    errors = errors + preset.errors,
+)

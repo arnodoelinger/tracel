@@ -47,6 +47,17 @@ fun <T : Any> LiteralArgumentBuilder<CommandSourceStack>.argument(
     return child
 }
 
+/** Adds a child required argument to this required argument node. */
+fun <T, U : Any> RequiredArgumentBuilder<CommandSourceStack, T>.argument(
+    name: String,
+    type: ArgumentType<U>,
+    block: RequiredArgumentBuilder<CommandSourceStack, U>.() -> Unit = {},
+): RequiredArgumentBuilder<CommandSourceStack, U> {
+    val child = Commands.argument(name, type).apply(block)
+    then(child)
+    return child
+}
+
 /** Adds a child literal argument to this required argument node. [tooltip] is the text shown beside the name. */
 fun <T> RequiredArgumentBuilder<CommandSourceStack, T>.literal(
     name: String,

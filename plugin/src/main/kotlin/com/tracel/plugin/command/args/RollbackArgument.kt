@@ -31,7 +31,6 @@ object RollbackArgument {
         val reasons = mutableListOf<String>()
 
         val users = resolvePlayers(parsed.users, "unknown player", reasons)
-        val excluded = resolvePlayers(parsed.excludedUsers, "unknown player to exclude", reasons)
 
         val actions = ActionArgument.parse(parsed.actions)
         actions.unknown.forEach { reasons += "unknown action: $it" }
@@ -58,9 +57,7 @@ object RollbackArgument {
                         "or scope:${ScopeLimits.MAX_CHUNK_RADIUS}c"
         }
 
-        if (parsed.since == null && parsed.lot == null) {
-            reasons += "give a time bound (t:1h) — an unbounded rollback undoes the whole history of the server"
-        }
+        reasons += missingBounds(parsed)
         if (parsed.since != null && parsed.until != null && parsed.since > parsed.until) {
             reasons += "the time flags leave no window: the start is after the end"
         }
@@ -72,7 +69,6 @@ object RollbackArgument {
         return FilterResult.Ok(
             filter = LookupFilter(
                 holders = users.mapTo(hashSetOf(), HolderId::Player),
-                excludedHolders = excluded.mapTo(hashSetOf(), HolderId::Player),
                 material = parsed.item?.let { MaterialAliases.resolve(it).first },
                 blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
                 causes = actions.causes,
@@ -87,6 +83,16 @@ object RollbackArgument {
             center = center,
             actions = actions,
         )
+    }
+
+    /** A rollback with no time or no place undoes the history of the server, so it is refused. */
+    internal fun missingBounds(parsed: ParsedLookupArgs): List<String> = buildList {
+        if (parsed.since == null) {
+            add("give a time (t:10m) — a rollback without one undoes the whole history of the server")
+        }
+        if (parsed.scope == null) {
+            add("give a scope (s:20b, s:2c, s:chunk or s:block) — a rollback needs a place")
+        }
     }
 
     private fun resolvePlayers(

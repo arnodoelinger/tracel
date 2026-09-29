@@ -7,7 +7,7 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import java.util.concurrent.CompletableFuture
 
-/** Suggestions for the flags of `/tracel rollback`. `undo` is its own literal. */
+/** Suggestions for the flags of `/tracel rollback`. Taking one back is `/tracel restore`. */
 internal object RollbackSuggest : SuggestionProvider<CommandSourceStack> {
     /** Suggests a list of completions. */
     fun suggest(line: String, lists: SuggestLists): List<Suggestion> {
@@ -18,5 +18,5 @@ internal object RollbackSuggest : SuggestionProvider<CommandSourceStack> {
     override fun getSuggestions(
         context: CommandContext<CommandSourceStack>,
         builder: SuggestionsBuilder,
-    ): CompletableFuture<Suggestions> = builder.reply(suggest(builder.remaining, liveLists()))
+    ): CompletableFuture<Suggestions> = builder.reply(suggest(builder.remaining, liveLists(context.source.sender)))
 }

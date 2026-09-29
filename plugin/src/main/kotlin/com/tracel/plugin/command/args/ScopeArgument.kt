@@ -4,6 +4,7 @@ sealed interface LookupScope {
     data class Blocks(val radius: Int) : LookupScope
     data class Chunks(val radius: Int) : LookupScope
     data object CurrentChunk : LookupScope
+    data object CurrentBlock : LookupScope
 }
 
 internal sealed interface ScopeValue {
@@ -19,11 +20,13 @@ object ScopeArgument {
         is LookupScope.Blocks -> "${scope.radius}b"
         is LookupScope.Chunks -> "${scope.radius}c"
         LookupScope.CurrentChunk -> "chunk"
+        LookupScope.CurrentBlock -> "block"
     }
 
     internal fun parse(value: String): ScopeValue? = when {
         value.isBlank() -> null
         value == "chunk" -> ScopeValue.Radius(LookupScope.CurrentChunk)
+        value == "block" -> ScopeValue.Radius(LookupScope.CurrentBlock)
         value.toIntOrNull() != null -> ScopeValue.Radius(LookupScope.Blocks(value.toInt()))
         else -> BLOCK_RADIUS.matchEntire(value)?.groupValues?.get(1)?.toIntOrNull()?.let {
             ScopeValue.Radius(LookupScope.Blocks(it))
@@ -33,7 +36,7 @@ object ScopeArgument {
     }
 
     internal fun suggestions(worldNames: List<String>): List<String> =
-        listOf("10b", "32b", "64b", "4c", "8c", "16c", "chunk") + worldNames
+        listOf("4b", "8b", "16b", "32b", "64b", "128b", "block", "chunk") + worldNames
 }
 
 object ScopeLimits {
@@ -43,7 +46,7 @@ object ScopeLimits {
     fun LookupScope.isOversized(): Boolean = when (this) {
         is LookupScope.Blocks -> radius > MAX_BLOCK_RADIUS
         is LookupScope.Chunks -> radius > MAX_CHUNK_RADIUS
-        LookupScope.CurrentChunk -> false
+        LookupScope.CurrentChunk, LookupScope.CurrentBlock -> false
     }
 }
 
