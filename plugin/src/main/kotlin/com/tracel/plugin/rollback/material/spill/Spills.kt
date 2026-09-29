@@ -40,10 +40,22 @@ internal fun MaterialRestorer.spillInRegion(
     recordSpilled(holder, where, spilled)
 }
 
-/** Books piles already on the ground as moved out of [holder]; [recordSpills] waits for it. */
+/**
+ * Books piles already on the ground as moved out of [holder]; [recordSpills] waits for it.
+ *
+ * Called on the region that just spawned them, and the piles stay frozen until the books know them.
+ */
 internal fun MaterialRestorer.recordSpilled(holder: HolderId, where: BlockPos, spilled: List<Spill>) {
     if (spilled.isEmpty()) return
-    val recording = services.scope.launch { recordSpillGroup(holder, where, spilled) }
+    val piles = spilled.map { it.delta.holder }
+    services.frozen.freeze(piles)
+    val recording = services.scope.launch {
+        try {
+            recordSpillGroup(holder, where, spilled)
+        } finally {
+            services.frozen.thaw(piles)
+        }
+    }
     spillRecords += recording
     recording.invokeOnCompletion { spillRecords -= recording }
 }

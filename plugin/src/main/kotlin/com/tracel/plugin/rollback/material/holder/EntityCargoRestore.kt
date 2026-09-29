@@ -42,6 +42,10 @@ private const val CHEST_STORAGE_FROM = 2
 
 private const val NO_HULL = "entity no longer exists"
 private const val ELSEWHERE = "entity is in another region"
+private const val GONE_SPILLED = "the entity is gone; what it was owed lies on the ground where it last stood"
+
+private val NO_HULL_FAILURE = ApplyResult.Failed(NO_HULL)
+private val ELSEWHERE_FAILURE = ApplyResult.Failed(ELSEWHERE)
 
 /** One global lookup for entity cargo restore. */
 internal suspend fun MaterialRestorer.restoreEntityCargo(
@@ -90,7 +94,11 @@ internal suspend fun MaterialRestorer.restoreEntityCargo(
         }
     }
     val located = Pair(found, missing)
-    for (holder in located.second) out += holder to ENTITY_GONE_AFTER_RESTORE
+    for (holder in located.second) {
+        // What a gone hull was owed goes on the ground where it last stood; giving it to nothing loses it
+        val spilled = live[holder]?.let { spillForGoneHull(holder, it, forms, sink) } ?: false
+        out += holder to if (spilled) ApplyResult.Failed(GONE_SPILLED) else ENTITY_GONE_AFTER_RESTORE
+    }
     val waitFor = located.first.firstOrNull { it.needsTracker }
     if (waitFor != null) awaitTicks(2)
 
@@ -110,7 +118,7 @@ internal suspend fun MaterialRestorer.restoreEntityCargo(
                     group.map { row ->
                         row.holder to inRegion {
                             val failed = fillEntityCargo(row.holder, row.deltas, forms, sink, asOf, worn)
-                            if (failed == NO_HULL && world != null) spillGives(
+                            if (failed === NO_HULL_FAILURE && world != null) spillGives(
                                 row.holder,
                                 row.deltas,
                                 forms,
@@ -122,7 +130,7 @@ internal suspend fun MaterialRestorer.restoreEntityCargo(
                         }
                     }
                 }.map { (holder, result) ->
-                    if ((result as? ApplyResult.Failed)?.reason != ELSEWHERE) return@map holder to result
+                    if (result !== ELSEWHERE_FAILURE) return@map holder to result
                     val row = group.first { it.holder == holder }
                     holder to withContext(services.schedulers.entity(holder.uuid)) {
                         inRegion { fillEntityCargo(row.holder, row.deltas, forms, sink, asOf, worn) }
@@ -147,9 +155,9 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
     sink: MutableCollection<Spill>,
     asOf: Long? = null,
     worn: WornStacks? = null,
-): String? {
-    val entity = Bukkit.getEntity(holder.uuid) ?: return NO_HULL
-    if (!Bukkit.isOwnedByCurrentRegion(entity)) return ELSEWHERE
+): ApplyResult.Failed? {
+    val entity = Bukkit.getEntity(holder.uuid) ?: return NO_HULL_FAILURE
+    if (!Bukkit.isOwnedByCurrentRegion(entity)) return ELSEWHERE_FAILURE
     val moves = Moves()
     when (entity) {
         is ArmorStand -> {
@@ -235,7 +243,7 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
         }
     }
     spillInRegion(holder, moves, entity.world, entity.location, sink)
-    return moves.reason
+    return moves.failure()
 }
 
 private fun MaterialRestorer.applyMobEquipment(
@@ -303,4 +311,18 @@ private fun MaterialRestorer.spillGives(
         Location(world, at.x + 0.5, at.y + 1.0, at.z + 0.5),
         sink
     )
+}
+
+private suspend fun MaterialRestorer.spillForGoneHull(
+    holder: HolderId.Entity,
+    deltas: Map<ItemKey, Long>,
+    forms: Map<ItemKey, ByteArray>,
+    sink: MutableCollection<Spill>,
+): Boolean {
+    if (deltas.values.any { it <= 0L }) return false
+    val here = services.whereabouts.lastKnown(holder.uuid) ?: return false
+    val world = worldOf(here.world) ?: return false
+    val at = HolderId.Block(here.world, here.x, here.y, here.z)
+    withContext(services.schedulers.region(at)) { spillGives(holder, deltas, forms, world, at, sink) }
+    return true
 }

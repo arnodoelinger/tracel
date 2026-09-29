@@ -2,6 +2,7 @@ package com.tracel.plugin.rollback.material.item
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.rollback.material.ApplyResult
 import org.bukkit.inventory.ItemStack
 
 /** Overflow: ledger already credited, must spill. Shortfall: world still has it, name it. */
@@ -27,6 +28,9 @@ internal class Moves {
     fun owed(itemKey: ItemKey): Long = shortfall[itemKey] ?: 0L
 
     val shortfalls: Long get() = shortfall.values.sum()
+
+    /** [reason] as a failed apply that names exactly what could not be taken. */
+    fun failure(): ApplyResult.Failed? = reason?.let { ApplyResult.Failed(it, LinkedHashMap(shortfall)) }
 
     val reason: String?
         get() {

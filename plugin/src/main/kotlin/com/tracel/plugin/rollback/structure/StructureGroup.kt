@@ -22,6 +22,7 @@ import com.tracel.plugin.rollback.structure.fluid.fixSnowyGround
 import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.Warnings
 import com.tracel.plugin.util.chunkKey
+import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.BlockFace
@@ -207,9 +208,10 @@ internal fun StructureRestorer.applyGroup(
         for (step in spawns) {
             // Do not remove() a living hull before respawn
             val inPlace = step.expected != null
+            val before = if (inPlace) null else Bukkit.getEntity(step.entity)?.takeIf { it.isValid }
             val hull = step.shape.spawnInto(world, step.entity, step.entity in keepCargoFor, resurrect = !inPlace)
             if (hull != null) {
-                applied += step
+                if (hull !== before) applied += step
                 services.whereabouts.remember(hull)
                 if (!hull.linkedAsRecorded(step.shape)) looseEnds += hull to step.shape
             } else {

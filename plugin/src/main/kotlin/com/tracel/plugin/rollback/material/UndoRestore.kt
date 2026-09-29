@@ -11,15 +11,9 @@ import com.tracel.plugin.rollback.material.item.formsFor
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.result.report.RestorationReport
-import org.bukkit.Material
-import org.bukkit.block.Campfire
-import org.bukkit.inventory.InventoryHolder
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.logging.Level
-
-private val holdsItems = ConcurrentHashMap<String, Boolean>()
 
 /** Puts material back after the ledger has already undone a job. */
 internal suspend fun MaterialRestorer.restoreUndo(
@@ -43,13 +37,13 @@ internal suspend fun MaterialRestorer.respawnDrops(
     steps: List<InvolutionStep>,
     job: RollbackJobId,
     hullAt: Map<UUID, HolderId>,
+    shortfall: Map<ItemKey, Long> = emptyMap(),
 ): RestorationReport {
     val work = LinkedHashMap<HolderId.ItemEntity, MutableMap<ItemKey, Long>>()
     val respawnAt = HashMap<HolderId.ItemEntity, HolderId>()
     for (step in steps) {
         if (step !is InvolutionStep.Return) continue
         val drop = step.to as? HolderId.ItemEntity ?: continue
-        if (step.from is HolderId.PlacedBlock && isContainerBlockItem(step.itemKey)) continue
         val from = when (val origin = step.from) {
             is HolderId.Entity -> hullAt[origin.uuid] ?: origin
             is HolderId.PlacedEntity -> hullAt[origin.uuid] ?: origin
@@ -59,9 +53,19 @@ internal suspend fun MaterialRestorer.respawnDrops(
         work.getOrPut(drop) { mutableMapOf() }.merge(step.itemKey, step.quantity.raw, Long::plus)
     }
     if (work.isEmpty()) return RestorationReport(emptyMap())
+    val unfunded = withholdUnfunded(work.entries.associate { (drop, deltas) -> drop as HolderId to deltas }, shortfall)
+    if (unfunded.withheld.isNotEmpty()) {
+        logger.log(
+            Level.WARNING,
+            "undo job ${job.raw} put ${unfunded.withheld.size} vanished drop(s) back short: what funded them could not " +
+                    "be taken, and respawning them anyway would have duplicated it",
+        )
+    }
+    val funded = unfunded.funded.entries.associate { (holder, deltas) -> holder as HolderId.ItemEntity to deltas }
+    if (funded.isEmpty()) return RestorationReport(emptyMap(), shortfall = unfunded.unspent)
     val sink = ConcurrentLinkedQueue<Spill>()
-    val forms = formsFor(work.mapKeys { it.key })
-    val outcomes = spawnReturnedDrops(work, respawnAt, forms, sink)
+    val forms = formsFor(funded.mapKeys { it.key })
+    val outcomes = spawnReturnedDrops(funded, respawnAt, forms, sink)
     val failures = mutableMapOf<HolderId, String>()
     for ((holder, result) in outcomes) {
         if (result is ApplyResult.Failed) failures[holder] = result.reason
@@ -74,14 +78,5 @@ internal suspend fun MaterialRestorer.respawnDrops(
                     "first: ${failures.entries.take(SAMPLED_FAILURES).joinToString("; ") { "${it.key}: ${it.value}" }}",
         )
     }
-    return RestorationReport(failures, spilled = sink.size)
-}
-
-/** Whether [itemKey] is a container placed as a block. Asks the block itself, so a new one is not missed. */
-internal fun isContainerBlockItem(itemKey: ItemKey): Boolean = holdsItems.computeIfAbsent(itemKey.material) { name ->
-    val material = Material.getMaterial(name)?.takeIf { it.isBlock } ?: return@computeIfAbsent false
-    runCatching {
-        val state = material.createBlockData().createBlockState()
-        state is InventoryHolder || state is Campfire
-    }.getOrDefault(false)
+    return RestorationReport(failures, spilled = sink.size, shortfall = unfunded.unspent)
 }

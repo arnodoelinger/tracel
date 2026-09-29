@@ -12,9 +12,11 @@ import java.util.concurrent.ConcurrentLinkedQueue
 class EntityWhereabouts(private val capacity: Int = UNBOUNDED) {
     private val at = ConcurrentHashMap<UUID, HolderId.Block>()
     private val order = if (capacity > 0) ConcurrentLinkedQueue<UUID>() else null
+    private val last = ConcurrentHashMap<UUID, HolderId.Block>()
 
     private companion object {
         const val UNBOUNDED = 0
+        const val LAST_KEPT = 50_000
     }
 
     /** Remember the entity's current block position. */
@@ -35,13 +37,18 @@ class EntityWhereabouts(private val capacity: Int = UNBOUNDED) {
         }
     }
 
-    /** Stop tracking an entity. */
+    /** Stop tracking an entity; where it stood is still on hand through [lastKnown]. */
     fun forget(uuid: UUID) {
-        at.remove(uuid)
+        val was = at.remove(uuid) ?: return
+        if (last.size >= LAST_KEPT) last.clear()
+        last[uuid] = was
     }
 
     /** @return the entity's last known position. */
     fun at(uuid: UUID): HolderId.Block? = at[uuid]
+
+    /** @return where the entity stood, gone or not: what a vanished hull was owed lands there. */
+    fun lastKnown(uuid: UUID): HolderId.Block? = at[uuid] ?: last[uuid]
 }
 
 /** Where ground items were last standing. */

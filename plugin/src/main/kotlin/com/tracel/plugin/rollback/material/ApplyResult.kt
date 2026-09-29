@@ -1,12 +1,14 @@
 package com.tracel.plugin.rollback.material
 
+import com.tracel.model.item.ItemKey
+
 /** Per-holder apply. */
 internal sealed interface ApplyResult {
     /** Result has been applied. */
     data object Ok : ApplyResult
 
     /** Result failed. */
-    data class Failed(val reason: String) : ApplyResult
+    data class Failed(val reason: String, val short: Map<ItemKey, Long>? = null) : ApplyResult
 
     /** Queued result. */
     data class Queued(val note: String) : ApplyResult

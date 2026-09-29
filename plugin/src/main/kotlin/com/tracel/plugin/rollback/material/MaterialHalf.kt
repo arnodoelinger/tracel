@@ -59,5 +59,6 @@ interface MaterialHalf {
         steps: List<InvolutionStep>,
         job: RollbackJobId,
         hullAt: Map<UUID, HolderId> = emptyMap(),
+        shortfall: Map<ItemKey, Long> = emptyMap(),
     ): RestorationReport
 }

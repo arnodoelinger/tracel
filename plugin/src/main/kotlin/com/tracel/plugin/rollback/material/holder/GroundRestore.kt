@@ -107,8 +107,8 @@ internal suspend fun MaterialRestorer.restoreGroundItems(
 }
 
 /** Whether it's in the region. */
-internal suspend inline fun MaterialRestorer.inRegion(work: suspend () -> String?): ApplyResult = try {
-    work()?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+internal suspend inline fun MaterialRestorer.inRegion(work: suspend () -> ApplyResult.Failed?): ApplyResult = try {
+    work() ?: ApplyResult.Ok
 } catch (cancelled: CancellationException) {
     throw cancelled
 } catch (moved: Throwable) {
@@ -120,17 +120,17 @@ internal fun MaterialRestorer.takeGroundItem(
     holder: HolderId.ItemEntity,
     deltas: Map<ItemKey, Long>,
     worn: WornStacks? = null,
-): String? {
-    val item = Bukkit.getEntity(holder.uuid) as? Item ?: return "ground item no longer exists"
+): ApplyResult.Failed? {
+    val item = Bukkit.getEntity(holder.uuid) as? Item ?: return ApplyResult.Failed("ground item no longer exists")
     val entry = deltas.entries.singleOrNull()
-        ?: return "a ground item can only ever be a single-item-key Take source, got ${deltas.keys}"
+        ?: return ApplyResult.Failed("a ground item can only ever be a single-item-key Take source, got ${deltas.keys}")
     val (itemKey, delta) = entry
-    if (delta >= 0) return "a ground item can only ever lose material during a rollback, got a gain"
+    if (delta >= 0) return ApplyResult.Failed("a ground item can only ever lose material during a rollback, got a gain")
 
     // Unknown material is not "out of reach"; don't let valueOf throw into the drift catch
     val material = runCatching { Material.valueOf(itemKey.material) }.getOrNull()
-        ?: return "unknown material ${itemKey.material}"
-    if (material != item.itemStack.type) return "ground item is no longer ${itemKey.material}"
+        ?: return ApplyResult.Failed("unknown material ${itemKey.material}")
+    if (material != item.itemStack.type) return ApplyResult.Failed("ground item is no longer ${itemKey.material}")
     if (worn != null && WornStacks.wears(itemKey)) {
         worn.took(itemKey, item.itemStack.clone().apply { amount = minOf(amount.toLong(), -delta).toInt() })
     }
@@ -147,7 +147,10 @@ internal fun MaterialRestorer.takeGroundItem(
     services.selfManagedWorld.whileRestoring { item.remove() }
 
     // Short pile: pickup or merge. Silent success left the difference in two places
-    return if (remaining == 0L) null else "${itemKey.material} x${-remaining} was no longer on the ground"
+    return if (remaining == 0L) null else ApplyResult.Failed(
+        "${itemKey.material} x${-remaining} was no longer on the ground",
+        mapOf(itemKey to -remaining),
+    )
 }
 
 /** Respawn a consumed drop. */
@@ -176,7 +179,9 @@ internal suspend fun MaterialRestorer.spawnReturnedDrops(
         async {
             withContext(services.schedulers.region(group.first().value)) {
                 group.map { (holder, at) ->
-                    holder to inRegion { spawnReturnedDrop(holder, work.getValue(holder), at, forms, sink) }
+                    holder to inRegion {
+                        spawnReturnedDrop(holder, work.getValue(holder), at, forms, sink)?.let { ApplyResult.Failed(it) }
+                    }
                 }
             }
         }

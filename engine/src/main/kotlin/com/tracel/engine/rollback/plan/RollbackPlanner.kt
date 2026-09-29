@@ -144,29 +144,27 @@ public class RollbackPlanner(
         RollbackPlan(stillConsumed(unmakeSteps.values.toList()) + leaves + takeRuns(runs, unmade), rootOf, settled)
     }
 
-    // TODO: too dangerous but it works
+    // A run is one pack: one holder, one item key. Merging packs per holder mixed keys, and everything downstream that
+    // reads a run as one item took every lot of it for the first lot's key
     private fun takeRuns(runs: List<PlacedRun>, unmade: Set<LotId>): List<RollbackStep> {
         if (runs.isEmpty()) return emptyList()
-        val byHolder = LinkedHashMap<HolderId, Pair<ArrayList<Long>, ArrayList<Long>>>()
+        val out = ArrayList<RollbackStep>()
         for (run in runs) {
-            val (lots, quantities) = byHolder.getOrPut(run.holder) { ArrayList<Long>() to ArrayList() }
+            val lots = ArrayList<Long>(run.lots.size)
+            val quantities = ArrayList<Long>(run.lots.size)
             for (k in run.lots.indices) {
                 val lot = LotId(run.lots[k])
                 if (lot in unmade || homeOf(lot) == run.holder) continue
                 lots += run.lots[k]
                 quantities += run.quantities[k]
             }
-        }
-        val out = ArrayList<RollbackStep>()
-        for ((holder, entries) in byHolder) {
-            val (lots, quantities) = entries
             var from = 0
             while (from < lots.size) {
-                val until = minOf(from + MAX_RUN, lots.size) // TODO: max?
+                val until = minOf(from + MAX_RUN, lots.size)
                 out += RollbackStep.TakeRun(
                     LongArray(until - from) { lots[from + it] },
                     LongArray(until - from) { quantities[from + it] },
-                    holder,
+                    run.holder,
                 )
                 from = until
             }

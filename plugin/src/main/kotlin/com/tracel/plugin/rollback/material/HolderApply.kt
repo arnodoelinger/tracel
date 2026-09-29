@@ -51,15 +51,13 @@ internal suspend fun MaterialRestorer.dispatch(
 ): ApplyResult = when (holder) {
     is HolderId.Player -> applyToPlayer(holder, deltas, forms, job, sink, worn)
     is HolderId.EnderChest -> applyToEnderChest(holder, deltas, forms, job, sink, worn)
-    is HolderId.Block -> applyToContainer(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed)
-        ?: ApplyResult.Ok
+    is HolderId.Block -> applyToContainer(holder, deltas, forms, sink, asOf, worn) ?: ApplyResult.Ok
 
-    is HolderId.ItemEntity -> takeGroundItem(holder, deltas, worn)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+    is HolderId.ItemEntity -> takeGroundItem(holder, deltas, worn) ?: ApplyResult.Ok
 
     is HolderId.PlacedEntity -> takeProjectile(holder, deltas)?.let(ApplyResult::Failed) ?: ApplyResult.Ok
     is HolderId.PlacedBlock -> ApplyResult.Ok
-    is HolderId.Entity -> fillEntityCargo(holder, deltas, forms, sink, asOf, worn)?.let(ApplyResult::Failed)
-        ?: ApplyResult.Ok
+    is HolderId.Entity -> fillEntityCargo(holder, deltas, forms, sink, asOf, worn) ?: ApplyResult.Ok
 
     is HolderId.Source, is HolderId.Sink, is HolderId.Escrow -> ApplyResult.Ok
 }

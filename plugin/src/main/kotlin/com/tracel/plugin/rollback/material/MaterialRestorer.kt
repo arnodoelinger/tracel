@@ -65,5 +65,6 @@ class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, Wo
         steps: List<InvolutionStep>,
         job: RollbackJobId,
         hullAt: Map<UUID, HolderId>,
-    ): RestorationReport = respawnDrops(steps, job, hullAt)
+        shortfall: Map<ItemKey, Long>,
+    ): RestorationReport = respawnDrops(steps, job, hullAt, shortfall)
 }

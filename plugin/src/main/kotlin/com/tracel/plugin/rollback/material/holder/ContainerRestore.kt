@@ -7,6 +7,7 @@ import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.block.resyncCargo
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.adapter.world.worldOf
+import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.cargo.*
 import com.tracel.plugin.rollback.material.item.*
@@ -20,6 +21,7 @@ import org.bukkit.block.*
 import org.bukkit.inventory.InventoryHolder
 
 private const val NOT_A_CONTAINER = "block is no longer a container"
+private val NOT_A_CONTAINER_FAILURE = ApplyResult.Failed(NOT_A_CONTAINER)
 
 /** Applies [deltas] to whatever container lives at [holder]. */
 @Unstable
@@ -30,9 +32,9 @@ internal suspend fun MaterialRestorer.applyToContainer(
     sink: MutableCollection<Spill>,
     asOf: Long? = null,
     worn: WornStacks? = null,
-): String? {
-    suspend fun fill(): String? = withContext(services.schedulers.region(holder)) {
-        val world = worldOf(holder.world) ?: return@withContext "world is not loaded"
+): ApplyResult.Failed? {
+    suspend fun fill(): ApplyResult.Failed? = withContext(services.schedulers.region(holder)) {
+        val world = worldOf(holder.world) ?: return@withContext ApplyResult.Failed("world is not loaded")
         val block = world.getBlockAt(holder.x, holder.y, holder.z)
         val state = block.getState(false)
         val at = Location(world, holder.x + 0.5, holder.y + 1.0, holder.z + 0.5)
@@ -43,7 +45,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
             block.resyncCargo()
             spillInRegion(holder, moves, world, at, sink)
             services.differ.rebaseline(holder, Array(state.size) { state.getItem(it) }.toItemTotals())
-            return@withContext moves.reason
+            return@withContext moves.failure()
         }
 
         if (state is Jukebox) {
@@ -51,7 +53,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
             spillInRegion(holder, moves, world, at, sink)
             syncCargoFlags(state)
             services.differ.rebaseline(holder, state.inventory.toItemTotals())
-            return@withContext moves.reason
+            return@withContext moves.failure()
         }
 
         if (state is Lectern) {
@@ -60,7 +62,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
             syncCargoFlags(state)
             if (openAt != null) runCatching { (block.getState(false) as? Lectern)?.page = openAt }
             services.differ.rebaseline(holder, state.inventory.toItemTotals())
-            return@withContext moves.reason
+            return@withContext moves.failure()
         }
 
         if (state is ChiseledBookshelf) {
@@ -69,12 +71,12 @@ internal suspend fun MaterialRestorer.applyToContainer(
             spillInRegion(holder, moves, world, at, sink)
             runCatching { state.lastInteractedSlot = -1 }
             services.differ.rebaseline(holder, state.inventory.toItemTotals())
-            return@withContext moves.reason
+            return@withContext moves.failure()
         }
 
         val inventory = (state as? TileStateInventoryHolder)?.inventory
             ?: (state as? InventoryHolder)?.inventory
-            ?: return@withContext NOT_A_CONTAINER
+            ?: return@withContext NOT_A_CONTAINER_FAILURE
 
         val preferredSlots = asOf?.let { layoutFor(holder, it) }
             ?.groupBy { it.itemKey }
@@ -88,11 +90,11 @@ internal suspend fun MaterialRestorer.applyToContainer(
         spillInRegion(holder, moves, world, at, sink)
         syncCargoFlags(state)
         services.differ.rebaseline(holder, inventory.toItemTotals())
-        moves.reason
+        moves.failure()
     }
 
     val first = fill()
-    if (first != NOT_A_CONTAINER) return first
+    if (first !== NOT_A_CONTAINER_FAILURE) return first
 
     // The block rollback already finished
     return withContext(services.schedulers.region(holder)) {
@@ -113,7 +115,7 @@ internal suspend fun MaterialRestorer.applyToContainer(
         }
         if (moves.overflow.isEmpty()) return@withContext first
         spillInRegion(holder, moves, world, Location(world, holder.x + 0.5, holder.y + 1.0, holder.z + 0.5), sink)
-        "$first; what it was owed was dropped on the ground there"
+        ApplyResult.Failed("$NOT_A_CONTAINER; what it was owed was dropped on the ground there")
     }
 }
 

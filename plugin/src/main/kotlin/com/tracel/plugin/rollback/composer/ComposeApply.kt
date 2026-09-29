@@ -2,10 +2,14 @@ package com.tracel.plugin.rollback.composer
 
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.job.Reservation
+import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.result.outcome.*
+import com.tracel.plugin.rollback.result.report.SkippedStep
+import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
 import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import kotlinx.coroutines.launch
@@ -24,9 +28,21 @@ internal suspend fun RollbackComposer.applyTracked(planned: Planned, strict: Boo
     }
 
     var attempt = planned
+    val left = ArrayList<SkippedStep>()
     repeat(STALE_RETRIES) {
-        val deltas =
+        var deltas =
             attempt.trace.span("material deltas") { materialHalf.deltasFor(attempt.composite.material, attempt.target) }
+
+        // A hull or container that will refuse to go must not have its item handed back either, or both exist
+        val refused = services.leftHolding(attempt.composite.destroy, deltas)
+        if (refused.isNotEmpty()) {
+            left += attempt.composite.destroy.filter { it.placedHolder() in refused }
+                .map { SkippedStep(it.at, "still holds material nobody withdrew") }
+            attempt = attempt.without(refused)
+            deltas = attempt.trace.span("material deltas") {
+                materialHalf.deltasFor(attempt.composite.material, attempt.target)
+            }
+        }
         when (val preflight = materialHalf.preflight(deltas)) {
             is Unreachable -> return preflight
             PreflightResult.Ok -> Unit
@@ -35,7 +51,11 @@ internal suspend fun RollbackComposer.applyTracked(planned: Planned, strict: Boo
         val held = deltas.filter { (holder, moved) -> holder !is HolderId.Player || moved.values.any { it < 0L } }.keys
         var stale: Reservation.Stale? = null
         val result = services.frozen.whileFrozen(held) { applyReserved(attempt, strict, deltas) { stale = it } }
-        val fresh = stale ?: return result
+        val fresh = stale ?: return if (result is RollbackResult.Done && left.isNotEmpty()) {
+            result.copy(structure = result.structure + StructureReport(emptyList(), left))
+        } else {
+            result
+        }
         attempt = attempt.copy(composite = attempt.composite.copy(material = fresh.replan), witness = fresh.replannedAt)
     }
     return RollbackResult.Stale
@@ -54,6 +74,7 @@ private suspend fun RollbackComposer.applyReserved(
     val startedAtMillis = System.currentTimeMillis()
 
     val layout = layoutOf(planned, deltas)
+    for (step in composite.create) if (step is StructureStep.SpawnEntity) rememberHull(step)
 
     // Reserve before any block moves.
     // Mid-apply refusal left a half-restored world.
@@ -110,4 +131,27 @@ private suspend fun RollbackComposer.applyReserved(
     }
 
     return RollbackResult.Done(job, planned, first.created + destroyed, later.material)
+}
+
+private fun StructureStep.placedHolder(): HolderId? = when (this) {
+    is StructureStep.RemoveEntity -> HolderId.PlacedEntity(entity)
+    is StructureStep.SetBlock -> HolderId.PlacedBlock(at.world, at.x, at.y, at.z)
+    else -> null
+}
+
+private fun Planned.without(placed: Set<HolderId>): Planned {
+    val steps = composite.material.steps.filterNot { step ->
+        when (step) {
+            is RollbackStep.Take -> step.holder in placed
+            is RollbackStep.TakeRun -> step.holder in placed
+            else -> false
+        }
+    }
+    return copy(
+        composite = composite.copy(
+            destroy = composite.destroy.filterNot { it.placedHolder() in placed },
+            material = composite.material.copy(steps = steps),
+        ),
+        covered = covered?.minus(placed),
+    )
 }

@@ -2,6 +2,7 @@ package com.tracel.plugin.rollback.composer
 
 import com.tracel.engine.rollback.involution.InvolutionOutcome
 import com.tracel.engine.rollback.involution.InvolutionPlanner
+import com.tracel.engine.rollback.involution.InvolutionStep
 import com.tracel.engine.rollback.job.RollbackJobRecord
 import com.tracel.engine.rollback.job.RollbackJobRepository
 import com.tracel.engine.rollback.plan.RollbackTarget
@@ -16,6 +17,8 @@ import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.rollback.result.report.RestorationReport
+import com.tracel.plugin.rollback.result.report.SkippedStep
+import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
 import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import com.tracel.plugin.util.blockPos
@@ -39,10 +42,27 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
         .filter { other -> services.jobs.find(other)?.touches()?.any { it in mine } ?: false }
     if (newer.isNotEmpty()) return UndoResult.OutOfOrder(job, newer)
 
-    val putBack = record.destroy.map { it.inverse() }
     val takeAway = record.create.map { it.inverse() }
 
     val materialSteps = InvolutionPlanner(services.repo).plan(record)
+
+    // A placed hull the ledger cannot give its item back to (the player used it since) stays gone: bringing it back
+    // beside the item would be a copy
+    val itemBack = materialSteps.mapNotNullTo(HashSet()) { (it as? InvolutionStep.Return)?.to }
+    val (putBack, unbacked) = record.destroy.map { it.inverse() }.partition { step ->
+        val placed = when (step) {
+            is StructureStep.SpawnEntity -> HolderId.PlacedEntity(step.entity)
+            is StructureStep.SetBlock ->
+                if (step.target.isAirLike) null else HolderId.PlacedBlock(step.at.world, step.at.x, step.at.y, step.at.z)
+
+            else -> null
+        }
+        placed == null || placed !in record.plan.holders || placed in itemBack
+    }
+    val notBrought = StructureReport(
+        emptyList(),
+        unbacked.map { SkippedStep(it.at, "its item is no longer where the rollback left it, so it was not brought back") },
+    )
 
     when (val preflight = structureHalf.preflight(putBack + takeAway)) {
         is Unreachable -> return preflight
@@ -50,12 +70,24 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
     }
     val noise = record.plan.noiseMints()
     val undoDeltas = materialHalf.deltasForUndo(materialSteps, noise)
+
+    // Taking a hull or container away that still holds items would destroy them, or leave both it and its item
+    val stuck = services.leftHolding(takeAway, undoDeltas).firstOrNull()
+    if (stuck != null) {
+        return Unreachable(
+            stuck,
+            "what the rollback put back now holds items that were put in after it; take them out first",
+        )
+    }
     when (val preflight = materialHalf.preflight(undoDeltas)) {
         is Unreachable -> return preflight
         PreflightResult.Ok -> Unit
     }
 
-    return services.frozen.whileFrozen(undoDeltas.keys) { undoFrozen(job, record, putBack, takeAway, undoDeltas) }
+    // Where a hull that does not come back last stood: what it was owed then lands on the ground there
+    for (step in record.destroy.map { it.inverse() }) if (step is StructureStep.SpawnEntity) rememberHull(step)
+
+    return services.frozen.whileFrozen(undoDeltas.keys) { undoFrozen(job, record, putBack, takeAway, undoDeltas, notBrought) }
 }
 
 private suspend fun RollbackComposer.undoFrozen(
@@ -64,6 +96,7 @@ private suspend fun RollbackComposer.undoFrozen(
     putBack: List<StructureStep>,
     takeAway: List<StructureStep>,
     undoDeltas: Map<HolderId, Map<ItemKey, Long>>,
+    notBrought: StructureReport,
 ): UndoResult {
 
     // Strip ledger-filled hulls; keep unbooked snapshot cargo or undo empties the creative frame
@@ -124,7 +157,7 @@ private suspend fun RollbackComposer.undoFrozen(
                     hullAt[step.entity] = HolderId.Block(step.at.world, step.at.x, step.at.y, step.at.z)
                 }
             }
-            val respawned = materialHalf.respawnReturnedDrops(outcome.steps, job, hullAt)
+            val respawned = materialHalf.respawnReturnedDrops(outcome.steps, job, hullAt, material.shortfall)
             services.jobs.markUndone(job)
 
             // Physics was off; wake redstone after both halves. Nothing in the report waits on it
@@ -132,7 +165,7 @@ private suspend fun RollbackComposer.undoFrozen(
             if (waking.isNotEmpty()) services.scope.launch { structureHalf.wakeRedstone(waking.asSequence()) }
             UndoResult.Done(
                 job,
-                restored + removed,
+                restored + removed + notBrought,
                 RestorationReport(
                     material.failures + respawned.failures,
                     material.queued + respawned.queued,
@@ -166,6 +199,11 @@ private suspend fun RollbackComposer.undoFrozen(
             UndoResult.NotFound
         }
     }
+}
+
+/** Records the position of an entity being spawned during the rollback process. */
+internal fun RollbackComposer.rememberHull(step: StructureStep.SpawnEntity) {
+    services.whereabouts.remember(step.entity, HolderId.Block(step.at.world, step.at.x, step.at.y, step.at.z))
 }
 
 private fun RollbackJobRecord.touches(): Set<Any> = buildSet {

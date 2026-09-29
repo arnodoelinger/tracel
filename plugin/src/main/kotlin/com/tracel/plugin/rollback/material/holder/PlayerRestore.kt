@@ -64,7 +64,7 @@ internal suspend fun MaterialRestorer.applyToPlayer(
         val at = player.location
         spillInRegion(holder, moves, at.world, at, sink)
         services.differ.rebaseline(holder, player.heldTotals())
-        moves.reason?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+        moves.failure() ?: ApplyResult.Ok
     }
 
 /** Apply per-player ender inventory. */
@@ -101,7 +101,7 @@ internal suspend fun MaterialRestorer.applyToEnderChest(
         val at = player.location
         spillInRegion(holder, moves, at.world, at, sink)
         services.differ.rebaseline(holder, enderChest.toItemTotals())
-        moves.reason?.let(ApplyResult::Failed) ?: ApplyResult.Ok
+        moves.failure() ?: ApplyResult.Ok
     }
 
 /** Take remaining [Moves.owed] from the cursor. */

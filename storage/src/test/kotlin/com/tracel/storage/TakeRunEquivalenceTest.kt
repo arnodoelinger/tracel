@@ -142,6 +142,10 @@ class TakeRunEquivalenceTest {
                 val slowPlan = (slow as RollbackOutcome.Applied).plan
 
                 assertTrue(fastPlan.steps.any { it is RollbackStep.TakeRun }, "seed $seed: the history has to leave something to take whole")
+                for (step in fastPlan.steps.filterIsInstance<RollbackStep.TakeRun>()) {
+                    val keys = (0 until step.size).map { runs.repo.lot(step.lotAt(it)).itemKey }.toSet()
+                    assertEquals(1, keys.size, "seed $seed: a run is one item, got $keys")
+                }
                 assertEquals(expanded(slowPlan, target), expanded(fastPlan, target), "seed $seed: same steps")
                 assertEquals(state(walked), state(runs), "seed $seed: same ledger afterwards")
 

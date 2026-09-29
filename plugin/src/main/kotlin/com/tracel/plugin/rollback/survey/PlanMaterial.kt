@@ -76,6 +76,10 @@ internal suspend fun RollbackComposer.planMaterial(
         }
     }
 
+    // The mint half of a move the differ split: it goes out with the burn it belongs to
+    val paired = pairedGapMints(txns) { txn -> txn.lots.ifEmpty { extraLots?.get(txn.seq).orEmpty() } }
+    for ((lot, dest) in paired) byRoot[lot] = dest
+
     // Current holders of roots; log does not say where lots sit now
     if (byRoot.isNotEmpty()) {
         val holders = trace.span("root holders") { services.repo.currentHoldersOf(byRoot.keys) }

@@ -59,52 +59,27 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     }
 
     val worn = WornStacks()
-    val early = wornTakes(work)
-    val late = if (early.isEmpty()) work else work
-        .mapValues { (holder, deltas) -> early[holder]?.let { deltas - it.keys } ?: deltas }
-        .filterValues { it.isNotEmpty() }
-    val outcomes = if (early.isEmpty()) {
-        fanOut(late, job, gone, respawnAt, trace, census, forms, sink, settled, asOf, worn)
-    } else {
-        val wornKeys = early.values.flatMapTo(HashSet()) { it.keys }
-        val (waiting, free) = late.entries.partition { (holder, deltas) ->
-            holder in early || deltas.any { (key, delta) -> delta > 0L && key in wornKeys }
-        }
-        coroutineScope {
-            val freeRun = async {
-                fanOut(
-                    free.associate { it.toPair() },
-                    job,
-                    gone,
-                    respawnAt,
-                    trace,
-                    census,
-                    forms,
-                    sink,
-                    null,
-                    asOf,
-                    worn
-                )
-            }
-            val first = fanOut(early, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
-            val second = fanOut(
-                waiting.associate { it.toPair() },
-                job,
-                gone,
-                respawnAt,
-                trace,
-                census,
-                forms,
-                sink,
-                null,
-                asOf,
-                worn
-            )
-            val all = first + freeRun.await() + second
-            settled?.complete(all.mapNotNullTo(HashSet()) { (holder, result) -> holder.takeIf { result is ApplyResult.Failed } })
-            all
-        }
+
+    // Takes first, then gives. What a holder could not give up must not be handed out again elsewhere: that copy is
+    // a duplicate, and every rollback and undo after it compounds it.
+    val takes = LinkedHashMap<HolderId, Map<ItemKey, Long>>()
+    val gives = LinkedHashMap<HolderId, Map<ItemKey, Long>>()
+    for ((holder, itemDeltas) in work) {
+        val out = itemDeltas.filterValues { it < 0L }
+        val into = itemDeltas.filterValues { it > 0L }
+        if (out.isNotEmpty()) takes[holder] = out
+        if (into.isNotEmpty()) gives[holder] = into
     }
+    val tookOut = fanOut(takes, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
+    val short = shortfallOf(takes, tookOut)
+    val unfunded = withholdUnfunded(gives, short)
+    val gaveIn = fanOut(
+        unfunded.funded, job, gone, respawnAt, trace, census, forms, sink, settled, asOf, worn,
+        failedEarly = tookOut.mapNotNullTo(HashSet()) { (holder, result) ->
+            holder.takeIf { holder !is HolderId.ItemEntity && result is ApplyResult.Failed }
+        },
+    )
+    val outcomes = tookOut + gaveIn
 
     val failures = mutableMapOf<HolderId, String>()
     val queued = mutableMapOf<HolderId, String>()
@@ -116,6 +91,20 @@ internal suspend fun MaterialRestorer.restoreDeltas(
         }
     }
 
+    for ((holder, cut) in unfunded.withheld) {
+        val what = cut.entries.joinToString(", ") { (key, amount) -> "${key.material} x$amount" }
+        failures.merge(holder, "$what was not handed out: the matching take could not be made") { a, b -> "$a; $b" }
+    }
+    if (short.isNotEmpty()) {
+        logger.log(
+            Level.WARNING,
+            "rollback job ${job.raw}: " + short.entries.joinToString(", ") { (key, amount) -> "${key.material} x$amount" } +
+                    " could not be taken, so that much was not handed out" +
+                    if (unfunded.unspent.isEmpty()) "" else "; " +
+                            unfunded.unspent.entries.joinToString(", ") { (key, amount) -> "${key.material} x$amount" } +
+                            " found nothing to hold back, the world now has a spare",
+        )
+    }
     if (failures.isNotEmpty()) {
         logger.log(
             Level.WARNING,
@@ -126,7 +115,7 @@ internal suspend fun MaterialRestorer.restoreDeltas(
 
     recordSpills(sink)
 
-    return RestorationReport(failures, queued, sink.size)
+    return RestorationReport(failures, queued, sink.size, unfunded.unspent)
 }
 
 private suspend fun MaterialRestorer.fanOut(
@@ -228,13 +217,66 @@ private suspend fun MaterialRestorer.fanOut(
     }
 }
 
-private fun wornTakes(work: Map<HolderId, Map<ItemKey, Long>>): Map<HolderId, Map<ItemKey, Long>> {
-    val given = HashSet<ItemKey>()
-    for (deltas in work.values) for ((key, delta) in deltas) if (delta > 0L) given += key
-    val out = LinkedHashMap<HolderId, Map<ItemKey, Long>>()
-    for ((holder, deltas) in work) {
-        val taken = deltas.filter { (key, delta) -> delta < 0L && key in given && WornStacks.wears(key) }
-        if (taken.isNotEmpty()) out[holder] = taken
+/** What each key's takes fell short by, as the holders reported it. A holder that says nothing itemised took nothing. */
+internal fun shortfallOf(
+    takes: Map<HolderId, Map<ItemKey, Long>>,
+    results: List<Pair<HolderId, ApplyResult>>,
+): Map<ItemKey, Long> {
+    val out = LinkedHashMap<ItemKey, Long>()
+    for ((holder, result) in results) {
+        val failed = result as? ApplyResult.Failed ?: continue
+        val asked = takes[holder] ?: continue
+        val short = failed.short ?: asked.mapValues { -it.value }
+        for ((key, amount) in short) {
+            val owed = -(asked[key] ?: continue)
+            if (amount > 0L) out.merge(key, minOf(amount, owed), Long::plus)
+        }
     }
     return out
+}
+
+/** Gives after the takes that funded them fell short: [funded] goes out, [withheld] does not, [unspent] found no give. */
+internal class Unfunded(
+    val funded: Map<HolderId, Map<ItemKey, Long>>,
+    val withheld: Map<HolderId, Map<ItemKey, Long>>,
+    val unspent: Map<ItemKey, Long>,
+)
+
+/**
+ * Cuts [short] out of [gives]: piles first, since a pile that is not respawned costs nothing else, then the rest.
+ * Holders that are not a place items physically sit in take no part.
+ */
+internal fun withholdUnfunded(gives: Map<HolderId, Map<ItemKey, Long>>, short: Map<ItemKey, Long>): Unfunded {
+    if (short.isEmpty()) return Unfunded(gives, emptyMap(), emptyMap())
+    val left = LinkedHashMap(short)
+    val funded = LinkedHashMap<HolderId, Map<ItemKey, Long>>()
+    val withheld = LinkedHashMap<HolderId, Map<ItemKey, Long>>()
+    fun order(holder: HolderId): Int = when (holder) {
+        is HolderId.ItemEntity -> 0
+        is HolderId.Entity -> 1
+        is HolderId.Block -> 2
+        is HolderId.EnderChest -> 3
+        is HolderId.Player -> 4
+        else -> 5
+    }
+    for ((holder, itemDeltas) in gives.entries.sortedBy { order(it.key) }) {
+        if (order(holder) == 5) {
+            funded[holder] = itemDeltas
+            continue
+        }
+        val kept = LinkedHashMap<ItemKey, Long>()
+        val cut = LinkedHashMap<ItemKey, Long>()
+        for ((key, amount) in itemDeltas) {
+            val owed = left[key] ?: 0L
+            val take = minOf(owed, amount)
+            if (take > 0L) {
+                left[key] = owed - take
+                cut[key] = take
+            }
+            if (amount > take) kept[key] = amount - take
+        }
+        if (kept.isNotEmpty()) funded[holder] = kept
+        if (cut.isNotEmpty()) withheld[holder] = cut
+    }
+    return Unfunded(funded, withheld, left.filterValues { it > 0L })
 }
