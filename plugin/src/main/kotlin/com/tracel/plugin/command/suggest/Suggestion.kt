@@ -1,12 +1,17 @@
 package com.tracel.plugin.command.suggest
 
 import com.mojang.brigadier.LiteralMessage
+import com.mojang.brigadier.context.StringRange
+import com.mojang.brigadier.suggestion.Suggestion as BrigadierSuggestion
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.tracel.plugin.command.args.ActionArgument
 import com.tracel.plugin.dialog.VANILLA_BLOCK_NAMES
 import com.tracel.plugin.dialog.VANILLA_ITEM_NAMES
+import com.tracel.plugin.command.preset.Presets
 import org.bukkit.Bukkit
+import org.bukkit.command.CommandSender
+import org.bukkit.entity.Player
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -28,18 +33,20 @@ internal data class SuggestLists(
     val actionNames: List<String> = emptyList(),
     val itemNames: List<String> = emptyList(),
     val blockNames: List<String> = emptyList(),
+    val presets: List<Pair<String, String>> = emptyList(),
 )
 
 /**
  * Generates a [SuggestLists] instance containing names of online players, world names, action names,
  * item names, and block names to be used for suggestion purposes.
  */
-internal fun liveLists(): SuggestLists = SuggestLists(
+internal fun liveLists(sender: CommandSender? = null): SuggestLists = SuggestLists(
     onlinePlayers = Bukkit.getOnlinePlayers().map { it.name },
     worldNames = Bukkit.getWorlds().map { it.name },
     actionNames = ActionArgument.NAMES,
     itemNames = VANILLA_ITEM_NAMES,
     blockNames = VANILLA_BLOCK_NAMES,
+    presets = Presets.store?.visibleTo((sender as? Player)?.uniqueId).orEmpty().map { it.name to it.text },
 )
 
 /** The token under the cursor, and the tokens already finished before it. */
@@ -59,20 +66,15 @@ internal fun SuggestionsBuilder.reply(suggestions: List<Suggestion>): Completabl
 
     val lastSpace = remaining.lastIndexOf(' ')
     val tokenStart = start + if (lastSpace >= 0) lastSpace + 1 else 0
-    val grouped = suggestions.groupBy { placement(it, tokenStart).first }
-
-    val built = grouped.map { (offset, group) ->
-        val token = createOffset(offset)
-        for (suggestion in group) {
-            val insert = placement(suggestion, tokenStart).second
-            val tooltip = suggestion.tooltip
-            if (tooltip != null) token.suggest(insert, LiteralMessage(tooltip))
-            else token.suggest(insert)
-        }
-        token.build()
+    val entries = suggestions.map { suggestion ->
+        val (offset, insert) = placement(suggestion, tokenStart)
+        val range = StringRange.between(offset, input.length)
+        val tooltip = suggestion.tooltip
+        BrigadierSuggestion(range, insert, tooltip?.let { LiteralMessage(it) })
     }
-    val merged = if (built.size == 1) built.first() else Suggestions.merge(input, built)
-    return CompletableFuture.completedFuture(merged)
+    val range = entries.map { it.range }.reduce(StringRange::encompassing)
+    val ordered = entries.map { it.expand(input, range) }
+    return CompletableFuture.completedFuture(Suggestions(range, ordered))
 }
 
 /** Filters and ranks a list of names based on their similarity to the raw input string. */

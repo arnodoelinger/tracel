@@ -18,5 +18,5 @@ internal object LookupSuggest : SuggestionProvider<CommandSourceStack> {
     override fun getSuggestions(
         context: CommandContext<CommandSourceStack>,
         builder: SuggestionsBuilder,
-    ): CompletableFuture<Suggestions> = builder.reply(suggest(builder.remaining, liveLists()))
+    ): CompletableFuture<Suggestions> = builder.reply(suggest(builder.remaining, liveLists(context.source.sender)))
 }
