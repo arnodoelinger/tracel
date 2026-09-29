@@ -1,5 +1,6 @@
 package com.tracel.plugin.startup
 
+import com.tracel.plugin.i18n.Messages
 import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
@@ -13,7 +14,7 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.command.TracelCommand
-import com.tracel.plugin.command.suggest.CommandOrderListener
+import com.tracel.plugin.command.suggest.support.CommandOrderListener
 import com.tracel.plugin.listener.api.registerObserved
 import com.tracel.plugin.listener.listenersOf
 import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
@@ -63,6 +64,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     if (!configFile.exists()) plugin.saveResource("config.toml", false)
     val config = Toml.parse(configFile.toPath())
     config.errors().forEach { plugin.logger.severe(it.toString()) }
+    Messages.load(plugin)
 
     // Settings, storage services, etc.
     val settings = readSettings(
