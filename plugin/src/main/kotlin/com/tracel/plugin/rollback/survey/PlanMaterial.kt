@@ -55,7 +55,7 @@ internal suspend fun RollbackComposer.planMaterial(
             // Transform walk already unmakes it and returns the ingredient
             if (flow.kind == FlowKind.TRANSFORM_OUT) continue
             if (flow.isGapCorrection()) continue
-            byRoot.rootedAt(lotId, passedThrough[flow.source] ?: flow.source, keepCargoOn)
+            byRoot.rootedByFlow(lotId, flow.source, passedThrough, keepCargoOn)
         }
     }
 
@@ -71,7 +71,7 @@ internal suspend fun RollbackComposer.planMaterial(
                 val flow = txn.flows.getOrNull(flowIndex) ?: continue
                 if (flow.kind == FlowKind.TRANSFORM_OUT) continue
                 if (flow.isGapCorrection()) continue
-                byRoot.rootedAt(lotId, passedThrough[flow.source] ?: flow.source, keepCargoOn)
+                byRoot.rootedByFlow(lotId, flow.source, passedThrough, keepCargoOn)
             }
         }
     }

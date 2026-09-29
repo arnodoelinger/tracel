@@ -49,6 +49,24 @@ class MintedStraightThroughTest {
     }
 
     @Test
+    fun `a death drop picked up or tossed again is still rooted at its mint`() {
+        val lot = com.tracel.model.id.LotId(1)
+        val pile2 = HolderId.ItemEntity(UUID(5L, 5L))
+        val kill = txn(
+            flow(porkchop, 2, worldgen, pig, FlowKind.MINT),
+            flow(porkchop, 2, pig, ground, FlowKind.MOVE),
+        )
+        val pickup = txn(flow(porkchop, 2, ground, steve, FlowKind.MOVE))
+        val toss = txn(flow(porkchop, 2, steve, pile2, FlowKind.MOVE))
+        val roots = mutableMapOf<com.tracel.model.id.LotId, HolderId>()
+        for (txn in listOf(toss, pickup, kill)) {
+            val passedThrough = txn.mintedStraightThrough()
+            for (flow in txn.flows) roots.rootedByFlow(lot, flow.source, passedThrough)
+        }
+        assertEquals(worldgen, roots[lot], "not the pile it was picked up from: the mob comes back, its meat does not spill")
+    }
+
+    @Test
     fun `a hull minted into and taken from over two transactions keeps the hull`() {
         val fill = txn(flow(saddle, 1, nowhere, pig, FlowKind.MINT))
         val loot = txn(flow(saddle, 1, pig, steve, FlowKind.MOVE))

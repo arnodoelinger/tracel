@@ -36,6 +36,17 @@ internal fun MutableMap<LotId, HolderId>.rootedAt(
     put(lot, source)
 }
 
+/** [rootedAt] for one flow of a transaction. */
+internal fun MutableMap<LotId, HolderId>.rootedByFlow(
+    lot: LotId,
+    from: HolderId,
+    passedThrough: Map<HolderId, HolderId>,
+    keepOn: Set<UUID> = emptySet(),
+) {
+    val mint = passedThrough[from]
+    if (mint == null) rootedAt(lot, from, keepOn) else put(lot, mint)
+}
+
 /**
  * Catches an item that was minted into a mob and immediately moved out of it, in the same
  * transaction.
