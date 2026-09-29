@@ -4,9 +4,11 @@ import com.mojang.brigadier.Command
 import com.mojang.brigadier.LiteralMessage
 import com.mojang.brigadier.RedirectModifier
 import com.mojang.brigadier.arguments.ArgumentType
+import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.builder.RequiredArgumentBuilder
 import com.mojang.brigadier.context.CommandContext
+import com.mojang.brigadier.suggestion.SuggestionProvider
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.mojang.brigadier.tree.CommandNode
@@ -54,6 +56,26 @@ fun <T> RequiredArgumentBuilder<CommandSourceStack, T>.literal(
     val child = described(name, tooltip).apply(block)
     then(child)
     return child
+}
+
+/** Makes the client ask the server for the completions of these roots. */
+@Suppress("UNCHECKED_CAST", "UnstableApiUsage")
+fun Commands.answerSuggestionsFromServer(vararg roots: String) {
+    val clientField = CommandNode::class.java.getField("clientNode")
+    val copyField = CommandNode::class.java.getField("unwrappedCached")
+    for (name in roots) {
+        val api = dispatcher.root.getChild(name) ?: continue
+        val sent = (copyField.get(api) as? CommandNode<Any>) ?: (api as CommandNode<Any>)
+        val mirror = LiteralArgumentBuilder.literal<Any>(name).apply {
+            sent.command?.let { executes(it) }
+            requires(sent.requirement)
+            then(
+                RequiredArgumentBuilder.argument<Any, String>("command", StringArgumentType.greedyString())
+                    .suggests { _, _ -> Suggestions.empty() },
+            )
+        }.build()
+        clientField.set(sent, mirror)
+    }
 }
 
 /** Checks that the command sender has the given permission node. */

@@ -109,6 +109,7 @@ object TracelCommand {
         }
 
         registrar.register(root.build(), "Tracel commands.", listOf("tr"))
+        registrar.answerSuggestionsFromServer("tracel", "tr")
     }
 
     private fun sendHelp(sender: CommandSender) {
