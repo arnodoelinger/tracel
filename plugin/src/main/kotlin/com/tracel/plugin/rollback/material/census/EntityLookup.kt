@@ -5,7 +5,6 @@ import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.material.MaterialRestorer
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.namedByEntity
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.async
@@ -18,22 +17,15 @@ import org.bukkit.entity.ArmorStand
 import org.bukkit.entity.Item
 import org.bukkit.entity.ItemFrame
 import java.util.*
-import kotlin.time.TimeSource
 
 /** Which UUID holders are gone. */
 internal suspend fun MaterialRestorer.findVanished(
     holders: Set<HolderId>,
-    trace: RollbackTrace, // TODO: remove me
 ): Set<HolderId> {
     val byUuid = holders.filterTo(HashSet()) { it.namedByEntity() }
     if (byUuid.isEmpty()) return emptySet()
-    val dispatched = trace.stopwatch("global hop ms")
-    val hop = TimeSource.Monotonic.markNow()
     return withContext(services.schedulers.global) {
-        dispatched()
-        trace.addNanos("find vanished items / hop", hop.elapsedNow().inWholeNanoseconds)
-        val scan = TimeSource.Monotonic.markNow()
-        val gone = byUuid.filterTo(HashSet()) { holder ->
+        byUuid.filterTo(HashSet()) { holder ->
             when (holder) {
                 is HolderId.ItemEntity -> Bukkit.getEntity(holder.uuid) !is Item
                 is HolderId.Entity -> false
@@ -41,8 +33,6 @@ internal suspend fun MaterialRestorer.findVanished(
                 else -> false
             }
         }
-        trace.addNanos("find vanished items / lookup", scan.elapsedNow().inWholeNanoseconds)
-        gone
     }.let { suspects -> confirmGone(suspects) }
 }
 

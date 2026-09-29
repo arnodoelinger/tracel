@@ -19,7 +19,6 @@ import com.tracel.plugin.rollback.structure.block.*
 import com.tracel.plugin.rollback.structure.entity.Despawn
 import com.tracel.plugin.rollback.structure.entity.despawn
 import com.tracel.plugin.rollback.structure.fluid.fixSnowyGround
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.Warnings
 import com.tracel.plugin.util.chunkKey
 import org.bukkit.Bukkit
@@ -39,8 +38,6 @@ internal fun StructureRestorer.applyGroup(
     world: World,
     steps: List<StructureStep>,
     force: Boolean,
-    trace: RollbackTrace, // TODO: remove me
-    structurePhase: StructurePhase,
     keepCargoFor: Set<UUID>,
     ledgerCargoFor: Set<UUID>,
     ledgerHeldBy: Set<UUID>,
@@ -53,9 +50,8 @@ internal fun StructureRestorer.applyGroup(
     var blockEntities = 0
 
     // Folia already owns this region
-    val phase = structurePhase.traceName
     val chunks = steps.mapTo(HashSet()) { dispatchAt(it).let { at -> chunkKey(at.x, at.z) } }
-    trace.measure("$phase / load chunks") { loadChunks(world, chunks) }
+    loadChunks(world, chunks)
 
     val blocks = steps.filterIsInstance<StructureStep.SetBlock>()
     val removals = steps.filterIsInstance<StructureStep.RemoveEntity>()
@@ -76,28 +72,26 @@ internal fun StructureRestorer.applyGroup(
 
     // Despawn first
     val gone = HashSet<UUID>(removals.size)
-    trace.measure("$phase / despawn") {
-        for (step in removals) {
-            when (val outcome = despawn(world, step, ledgerCargoFor, ledgerHeldBy)) {
-                is Despawn.Removed -> {
-                    gone += outcome.uuid
-                    applied += step
-                }
-                // Already gone; not an undo target
-                Despawn.Absent -> Unit
-                is Despawn.Refused -> skipped += SkippedStep(step.at, outcome.reason)
+    for (step in removals) {
+        when (val outcome = despawn(world, step, ledgerCargoFor, ledgerHeldBy)) {
+            is Despawn.Removed -> {
+                gone += outcome.uuid
+                applied += step
             }
+            // Already gone; not an undo target
+            Despawn.Absent -> Unit
+            is Despawn.Refused -> skipped += SkippedStep(step.at, outcome.reason)
         }
-        if (blocks.any { it.target.hasGravity() || it.expected.hasGravity() }) {
-            for (falling in overlappingFalling(world, blocks)) {
-                if (!gone.add(falling.uniqueId)) continue
-                falling.dropItem = false
+    }
+    if (blocks.any { it.target.hasGravity() || it.expected.hasGravity() }) {
+        for (falling in overlappingFalling(world, blocks)) {
+            if (!gone.add(falling.uniqueId)) continue
+            falling.dropItem = false
 
-                // Paper still drops unless cancel is set too
-                runCatching { falling.cancelDrop = true }
-                applied += StructureStep.RemoveEntity(falling.toBlockPos(), falling.uniqueId, falling.toShape())
-                falling.remove()
-            }
+            // Paper still drops unless cancel is set too
+            runCatching { falling.cancelDrop = true }
+            applied += StructureStep.RemoveEntity(falling.toBlockPos(), falling.uniqueId, falling.toShape())
+            falling.remove()
         }
     }
 
@@ -111,114 +105,106 @@ internal fun StructureRestorer.applyGroup(
     val paste = PalettePaste.tryOpen(world)
     paste?.bind()
     try {
-        trace.measure("$phase / set blocks") {
-            fun write(step: StructureStep.SetBlock) {
-                val outcome = paste?.place(step, force, driftOnly) ?: run {
-                    val block = world.blockAt(step.at)
-                    val forced = force && (!driftOnly || block.drifted(step.expected))
-                    apply(block, step, forced, dumpHeldCargo)
+        fun write(step: StructureStep.SetBlock) {
+            val outcome = paste?.place(step, force, driftOnly) ?: run {
+                val block = world.blockAt(step.at)
+                val forced = force && (!driftOnly || block.drifted(step.expected))
+                apply(block, step, forced, dumpHeldCargo)
+            }
+            when (outcome) {
+                is Applied -> {
+                    applied += outcome.step
+                    if (outcome.differed) overwritten++
+                    if (outcome.step.expected.extras != null) blockEntities++
                 }
-                when (outcome) {
-                    is Applied -> {
-                        applied += outcome.step
-                        if (outcome.differed) overwritten++
-                        if (outcome.step.expected.extras != null) blockEntities++
-                    }
 
-                    is Refused -> {
-                        skipped += SkippedStep(step.at, outcome.reason)
-                    }
-
-                    Unchanged -> Unit
+                is Refused -> {
+                    skipped += SkippedStep(step.at, outcome.reason)
                 }
+
+                Unchanged -> Unit
             }
+        }
 
-            val (hanging, held) = attached.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
-            for (step in standalone + hanging + gravity) write(step)
+        val (hanging, held) = attached.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
+        for (step in standalone + hanging + gravity) write(step)
 
-            fun sweep(steps: List<StructureStep.SetBlock>): List<StructureStep.SetBlock> {
-                val left = ArrayList<StructureStep.SetBlock>()
-                for (step in steps) if (step.target.unsupportedAt(world.blockAt(step.at))) left += step else write(step)
-                return left
-            }
+        fun sweep(steps: List<StructureStep.SetBlock>): List<StructureStep.SetBlock> {
+            val left = ArrayList<StructureStep.SetBlock>()
+            for (step in steps) if (step.target.unsupportedAt(world.blockAt(step.at))) left += step else write(step)
+            return left
+        }
 
-            var waiting = sweep(held.sortedBy { it.at.y })
-            if (waiting.isNotEmpty()) waiting = sweep(waiting.sortedByDescending { it.at.y })
-            while (waiting.isNotEmpty()) {
-                val (ready, still) = waiting.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
-                if (ready.isEmpty()) break
-                ready.forEach(::write)
-                waiting = still
-            }
-            for ((at) in waiting) skipped += SkippedStep(at, UNSUPPORTED)
-            val unwritten = waiting.mapTo(HashSet()) { it.at }
+        var waiting = sweep(held.sortedBy { it.at.y })
+        if (waiting.isNotEmpty()) waiting = sweep(waiting.sortedByDescending { it.at.y })
+        while (waiting.isNotEmpty()) {
+            val (ready, still) = waiting.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
+            if (ready.isEmpty()) break
+            ready.forEach(::write)
+            waiting = still
+        }
+        for ((at) in waiting) skipped += SkippedStep(at, UNSUPPORTED)
+        val unwritten = waiting.mapTo(HashSet()) { it.at }
 
-            val planned = blocks.associateBy { it.at }
-            for ((at, target) in standalone + attached + gravity) {
-                if (at in unwritten || target.isAir()) continue
-                if (paste != null) {
-                    extinguish(paste, world, at, target, planned, unwritten, applied)
-                } else {
-                    val block = world.blockAt(at)
-                    if (block.isFire() && !target.isFire()) {
-                        val data = BlockDataCache.of(target.data)
-                        if (data != null && target.extras == null) block.paint(data) else target.applyTo(
-                            block,
-                            physics = false
-                        )
-                    }
-                    if (!target.isFire()) {
-                        val above = block.getRelative(BlockFace.UP)
-                        val abovePos = at.copy(y = at.y + 1)
-                        if (above.isFire() && planned[abovePos]?.target?.isFire() != true && abovePos !in unwritten) {
-                            val burning = above.toShape()
-                            above.paint(airBlockData())
-                            applied += StructureStep.SetBlock(abovePos, BlockShape.AIR, burning)
-                        }
+        val planned = blocks.associateBy { it.at }
+        for ((at, target) in standalone + attached + gravity) {
+            if (at in unwritten || target.isAir()) continue
+            if (paste != null) {
+                extinguish(paste, world, at, target, planned, unwritten, applied)
+            } else {
+                val block = world.blockAt(at)
+                if (block.isFire() && !target.isFire()) {
+                    val data = BlockDataCache.of(target.data)
+                    if (data != null && target.extras == null) block.paint(data) else target.applyTo(
+                        block,
+                        physics = false
+                    )
+                }
+                if (!target.isFire()) {
+                    val above = block.getRelative(BlockFace.UP)
+                    val abovePos = at.copy(y = at.y + 1)
+                    if (above.isFire() && planned[abovePos]?.target?.isFire() != true && abovePos !in unwritten) {
+                        val burning = above.toShape()
+                        above.paint(airBlockData())
+                        applied += StructureStep.SetBlock(abovePos, BlockShape.AIR, burning)
                     }
                 }
             }
         }
-        trace.add("${structurePhase.label} with nbt", blockEntities)
         unpairOrphanedChests(world, applied)
 
         // Second falling sweep: first ran before writes; a gravel wall takes long enough that the
         // world outside (physics is off (!) here) can drop more onto it.
         if (blocks.any { it.target.hasGravity() || it.expected.hasGravity() }) {
-            trace.measure("$phase / late falling") {
-                for (falling in overlappingFalling(world, blocks)) {
-                    if (!gone.add(falling.uniqueId)) continue
-                    falling.dropItem = false
-                    runCatching { falling.cancelDrop = true }
-                    applied += StructureStep.RemoveEntity(falling.toBlockPos(), falling.uniqueId, falling.toShape())
-                    falling.remove()
-                }
+            for (falling in overlappingFalling(world, blocks)) {
+                if (!gone.add(falling.uniqueId)) continue
+                falling.dropItem = false
+                runCatching { falling.cancelDrop = true }
+                applied += StructureStep.RemoveEntity(falling.toBlockPos(), falling.uniqueId, falling.toShape())
+                falling.remove()
             }
         }
 
-        trace.measure("$phase / snowy ground") { fixSnowyGround(world, blocks, chunks) }
+        fixSnowyGround(world, blocks, chunks)
     } finally {
         val blocksWritten = paste?.written ?: 0
         paste?.close()
-        if (blocksWritten > 0) trace.add("$phase / palette", blocksWritten)
     }
 
     val looseEnds = mutableListOf<Pair<Entity, EntityShape>>()
-    trace.measure("$phase / spawn") {
-        for (step in spawns) {
-            // Do not remove() a living hull before respawn
-            val inPlace = step.expected != null
-            val before = if (inPlace) null else Bukkit.getEntity(step.entity)?.takeIf { it.isValid }
-            val hull = step.shape.spawnInto(world, step.entity, step.entity in keepCargoFor, resurrect = !inPlace)
-            if (hull != null) {
-                if (hull !== before) applied += step
-                services.whereabouts.remember(hull)
-                if (!hull.linkedAsRecorded(step.shape)) looseEnds += hull to step.shape
-            } else {
-                val why =
-                    if (inPlace) "entity is no longer here — a change to it is not a resurrection" else "entity could not be restored"
-                skipped += SkippedStep(step.at, why)
-            }
+    for (step in spawns) {
+        // Do not remove() a living hull before respawn
+        val inPlace = step.expected != null
+        val before = if (inPlace) null else Bukkit.getEntity(step.entity)?.takeIf { it.isValid }
+        val hull = step.shape.spawnInto(world, step.entity, step.entity in keepCargoFor, resurrect = !inPlace)
+        if (hull != null) {
+            if (hull !== before) applied += step
+            services.whereabouts.remember(hull)
+            if (!hull.linkedAsRecorded(step.shape)) looseEnds += hull to step.shape
+        } else {
+            val why =
+                if (inPlace) "entity is no longer here — a change to it is not a resurrection" else "entity could not be restored"
+            skipped += SkippedStep(step.at, why)
         }
     }
     // Other region's knot / boat may not exist yet. One delayed retry

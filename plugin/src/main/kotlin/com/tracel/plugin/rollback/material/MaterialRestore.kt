@@ -12,7 +12,6 @@ import com.tracel.plugin.rollback.material.item.formsFor
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.result.report.RestorationReport
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.entityUuid
 import com.tracel.plugin.util.namedByEntity
 import com.tracel.plugin.util.regionKey
@@ -34,7 +33,6 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     job: RollbackJobId,
     knownGone: Set<HolderId>?,
     respawnAt: Map<HolderId.ItemEntity, HolderId>,
-    trace: RollbackTrace,
     census: EntityCensus,
     settled: CompletableDeferred<Set<HolderId>>?,
     asOf: Long?,
@@ -44,7 +42,7 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     val work = deltas
         .mapValues { (_, itemDeltas) -> itemDeltas.filterValues { it != 0L } }
         .filterValues { it.isNotEmpty() }
-    val forms = trace.span("move items / item forms") { formsFor(work) }
+    val forms = formsFor(work)
 
     val unchecked = work.keys.filterTo(HashSet()) { it.namedByEntity() && it !in knownGone.orEmpty() }
     val counted = unchecked.filter { holder -> holder.entityUuid().let { it in census.missing || it in census.at } }
@@ -53,9 +51,7 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     val gone = when {
         unknown.isEmpty() -> knownGone.orEmpty() + censusGone
         else -> knownGone.orEmpty() + censusGone +
-                trace.span("move items / vanished") {
-                    vanishedEntities(unknown, trace)
-                }
+                vanishedEntities(unknown)
     }
 
     val worn = WornStacks()
@@ -70,11 +66,11 @@ internal suspend fun MaterialRestorer.restoreDeltas(
         if (out.isNotEmpty()) takes[holder] = out
         if (into.isNotEmpty()) gives[holder] = into
     }
-    val tookOut = fanOut(takes, job, gone, respawnAt, trace, census, forms, sink, null, asOf, worn)
+    val tookOut = fanOut(takes, job, gone, respawnAt, census, forms, sink, null, asOf, worn)
     val short = shortfallOf(takes, tookOut)
     val unfunded = withholdUnfunded(gives, short)
     val gaveIn = fanOut(
-        unfunded.funded, job, gone, respawnAt, trace, census, forms, sink, settled, asOf, worn,
+        unfunded.funded, job, gone, respawnAt, census, forms, sink, settled, asOf, worn,
         failedEarly = tookOut.mapNotNullTo(HashSet()) { (holder, result) ->
             holder.takeIf { holder !is HolderId.ItemEntity && result is ApplyResult.Failed }
         },
@@ -123,7 +119,6 @@ private suspend fun MaterialRestorer.fanOut(
     job: RollbackJobId,
     gone: Set<HolderId>,
     respawnAt: Map<HolderId.ItemEntity, HolderId>,
-    trace: RollbackTrace,
     census: EntityCensus,
     forms: Map<ItemKey, ByteArray>,
     sink: MutableCollection<Spill>,
@@ -146,31 +141,27 @@ private suspend fun MaterialRestorer.fanOut(
     return coroutineScope {
         val items = async {
             if (ground.isEmpty()) emptyList()
-            else trace.span("move items / ground items") {
-                restoreGroundItems(
-                    ground,
-                    gone,
-                    census,
-                    forms,
-                    sink,
-                    respawnAt,
-                    worn
-                )
-            }
+            else restoreGroundItems(
+                ground,
+                gone,
+                census,
+                forms,
+                sink,
+                respawnAt,
+                worn
+            )
         }
         val cargoJob = async {
             if (cargo.isEmpty()) emptyList()
-            else trace.span("move items / entity cargo") {
-                restoreEntityCargo(
-                    cargo,
-                    forms,
-                    gone,
-                    census,
-                    sink,
-                    asOf,
-                    worn
-                )
-            }
+            else restoreEntityCargo(
+                cargo,
+                forms,
+                gone,
+                census,
+                sink,
+                asOf,
+                worn
+            )
         }
         val others = rest.entries.groupBy { it.key.regionKey() }.values.map { group ->
             async {
@@ -179,18 +170,15 @@ private suspend fun MaterialRestorer.fanOut(
                         val taking = nonZero.values.all { it < 0L }
                         if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
                         else {
-                            val kind = HolderGroup.of(holder)
-                            holder to trace.span("move items / ${kind.traceName}") {
-                                applyTo(
-                                    holder,
-                                    nonZero,
-                                    forms,
-                                    job,
-                                    sink,
-                                    asOf,
-                                    worn
-                                )
-                            }
+                            holder to applyTo(
+                                holder,
+                                nonZero,
+                                forms,
+                                job,
+                                sink,
+                                asOf,
+                                worn
+                            )
                         }
                     }
                 }

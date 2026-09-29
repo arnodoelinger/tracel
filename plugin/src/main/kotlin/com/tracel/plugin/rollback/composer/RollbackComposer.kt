@@ -11,7 +11,6 @@ import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.structure.StructureHalf
 import com.tracel.plugin.rollback.survey.WorldCensus
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -47,8 +46,7 @@ class RollbackComposer(
         filter: LookupFilter,
         structure: Boolean,
         material: Boolean,
-        trace: RollbackTrace,
-    ): Planned = planRollback(filter, structure, material, trace)
+    ): Planned = planRollback(filter, structure, material)
 
     override suspend fun apply(planned: Planned, strict: Boolean): RollbackResult = tracked {
         applyTracked(planned, strict)

@@ -6,7 +6,6 @@ import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
-import com.tracel.plugin.rollback.trace.RollbackTrace
 
 /**
  * What commands talk to.
@@ -34,7 +33,6 @@ interface RollbackGenius {
         filter: LookupFilter,
         structure: Boolean = true,
         material: Boolean = true,
-        trace: RollbackTrace = RollbackTrace.NONE,
     ): Planned
 
     /** Preflight then apply. [strict]: skip cells the world has moved on from. */
