@@ -36,10 +36,25 @@ class ImportAction(private val services: TracelServices) {
             return
         }
 
+        if (!services.purging.compareAndSet(false, true)) {
+            sender.send("common.busy")
+            return
+        }
+        if (!services.composite.claimGate()) {
+            services.purging.set(false)
+            sender.send("common.busy")
+            return
+        }
+
         sender.send("import.start", "file" to fileName)
 
         services.scope.launch {
-            val done = runCatching { importFrom(services.storage, path) }
+            val done = try {
+                runCatching { importFrom(services.storage, path) }
+            } finally {
+                services.composite.releaseGate()
+                services.purging.set(false)
+            }
             done.onSuccess {
                 services.repo.forget()
                 services.counters.forget()

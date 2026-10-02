@@ -32,6 +32,7 @@ class UndoAction internal constructor(private val services: TracelServices, priv
 
         services.scope.launch {
             try {
+                services.purgeGate.awaitSlice()
                 runUndo(sender, confirmed, job?.let(::RollbackJobId))
             } finally {
                 services.composite.releaseGate()

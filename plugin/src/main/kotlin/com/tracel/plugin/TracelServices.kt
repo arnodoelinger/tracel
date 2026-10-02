@@ -1,5 +1,6 @@
 package com.tracel.plugin
 
+import com.tracel.plugin.command.action.support.PurgeGate
 import java.util.concurrent.atomic.AtomicBoolean
 import com.tracel.engine.capture.CaptureCoordinator
 import com.tracel.engine.capture.SnapshotDiffer
@@ -106,6 +107,7 @@ class TracelServices(
     val forwardCompatible: Boolean = false,
 ) : UnitOfWork by storage {
     val purging: AtomicBoolean = AtomicBoolean(false)
+    val purgeGate: PurgeGate = PurgeGate { composite.isRunning }
     val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }
     val shape: ShapeCapture = ShapeCapture(this)
     val material: MaterialCapture = MaterialCapture(this)

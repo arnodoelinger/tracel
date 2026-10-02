@@ -72,6 +72,7 @@ class RollbackAction internal constructor(
                 sender.send("common.busy")
             } else services.scope.launch {
                 try {
+                    services.purgeGate.awaitSlice()
                     rollbackFiltered(sender, parsed, filter)
                 } finally {
                     services.composite.releaseGate()
