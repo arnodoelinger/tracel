@@ -116,8 +116,11 @@ internal suspend fun StructureRestorer.restoreSteps(
         )
     }
 
+    val applied = reports.flatMap { it.applied }
+    rescuePlayers(applied)
+
     return StructureReport(
-        reports.flatMap { it.applied },
+        applied,
         reports.flatMap { it.skipped },
         reports.sumOf { it.overwritten },
     )
