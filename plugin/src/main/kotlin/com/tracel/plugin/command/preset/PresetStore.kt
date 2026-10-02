@@ -5,25 +5,21 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import org.tomlj.Toml
+import org.tomlj.TomlTable
 
 /** A saved set of flags. [owner] `null` is the server's own: everyone sees it, a personal one of the same name wins. */
 internal data class Preset(val name: String, val owner: UUID?, val tokens: List<String>) {
     val text: String get() = tokens.joinToString(" ")
 }
 
-/**
- * Presets on disk, one per line: `owner<TAB>name<TAB>flags`, `*` for the server's own.
- *
- * A file that cannot be read is an empty store, not a failed start; a line that cannot be read is skipped.
- */
+/** Presets on disk as TOML, like the config. */
 internal class PresetStore(private val file: Path) {
     private val presets = ConcurrentHashMap<String, Preset>()
 
     init {
         runCatching {
-            if (Files.isRegularFile(file)) {
-                for (line in Files.readAllLines(file)) parse(line)?.let { presets[key(it.owner, it.name)] = it }
-            }
+            if (Files.isRegularFile(file)) load() else persist()
         }
     }
 
@@ -69,31 +65,60 @@ internal class PresetStore(private val file: Path) {
         return true
     }
 
+    private fun load() {
+        val parsed = Toml.parse(file)
+        if (parsed.hasErrors()) {
+            Files.copy(file, file.resolveSibling(file.fileName.toString() + ".broken"), StandardCopyOption.REPLACE_EXISTING)
+            return
+        }
+        parsed.getTable("server")?.let { read(null, it) }
+        parsed.getTable("players")?.let { players ->
+            for (id in players.keySet()) {
+                val owner = runCatching { UUID.fromString(id) }.getOrNull() ?: continue
+                players.getTable(listOf(id))?.let { read(owner, it) }
+            }
+        }
+    }
+
+    private fun read(owner: UUID?, table: TomlTable) {
+        for (name in table.keySet()) {
+            val flags = table.getTable(listOf(name))?.getString("flags") ?: continue
+            if (!validName(name)) continue
+            presets[key(owner, name)] = Preset(name, owner, flags.split(' ').filter { it.isNotBlank() })
+        }
+    }
+
     private fun persist() {
         runCatching {
             Files.createDirectories(file.parent)
             val temp = file.resolveSibling(file.fileName.toString() + ".tmp")
-            val lines = presets.values
-                .sortedWith(compareBy({ it.owner?.toString() ?: "" }, { it.name }))
-                .map { "${it.owner ?: "*"}\t${it.name}\t${it.text}" }
-            Files.write(temp, lines)
+            Files.writeString(temp, render())
             Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         }
     }
 
-    private fun key(owner: UUID?, name: String) = "${owner ?: "*"}/$name"
-
-    private fun parse(line: String): Preset? {
-        val parts = line.split('\t')
-        if (parts.size != 3 || parts[1].isBlank()) return null
-        val owner = if (parts[0] == "*") null else runCatching { UUID.fromString(parts[0]) }.getOrNull() ?: return null
-        return Preset(parts[1], owner, parts[2].split(' ').filter { it.isNotBlank() })
+    private fun render(): String {
+        val shared = presets.values.filter { it.owner == null }.sortedBy { it.name }
+            .map { entry("server", it) }
+        val personal = presets.values.filter { it.owner != null }.groupBy { it.owner!! }
+            .toSortedMap(compareBy { it.toString() })
+            .flatMap { (owner, own) -> own.sortedBy { it.name }.map { entry("players.$owner", it) } }
+        return (listOf(HEADER.trimEnd()) + shared + personal).joinToString("\n\n", postfix = "\n")
     }
 
+    private fun entry(path: String, preset: Preset): String {
+        val flags = preset.text.replace("\\", "\\\\").replace("\"", "\\\"")
+        return "[$path.${preset.name}]\nflags = \"$flags\""
+    }
+
+    private fun key(owner: UUID?, name: String) = "${owner ?: "*"}/$name"
+
     companion object {
+        private val HEADER: String =
+            PresetStore::class.java.getResource("/presets.toml")?.readText().orEmpty()
+
         private val NAME = Regex("""[a-z0-9_-]{1,24}""")
 
-        /** Presets are named lowercase: `@grief`, not `@Grief`. */
         fun validName(name: String): Boolean = NAME.matches(name)
     }
 }

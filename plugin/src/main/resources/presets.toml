@@ -1,0 +1,8 @@
+# Tracel presets
+# Support: https://discord.gg/uwMMZ2KWk6
+
+# Everyone can use the ones under [server]; personal ones live under [players.<uuid>]
+# Example:
+#
+# [server.grief]
+# flags = "p:Steve t:1h r:20"

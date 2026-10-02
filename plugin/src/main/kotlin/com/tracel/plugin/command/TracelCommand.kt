@@ -74,7 +74,7 @@ object TracelCommand {
         val purge = PurgeAction(services)
         val export = ExportAction(services)
         val import = ImportAction(services)
-        val store = PresetStore(services.plugin.dataFolder.toPath().resolve("presets.tsv"))
+        val store = PresetStore(services.plugin.dataFolder.toPath().resolve("presets.toml"))
         Presets.store = store
         val presets = PresetAction(store, nothing)
         val player = PlayerAction(services)
