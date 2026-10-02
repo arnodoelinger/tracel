@@ -25,6 +25,7 @@ import com.tracel.storage.ports.ops.previewPurge
 import com.tracel.storage.ports.ops.purgeAll
 import com.tracel.storage.ports.ops.purgeSome
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -107,8 +108,9 @@ class PurgeAction(private val services: TracelServices) {
         sender.send("purge.start")
         services.scope.launch {
             try {
+                services.purgeGate.awaitIdle { sender.send("purge.waiting") }
                 services.flushCapture()
-                val report = purgeSome(services.storage, spec)
+                val report = purgeSome(services.storage, spec) { slice -> services.purgeGate.slice(slice = slice) }
                 sender.say(report(report, localeOf(sender)))
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -141,7 +143,15 @@ class PurgeAction(private val services: TracelServices) {
         if (!claim(sender)) return
 
         services.scope.launch {
+            var held = false
             try {
+                var told = false
+                while (!services.composite.claimGate()) {
+                    if (!told) sender.send("purge.waiting")
+                    told = true
+                    delay(GATE_POLL_MILLIS)
+                }
+                held = true
                 val summary = purgeAll(services.storage)
                 services.repo.forget()
                 services.counters.forget()
@@ -152,13 +162,14 @@ class PurgeAction(private val services: TracelServices) {
             } catch (failure: Throwable) {
                 sender.failed("purge.failed", Component.text(unexpected(failure)), tr("purge.hint.unknown"))
             } finally {
+                if (held) services.composite.releaseGate()
                 services.purging.set(false)
             }
         }
     }
 
     private fun claim(sender: CommandSender): Boolean {
-        if (services.composite.isRunning || !services.purging.compareAndSet(false, true)) {
+        if (!services.purging.compareAndSet(false, true)) {
             sender.send("common.busy")
             return false
         }
@@ -215,6 +226,7 @@ class PurgeAction(private val services: TracelServices) {
         }
         records("common.label.records", report.oldest, report.newest, locale)?.let { lines += it }
         lines += tr("common.label.rows", "rows" to "%,d".format(locale, report.rows))
+        if (report.bytes > 0) lines += tr("purge.report.freed", "size" to "%.1f".format(locale, report.bytes / MIB))
         return Component.join(JoinConfiguration.newlines(), lines)
     }
 
@@ -232,4 +244,8 @@ class PurgeAction(private val services: TracelServices) {
     private fun label(category: PurgeCategory): Component = tr("purge.category.${category.name.lowercase()}")
 
     private fun localeOf(sender: CommandSender): Locale = (sender as? Player)?.locale() ?: Locale.ENGLISH
+
+    private companion object {
+        const val GATE_POLL_MILLIS = 500L
+    }
 }

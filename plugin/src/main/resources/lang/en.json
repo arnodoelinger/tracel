@@ -364,6 +364,7 @@
   },
   "purge": {
     "start": "Purging... this can take a while on a big database",
+    "waiting": "Waiting for a rollback to finish...",
     "counting": "Counting what would go...",
     "done": "<green>✔ Purge successful!</green>",
     "failed": "<red>✘ Purge failed!</red>",
@@ -394,7 +395,8 @@
       "all": "<gray>Scope:</gray> everything, the whole database"
     },
     "report": {
-      "line": "<gray><category>:</gray> <matched> records"
+      "line": "<gray><category>:</gray> <matched> records",
+      "freed": "<gray>Freed:</gray> <size> MiB"
     },
     "button": {
       "continue": "<green>[→ Continue]</green>",
