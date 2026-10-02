@@ -6,8 +6,13 @@ import com.tracel.plugin.command.args.ActionArgument
 import com.tracel.plugin.command.args.LookupScope
 import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.args.suggestLookupToken
+import com.tracel.plugin.i18n.Messages
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+import net.kyori.adventure.translation.GlobalTranslator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.Locale
 
 private const val NOW = 1_756_000_000_000L
 
@@ -84,15 +89,15 @@ class LookupFlagsTest {
     @Test
     fun `a bare name nobody knows is taken for a player, and a bare number asks for a unit`() {
         assertEquals(setOf("Herobrine"), parseLookupArgs(listOf("Herobrine"), NOW, known).users)
-        val number = parseLookupArgs(listOf("10"), NOW, known).errors.single()
+        val number = parseLookupArgs(listOf("10"), NOW, known).errors.single().plain()
         assertTrue("10m" in number && "10b" in number)
     }
 
     @Test
     fun `a misspelled flag says which one was meant`() {
-        val hint = parseLookupArgs(listOf("scop:20b"), NOW, known).errors.single()
+        val hint = parseLookupArgs(listOf("scop:20b"), NOW, known).errors.single().plain()
         assertTrue("scope:" in hint, hint)
-        assertTrue("did you mean" !in parseLookupArgs(listOf("zzzzz:1"), NOW, known).errors.single())
+        assertTrue("did you mean" !in parseLookupArgs(listOf("zzzzz:1"), NOW, known).errors.single().plain())
     }
 
     @Test
@@ -235,4 +240,12 @@ class ActionFilterTest {
         assertTrue(filter.structural)
         assertTrue(filter.material)
     }
+}
+
+private fun Component.plain(locale: Locale = Locale.ENGLISH): String {
+    Messages.install(Messages.LOCALES.associateWith {
+        val file = Messages::class.java.classLoader.getResourceAsStream("lang/${it.language}.json")
+        Messages.read(checkNotNull(file)).mapKeys { key -> Messages.PREFIX + key.key }
+    })
+    return PlainTextComponentSerializer.plainText().serialize(GlobalTranslator.render(this, locale))
 }

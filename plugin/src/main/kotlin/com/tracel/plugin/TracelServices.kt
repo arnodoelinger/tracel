@@ -16,6 +16,7 @@ import com.tracel.engine.world.WorldCaptureCoordinator
 import com.tracel.engine.world.WorldLog
 import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
+import com.tracel.plugin.command.action.LookupAction
 import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.listener.MaterialCapture
 import com.tracel.plugin.listener.ShapeCapture
@@ -51,28 +52,29 @@ private const val WHEREABOUTS_KEPT = 200_000
 /**
  * Shared services used by `Tracel` listeners and commands.
  *
- * @param plugin plugin instance.
- * @param repo stores the ledger lots.
- * @param ledger tracks item ownership and balances.
- * @param log stores transaction history.
- * @param counters generates transaction and sequence IDs.
- * @param schedulers provides plugin's schedulers.
- * @param scope scope for plugin's background work.
- * @param rollback coordinates rollback jobs.
- * @param jobs stores rollback jobs.
- * @param undo coordinates involution jobs.
- * @param undoJournal which undo steps already ran, plus whether their items went back.
- * @param pendingDeliveries stores pending item deliveries.
- * @param storage provides access to plugin's storage.
- * @param gate fast path for capture events.
- * @param worldLog stores world changes.
- * @param containerSlots stores which slot a container's contents last sat in.
- * @param wear stores how worn each tool was over time.
- * @param itemForms stores item metadata needed to reconstruct items.
- * @param exportDirectory directory for history exports and imports.
- * @param entityRestoreLimit how many entities one rollback may bring back before it asks.
- * @param logEntityDamage whether a blow a mob survives is written down as a change to it.
- * @param forwardCompatible server Minecraft is newer than the newest tested release.
+ * @param plugin plugin instance
+ * @param repo stores the ledger lots
+ * @param ledger tracks item ownership and balances
+ * @param log stores transaction history
+ * @param counters generates transaction and sequence IDs
+ * @param schedulers provides plugin's schedulers
+ * @param scope scope for plugin's background work
+ * @param rollback coordinates rollback jobs
+ * @param jobs stores rollback jobs
+ * @param undo coordinates involution jobs
+ * @param undoJournal which undo steps already ran, plus whether their items went back
+ * @param pendingDeliveries stores pending item deliveries
+ * @param storage provides access to plugin's storage
+ * @param gate fast path for capture events
+ * @param worldLog stores world changes
+ * @param containerSlots stores which slot a container's contents last sat in
+ * @param wear stores how worn each tool was over time
+ * @param itemForms stores item metadata needed to reconstruct items
+ * @param exportDirectory directory for history exports and imports
+ * @param entityRestoreLimit how many entities one rollback may bring back before it asks
+ * @param logEntityDamage whether a blow a mob survives is written down as a change to it
+ * @param paste where a lookup export goes
+ * @param forwardCompatible server Minecraft is newer than the newest tested release
  */
 class TracelServices(
     val plugin: Plugin,
@@ -96,6 +98,7 @@ class TracelServices(
     val exportDirectory: Path,
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
+    val paste: PasteSettings = PasteSettings(),
     val forwardCompatible: Boolean = false,
 ) : UnitOfWork by storage {
     val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }
@@ -118,6 +121,7 @@ class TracelServices(
     val hullDrops: HullDrop = HullDrop()
     val blockReleases: BlockReleaseQueue = BlockReleaseQueue(this)
     val inspectors: InspectorState = InspectorState()
+    val lookup: LookupAction by lazy { LookupAction(this) }
     val pendingCaptures: PendingCaptures = PendingCaptures()
     val frozen: FreezeGuard = FreezeGuard()
     val worldQuery: WorldQuery = WorldQuery(::playerIsOnline)

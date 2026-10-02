@@ -2,6 +2,9 @@ package com.tracel.plugin.command.args
 
 import com.tracel.plugin.command.suggest.LookupSuggest
 import com.tracel.plugin.command.suggest.SuggestLists
+import com.tracel.plugin.i18n.tr
+import net.kyori.adventure.text.Component
+import org.bukkit.Location
 
 data class ParsedLookupArgs(
     val users: Set<String> = emptySet(),
@@ -17,8 +20,12 @@ data class ParsedLookupArgs(
     val materialOnly: Boolean = false,
     val strict: Boolean = false,
     val confirmed: Boolean = false,
-    val trace: Boolean = false,
-    val errors: List<String> = emptyList(),
+    val natural: Boolean = false,
+    val each: Boolean = false,
+    val page: Int = 1,
+    val anchor: Location? = null,
+    val command: String = "",
+    val errors: List<Component> = emptyList(),
 )
 
 internal data class LookupSuggestContext(
@@ -78,7 +85,7 @@ internal sealed interface LookupArgument {
         override fun apply(args: ParsedLookupArgs, token: String, nowMillis: Long): ParsedLookupArgs {
             val value = parse(token.removePrefix(prefix), nowMillis)
             return if (value == null) {
-                args.copy(errors = args.errors + "invalid ${prefix.trimEnd(':')}: $token")
+                args.copy(errors = args.errors + tr("common.invalid", "token" to token))
             } else {
                 set(args, value)
             }
@@ -95,8 +102,9 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Flag("#explosion") { it.copy(actions = it.actions + "explosion") },
     LookupArgument.Flag("#strict") { it.copy(strict = true) },
     LookupArgument.Flag("#confirm") { it.copy(confirmed = true) },
+    LookupArgument.Flag("#each") { it.copy(each = true) },
+    LookupArgument.Flag("#world") { it.copy(natural = true) },
     LookupArgument.Flag("#wide") { it.copy(horizontalOnly = true) },
-    LookupArgument.Flag("#trace") { it.copy(trace = true) },
 
     LookupArgument.Multi("user:", { it.users }, { r, v -> r.copy(users = v) }, { it.onlinePlayerNames }),
     LookupArgument.Value("item:", { r, v -> r.copy(item = v) }, { it.itemNames }),
@@ -123,7 +131,10 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
         { r, v -> r.within(v) },
         { TimeArgument.timeSuggestions() }),
 
+    LookupArgument.Parsed("page:", { v, _ -> v.toIntOrNull()?.takeIf { it >= 1 } }, { r, v -> r.copy(page = v) }),
+
     // Aliases
+    LookupArgument.Parsed("p:", { v, _ -> v.toIntOrNull()?.takeIf { it >= 1 } }, { r, v -> r.copy(page = v) }),
     LookupArgument.Multi("u:", { it.users }, { r, v -> r.copy(users = v) }, { it.onlinePlayerNames }),
     LookupArgument.Value("i:", { r, v -> r.copy(item = v) }, { it.itemNames }),
     LookupArgument.Value("b:", { r, v -> r.copy(item = v) }, { it.blockNames }),
@@ -175,36 +186,10 @@ private object SmartInput {
         if (material in known.itemNames || material in known.blockNames) return args.copy(item = material)
 
         if (NUMBER.matches(token)) {
-            return args.copy(errors = args.errors + "$token needs a unit: ${token}m is a time, ${token}b a scope")
+            return args.copy(errors = args.errors + tr("common.invalid", "token" to token))
         }
         if (NAME.matches(token)) return args.copy(users = args.users + token)
-        return args.copy(errors = args.errors + unrecognized(token))
-    }
-
-    private fun unrecognized(token: String): String {
-        val head = token.substringBefore(':', "").lowercase()
-        if (head.isEmpty() || ':' !in token) return "unrecognized: $token"
-        val near = LOOKUP_ARGUMENTS.map { it.prefix }
-            .filter { it.endsWith(":") }
-            .map { it to editDistance("$head:", it) }
-            .filter { it.second <= 2 }
-            .minByOrNull { it.second }
-            ?.first
-        return if (near == null) "unrecognized flag: $token" else "unrecognized flag: $token — did you mean $near?"
-    }
-
-    private fun editDistance(a: String, b: String): Int {
-        var row = IntArray(b.length + 1) { it }
-        for (i in 1..a.length) {
-            val next = IntArray(b.length + 1)
-            next[0] = i
-            for (j in 1..b.length) {
-                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
-                next[j] = minOf(next[j - 1] + 1, row[j] + 1, row[j - 1] + cost)
-            }
-            row = next
-        }
-        return row[b.length]
+        return args.copy(errors = args.errors + tr("common.invalid", "token" to token))
     }
 }
 
@@ -243,11 +228,12 @@ internal fun ParsedLookupArgs.filledFrom(preset: ParsedLookupArgs): ParsedLookup
     scope = scope ?: preset.scope,
     world = world ?: preset.world,
     horizontalOnly = horizontalOnly || preset.horizontalOnly,
+    natural = natural || preset.natural,
+    each = each || preset.each,
     preview = preview || preset.preview,
     structureOnly = structureOnly || preset.structureOnly,
     materialOnly = materialOnly || preset.materialOnly,
     strict = strict || preset.strict,
     confirmed = confirmed || preset.confirmed,
-    trace = trace || preset.trace,
     errors = errors + preset.errors,
 )

@@ -1,5 +1,8 @@
 package com.tracel.plugin.startup
 
+import com.tracel.plugin.mode.PlayerModes
+import com.tracel.plugin.mode.PlayerSessions
+import com.tracel.plugin.command.presenter.EntityKindPresenter
 import com.tracel.plugin.i18n.Messages
 import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.journal.JournalExecutor
@@ -71,6 +74,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         config.getTable("storage"),
         config.getTable("rollback"),
         complain = { plugin.logger.severe(it) },
+        paste = config.getTable("paste"),
     )
     val storage = TracelStorage.open(
         plugin.dataFolder.resolve("database").toPath(),
@@ -133,6 +137,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         exportDirectory = plugin.dataFolder.resolve("database").resolve("exports").toPath(),
         entityRestoreLimit = settings.entityRestoreLimit,
         logEntityDamage = settings.logEntityDamage,
+        paste = settings.paste,
         forwardCompatible = forwardCompatible,
     )
     Bukkit.getAsyncScheduler().runNow(plugin) { services.warmRollback() }
@@ -219,6 +224,11 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         }
     }
     plugin.server.pluginManager.registerEvents(CommandOrderListener(), plugin)
+    plugin.server.pluginManager.registerEvents(EntityKindPresenter.EntityListener(), plugin)
+    PlayerModes.open(plugin.dataFolder.resolve("modes.log"))
+    plugin.server.pluginManager.registerEvents(PlayerModes.GameModeListener(), plugin)
+    PlayerSessions.open(plugin.dataFolder.resolve("sessions.log"))
+    plugin.server.pluginManager.registerEvents(PlayerSessions.SessionListener(), plugin)
     plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
         TracelCommand.register(event.registrar(), services)
     }
