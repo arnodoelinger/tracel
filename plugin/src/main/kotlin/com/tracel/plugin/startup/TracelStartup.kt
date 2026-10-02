@@ -1,5 +1,6 @@
 package com.tracel.plugin.startup
 
+import com.tracel.plugin.mode.ActorWrites
 import com.tracel.plugin.mode.PlayerModes
 import com.tracel.plugin.mode.PlayerSessions
 import com.tracel.plugin.mode.EntityKinds
@@ -230,11 +231,11 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     }
     plugin.server.pluginManager.registerEvents(CommandOrderListener(), plugin)
     plugin.server.pluginManager.registerEvents(entityKinds, plugin)
-    val modes = PlayerModes(services)
+    val actorWrites = ActorWrites(services.scope)
+    val modes = PlayerModes(actorWrites, actors)
     plugin.server.pluginManager.registerEvents(modes, plugin)
     modes.noteOnline()
-    PlayerSessions.open(plugin.dataFolder.resolve("sessions.log"))
-    plugin.server.pluginManager.registerEvents(PlayerSessions.SessionListener(), plugin)
+    plugin.server.pluginManager.registerEvents(PlayerSessions(actorWrites, actors), plugin)
     plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
         TracelCommand.register(event.registrar(), services)
     }

@@ -1,7 +1,6 @@
 package com.tracel.plugin.mode
 
-import com.tracel.plugin.TracelServices
-import kotlinx.coroutines.launch
+import com.tracel.storage.ports.actor.ActorFacts
 import org.bukkit.Bukkit
 import org.bukkit.GameMode
 import org.bukkit.entity.Player
@@ -12,7 +11,7 @@ import org.bukkit.event.player.PlayerGameModeChangeEvent
 import org.bukkit.event.player.PlayerJoinEvent
 
 /** Writes down what game mode each player is in, and when it changes. */
-internal class PlayerModes(private val services: TracelServices) : Listener {
+internal class PlayerModes(private val writes: ActorWrites, private val facts: ActorFacts) : Listener {
     /** Marks the players online right now, for a server that was reloaded under them. */
     fun noteOnline() = Bukkit.getOnlinePlayers().forEach(::note)
 
@@ -25,7 +24,7 @@ internal class PlayerModes(private val services: TracelServices) : Listener {
     private fun note(player: Player, mode: GameMode = player.gameMode) {
         val uuid = player.uniqueId
         val millis = System.currentTimeMillis()
-        services.scope.launch { services.actors.noteMode(uuid, code(mode), millis) }
+        writes.submit { facts.noteMode(uuid, code(mode), millis) }
     }
 
     companion object {
