@@ -22,8 +22,10 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.storage.codec.History
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.ports.ops.PurgeCategory
 import com.tracel.storage.ports.ops.PurgeFilter
 import com.tracel.storage.ports.ops.PurgeReport
@@ -40,6 +42,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 class PurgeSomeTest {
     private val overworld = WorldId(UUID(0L, 1L))
@@ -47,6 +50,8 @@ class PurgeSomeTest {
     private val stone = BlockShape(BlockDataKey("minecraft:stone"))
     private val steve = player(1)
     private val alex = player(2)
+    private val day = LsmConfig.DAY_MILLIS
+    private val start = 1_000 * day
 
     private val touched = listOf(
         Keys.TXN, Keys.TXN_BY_ID, Keys.ACTOR, Keys.ITEM, Keys.TIME, Keys.SPATIAL, Keys.TXN_LOT,
@@ -133,7 +138,11 @@ class PurgeSomeTest {
         assertEquals(before, rows(stack), "a preview touches nothing")
 
         val report = purgeSome(stack.storage, spec)
-        assertEquals(promised, report, "the preview says what the purge then does")
+        assertEquals(
+            promised.tallies.mapValues { it.value.copy(bytes = 0) },
+            report.tallies.mapValues { it.value.copy(bytes = 0) },
+            "the preview says what the purge then does",
+        )
         assertEquals(before.values.sum().toLong() - report.rows, rows(stack).values.sum().toLong(), "every row it counted is gone, and no other")
         assertEquals(emptyList<String>(), orphans(stack), "an index row outlived its record")
         return report
@@ -208,6 +217,7 @@ class PurgeSomeTest {
     fun `a slice boundary does not skip or repeat a record`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             for (seq in 1L..25_000L) stack.worldLog.append(broke(seq, overworld, steve, seq))
+            assertEquals(25_000L, previewPurge(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS))).matched, "a preview counts a row once, however many slices it takes")
 
             val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = 20_001)))
 
@@ -224,5 +234,112 @@ class PurgeSomeTest {
             PurgeSpec(setOf(PurgeCategory.CONTAINERS), PurgeFilter(player = steve.uuid))
         }
         assertTrue(failure.isFailure, "a container layout is nobody's doing")
+    }
+
+    private suspend fun fillDays(stack: Stack, now: AtomicLong, days: Int, perDay: Int) {
+        var seq = 1L
+        for (d in 0 until days) {
+            now.set(start + d * day + 1_000)
+            stack.storage.batched {
+                repeat(perDay) {
+                    val world = if (seq % 2 == 0L) nether else overworld
+                    stack.worldLog.append(broke(seq, world, steve, now.get() + seq % 500, x = (seq % 3000).toInt()))
+                    seq++
+                }
+            }
+            stack.storage.engine.flush()
+        }
+    }
+
+    private fun clocked(dir: Path, now: AtomicLong) = Stack(dir, LsmConfig(clock = { now.get() }))
+
+    @Test
+    fun `an age purge throws whole days away as files, and the disk is back at once`(@TempDir dir: Path) = runTest {
+        val now = AtomicLong(start)
+        clocked(dir, now).use { stack ->
+            fillDays(stack, now, days = 10, perDay = 5_000)
+            val before = stack.storage.engine.stats().liveBytes
+            assertEquals(10, stack.storage.engine.history(History.BLOCKS).size, "a window of history each")
+
+            val report = purgeSome(
+                stack.storage,
+                PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = start + 5 * day)),
+            )
+
+            assertEquals(25_000L, report.matched)
+            assertEquals(5, stack.storage.engine.history(History.BLOCKS).size, "five windows are gone")
+            val after = stack.storage.engine.stats().liveBytes
+            assertTrue(after < before * 0.7, "the disk says so, with no tombstones and no waiting: $before -> $after")
+            assertEquals(report.bytes, before - after, "what the report says it freed is what the files weighed")
+            assertEquals(25_000L, previewPurge(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS))).matched)
+            assertEquals(emptyList<String>(), orphans(stack))
+        }
+    }
+
+    @Test
+    fun `a window that is only partly old is rewritten, and only that one`(@TempDir dir: Path) = runTest {
+        val now = AtomicLong(start)
+        clocked(dir, now).use { stack ->
+            fillDays(stack, now, days = 4, perDay = 4_000)
+            val untouched = stack.storage.engine.history(History.BLOCKS).filter { it.window > start / day + 2 }.map { it.id }
+
+            val cut = start + 2 * day + 1_000 + 250
+            val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = cut)))
+
+            assertTrue(report.matched > 8_000 && report.matched < 12_000, "two whole days and part of the third: ${report.matched}")
+            assertEquals(
+                untouched,
+                stack.storage.engine.history(History.BLOCKS).filter { it.window > start / day + 2 }.map { it.id },
+                "the days after the cut are the same files",
+            )
+            assertEquals(emptyList<String>(), orphans(stack))
+        }
+    }
+
+    @Test
+    fun `a world takes its rows out of every day and gives their space back`(@TempDir dir: Path) = runTest {
+        val now = AtomicLong(start)
+        clocked(dir, now).use { stack ->
+            fillDays(stack, now, days = 6, perDay = 6_000)
+            val before = stack.storage.engine.stats().liveBytes
+
+            val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(world = nether)))
+
+            assertEquals(18_000L, report.matched)
+            val after = stack.storage.engine.stats().liveBytes
+            assertTrue(after < before * 0.75, "about half of it is gone and the disk says so: $before -> $after")
+            assertEquals(6, stack.storage.engine.history(History.BLOCKS).size, "the windows stay, with the other world in them")
+            assertEquals(18_000L, previewPurge(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS))).matched)
+            assertEquals(emptyList<String>(), orphans(stack))
+        }
+    }
+
+    @Test
+    fun `history written before a restart is still in its windows`(@TempDir dir: Path) = runTest {
+        val now = AtomicLong(start)
+        clocked(dir, now).use { stack -> fillDays(stack, now, days = 3, perDay = 2_000) }
+
+        clocked(dir, now).use { stack ->
+            assertEquals(3, stack.storage.engine.history(History.BLOCKS).size)
+            val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = start + day)))
+            assertEquals(2_000L, report.matched)
+            assertEquals(2, stack.storage.engine.history(History.BLOCKS).size)
+        }
+    }
+
+    @Test
+    fun `whole windows only never touches the day on the edge`(@TempDir dir: Path) = runTest {
+        val now = AtomicLong(start)
+        clocked(dir, now).use { stack ->
+            fillDays(stack, now, days = 4, perDay = 4_000)
+            val edge = stack.storage.engine.history(History.BLOCKS).first { it.window == start / day + 2 }.id
+
+            val spec = PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = start + 2 * day + 1_000 + 250), wholeWindowsOnly = true)
+            val report = purgeSome(stack.storage, spec)
+
+            assertEquals(8_000L, report.matched, "two whole days, and not a record of the third")
+            assertEquals(2, stack.storage.engine.history(History.BLOCKS).size)
+            assertTrue(stack.storage.engine.history(History.BLOCKS).any { it.id == edge }, "the same file, not rewritten")
+        }
     }
 }
