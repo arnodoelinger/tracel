@@ -1,13 +1,13 @@
 package com.tracel.plugin.command.action.support
 
 import com.tracel.engine.log.LookupFilter
+import com.tracel.model.holder.HolderId
 import com.tracel.model.transaction.Transaction
-import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.presenter.ChangeLinePresenter
-import com.tracel.plugin.command.presenter.EntityKindPresenter
+import com.tracel.plugin.command.presenter.Actors
 import com.tracel.plugin.command.presenter.LookupPresenter
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -30,13 +30,16 @@ internal class LookupSearch(
     private val stacks = ArrayList<ChangeLinePresenter.Stack>()
     private val byKey = HashMap<Any, ChangeLinePresenter.Stack>()
     private val visitNewest = HashMap<Long, Long>()
+    private val actors = Actors(services.actors)
 
     private val world = if (blocks) Cursor({ until, limit ->
         services.reading { services.worldLog.query(filter.copy(until = until, limit = limit)) }
+            .also { changes -> actors.learn(changes.map { it.causedBy }) }
     }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
 
     private val txns = if (items) Cursor({ until, limit ->
         services.reading { services.log.query(filter.copy(until = until, limit = limit)) }
+            .also { found -> actors.learn(found.flatMap(::holdersOf)) }
     }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
 
     /** Page [asked], with the whole search read first. */
@@ -59,6 +62,9 @@ internal class LookupSearch(
         },
     )
 
+    private fun holdersOf(transaction: Transaction): List<HolderId?> =
+        listOf(transaction.causedBy) + transaction.flows.flatMap { listOf(it.source, it.destination) }
+
     private fun pagesOf(rows: Int) = (rows + PAGE - 1) / PAGE
 
     private suspend fun drain() {
@@ -78,13 +84,12 @@ internal class LookupSearch(
     }
 
     private fun add(change: WorldChange) {
-        (change.subject as? ChangeSubject.Entity)?.let { EntityKindPresenter.remember(it.entity, it.type.value) }
         if (parsed.actions.isEmpty() && !parsed.natural && ChangeLinePresenter.isUnnamedChange(change)) return
-        stack(ChangeLinePresenter.logged(change))
+        stack(ChangeLinePresenter.logged(change, actors))
     }
 
     private fun add(transaction: Transaction) {
-        ChangeLinePresenter.logged(transaction, parsed.item, parsed.natural).forEach(::stack)
+        ChangeLinePresenter.logged(transaction, parsed.item, parsed.natural, actors).forEach(::stack)
     }
 
     private fun stack(line: ChangeLinePresenter.Logged) {

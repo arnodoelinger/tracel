@@ -2,7 +2,7 @@ package com.tracel.plugin.startup
 
 import com.tracel.plugin.mode.PlayerModes
 import com.tracel.plugin.mode.PlayerSessions
-import com.tracel.plugin.command.presenter.EntityKindPresenter
+import com.tracel.plugin.mode.EntityKinds
 import com.tracel.plugin.i18n.Messages
 import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.journal.JournalExecutor
@@ -37,6 +37,7 @@ import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
+import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.storage.ports.wear.WearLog
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import kotlinx.coroutines.*
@@ -81,6 +82,8 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         ringSlots = settings.ringSlots,
         lsm = settings.lsm,
     )
+    val entityKinds = EntityKinds()
+    storage.interning.entityKinds = entityKinds
     val schedulers = TracelSchedulers(plugin, storage.dispatcher)
     val counters = Counters(storage)
     val repo = LotRepository(storage, counters)
@@ -89,6 +92,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val worldLog = WorldLog(storage)
     val containerSlots = ContainerSlotLog(storage, counters)
     val wear = WearLog(storage, counters)
+    val actors = ActorFacts(storage)
     val leases = LotLeaseRegistry(storage)
     val jobs = RollbackJobRepository(storage)
     val pendingDeliveries = PendingDeliveryRepository(storage, counters)
@@ -133,6 +137,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         worldLog = worldLog,
         containerSlots = containerSlots,
         wear = wear,
+        actors = actors,
         itemForms = ItemForms(storage),
         exportDirectory = plugin.dataFolder.resolve("database").resolve("exports").toPath(),
         entityRestoreLimit = settings.entityRestoreLimit,
@@ -224,9 +229,10 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         }
     }
     plugin.server.pluginManager.registerEvents(CommandOrderListener(), plugin)
-    plugin.server.pluginManager.registerEvents(EntityKindPresenter.EntityListener(), plugin)
-    PlayerModes.open(plugin.dataFolder.resolve("modes.log"))
-    plugin.server.pluginManager.registerEvents(PlayerModes.GameModeListener(), plugin)
+    plugin.server.pluginManager.registerEvents(entityKinds, plugin)
+    val modes = PlayerModes(services)
+    plugin.server.pluginManager.registerEvents(modes, plugin)
+    modes.noteOnline()
     PlayerSessions.open(plugin.dataFolder.resolve("sessions.log"))
     plugin.server.pluginManager.registerEvents(PlayerSessions.SessionListener(), plugin)
     plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->

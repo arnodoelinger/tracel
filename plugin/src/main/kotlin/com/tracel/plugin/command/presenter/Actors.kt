@@ -7,15 +7,16 @@ import com.tracel.storage.ports.actor.ModeTimeline
 import org.bukkit.GameMode
 import java.util.UUID
 
-/**
- * What the log does not say about the ones who did things — a mob's type, a player's game mode — read from the
- * database for the lines about to be shown. One of these lives as long as one search; it is not safe to share.
- */
+/** Caches what is known about the mobs and players among the holders of a lookup, so that the presenter can show it. */
 internal class Actors(private val facts: ActorFacts?) {
     private val kinds = HashMap<UUID, String>()
     private val modes = HashMap<UUID, ModeTimeline>()
     private val askedEntities = HashSet<UUID>()
     private val askedPlayers = HashSet<UUID>()
+
+    companion object {
+        val NONE = Actors(null)
+    }
 
     /** @return the type of the mob [uuid], like `minecraft:zombie`, if the database knows it. */
     fun kind(uuid: UUID): String? = kinds[uuid]
@@ -35,10 +36,5 @@ internal class Actors(private val facts: ActorFacts?) {
         }
         for ((uuid, kind) in facts.kindsOf(entities)) kinds[uuid] = kind.value
         modes += facts.modesOf(players)
-    }
-
-    companion object {
-        /** Knows nothing: every mob is "gone", every mode unknown. */
-        val NONE = Actors(null)
     }
 }

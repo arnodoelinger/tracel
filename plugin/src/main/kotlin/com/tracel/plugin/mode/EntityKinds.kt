@@ -14,15 +14,14 @@ import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * What every mob in the world is, for the storage thread to ask the first time it writes one down.
- *
- * Only a hand-off: the answer is stored with the entity, so this holds the living, plus the just-gone for a minute,
- * because the storage thread is a little behind the server.
- */
+/** What every mob in the world is, for the storage thread to ask the first time it writes one down. */
 internal class EntityKinds : EntityKindSource, Listener {
     private val living = ConcurrentHashMap<UUID, EntityTypeKey>()
     private val gone = Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).maximumSize(GONE_KEPT).build<UUID, EntityTypeKey>()
+
+    private companion object {
+        const val GONE_KEPT = 50_000L
+    }
 
     override fun kindOf(uuid: UUID): EntityTypeKey? = living[uuid] ?: gone.getIfPresent(uuid)
 
@@ -36,9 +35,5 @@ internal class EntityKinds : EntityKindSource, Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     fun onRemove(event: EntityRemoveFromWorldEvent) {
         living.remove(event.entity.uniqueId)?.let { gone.put(event.entity.uniqueId, it) }
-    }
-
-    private companion object {
-        const val GONE_KEPT = 50_000L
     }
 }
