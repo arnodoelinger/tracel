@@ -86,6 +86,6 @@ internal class Highlights(private val plugin: Plugin) {
     }
 
     private companion object {
-        const val HALF_TICKS = 10L
+        const val HALF_TICKS = 20L
     }
 }
