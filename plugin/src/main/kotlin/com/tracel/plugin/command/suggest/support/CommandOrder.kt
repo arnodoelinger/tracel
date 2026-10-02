@@ -14,7 +14,7 @@ internal object CommandOrder {
             "rollback",
             "undo",
             "near",
-            "who",
+            "player",
             "preset",
             "export",
             "import",

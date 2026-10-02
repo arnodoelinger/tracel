@@ -7,7 +7,7 @@ import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.args.ScopeArgument
 import com.tracel.plugin.command.args.scopeProblem
 import com.tracel.plugin.command.presenter.ItemPresenter
-import com.tracel.plugin.command.presenter.WhoReport
+import com.tracel.plugin.command.presenter.PlayerReport
 import com.tracel.plugin.i18n.asReason
 import com.tracel.plugin.i18n.failed
 import com.tracel.plugin.i18n.info
@@ -27,8 +27,8 @@ import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 
-/** `/tracel who <player>`: what a player did, on one screen. */
-internal class WhoAction(private val services: TracelServices) {
+/** `/tracel player <name>`: what a player did, on one screen. */
+internal class PlayerAction(private val services: TracelServices) {
     private companion object {
         const val DEFAULT_WINDOW = 24L * 3_600_000
     }
@@ -69,35 +69,35 @@ internal class WhoAction(private val services: TracelServices) {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
-                sender.failed("who.failed", Component.text(unexpected(failure)), tr("who.hint.again"))
+                sender.failed("player.failed", Component.text(unexpected(failure)), tr("player.hint.again"))
                 return@launch
             }
-            val report = WhoReport.of(uuid, changes, txns)
+            val report = PlayerReport.of(uuid, changes, txns)
             render(sender, name, now - since, report, scope?.let(ScopeArgument::describe))
         }
     }
 
-    private fun refuse(sender: CommandSender, reason: Component) = sender.failed("who.failed", reason, tr("common.hint.fix_flags", "command" to "who"))
+    private fun refuse(sender: CommandSender, reason: Component) = sender.failed("player.failed", reason, tr("common.hint.fix_flags", "command" to "player"))
 
     private fun render(
         sender: CommandSender,
         name: String,
         window: Long,
-        r: WhoReport,
+        r: PlayerReport,
         scope: String?,
     ) {
         val span = shortSpan(window)
-        val head = mutableListOf(tr("who.title", "name" to name), Component.empty(), tr("who.window", "span" to span))
-        scope?.let { head += tr("who.scope", "scope" to it) }
+        val head = mutableListOf(tr("player.title", "name" to name), Component.empty(), tr("player.window", "span" to span))
+        scope?.let { head += tr("player.scope", "scope" to it) }
         if (r.records == 0) {
-            head += info(tr("who.empty"))
+            head += info(tr("player.empty"))
             sender.say(Component.join(JoinConfiguration.newlines(), head))
             return
         }
-        head += tr("who.records", "records" to r.records)
+        head += tr("player.records", "records" to r.records)
         val now = System.currentTimeMillis()
-        head += tr("who.active", "first" to shortSpan(now - (r.firstAt ?: now)), "last" to shortSpan(now - (r.lastAt ?: now)))
-        r.hotspot?.let { spot -> head += tr("who.busiest", "x" to spot.x, "y" to spot.y, "z" to spot.z) }
+        head += tr("player.active", "first" to shortSpan(now - (r.firstAt ?: now)), "last" to shortSpan(now - (r.lastAt ?: now)))
+        r.hotspot?.let { spot -> head += tr("player.busiest", "x" to spot.x, "y" to spot.y, "z" to spot.z) }
 
         val lines = buildList {
             addAll(head)
@@ -105,7 +105,7 @@ internal class WhoAction(private val services: TracelServices) {
                 add(Component.empty())
                 add(
                     tr(
-                        "who.blocks",
+                        "player.blocks",
                         "plus" to ItemPresenter.PLUS, "placed" to r.placed,
                         "minus" to ItemPresenter.MINUS, "broken" to r.broken,
                         "both" to ItemPresenter.BOTH, "changed" to r.changed,
@@ -117,20 +117,20 @@ internal class WhoAction(private val services: TracelServices) {
         val buttons = buildList {
             r.hotspot?.let { spot ->
                 add(
-                    tr("who.button.tp")
+                    tr("player.button.tp")
                         .clickEvent(ClickEvent.suggestCommand("/tp ${spot.x} ${spot.y} ${spot.z}"))
-                        .hoverEvent(HoverEvent.showText(tr("who.button.tp_hover", "x" to spot.x, "y" to spot.y, "z" to spot.z))),
+                        .hoverEvent(HoverEvent.showText(tr("player.button.tp_hover", "x" to spot.x, "y" to spot.y, "z" to spot.z))),
                 )
             }
             add(
-                tr("who.button.lookup")
+                tr("player.button.lookup")
                     .clickEvent(ClickEvent.runCommand("/tracel lookup u:$name t:$span"))
-                    .hoverEvent(HoverEvent.showText(tr("who.button.lookup_hover", "name" to name))),
+                    .hoverEvent(HoverEvent.showText(tr("player.button.lookup_hover", "name" to name))),
             )
             add(
-                tr("who.button.rollback")
+                tr("player.button.rollback")
                     .clickEvent(ClickEvent.suggestCommand("/tracel rollback u:$name t:$span scope:"))
-                    .hoverEvent(HoverEvent.showText(tr("who.button.rollback_hover", "name" to name))),
+                    .hoverEvent(HoverEvent.showText(tr("player.button.rollback_hover", "name" to name))),
             )
         }
         lines += Component.empty()

@@ -54,7 +54,7 @@
     "rollback": "<gray>/tracel rollback</gray>: roll back world and container changes",
     "undo": "<gray>/tracel undo</gray>: undo the last rollback",
     "near": "<gray>/tracel near</gray>: what happened around you in the last minutes",
-    "who": "<gray>/tracel who</gray>: what a player did, on one screen",
+    "player": "<gray>/tracel player</gray>: what a player did, on one screen",
     "preset": "<gray>/tracel preset</gray>: save lookup / rollback options as a preset",
     "export": "<gray>/tracel export</gray>: snapshot export of the history database",
     "import": "<gray>/tracel import:</gray> replace history with another database",
@@ -256,7 +256,7 @@
       "nothing": "running a rollback first"
     }
   },
-  "who": {
+  "player": {
     "title": "<red>♦ <name></red>",
     "window": "<gray>Window:</gray> last <span>",
     "scope": "<gray>Scope:</gray> <scope>",
@@ -273,7 +273,7 @@
       "lookup": "<aqua>[☰ Lookup]</aqua>",
       "lookup_hover": "<white>Every record of <name> in this window</white>"
     },
-    "failed": "<red>✘ Who failed!</red>",
+    "failed": "<red>✘ Operation failed!</red>",
     "hint": {
       "again": "a shorter time range or a smaller scope, or check the server log for details"
     }
@@ -398,7 +398,7 @@
     "undo": "Undo the last rollback",
     "undo_confirm": "Undo it anyway, past the entity warning",
     "near": "See what happened around you recently",
-    "who": "See what a player did",
+    "player": "See what a player did",
     "preset": "Save lookup and rollback options as a preset; use them as @name",
     "preset_list": "List your presets and server presets",
     "preset_add": "Save the current options as a preset",

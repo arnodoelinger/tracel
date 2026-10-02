@@ -8,7 +8,7 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.*
 import com.tracel.plugin.command.action.support.NothingWeCanDo
 import com.tracel.plugin.command.action.PresetAction
-import com.tracel.plugin.command.action.WhoAction
+import com.tracel.plugin.command.action.PlayerAction
 import com.tracel.plugin.command.args.LookupScope
 import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.highlight.Highlights
@@ -55,7 +55,7 @@ object TracelCommand {
         "tracel.rollback" to "rollback",
         "tracel.rollback" to "undo",
         "tracel.lookup" to "near",
-        "tracel.lookup" to "who",
+        "tracel.lookup" to "player",
         "tracel.preset" to "preset",
         "tracel.export" to "export",
         "tracel.export" to "import",
@@ -76,7 +76,7 @@ object TracelCommand {
         val store = PresetStore(services.plugin.dataFolder.toPath().resolve("presets.tsv"))
         Presets.store = store
         val presets = PresetAction(store, nothing)
-        val who = WhoAction(services)
+        val player = PlayerAction(services)
 
         val root = literal("tracel") {
             executesCommand { ctx -> sendHelp(ctx.source.sender, services.plugin) }
@@ -198,19 +198,19 @@ object TracelCommand {
                 }
             }
 
-            literal("who", tr("command.who")) {
+            literal("player", tr("command.player")) {
                 requiresPermission("tracel.lookup")
-                executesCommand { ctx -> ctx.source.sender.usage("who") }
+                executesCommand { ctx -> ctx.source.sender.usage("player") }
                 argument("player", StringArgumentType.word()) {
                     suggests(PlayerNameSuggest)
                     executesCommand { ctx ->
-                        who.execute(ctx.source.sender, StringArgumentType.getString(ctx, "player"), ParsedLookupArgs())
+                        player.execute(ctx.source.sender, StringArgumentType.getString(ctx, "player"), ParsedLookupArgs())
                     }
                     argument("flags", StringArgumentType.greedyString()) {
                         suggests(LookupSuggest)
                         executesCommand { ctx ->
                             val tokens = tokens(StringArgumentType.getString(ctx, "flags"))
-                            who.execute(
+                            player.execute(
                                 ctx.source.sender,
                                 StringArgumentType.getString(ctx, "player"),
                                 parsePresetted(ctx.source.sender, tokens, store),

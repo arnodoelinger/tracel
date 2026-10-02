@@ -13,7 +13,7 @@ import java.util.UUID
 internal data class Hotspot(val x: Int, val y: Int, val z: Int, val records: Int)
 
 /** What one player did in a window, counted. */
-internal data class WhoReport(
+internal data class PlayerReport(
     val records: Int,
     val placed: Int,
     val broken: Int,
@@ -39,7 +39,7 @@ internal data class WhoReport(
          * Counts [changes] and [txns] for [player]. Both logs are asked for the player already; this is the
          * tally, and it skips what the player only stood next to.
          */
-        fun of(player: UUID, changes: List<WorldChange>, txns: List<Transaction>): WhoReport {
+        fun of(player: UUID, changes: List<WorldChange>, txns: List<Transaction>): PlayerReport {
             val me = HolderId.Player(player)
             val placed = HashMap<String, Int>()
             val broken = HashMap<String, Int>()
@@ -132,7 +132,7 @@ internal data class WhoReport(
             }
 
             val busiest = columns.values.maxByOrNull { it[0] }
-            return WhoReport(
+            return PlayerReport(
                 records = place + breakage + change + signs + spawned + kills.values.sum() + mine,
                 placed = place,
                 broken = breakage,
