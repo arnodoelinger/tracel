@@ -34,15 +34,12 @@ import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * `/tracel purge`: takes history out of the database, all of it or only what the filters name.
  * Without `#confirm` it takes nothing: it previews, then `#continue` asks for the last word.
  */
 class PurgeAction(private val services: TracelServices) {
-    private val running = AtomicBoolean(false)
-
     /** Runs `/tracel purge` with the words after it. */
     fun execute(sender: CommandSender, tokens: List<String>) {
         val args = PurgeArgument.parse(tokens)
@@ -118,7 +115,7 @@ class PurgeAction(private val services: TracelServices) {
             } catch (failure: Throwable) {
                 sender.failed("purge.failed", Component.text(unexpected(failure)), tr("purge.hint.unknown"))
             } finally {
-                running.set(false)
+                services.purging.set(false)
             }
         }
     }
@@ -155,13 +152,13 @@ class PurgeAction(private val services: TracelServices) {
             } catch (failure: Throwable) {
                 sender.failed("purge.failed", Component.text(unexpected(failure)), tr("purge.hint.unknown"))
             } finally {
-                running.set(false)
+                services.purging.set(false)
             }
         }
     }
 
     private fun claim(sender: CommandSender): Boolean {
-        if (services.composite.isRunning || !running.compareAndSet(false, true)) {
+        if (services.composite.isRunning || !services.purging.compareAndSet(false, true)) {
             sender.send("common.busy")
             return false
         }

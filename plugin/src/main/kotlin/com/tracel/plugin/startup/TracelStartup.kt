@@ -73,10 +73,11 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
 
     // Settings, storage services, etc.
     val settings = readSettings(
-        config.getTable("storage"),
+        config.getTable("advanced"),
         config.getTable("rollback"),
         complain = { plugin.logger.severe(it) },
         paste = config.getTable("paste"),
+        purge = config.getTable("purge"),
     )
     val storage = TracelStorage.open(
         plugin.dataFolder.resolve("database").toPath(),
@@ -239,6 +240,8 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
         TracelCommand.register(event.registrar(), services)
     }
+
+    startAutoPurge(plugin, services, settings.autoPurge)
 
     plugin.logger.info("Tracel ${plugin.pluginMeta.version} enabled.")
 

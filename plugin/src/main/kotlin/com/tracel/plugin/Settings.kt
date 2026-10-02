@@ -3,7 +3,9 @@ package com.tracel.plugin
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.write.SyncPolicy
+import com.tracel.plugin.command.args.TimeArgument
 import com.tracel.plugin.util.PrivateBin
+import com.tracel.storage.ports.ops.PurgeCategory
 import org.tomlj.TomlTable
 import java.net.URI
 
@@ -18,6 +20,7 @@ internal data class Settings(
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
     val paste: PasteSettings = PasteSettings(),
+    val autoPurge: AutoPurgeSettings = AutoPurgeSettings(),
 )
 
 /** Where a lookup export goes. */
@@ -27,6 +30,20 @@ data class PasteSettings(
     val burn: Boolean = false,
 )
 
+/** The automatic purge: off unless asked, and how long each category of history is [keep]t. */
+data class AutoPurgeSettings(
+    val enabled: Boolean = false,
+    val intervalMillis: Long = DEFAULT_PURGE_INTERVAL_MILLIS,
+    val keep: Map<PurgeCategory, Long?> = PurgeCategory.entries.associateWith { DEFAULT_PURGE_KEEP_MILLIS },
+)
+
+const val DEFAULT_PURGE_INTERVAL_MILLIS = 6L * 3_600_000
+const val DEFAULT_PURGE_KEEP_MILLIS = 30L * 86_400_000
+const val MIN_PURGE_INTERVAL_MILLIS = 10L * 60_000
+
+private val FOREVER = setOf("forever", "never", "off")
+private const val NEVER = -1L
+
 const val MIN_RING_SLOTS = 1024
 const val DEFAULT_ENTITY_RESTORE_LIMIT = 128
 const val DEFAULT_LOG_ENTITY_DAMAGE = false
@@ -35,24 +52,25 @@ const val DEFAULT_PASTE_EXPIRE = "3day"
 
 /** `Tracel` settings. */
 internal fun readSettings(
-    storage: TomlTable?,
+    advanced: TomlTable?,
     rollback: TomlTable? = null,
     complain: (String) -> Unit = {},
     paste: TomlTable? = null,
+    purge: TomlTable? = null,
 ): Settings {
     val defaults = LsmConfig()
 
-    val sync = storage.setting("storage", "sync", defaults.sync, complain) { parseSync(it.toString()) }
+    val sync = advanced.setting("advanced", "sync", defaults.sync, complain) { parseSync(it.toString()) }
 
-    val memtable = storage.setting("storage", "memtable-size", defaults.memtableBytes, complain) {
+    val memtable = advanced.setting("advanced", "memtable-size", defaults.memtableBytes, complain) {
         parseBytes(it.toString())?.takeIf { bytes -> bytes >= LsmConfig.MIN_MEMTABLE_BYTES }
     }
 
-    val pending = storage.setting("storage", "max-pending-flushes", defaults.maxFrozenMemtables, complain) {
+    val pending = advanced.setting("advanced", "max-pending-flushes", defaults.maxFrozenMemtables, complain) {
         (it as? Number)?.toInt()?.takeIf { count -> count >= LsmConfig.MIN_PENDING_FLUSHES }
     }
 
-    val slots = storage.setting("storage", "capture-ring-slots", TracelStorage.DEFAULT_RING_SLOTS, complain) {
+    val slots = advanced.setting("advanced", "capture-ring-slots", TracelStorage.DEFAULT_RING_SLOTS, complain) {
         (it as? Number)?.toInt()?.takeIf { n -> n >= MIN_RING_SLOTS && n.countOneBits() == 1 }
     }
 
@@ -76,6 +94,17 @@ internal fun readSettings(
     }
     val pasteBurn = paste.setting("paste", "paste-burn", false, complain) { it as? Boolean }
 
+    val autoPurge = purge.setting("purge", "auto-purge", false, complain) { it as? Boolean }
+    val purgeInterval = purge.setting("purge", "interval", DEFAULT_PURGE_INTERVAL_MILLIS, complain) {
+        TimeArgument.parseDuration(it.toString().trim().lowercase())?.takeIf { millis -> millis >= MIN_PURGE_INTERVAL_MILLIS }
+    }
+    val keep = PurgeCategory.entries.associateWith { category ->
+        purge.setting("purge", "keep-${category.name.lowercase()}", DEFAULT_PURGE_KEEP_MILLIS, complain) { raw ->
+            val text = raw.toString().trim().lowercase()
+            if (text in FOREVER) NEVER else TimeArgument.parseDuration(text)?.takeIf { millis -> millis > 0 }
+        }.takeIf { it != NEVER }
+    }
+
     return Settings(
         lsm = defaults.copy(
             sync = sync,
@@ -86,6 +115,7 @@ internal fun readSettings(
         entityRestoreLimit = entityRestoreLimit,
         logEntityDamage = logEntityDamage,
         paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
+        autoPurge = AutoPurgeSettings(autoPurge, purgeInterval, keep),
     )
 }
 

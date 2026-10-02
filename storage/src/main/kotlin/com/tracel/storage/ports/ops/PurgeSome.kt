@@ -64,12 +64,17 @@ suspend fun previewPurge(storage: TracelStorage, spec: PurgeSpec): PurgeReport =
 
 /**
  * Deletes what [spec] says, a slice at a time so the writers are never kept waiting, then compacts to
- * give the disk back.
+ * give the disk back, unless the caller [compact]s once itself after several purges.
  */
-suspend fun purgeSome(storage: TracelStorage, spec: PurgeSpec): PurgeReport {
+suspend fun purgeSome(storage: TracelStorage, spec: PurgeSpec, compact: Boolean = true): PurgeReport {
     val report = purge(storage, spec, apply = true)
-    if (report.rows > 0) withContext(Dispatchers.IO) { storage.engine.compactEverything() }
+    if (compact && report.rows > 0) reclaimSpace(storage)
     return report
+}
+
+/** Compacts the store, so what was deleted stops taking disk. */
+suspend fun reclaimSpace(storage: TracelStorage) {
+    withContext(Dispatchers.IO) { storage.engine.compactEverything() }
 }
 
 private class Wanted(val before: Long?, val world: Int?, val player: Int?) {
