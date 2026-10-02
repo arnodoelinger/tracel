@@ -10,10 +10,15 @@ import com.tracel.storage.lsm.state.replayWals
 import com.tracel.storage.lsm.write.MemTable
 import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.write.WalSet
+import com.tracel.storage.spi.Dropped
+import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.spi.EngineSnapshot
+import com.tracel.storage.spi.HistorySegment
+import com.tracel.storage.spi.Rewritten
 import com.tracel.storage.spi.EngineStats
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
+import java.lang.foreign.MemorySegment
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
@@ -79,7 +84,7 @@ class LsmEngine(
     private val compactionCount = AtomicLong(0)
 
     private val blocks = BlockCache()
-    private val segmentWriter = SegmentWriter(directory, blocks)
+    private val segmentWriter = SegmentWriter(directory, blocks, config)
     private val retirement = Retirement()
 
     private val open = ArrayList<SegmentReader>()
@@ -242,6 +247,33 @@ class LsmEngine(
         quiesce()
     }
 
+    override fun flush() = flushNow()
+
+    override fun history(category: Int): List<HistorySegment> =
+        version.segments.filter { it.meta.category == category }.map { reader ->
+            val meta = reader.meta
+            val start = meta.window * config.windowMillis
+            HistorySegment(
+                meta.id, meta.category, meta.window, start, start + config.windowMillis,
+                meta.entries.toLong(), meta.fileBytes,
+            )
+        }.sortedWith(compareBy({ it.window }, { it.id }))
+
+    override fun dropHistory(category: Int, endedBefore: Long): Dropped {
+        require(category != SegmentClassifier.STATE) { "state is not history, and is never dropped" }
+        return compactor.submit<Dropped> { dropNow(category, endedBefore) }.get()
+    }
+
+    override fun <T> readSegment(id: Long, prefix: ByteArray, read: (EngineCursor) -> T): T? {
+        val snapshot = snapshot() as LsmSnapshot
+        snapshot.use { snapshot ->
+            return snapshot.scanSegment(id, prefix)?.use(read)
+        }
+    }
+
+    override fun rewriteSegment(id: Long, keep: (ByteArray, MemorySegment?) -> Boolean): Rewritten =
+        compactor.submit<Rewritten> { rewriteNow(id, keep) }.get()
+
     override fun wipe() {
         quiesce()
         lock.withLock {
@@ -314,8 +346,8 @@ class LsmEngine(
             return
         }
         // Oldest first: a later segment has to carry the higher id so it shadows the earlier one
-        val written =
-            pending.sortedBy { it.minSequence }.map { segmentWriter.seal(it, nextFileId++, horizon = Long.MAX_VALUE) }
+        val written = pending.sortedBy { it.minSequence }
+            .flatMap { segmentWriter.seal(it, { nextFileId++ }, horizon = Long.MAX_VALUE) }
         open += written
         logs.clear()
         version = Version(
@@ -362,26 +394,26 @@ class LsmEngine(
 
     private fun flush(frozen: MemTable) {
         try {
-            val id = reserveSegmentId()
+            val ids = ArrayList<Long>()
             try {
-                val reader = segmentWriter.seal(frozen, id, retirement.horizon())
+                val readers = segmentWriter.seal(frozen, { reserveSegmentId().also { ids += it } }, retirement.horizon())
 
                 lock.withLock {
                     if (closed) {
-                        runCatching { reader.close() }
+                        readers.forEach { runCatching { it.close() } }
                         return
                     }
-                    open += reader
+                    open += readers
                     logs.forget(frozen.walId)
                     val at = generation.incrementAndGet()
-                    version = version.flushed(frozen, reader, at)
+                    version = version.flushed(frozen, readers, at)
                     retirement.retire(frozen, at)
-                    writing -= id
+                    writing -= ids.toSet()
                     publish()
                     flushed.signalAll()
                 }
             } finally {
-                writing -= id
+                writing -= ids.toSet()
             }
             flushCount.incrementAndGet()
             runCatching { compactor.execute { compactWhileNeeded() } }
@@ -404,7 +436,7 @@ class LsmEngine(
         while (true) {
             val plan = lock.withLock {
                 if (closed) return
-                planCompaction(version, config) ?: return
+                planCompaction(version, config, config.windowOf(config.clock())) ?: return
             }
             if (!compact(plan)) return
         }
@@ -421,6 +453,8 @@ class LsmEngine(
                     expectedEntries = plan.expectedEntries,
                     horizon = retirement.horizon(),
                     dropTombstones = plan.dropTombstones,
+                    category = plan.category,
+                    window = plan.window,
                 )
             } catch (e: Throwable) {
                 writing -= id
@@ -435,7 +469,7 @@ class LsmEngine(
                 }
                 open += reader
                 val at = generation.incrementAndGet()
-                version = version.compacted(plan.inputs, reader, at)
+                version = version.compacted(plan.inputs, listOf(reader), at)
                 open.removeAll(plan.inputs.toSet())
                 plan.inputs.forEach { retirement.retire(it, at) }
                 writing -= id
@@ -465,9 +499,68 @@ class LsmEngine(
         runCatching { Manifest.sweep(directory, manifest, writing) }
     }
 
+    private fun dropNow(category: Int, endedBefore: Long): Dropped = lock.withLock {
+        if (closed) return@withLock Dropped(0, 0, 0)
+        val doomed = version.segments.filter {
+            it.meta.category == category && (it.meta.window + 1) * config.windowMillis <= endedBefore
+        }
+        if (doomed.isEmpty()) return@withLock Dropped(0, 0, 0)
+        val at = generation.incrementAndGet()
+        version = version.compacted(doomed, emptyList(), at)
+        open.removeAll(doomed.toSet())
+        doomed.forEach { retirement.retire(it, at) }
+        publish()
+        Dropped(doomed.size, doomed.sumOf { it.meta.entries.toLong() }, doomed.sumOf { it.meta.fileBytes })
+    }
+
+    private fun rewriteNow(id: Long, keep: (ByteArray, MemorySegment?) -> Boolean): Rewritten {
+        val old = lock.withLock { if (closed) null else version.segments.firstOrNull { it.meta.id == id } }
+            ?: return Rewritten(0, 0)
+
+        var kept = 0
+        var removed = 0L
+        val census = SegmentRun(old)
+        census.seek(EMPTY_KEY)
+        while (census.valid) {
+            if (keep(census.userKeyBytes(), census.value())) kept++ else removed++
+            census.next()
+        }
+        if (removed == 0L) return Rewritten(0, 0)
+
+        val replacement = if (kept == 0) null else {
+            val newId = reserveSegmentId()
+            try {
+                segmentWriter.write(
+                    arrayOf(SegmentRun(old)), newId, old.meta.level, kept, retirement.horizon(),
+                    category = old.meta.category, window = old.meta.window,
+                    accept = { run -> keep(run.userKeyBytes(), run.value()) },
+                )
+            } catch (e: Throwable) {
+                writing -= newId
+                throw e
+            }
+        }
+        lock.withLock {
+            if (closed) {
+                replacement?.let { runCatching { it.close() } }
+                return Rewritten(0, 0)
+            }
+            replacement?.let { open += it }
+            val at = generation.incrementAndGet()
+            version = version.compacted(listOf(old), listOfNotNull(replacement), at)
+            open.remove(old)
+            retirement.retire(old, at)
+            replacement?.let { writing -= it.meta.id }
+            publish()
+        }
+        return Rewritten(removed, old.meta.fileBytes - (replacement?.meta?.fileBytes ?: 0))
+    }
+
     // endregion
 
     private companion object {
+        val EMPTY_KEY = ByteArray(0)
+
         const val FLUSH_WAIT_MILLIS = 2000
         const val FLUSH_RETRY_MILLIS = 1000L
         const val FLUSH_POLL_MILLIS = 25

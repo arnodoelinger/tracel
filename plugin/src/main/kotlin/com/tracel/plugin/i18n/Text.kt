@@ -7,8 +7,6 @@ import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.ComponentLike
 import net.kyori.adventure.text.JoinConfiguration
-import net.kyori.adventure.text.event.ClickEvent
-import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.minimessage.tag.Tag
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
@@ -51,19 +49,11 @@ fun Audience.needed(info: Component, hint: Component) = say(
     ),
 )
 
-/** `running it again with #confirm`; with a [command] to run, the word is a click away from the chat box. */
-fun confirmHint(command: String? = null): Component {
-    var word = Component.text("#confirm", NamedTextColor.GOLD)
-    if (command != null) {
-        val line = "$command #confirm"
-        word = word.clickEvent(ClickEvent.suggestCommand(line))
-            .hoverEvent(HoverEvent.showText(tr("common.needed.run_hover", "command" to line)))
-    }
-    return tr("common.needed.run", "command" to word)
-}
+/** `running it again with #confirm`: typed by hand, never a click away. */
+fun confirmHint(): Component = tr("common.needed.run", "command" to "#confirm")
 
-/** [command] is destructive and was run without `#confirm`: says so, and how to run it for real. */
-fun Audience.confirm(command: String) = needed(tr("common.needed.destructive"), confirmHint(command))
+/** The command is destructive and was run without `#confirm`: says so, and how to run it for real. */
+fun Audience.confirm() = needed(tr("common.needed.destructive"), confirmHint())
 
 /** The one line a [command] says when it is run without what it needs: how to run it. */
 fun Audience.usage(command: String) = send("common.usage", "command" to command)

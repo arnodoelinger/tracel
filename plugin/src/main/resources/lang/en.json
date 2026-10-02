@@ -18,8 +18,7 @@
     "needed": {
       "title": "<gold>⚠ Action needed!</gold>",
       "destructive": "this is destructive and cannot be undone",
-      "run": "running it again with \"<command>\"",
-      "run_hover": "<white>Put \"<command>\" in the chat box</white>"
+      "run": "running it again with \"<command>\""
     },
     "mark": {
       "plus": "<green>+</green>",
@@ -58,7 +57,7 @@
     "preset": "<gray>/tracel preset</gray>: save lookup / rollback options as a preset",
     "export": "<gray>/tracel export</gray>: snapshot export of the history database",
     "import": "<gray>/tracel import:</gray> replace history with another database",
-    "purge": "<gray>/tracel purge</gray>: wipe the database",
+    "purge": "<gray>/tracel purge</gray>: delete history, all of it or by filter",
     "help": "<gray>/tracel help</gray>: this screen"
   },
   "lookup": {
@@ -364,10 +363,57 @@
     }
   },
   "purge": {
+    "start": "Purging... this can take a while on a big database",
+    "waiting": "Waiting for a rollback to finish...",
+    "counting": "Counting what would go...",
     "done": "<green>✔ Purge successful!</green>",
     "failed": "<red>✘ Purge failed!</red>",
     "hint": {
       "unknown": "check the server log for details"
+    },
+    "reason": {
+      "needs_value": "<flag> needs a value after it",
+      "twice": "<flag> was given twice",
+      "bad_older": "\"<value>\" is not a time span",
+      "unknown_category": "unknown category: <name>",
+      "all_alone": "\"all\" wipes everything and cannot be mixed with filters",
+      "containers_player": "a container layout is nobody's doing, so it cannot be purged by player"
+    },
+    "category": {
+      "blocks": "Blocks",
+      "items": "Items",
+      "containers": "Containers"
+    },
+    "preview": {
+      "title": "<light_purple>≢ Purge preview</light_purple>",
+      "categories": "<gray>Categories:</gray> <list>",
+      "older": "<gray>Older than:</gray> <span>",
+      "world": "<gray>World:</gray> <name>",
+      "player": "<gray>Player:</gray> <name>",
+      "line": "<gray><category>:</gray> <matched> of <total> records",
+      "nothing": "Nothing matches these filters, so nothing would go",
+      "all": "<gray>Scope:</gray> everything, the whole database"
+    },
+    "report": {
+      "line": "<gray><category>:</gray> <matched> records",
+      "freed": "<gray>Freed:</gray> <size> MiB"
+    },
+    "button": {
+      "continue": "<green>[→ Continue]</green>",
+      "continue_hover": "<white>Go on to the final confirmation</white>",
+      "backup": "<aqua>[☂ Back up first]</aqua>",
+      "backup_hover": "<white>Put \"/tracel export\" in the chat box</white>"
+    },
+    "suggest": {
+      "category": "What to purge: blocks, items, containers",
+      "older": "Records older than a time span",
+      "world": "What happened in a world",
+      "player": "What a player did",
+      "all": "Wipe the whole database",
+      "confirm": "Do it, after the preview",
+      "blocks": "Block and entity changes",
+      "items": "Item movements",
+      "containers": "What containers held, and who opened them"
     }
   },
   "tp": {
@@ -410,8 +456,7 @@
     "export_confirm": "Yes, write the snapshot to disk",
     "import": "Replace all history with another database",
     "import_confirm": "Yes, replace all recorded history",
-    "purge": "Wipe all recorded history",
-    "purge_confirm": "Yes, delete all history; this cannot be undone",
+    "purge": "Delete recorded history, all of it or by filter",
     "help": "Show help for commands",
     "tp": "Teleport to a logged place"
   },

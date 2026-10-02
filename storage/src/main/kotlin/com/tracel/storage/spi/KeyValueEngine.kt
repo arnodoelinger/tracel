@@ -16,6 +16,8 @@ import java.lang.foreign.MemorySegment
  *   or not at all, and `durable = true` means it survives losing the machine.
  */
 interface KeyValueEngine : AutoCloseable {
+    val name: String
+
     /**
      * Applies [batch] atomically.
      *
@@ -31,16 +33,35 @@ interface KeyValueEngine : AutoCloseable {
     /** Sends everything still buffered to stable storage. */
     fun sync()
 
+    /** Writes what is still in memory out as segments, so that all of it is history a purge can see. */
+    fun flush()
+
     /** Flushes and compacts everything, then waits for it. */
     fun compactEverything()
 
     /** Throws the whole store away and leaves an empty one behind. */
     fun wipe()
 
+    /** The segments of history of one [category], newest window last. */
+    fun history(category: Int): List<HistorySegment>
+
+    /**
+     * Throws away every segment of [category] whose window ended at or before [endedBefore], as files: nothing is read,
+     * nothing is rewritten, and the space is back when this returns.
+     */
+    fun dropHistory(category: Int, endedBefore: Long): Dropped
+
+    /** Reads what is under [prefix] in segment [id] and nothing else; `null` if the segment is gone. */
+    fun <T> readSegment(id: Long, prefix: ByteArray, read: (EngineCursor) -> T): T?
+
+    /**
+     * Replaces segment [id] with one that has only the rows [keep] says yes to, which is how a purge takes some of a
+     * window and leaves the rest. [keep] is called twice per row and has to answer the same both times.
+     */
+    fun rewriteSegment(id: Long, keep: (key: ByteArray, value: MemorySegment?) -> Boolean): Rewritten
+
     /** Numbers worth putting in a bug report. */
     fun stats(): EngineStats
-
-    val name: String
 }
 
 /** A point-in-time view. Cheap to take, must be closed, and pins whatever it needs to stay alive. */
@@ -95,6 +116,23 @@ data class EngineStats(
     val flushes: Long,
     val compactions: Long,
 )
+
+/** One segment of history: the unit a purge throws away or rewrites. */
+data class HistorySegment(
+    val id: Long,
+    val category: Int,
+    val window: Long,
+    val windowStartMillis: Long,
+    val windowEndMillis: Long,
+    val entries: Long,
+    val bytes: Long,
+)
+
+/** What [KeyValueEngine.dropHistory] threw away. */
+data class Dropped(val segments: Int, val rows: Long, val bytes: Long)
+
+/** What [KeyValueEngine.rewriteSegment] took out of one segment. */
+data class Rewritten(val rowsRemoved: Long, val bytesFreed: Long)
 
 /** An ordered set of puts and deletes, applied as one. */
 class MutationBatch {

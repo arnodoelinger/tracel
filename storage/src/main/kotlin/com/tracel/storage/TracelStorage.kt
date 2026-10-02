@@ -4,6 +4,7 @@ import com.tracel.annotations.Unstable
 import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.capture.CaptureRing
+import com.tracel.storage.codec.History
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
@@ -210,7 +211,7 @@ class TracelStorage private constructor(
             path: Path,
             ringSlots: Int = DEFAULT_RING_SLOTS,
             lsm: LsmConfig = LsmConfig(),
-            engineFactory: (Path) -> KeyValueEngine = { LsmEngine(it, lsm) },
+            engineFactory: (Path) -> KeyValueEngine = { LsmEngine(it, History.configured(lsm)) },
         ): TracelStorage {
             val engine = engineFactory(path)
             val executor = Executors.newSingleThreadScheduledExecutor { runnable -> Thread(runnable, "Tracel-Storage") }

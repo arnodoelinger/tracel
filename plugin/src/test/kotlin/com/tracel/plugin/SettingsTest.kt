@@ -6,6 +6,7 @@ import com.tracel.storage.lsm.write.SyncPolicy
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import com.tracel.storage.ports.ops.PurgeCategory
 import org.tomlj.Toml
 
 class SettingsTest {
@@ -18,7 +19,7 @@ class SettingsTest {
 
     private fun readRollback(vararg pairs: Pair<String, Any?>): Settings {
         val body = pairs.joinToString("\n") { (key, value) -> "$key = ${toml(value)}" }
-        return readSettings(storage = null, rollback = Toml.parse(body), complain = complaints::add)
+        return readSettings(advanced = null, rollback = Toml.parse(body), complain = complaints::add)
     }
 
     private fun toml(value: Any?): String = when (value) {
@@ -32,7 +33,7 @@ class SettingsTest {
             .reader().readText()
         val config = Toml.parse(text)
 
-        assertEquals(Settings(), readSettings(config.getTable("storage"), config.getTable("rollback"), complaints::add, config.getTable("paste")))
+        assertEquals(Settings(), readSettings(config.getTable("advanced"), config.getTable("rollback"), complaints::add, config.getTable("paste"), config.getTable("purge")))
         assertTrue(complaints.isEmpty()) { complaints.toString() }
     }
 
@@ -68,8 +69,8 @@ class SettingsTest {
         assertEquals(LsmConfig().sync, settings.lsm.sync)
         assertEquals(LsmConfig().memtableBytes, settings.lsm.memtableBytes)
         assertEquals(2, complaints.size)
-        assertTrue(complaints.any { it.contains("storage.sync") && it.contains("sometimes") }) { complaints.toString() }
-        assertTrue(complaints.any { it.contains("storage.memtable-size") }) { complaints.toString() }
+        assertTrue(complaints.any { it.contains("advanced.sync") && it.contains("sometimes") }) { complaints.toString() }
+        assertTrue(complaints.any { it.contains("advanced.memtable-size") }) { complaints.toString() }
     }
 
     @Test
@@ -104,5 +105,56 @@ class SettingsTest {
 
         assertEquals(DEFAULT_ENTITY_RESTORE_LIMIT, settings.entityRestoreLimit)
         assertTrue(complaints.any { it.contains("rollback.entity-restore-limit") }) { complaints.toString() }
+    }
+
+    private fun purge(body: String): Settings =
+        readSettings(advanced = null, complain = complaints::add, purge = Toml.parse(body).getTable("purge"))
+
+    @Test
+    fun `the automatic purge is off until it is asked for, and keeps 90 days`() {
+        val defaults = AutoPurgeSettings()
+
+        assertEquals(false, defaults.enabled)
+        assertEquals(defaults, purge("[purge]\nauto-purge = false").autoPurge)
+        assertEquals(defaults, read().autoPurge)
+        assertEquals(PurgeCategory.entries.toSet(), defaults.keep.keys)
+        assertTrue(defaults.keep.values.all { it == 90L * 86_400_000 })
+        assertTrue(complaints.isEmpty())
+    }
+
+    @Test
+    fun `each category is kept for as long as it says, or forever`() {
+        val settings = purge(
+            """
+            [purge]
+            auto-purge = true
+            interval = "30m"
+            keep-blocks = "7D"
+            keep-items = "forever"
+            """.trimIndent(),
+        ).autoPurge
+
+        assertEquals(true, settings.enabled)
+        assertEquals(30L * 60_000, settings.intervalMillis)
+        assertEquals(7L * 86_400_000, settings.keep[PurgeCategory.BLOCKS])
+        assertEquals(null, settings.keep[PurgeCategory.ITEMS], "forever is no cutoff at all")
+        assertEquals(90L * 86_400_000, settings.keep[PurgeCategory.CONTAINERS], "what is not said stays the default")
+        assertTrue(complaints.isEmpty()) { complaints.toString() }
+    }
+
+    @Test
+    fun `a value it cannot read keeps the default and never turns into a purge of everything`() {
+        val settings = purge(
+            """
+            [purge]
+            auto-purge = "yes"
+            interval = "1m"
+            keep-blocks = "soon"
+            keep-items = "0d"
+            """.trimIndent(),
+        ).autoPurge
+
+        assertEquals(AutoPurgeSettings(), settings)
+        assertEquals(4, complaints.size) { complaints.toString() }
     }
 }

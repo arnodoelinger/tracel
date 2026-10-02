@@ -38,7 +38,7 @@ data class Manifest(
     fun write(directory: Path) {
         var size = MAGIC.size + 4 + 8 + 8 + 4 + walIds.size * 8 + 4
         for ((_, _, _, _, firstKey, lastKey) in segments) {
-            size += 8 + 4 + 4 + 8 + 4 + firstKey.size + 4 + lastKey.size
+            size += 8 + 4 + 4 + 8 + 4 + firstKey.size + 4 + lastKey.size + 4 + 8
         }
         size += 4
 
@@ -50,15 +50,17 @@ data class Manifest(
         buffer.putInt(walIds.size)
         walIds.forEach(buffer::putLong)
         buffer.putInt(segments.size)
-        for ((id, level, entries, fileBytes, firstKey, lastKey) in segments) {
-            buffer.putLong(id)
-            buffer.putInt(level)
-            buffer.putInt(entries)
-            buffer.putLong(fileBytes)
-            buffer.putInt(firstKey.size)
-            buffer.put(firstKey)
-            buffer.putInt(lastKey.size)
-            buffer.put(lastKey)
+        for (meta in segments) {
+            buffer.putLong(meta.id)
+            buffer.putInt(meta.level)
+            buffer.putInt(meta.entries)
+            buffer.putLong(meta.fileBytes)
+            buffer.putInt(meta.firstKey.size)
+            buffer.put(meta.firstKey)
+            buffer.putInt(meta.lastKey.size)
+            buffer.put(meta.lastKey)
+            buffer.putInt(meta.category)
+            buffer.putLong(meta.window)
         }
         val body = buffer.array().copyOf(buffer.position())
         buffer.putInt(Bytes.checksum(body))
@@ -115,7 +117,9 @@ data class Manifest(
                 val fileBytes = buffer.long
                 val firstKey = ByteArray(buffer.int).also { key -> buffer.get(key) }
                 val lastKey = ByteArray(buffer.int).also { key -> buffer.get(key) }
-                SegmentMeta(id, level, entries, fileBytes, firstKey, lastKey)
+                val category = buffer.int
+                val window = buffer.long
+                SegmentMeta(id, level, entries, fileBytes, firstKey, lastKey, category, window)
             }
             return Manifest(lastSequence, nextFileId, walIds, segments)
         }
