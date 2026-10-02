@@ -17,6 +17,7 @@ import com.tracel.plugin.i18n.asReason
 import com.tracel.plugin.i18n.send
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.i18n.unexpected
+import com.tracel.plugin.rollback.composer.warmForPreview
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
@@ -38,7 +39,7 @@ class RollbackAction internal constructor(
 ) {
     companion object {
         const val STALE_ATTEMPTS = 3
-        const val GHOST_SECONDS = 12
+        const val GHOST_SECONDS = 10
     }
 
     /**
@@ -103,6 +104,7 @@ class RollbackAction internal constructor(
                 highlights.ghost(sender, planned.composite.create, planned.composite.destroy, GHOST_SECONDS)
             } else 0
             RollbackPresenter.preview(sender, planned, halves, ghosts, GHOST_SECONDS)
+            services.scope.launch { warmForPreview(services, planned) }
         } else if (!askedAboutEntities(sender, planned, parsed.confirmed)) {
             runRollback(sender, planned, halves, parsed.strict, replan)
         }
