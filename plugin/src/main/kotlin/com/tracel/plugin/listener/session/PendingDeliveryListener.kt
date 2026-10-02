@@ -12,7 +12,7 @@ import org.bukkit.event.player.PlayerRespawnEvent
 
 private const val RESPAWN_SETTLE_TICKS = 2L
 
-/** Flush offline rollback deliveries on join; silent when the queue is empty. */
+/** Flush offline rollback deliveries on join. */
 class PendingDeliveryListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.NORMAL, ignoreCancelled = false)
     fun onJoin(event: PlayerJoinEvent) = deliver(event.player)
@@ -26,11 +26,6 @@ class PendingDeliveryListener(services: TracelServices) : TracelListener(service
     }
 
     private fun deliver(player: Player) {
-        services.scope.launch {
-            val report = services.restorer.deliverPending(player)
-            if (!report.fullyRestored) {
-                player.sendMessage("Some rollback material queued for you while offline could not be fully delivered — check server logs.")
-            }
-        }
+        services.scope.launch { services.restorer.deliverPending(player) }
     }
 }

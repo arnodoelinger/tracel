@@ -2,10 +2,12 @@ package com.tracel.plugin.command.suggest.support
 
 import com.tracel.plugin.command.suggest.Suggestion
 import com.tracel.plugin.command.suggest.rank
+import com.tracel.plugin.i18n.tr
+import net.kyori.adventure.text.Component
 
 internal data class QuantityUnit(
     val suffix: String,
-    val describe: (Long) -> String,
+    val describe: (Long) -> Component,
 )
 
 private val SIMPLE = Regex("""^(\d+)([a-z]*)$""")
@@ -18,11 +20,11 @@ internal fun suggestQuantity(
     prefix: String,
     raw: String,
     units: List<QuantityUnit>,
-    presets: List<Pair<String, String>>,
-    words: List<Pair<String, String>> = emptyList(),
+    presets: List<Pair<String, Component>>,
+    words: List<Pair<String, Component>> = emptyList(),
     compound: Boolean = false,
     allowed: (QuantityUnit, Long) -> Boolean = { _, _ -> true },
-    describeWhole: (String) -> String? = { null },
+    describeWhole: (String) -> Component? = { null },
 ): List<Suggestion> {
     val needle = raw.lowercase()
     val out = LinkedHashMap<String, Suggestion>()
@@ -48,7 +50,7 @@ internal fun suggestQuantity(
 }
 
 /** Presets built from [values] such as `5b` or `10m`, each described by its own unit. */
-internal fun presetsOf(values: List<String>, units: List<QuantityUnit>): List<Pair<String, String>> =
+internal fun presetsOf(values: List<String>, units: List<QuantityUnit>): List<Pair<String, Component>> =
     values.mapNotNull { value ->
         val (amount, suffix) = PRESET.matchEntire(value)?.destructured ?: return@mapNotNull null
         val unit = units.firstOrNull { it.suffix == suffix } ?: return@mapNotNull null
@@ -61,9 +63,9 @@ private fun unitSuggestions(
     number: String,
     typedUnit: String,
     units: List<QuantityUnit>,
-    presets: List<Pair<String, String>>,
+    presets: List<Pair<String, Component>>,
     allowed: (QuantityUnit, Long) -> Boolean,
-    describeWhole: (String) -> String?,
+    describeWhole: (String) -> Component?,
 ): List<Suggestion> {
     val amount = number.toLongOrNull() ?: return emptyList()
     if (amount < 1) return emptyList()
@@ -83,7 +85,7 @@ private fun unitSuggestions(
 private fun wordSuggestions(
     prefix: String,
     needle: String,
-    words: List<Pair<String, String>>,
+    words: List<Pair<String, Component>>,
 ): List<Suggestion> {
     val byName = words.associate { it.first to it.second }
     return rank(words.map { it.first }, needle, limit = 30).map { name ->
@@ -91,11 +93,14 @@ private fun wordSuggestions(
     }
 }
 
-internal fun around(amount: Long, noun: String): String =
-    if (amount == 1L) "1 $noun around you" else "$amount ${noun}s around you"
+/** `4 blocks around you`; [noun] is `block` or `chunk`. */
+internal fun around(amount: Long, noun: String): Component = tr("suggest.around.$noun", "count" to amount)
 
-internal fun ago(amount: Long, noun: String): String =
-    if (amount == 1L) "1 $noun ago" else "$amount ${noun}s ago"
+/** `2 days ago`; [noun] is `second` up to `week`. */
+internal fun ago(amount: Long, noun: String): Component = tr("suggest.ago", "span" to span(amount, noun))
 
-internal fun past(amount: Long, noun: String): String =
-    if (amount == 1L) "Past 1 $noun" else "Past $amount ${noun}s"
+/** `Past 10 minutes`; [noun] is `second` up to `week`. */
+internal fun past(amount: Long, noun: String): Component = tr("suggest.past", "span" to span(amount, noun))
+
+/** `10 minutes`, pluralized the reader's way. */
+internal fun span(amount: Long, noun: String): Component = tr("suggest.span.$noun", "count" to amount)

@@ -7,8 +7,11 @@ import com.tracel.plugin.command.suggest.support.ago
 import com.tracel.plugin.command.suggest.support.around
 import com.tracel.plugin.command.suggest.support.past
 import com.tracel.plugin.command.suggest.support.presetsOf
+import com.tracel.plugin.command.suggest.support.span
 import com.tracel.plugin.command.suggest.support.suggestQuantity
-
+import com.tracel.plugin.i18n.joined
+import com.tracel.plugin.i18n.tr
+import net.kyori.adventure.text.Component
 
 private enum class FlagKind {
     SWITCH,
@@ -30,7 +33,8 @@ private enum class FlagGroup {
     STRICT,
     CONFIRM,
     WIDE,
-    TRACE,
+    NATURAL,
+    EACH,
 }
 
 private data class FlagToken(
@@ -49,14 +53,14 @@ private val ROLLBACK_ONLY = setOf(FlagProfile.ROLLBACK)
 private val FLAGS: List<FlagToken> = listOf(
     FlagToken(
         aliases = listOf("#preview"),
-        tooltip = "Preview changes without modifying the world or inventory",
+        tooltip = "preview",
         kind = FlagKind.SWITCH,
         group = FlagGroup.PREVIEW,
         profiles = ROLLBACK_ONLY
     ),
     FlagToken(
         aliases = listOf("#blocks"),
-        tooltip = "Structure and block changes only",
+        tooltip = "blocks",
         kind = FlagKind.SWITCH,
         group = FlagGroup.MODE_BLOCKS,
         profiles = BOTH,
@@ -64,7 +68,7 @@ private val FLAGS: List<FlagToken> = listOf(
     ),
     FlagToken(
         aliases = listOf("#items"),
-        tooltip = "Material and inventory movements only",
+        tooltip = "items",
         kind = FlagKind.SWITCH,
         group = FlagGroup.MODE_ITEMS,
         profiles = BOTH,
@@ -72,85 +76,91 @@ private val FLAGS: List<FlagToken> = listOf(
     ),
     FlagToken(
         aliases = listOf("#explosion"),
-        tooltip = "Crater and the container contents it destroyed",
+        tooltip = "explosion",
         kind = FlagKind.SWITCH,
         group = FlagGroup.EXPLOSION,
         profiles = BOTH
     ),
     FlagToken(
         aliases = listOf("#strict"),
-        tooltip = "Preserve vanilla tick logic, do not force-rebuild",
+        tooltip = "strict",
         kind = FlagKind.SWITCH,
         group = FlagGroup.STRICT,
         profiles = ROLLBACK_ONLY
     ),
     FlagToken(
         aliases = listOf("#confirm"),
-        tooltip = "Confirm entity restores that exceed the safety limit",
+        tooltip = "confirm",
         kind = FlagKind.SWITCH,
         group = FlagGroup.CONFIRM,
         profiles = ROLLBACK_ONLY
     ),
     FlagToken(
+        aliases = listOf("#each"),
+        tooltip = "each",
+        kind = FlagKind.SWITCH,
+        group = FlagGroup.EACH,
+        profiles = setOf(FlagProfile.LOOKUP)
+    ),
+    FlagToken(
+        aliases = listOf("#world"),
+        tooltip = "natural",
+        kind = FlagKind.SWITCH,
+        group = FlagGroup.NATURAL,
+        profiles = setOf(FlagProfile.LOOKUP)
+    ),
+    FlagToken(
         aliases = listOf("#wide"),
-        tooltip = "Horizontal scan only, ignore vertical bounds",
+        tooltip = "wide",
         kind = FlagKind.SWITCH,
         group = FlagGroup.WIDE,
         profiles = BOTH
     ),
     FlagToken(
-        aliases = listOf("#trace"),
-        tooltip = "Print how long each rollback phase took",
-        kind = FlagKind.SWITCH,
-        group = FlagGroup.TRACE,
-        profiles = ROLLBACK_ONLY,
-        quiet = true
-    ),
-    FlagToken(
         aliases = listOf("u:", "user:"),
-        tooltip = "Player name, comma-separated",
+        tooltip = "user",
         kind = FlagKind.SET,
         group = FlagGroup.USERS,
         profiles = BOTH
     ),
     FlagToken(
         aliases = listOf("t:", "time:", "after:", "before:"),
-        tooltip = "When it happened",
+        tooltip = "time",
         kind = FlagKind.VALUE,
         group = FlagGroup.TIME,
         profiles = BOTH
     ),
     FlagToken(
         aliases = listOf("s:", "scope:"),
-        tooltip = "Radius around you: 20b, 2c, block or chunk",
+        tooltip = "scope",
         kind = FlagKind.VALUE,
         group = FlagGroup.SCOPE,
         profiles = BOTH
     ),
     FlagToken(
         aliases = listOf("w:"),
-        tooltip = "World name",
+        tooltip = "world",
         kind = FlagKind.VALUE,
         group = FlagGroup.WORLD,
         profiles = BOTH
     ),
     FlagToken(
         aliases = listOf("i:", "item:"),
-        tooltip = "Item material",
+        tooltip = "item",
         kind = FlagKind.VALUE,
         group = FlagGroup.MATERIAL,
         profiles = BOTH
     ),
     FlagToken(
         aliases = listOf("b:", "block:"),
-        tooltip = "Block material",
+        tooltip = "block",
         kind = FlagKind.VALUE,
         group = FlagGroup.MATERIAL,
         profiles = BOTH
     ),
     FlagToken(
         aliases = listOf("a:", "action:"),
-        tooltip = "Action or cause, comma-separated",
+        tooltip = "action",
         kind = FlagKind.SET,
         group = FlagGroup.ACTION,
         profiles = BOTH
@@ -160,8 +170,8 @@ private val FLAGS: List<FlagToken> = listOf(
 private val TIME_PRESETS = listOf("10s", "30s", "1m", "5m", "10m", "30m", "1h", "3h", "6h", "12h", "1d", "3d", "7d")
 
 private val NAMED_DAYS = listOf(
-    "today" to "Since midnight today",
-    "yesterday" to "Since midnight yesterday",
+    "today" to tr("suggest.today"),
+    "yesterday" to tr("suggest.yesterday"),
 )
 
 private val SCOPE_PRESETS = listOf("4b", "8b", "16b", "32b", "64b", "128b", "1c", "2c", "4c", "8c")
@@ -195,33 +205,41 @@ private val SPAN_PARTS = listOf(
     1_000L to "second",
 )
 
-private fun spanOf(text: String): String? {
+private fun spanOf(text: String): Component? {
     var left = TimeArgument.parseDuration(text) ?: return null
-    val parts = ArrayList<String>()
+    val parts = ArrayList<Component>()
     for ((millis, noun) in SPAN_PARTS) {
         val n = left / millis
         left %= millis
-        if (n > 0) parts += if (n == 1L) "1 $noun" else "$n ${noun}s"
+        if (n > 0) parts += span(n, noun)
     }
-    return parts.joinToString(" ").ifEmpty { null }
+    return if (parts.isEmpty()) null else parts.joined(" ")
 }
 
 private val ACTION_TIPS = mapOf(
-    "block" to "Blocks placed, broken, or changed",
-    "+block" to "Blocks placed",
-    "place" to "Blocks placed",
-    "-block" to "Blocks broken",
-    "break" to "Blocks broken",
-    "sign" to "Sign edits",
-    "entity" to "Entities spawned, removed, or changed",
-    "+entity" to "Entities spawned",
-    "-entity" to "Entities removed",
-    "kill" to "Entities removed",
-    "container" to "Container and inventory moves",
-    "item" to "Container and inventory moves",
-    "inventory" to "Container and inventory moves",
-    "craft" to "Crafting",
-    "explosion" to "Explosions",
+    "block" to "block",
+    "+block" to "place",
+    "place" to "place",
+    "-block" to "break",
+    "break" to "break",
+    "sign" to "sign",
+    "entity" to "entity",
+    "+entity" to "spawn",
+    "-entity" to "kill",
+    "kill" to "kill",
+    "container" to "container",
+    "item" to "container",
+    "inventory" to "container",
+    "craft" to "craft",
+    "explosion" to "explosion",
+)
+
+private fun actionTip(name: String): Component =
+    ACTION_TIPS[name]?.let { tr("suggest.action.$it") } ?: Component.text(name)
+
+private val WHERE_WORDS = listOf(
+    "block" to tr("suggest.scope_block"),
+    "chunk" to tr("suggest.scope_chunk"),
 )
 
 private data class MatchedFlag(val flag: FlagToken, val alias: String)
@@ -229,7 +247,10 @@ private data class MatchedFlag(val flag: FlagToken, val alias: String)
 internal enum class FlagProfile {
     LOOKUP,
     ROLLBACK,
+    PRESET,
 }
+
+private fun FlagProfile.accepts(flag: FlagToken) = if (this == FlagProfile.PRESET) flag.profiles.isNotEmpty() else this in flag.profiles
 
 internal object FlagSuggest {
     fun complete(
@@ -241,28 +262,28 @@ internal object FlagSuggest {
         val used = usedGroups(previous)
         val typed = current.lowercase()
         val matched = matchFlag(typed)
-        if (matched != null && matched.flag.kind != FlagKind.SWITCH && profile in matched.flag.profiles && matched.flag.group !in used) {
+        if (matched != null && matched.flag.kind != FlagKind.SWITCH && profile.accepts(matched.flag) && matched.flag.group !in used) {
             return suggestValue(matched.flag, matched.alias, current, lists)
         }
 
         val flags = FLAGS
-            .filter { profile in it.profiles && available(it, used, typed) }
+            .filter { profile.accepts(it) && available(it, used, typed) }
             .flatMap { flag ->
                 flag.aliases
                     .filter { alias ->
                         if (typed.isEmpty()) alias == flag.aliases.first()
                         else alias.startsWith(typed)
                     }
-                    .map { Suggestion(it, flag.tooltip) }
+                    .map { Suggestion(it, tr("suggest.flag.${flag.tooltip}")) }
             }
-        return flags + bare(typed, used, lists)
+        return flags + bare(typed, used, if (profile == FlagProfile.PRESET) lists.copy(presets = emptyList()) else lists)
     }
 
     private fun bare(typed: String, used: Set<FlagGroup>, lists: SuggestLists): List<Suggestion> {
-        if (typed.isEmpty()) return lists.presets.take(5).map { Suggestion("@${it.first}", it.second) }
+        if (typed.isEmpty()) return lists.presets.take(5).map { Suggestion("@${it.first}", Component.text(it.second)) }
         if (typed.startsWith("@")) {
             val needle = typed.substring(1).lowercase()
-            return lists.presets.filter { it.first.startsWith(needle) }.map { Suggestion("@${it.first}", it.second) }
+            return lists.presets.filter { it.first.startsWith(needle) }.map { Suggestion("@${it.first}", Component.text(it.second)) }
         }
         if (typed.startsWith("#")) return emptyList()
         val out = ArrayList<Suggestion>()
@@ -290,9 +311,9 @@ internal object FlagSuggest {
             return out
         }
         val needle = typed
-        for (name in rank(lists.onlinePlayers, needle, limit = 10)) out += Suggestion(name, "Player $name")
+        for (name in rank(lists.onlinePlayers, needle, limit = 10)) out += Suggestion(name, tr("suggest.player", "name" to name))
         if (FlagGroup.SCOPE !in used) {
-            for ((word, tip) in listOf("block" to "The block you are standing on", "chunk" to "The chunk you are standing in")) {
+            for ((word, tip) in WHERE_WORDS) {
                 if (word.startsWith(needle.lowercase())) out += Suggestion(word, tip)
             }
         }
@@ -300,10 +321,10 @@ internal object FlagSuggest {
             for ((word, tip) in NAMED_DAYS) if (word.startsWith(needle.lowercase())) out += Suggestion(word, tip)
         }
         if (FlagGroup.WORLD !in used) {
-            for (name in rank(lists.worldNames, needle, limit = 5)) out += Suggestion(name, "World $name")
+            for (name in rank(lists.worldNames, needle, limit = 5)) out += Suggestion(name, tr("suggest.world", "name" to name))
         }
         if (FlagGroup.ACTION !in used) {
-            for (name in rank(lists.actionNames, needle, limit = 8)) out += Suggestion(name, ACTION_TIPS[name] ?: "Action $name")
+            for (name in rank(lists.actionNames, needle, limit = 8)) out += Suggestion(name, actionTip(name))
         }
         return out
     }
@@ -328,10 +349,10 @@ internal object FlagSuggest {
         val raw = current.substring(alias.length)
         return when (flag.group) {
             FlagGroup.USERS ->
-                suggestCsv(alias, raw, lists.onlinePlayers) { "Player $it" }
+                suggestCsv(alias, raw, lists.onlinePlayers) { tr("suggest.player", "name" to it) }
 
             FlagGroup.ACTION ->
-                suggestCsv(alias, raw, lists.actionNames) { ACTION_TIPS[it] ?: "Action $it" }
+                suggestCsv(alias, raw, lists.actionNames, ::actionTip)
 
             FlagGroup.TIME -> {
                 val window = alias == "t:" || alias == "time:"
@@ -342,7 +363,7 @@ internal object FlagSuggest {
                     units = units,
                     presets = presetsOf(TIME_PRESETS, units) + if (window) NAMED_DAYS else emptyList(),
                     compound = true,
-                    describeWhole = { text -> spanOf(text)?.let { if (window) "Past $it" else "$it ago" } },
+                    describeWhole = { text -> spanOf(text)?.let { tr(if (window) "suggest.past" else "suggest.ago", "span" to it) } },
                 )
             }
 
@@ -351,24 +372,20 @@ internal object FlagSuggest {
                 raw = raw,
                 units = SCOPE_UNITS,
                 presets = presetsOf(SCOPE_PRESETS, SCOPE_UNITS),
-                words = listOf(
-                    "block" to "The block you are standing on",
-                    "chunk" to "The chunk you are standing in",
-                ) +
-                        lists.worldNames.map { it to "Scope to world $it" },
+                words = WHERE_WORDS + lists.worldNames.map { it to tr("suggest.scope_world", "name" to it) },
                 allowed = { unit, amount ->
                     amount <= if (unit.suffix == "b") ScopeLimits.MAX_BLOCK_RADIUS else ScopeLimits.MAX_CHUNK_RADIUS
                 },
             )
 
             FlagGroup.WORLD ->
-                rank(lists.worldNames, raw).map { Suggestion("$alias$it", "World $it") }
+                rank(lists.worldNames, raw).map { Suggestion("$alias$it", tr("suggest.world", "name" to it)) }
 
             FlagGroup.MATERIAL -> {
                 val blocks = alias == "b:" || alias == "block:"
                 val names = if (blocks) lists.blockNames else lists.itemNames
-                val kind = if (blocks) "Block" else "Item"
-                rank(names, raw, limit = 30).map { Suggestion("$alias$it", "$kind $it") }
+                val kind = if (blocks) "suggest.block" else "suggest.item"
+                rank(names, raw, limit = 30).map { Suggestion("$alias$it", tr(kind, "name" to it)) }
             }
 
             else -> emptyList()
@@ -379,7 +396,7 @@ internal object FlagSuggest {
         prefix: String,
         rawValue: String,
         universe: List<String>,
-        tooltip: (String) -> String,
+        tooltip: (String) -> Component,
     ): List<Suggestion> {
         val lastComma = rawValue.lastIndexOf(',')
         val before = if (lastComma >= 0) rawValue.substring(0, lastComma) else ""

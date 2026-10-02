@@ -13,7 +13,6 @@ import com.tracel.model.id.Seq
 import com.tracel.model.lot.LotEdge
 import com.tracel.model.transaction.Transaction
 import com.tracel.plugin.rollback.composer.RollbackComposer
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.namedByEntity
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -25,7 +24,6 @@ import java.util.*
  */
 internal suspend fun RollbackComposer.planMaterial(
     txns: List<Transaction>,
-    trace: RollbackTrace,
     keepCargoOn: Set<UUID> = emptySet(),
     structural: Boolean = true,
     covered: Set<HolderId>? = null,
@@ -42,7 +40,7 @@ internal suspend fun RollbackComposer.planMaterial(
     }
     // Asked now, beside the storage reads below: the hop is a region tick, and it waited for them for nothing
     val fromLog = candidates.toSet()
-    val early = if (fromLog.isEmpty()) null else async { worldCensus.vanishedEntities(fromLog, trace) }
+    val early = if (fromLog.isEmpty()) null else async { worldCensus.vanishedEntities(fromLog) }
 
     val byRoot = LinkedHashMap<LotId, HolderId>()
     val needLots = ArrayList<Seq>()
@@ -61,7 +59,7 @@ internal suspend fun RollbackComposer.planMaterial(
 
     // Finish linkage before the vanished census — storage ms vs. a region tick, twice
     val extraLots = if (needLots.isEmpty()) null else {
-        trace.span("txn lot linkage") { services.log.lotsAtAll(needLots) }
+        services.log.lotsAtAll(needLots)
     }
     if (extraLots != null) {
         for (txn in txns) {
@@ -82,7 +80,7 @@ internal suspend fun RollbackComposer.planMaterial(
 
     // Current holders of roots; log does not say where lots sit now
     if (byRoot.isNotEmpty()) {
-        val holders = trace.span("root holders") { services.repo.currentHoldersOf(byRoot.keys) }
+        val holders = services.repo.currentHoldersOf(byRoot.keys)
         for (holder in holders.values) if (holder.namedByEntity()) candidates += holder
         val parentOf = HashMap<LotId, LotId>()
         var frontier: Collection<LotId> = byRoot.keys.filter { holders[it] is HolderId.Sink }
@@ -100,9 +98,9 @@ internal suspend fun RollbackComposer.planMaterial(
         byRoot.inheritMintedBurns(holders, parentOf)
     }
 
-    val checked = trace.span("find vanished items") {
+    val checked = run {
         val later = candidates - fromLog
-        early?.await().orEmpty() + (if (later.isEmpty()) emptySet() else worldCensus.vanishedEntities(later, trace))
+        early?.await().orEmpty() + (if (later.isEmpty()) emptySet() else worldCensus.vanishedEntities(later))
     }
 
     val target = RollbackTarget.PerRoot(byRoot)
@@ -125,13 +123,13 @@ internal suspend fun RollbackComposer.planMaterial(
         covered = covered,
         target = target
     )
-    var plan = trace.span("plan material") { planner.plan(roots) }
+    var plan = planner.plan(roots)
 
     // Holders the plan named that the log never mentioned (pre-window drops).
     // Replan only if vanished.
     val unchecked = plan.holders.filterTo(HashSet()) { it.namedByEntity() && it !in candidates }
     if (unchecked.isNotEmpty()) {
-        val late = trace.span("find vanished items") { worldCensus.vanishedEntities(unchecked, trace) }
+        val late = worldCensus.vanishedEntities(unchecked)
         if (late.isNotEmpty()) {
             vanished = vanished + late
             planner = RollbackPlanner(
@@ -142,12 +140,9 @@ internal suspend fun RollbackComposer.planMaterial(
                 covered = covered,
                 target = target
             )
-            plan = trace.span("replan material") { planner.plan(roots) }
+            plan = planner.plan(roots)
         }
     }
-
-    trace.note("txns", txns.size)
-    trace.note("roots", roots.size)
 
     MaterialSurvey(plan, target, roots, vanished, witness, planner.placedAndUnreachable)
 }

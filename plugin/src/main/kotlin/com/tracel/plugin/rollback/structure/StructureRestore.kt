@@ -8,7 +8,6 @@ import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.block.UNSUPPORTED
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.async
@@ -25,8 +24,6 @@ import kotlin.coroutines.cancellation.CancellationException
 internal suspend fun StructureRestorer.restoreSteps(
     steps: List<StructureStep>,
     force: Boolean,
-    trace: RollbackTrace, // TODO: remove me
-    structurePhase: StructurePhase, // TODO: remove me
     keepCargoFor: Set<UUID>,
     ledgerCargoFor: Set<UUID>,
     ledgerHeldBy: Set<UUID>,
@@ -49,7 +46,6 @@ internal suspend fun StructureRestorer.restoreSteps(
         val claimed = AtomicIntegerArray(groups.size)
 
         return coroutineScope {
-            val dispatched = trace.stopwatch("${structurePhase.traceName} / hop")
             groups.indices.map { index ->
                 async {
                     val anchor = dispatchAt(groups[index].first())
@@ -71,7 +67,6 @@ internal suspend fun StructureRestorer.restoreSteps(
                             )
                         )
                     ) {
-                        dispatched()
                         val world = worldOf(anchor.world)
                         if (world == null) {
                             StructureReport(
@@ -85,8 +80,6 @@ internal suspend fun StructureRestorer.restoreSteps(
                                         world,
                                         mine,
                                         force,
-                                        trace,
-                                        structurePhase,
                                         keepCargoFor,
                                         ledgerCargoFor,
                                         ledgerHeldBy,

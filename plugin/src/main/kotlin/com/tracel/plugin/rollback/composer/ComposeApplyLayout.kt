@@ -42,14 +42,12 @@ internal suspend fun RollbackComposer.layoutOf(
     val ledgerCargoFor = emptiedByLedger(deltas)
 
     // Booked cargo the plan missed
-    val ledgerHeldBy = planned.trace.span("hull cargo") {
-        services.heldByLedger(
-            composite.destroy.asSequence()
-                .filterIsInstance<StructureStep.RemoveEntity>()
-                .map { it.entity }
-                .toList(),
-        )
-    }
+    val ledgerHeldBy = services.heldByLedger(
+        composite.destroy.asSequence()
+            .filterIsInstance<StructureStep.RemoveEntity>()
+            .map { it.entity }
+            .toList(),
+    )
 
     // Entity cargo is HolderId.Entity. Parallel destroy vs ledger -> "entity no longer exists".
     val (entityDestroy, rest) = composite.destroy.partition { it is StructureStep.RemoveEntity }

@@ -3,7 +3,9 @@ package com.tracel.plugin
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.write.SyncPolicy
+import com.tracel.plugin.util.PrivateBin
 import org.tomlj.TomlTable
+import java.net.URI
 
 /**
  * `Tracel` settings.
@@ -15,17 +17,28 @@ internal data class Settings(
     val ringSlots: Int = TracelStorage.DEFAULT_RING_SLOTS,
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
+    val paste: PasteSettings = PasteSettings(),
+)
+
+/** Where a lookup export goes. */
+data class PasteSettings(
+    val url: String = DEFAULT_PASTE_URL,
+    val expire: String = DEFAULT_PASTE_EXPIRE,
+    val burn: Boolean = false,
 )
 
 const val MIN_RING_SLOTS = 1024
 const val DEFAULT_ENTITY_RESTORE_LIMIT = 128
 const val DEFAULT_LOG_ENTITY_DAMAGE = false
+const val DEFAULT_PASTE_URL = "https://privatebin.net"
+const val DEFAULT_PASTE_EXPIRE = "3day"
 
 /** `Tracel` settings. */
 internal fun readSettings(
     storage: TomlTable?,
     rollback: TomlTable? = null,
     complain: (String) -> Unit = {},
+    paste: TomlTable? = null,
 ): Settings {
     val defaults = LsmConfig()
 
@@ -55,6 +68,14 @@ internal fun readSettings(
         it as? Boolean
     }
 
+    val pasteUrl = paste.setting("paste", "paste-url", DEFAULT_PASTE_URL, complain) {
+        it.toString().trim().takeIf { url -> runCatching { URI(url) }.getOrNull()?.scheme in setOf("http", "https") }
+    }
+    val pasteExpire = paste.setting("paste", "paste-expire", DEFAULT_PASTE_EXPIRE, complain) {
+        it.toString().trim().takeIf { value -> PrivateBin.EXPIRE_NAME.matches(value) }
+    }
+    val pasteBurn = paste.setting("paste", "paste-burn", false, complain) { it as? Boolean }
+
     return Settings(
         lsm = defaults.copy(
             sync = sync,
@@ -64,6 +85,7 @@ internal fun readSettings(
         ringSlots = slots,
         entityRestoreLimit = entityRestoreLimit,
         logEntityDamage = logEntityDamage,
+        paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
     )
 }
 

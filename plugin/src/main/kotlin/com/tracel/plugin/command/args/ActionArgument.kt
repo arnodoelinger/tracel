@@ -8,6 +8,7 @@ data class ActionFilter(
     val worldCauses: Set<CauseKind> = emptySet(),
     val actions: Set<ActionKind> = emptySet(),
     val unknown: List<String> = emptyList(),
+    val mixed: Boolean = false,
     val structural: Boolean = true,
     val material: Boolean = true,
 )
@@ -123,15 +124,12 @@ object ActionArgument {
 
         if (halves.isEmpty()) return ActionFilter(causes, worldCauses, actions, unknown)
 
-        if (actions.isNotEmpty() && worldCauses.isNotEmpty()) {
-            unknown += "${names.joinToString(",")} (a block or entity alias cannot be combined with a cause; run them one at a time)"
-        }
-
         return ActionFilter(
             causes = causes,
             worldCauses = worldCauses,
             actions = actions,
             unknown = unknown,
+            mixed = actions.isNotEmpty() && worldCauses.isNotEmpty(),
             structural = Half.STRUCTURE in halves || Half.BOTH in halves,
             material = Half.MATERIAL in halves || Half.BOTH in halves,
         )

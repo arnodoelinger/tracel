@@ -14,7 +14,6 @@ import com.tracel.plugin.rollback.material.census.locateDestinations
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.survey.WorldCensus
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import kotlinx.coroutines.CompletableDeferred
 import java.util.*
 import java.util.logging.Logger
@@ -31,8 +30,8 @@ class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, Wo
 
     override fun preflight(deltas: Map<HolderId, Map<ItemKey, Long>>): PreflightResult = preflightWorlds(deltas)
 
-    override suspend fun vanishedEntities(holders: Set<HolderId>, trace: RollbackTrace): Set<HolderId> =
-        findVanished(holders, trace)
+    override suspend fun vanishedEntities(holders: Set<HolderId>): Set<HolderId> =
+        findVanished(holders)
 
     override suspend fun locate(deltas: Map<HolderId, Map<ItemKey, Long>>, respawning: Set<UUID>): EntityCensus =
         locateDestinations(deltas, respawning)
@@ -42,11 +41,10 @@ class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, Wo
         job: RollbackJobId,
         knownGone: Set<HolderId>?,
         respawnAt: Map<HolderId.ItemEntity, HolderId>,
-        trace: RollbackTrace,
         census: EntityCensus,
         settled: CompletableDeferred<Set<HolderId>>?,
         asOf: Long?,
-    ): RestorationReport = restoreDeltas(deltas, job, knownGone, respawnAt, trace, census, settled, asOf)
+    ): RestorationReport = restoreDeltas(deltas, job, knownGone, respawnAt, census, settled, asOf)
 
     override suspend fun undoRestore(
         steps: List<InvolutionStep>,

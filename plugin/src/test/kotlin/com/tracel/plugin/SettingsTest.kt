@@ -32,7 +32,7 @@ class SettingsTest {
             .reader().readText()
         val config = Toml.parse(text)
 
-        assertEquals(Settings(), readSettings(config.getTable("storage"), config.getTable("rollback"), complaints::add))
+        assertEquals(Settings(), readSettings(config.getTable("storage"), config.getTable("rollback"), complaints::add, config.getTable("paste")))
         assertTrue(complaints.isEmpty()) { complaints.toString() }
     }
 

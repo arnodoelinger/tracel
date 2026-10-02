@@ -2,11 +2,12 @@ package com.tracel.plugin.command.args
 
 import com.tracel.engine.log.LookupFilter
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.command.args.ScopeLimits.isOversized
 import com.tracel.plugin.command.args.support.MaterialAliases
+import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.util.resolvePlayerUuid
 import com.tracel.plugin.util.toLookupRegion
 import com.tracel.plugin.util.toWorldId
+import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.command.CommandSender
@@ -20,7 +21,7 @@ sealed interface FilterResult {
         val actions: ActionFilter,
     ) : FilterResult
 
-    data class Rejected(val reasons: List<String>) : FilterResult
+    data class Rejected(val reasons: List<Component>) : FilterResult
 }
 
 object RollbackArgument {
@@ -29,38 +30,25 @@ object RollbackArgument {
         parsed: ParsedLookupArgs,
         limit: Int,
     ): FilterResult {
-        val reasons = mutableListOf<String>()
+        val reasons = mutableListOf<Component>()
 
-        val users = resolvePlayers(parsed.users, "unknown player", reasons)
+        val users = resolvePlayers(parsed.users, reasons)
 
         val actions = ActionArgument.parse(parsed.actions)
-        actions.unknown.forEach { reasons += "unknown action: $it" }
+        reasons += actionProblems(actions, parsed.actions)
 
         val namedWorld = parsed.world?.let(Bukkit::getWorld)
         if (parsed.world != null && namedWorld == null) {
-            reasons += "unknown world: ${parsed.world}"
+            reasons += tr("common.reason.unknown_world", "name" to parsed.world)
         }
 
         val scope = parsed.scope
         val center = if (scope != null) (sender as? Player)?.location else null
-
-        when {
-            scope != null && center == null ->
-                reasons += "a radius needs a player location — run this as a player, or name a world with w:"
-
-            scope != null && namedWorld != null && center != null && center.world?.uid != namedWorld.uid ->
-                reasons += "scope:${ScopeArgument.describe(scope)} is a cube around you and you are not in " +
-                        "${namedWorld.name} — drop the w:, or run it from there"
-
-            scope?.isOversized() == true ->
-                reasons += "radius is too large (max ${ScopeLimits.MAX_BLOCK_RADIUS} blocks / " +
-                        "${ScopeLimits.MAX_CHUNK_RADIUS} chunks) — use scope:${ScopeLimits.MAX_BLOCK_RADIUS}b " +
-                        "or scope:${ScopeLimits.MAX_CHUNK_RADIUS}c"
-        }
+        scopeProblem(scope, center, namedWorld)?.let { reasons += it }
 
         reasons += missingBounds(parsed)
         if (parsed.since != null && parsed.until != null && parsed.since > parsed.until) {
-            reasons += "the time flags leave no window: the start is after the end"
+            reasons += tr("common.reason.no_window")
         }
 
         if (reasons.isNotEmpty()) {
@@ -87,23 +75,16 @@ object RollbackArgument {
     }
 
     /** A rollback with no time or no place undoes the history of the server, so it is refused. */
-    internal fun missingBounds(parsed: ParsedLookupArgs): List<String> = buildList {
-        if (parsed.since == null) {
-            add("give a time (t:10m) — a rollback without one undoes the whole history of the server")
-        }
-        if (parsed.scope == null) {
-            add("give a scope (s:20b, s:2c, s:chunk or s:block) — a rollback needs a place")
-        }
+    internal fun missingBounds(parsed: ParsedLookupArgs): List<Component> = buildList {
+        if (parsed.since == null) add(tr("common.reason.need_time"))
+        if (parsed.scope == null) add(tr("common.reason.need_scope"))
     }
 
-    private fun resolvePlayers(
-        names: Set<String>,
-        unknownPrefix: String,
-        reasons: MutableList<String>,
-    ): List<UUID> = names.mapNotNull { name ->
-        resolvePlayerUuid(name) ?: run {
-            reasons += "$unknownPrefix: $name"
-            null
+    private fun resolvePlayers(names: Set<String>, reasons: MutableList<Component>): List<UUID> =
+        names.mapNotNull { name ->
+            resolvePlayerUuid(name) ?: run {
+                reasons += tr("common.reason.unknown_player", "name" to name)
+                null
+            }
         }
-    }
 }

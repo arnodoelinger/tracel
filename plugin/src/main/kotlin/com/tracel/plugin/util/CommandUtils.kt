@@ -1,5 +1,7 @@
 package com.tracel.plugin.util
 
+import com.tracel.plugin.i18n.say
+import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -8,9 +10,9 @@ import java.util.*
 import kotlin.math.floor
 
 /** @return the sender as a [Player], or sends [message] and returns `null`. */
-fun CommandSender.requirePlayer(message: String): Player? {
+fun CommandSender.requirePlayer(message: Component): Player? {
     val player = this as? Player
-    if (player == null) sendMessage(message)
+    if (player == null) say(message)
     return player
 }
 

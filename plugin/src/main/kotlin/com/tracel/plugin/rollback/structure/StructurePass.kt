@@ -9,7 +9,6 @@ import java.util.*
  */
 data class StructurePass(
     val force: Boolean = true,
-    val phase: StructurePhase = StructurePhase.BLOCKS,
     val dumpHeldCargo: Boolean = force,
     val driftOnly: Boolean = false,
     val keepCargoFor: Set<UUID> = emptySet(),

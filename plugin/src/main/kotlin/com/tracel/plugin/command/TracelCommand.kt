@@ -1,53 +1,91 @@
 package com.tracel.plugin.command
 
+import com.mojang.brigadier.arguments.IntegerArgumentType
+import com.mojang.brigadier.arguments.LongArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.*
-import com.tracel.plugin.command.args.LookupScope
-import com.tracel.plugin.command.highlight.Highlights
-import com.tracel.plugin.command.args.ParsedLookupArgs
+import com.tracel.plugin.command.action.support.NothingWeCanDo
 import com.tracel.plugin.command.action.PresetAction
-import com.tracel.plugin.command.suggest.PlayerNameSuggest
 import com.tracel.plugin.command.action.WhoAction
-import com.tracel.plugin.command.suggest.PresetNameSuggest
+import com.tracel.plugin.command.args.LookupScope
+import com.tracel.plugin.command.args.ParsedLookupArgs
+import com.tracel.plugin.command.highlight.Highlights
+import com.tracel.plugin.command.presenter.LookupPresenter
+import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.preset.PresetStore
 import com.tracel.plugin.command.preset.Presets
 import com.tracel.plugin.command.preset.parseWithPresets
-import com.tracel.plugin.command.presenter.LookupPresenter
-import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.suggest.ExportSuggest
 import com.tracel.plugin.command.suggest.LookupSuggest
-import com.tracel.plugin.command.suggest.liveLists
+import com.tracel.plugin.command.suggest.PlayerNameSuggest
+import com.tracel.plugin.command.suggest.PresetNameSuggest
+import com.tracel.plugin.command.suggest.PresetOwnedSuggest
+import com.tracel.plugin.command.suggest.PresetAddFlagsSuggest
+import com.tracel.plugin.command.suggest.PresetAddNameSuggest
 import com.tracel.plugin.command.suggest.RollbackSuggest
+import com.tracel.plugin.command.suggest.liveLists
+import com.tracel.plugin.i18n.confirm
+import com.tracel.plugin.i18n.failed
+import com.tracel.plugin.i18n.say
+import com.tracel.plugin.i18n.send
+import com.tracel.plugin.i18n.usage
+import com.tracel.plugin.i18n.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.JoinConfiguration
+import com.mojang.brigadier.context.CommandContext
+import org.bukkit.Bukkit
+import org.bukkit.Location
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import org.bukkit.plugin.Plugin
+import java.util.UUID
 
 /** `Tracel` commands. */
 object TracelCommand {
     private const val NEAR_WINDOW = 15 * 60_000L
     private const val NEAR_RADIUS = 16
 
+    private val HELP = listOf(
+        "tracel.lookup" to "lookup",
+        "tracel.inspect" to "inspect",
+        "tracel.rollback" to "rollback",
+        "tracel.rollback" to "undo",
+        "tracel.lookup" to "near",
+        "tracel.lookup" to "who",
+        "tracel.preset" to "preset",
+        "tracel.export" to "export",
+        "tracel.export" to "import",
+        "tracel.purge" to "purge",
+    )
+
     /** Registers all `Tracel` commands. */
     fun register(registrar: Commands, services: TracelServices) {
-        val undo = UndoAction(services)
+        val nothing = NothingWeCanDo(services)
+        val undo = UndoAction(services, nothing)
         val highlights = Highlights(services.plugin)
         val rollback = RollbackAction(services, highlights)
-        val lookup = LookupAction(services)
+        val lookup = services.lookup
         val inspect = InspectAction(services)
         val purge = PurgeAction(services)
         val export = ExportAction(services)
+        val import = ImportAction(services)
         val store = PresetStore(services.plugin.dataFolder.toPath().resolve("presets.tsv"))
         Presets.store = store
-        val presets = PresetAction(store)
+        val presets = PresetAction(store, nothing)
         val who = WhoAction(services)
 
         val root = literal("tracel") {
-            executesCommand { ctx -> sendHelp(ctx.source.sender) }
+            executesCommand { ctx -> sendHelp(ctx.source.sender, services.plugin) }
 
-            literal("rollback", "Roll back world and container changes") {
+            literal("help", tr("command.help")) {
+                executesCommand { ctx -> sendHelp(ctx.source.sender, services.plugin) }
+            }
+
+            literal("rollback", tr("command.rollback")) {
                 requiresPermission("tracel.rollback")
                 executesCommand { ctx -> RollbackPresenter.usage(ctx.source.sender) }
                 argument("flags", StringArgumentType.greedyString()) {
@@ -59,37 +97,55 @@ object TracelCommand {
                 }
             }
 
-            literal("restore", "Take back the last rollback") {
+            literal("undo", tr("command.undo")) {
                 requiresPermission("tracel.rollback")
                 takeBack(undo)
             }
 
-            literal("lookup", "Inspect transaction and world logs") {
+            literal("lookup", tr("command.lookup")) {
                 requiresPermission("tracel.lookup")
                 executesCommand { ctx -> LookupPresenter.usage(ctx.source.sender) }
                 argument("flags", StringArgumentType.greedyString()) {
                     suggests(LookupSuggest)
                     executesCommand { ctx ->
                         val tokens = tokens(StringArgumentType.getString(ctx, "flags"))
-                        lookup.execute(ctx.source.sender, parsePresetted(ctx.source.sender, tokens, store))
+                        if ("#export" in tokens) return@executesCommand lookup.export(ctx.source.sender)
+                        if ("#refresh" in tokens) return@executesCommand refresh(ctx.source.sender, tokens, store, lookup)
+                        val turned = tokens.singleOrNull()?.takeIf { it.startsWith("p:") || it.startsWith("page:") }
+                            ?.substringAfter(':')?.toIntOrNull()
+                        if (turned != null && turned >= 1) lookup.turn(ctx.source.sender, turned)
+                        else lookup.execute(ctx.source.sender, parsePresetted(ctx.source.sender, tokens, store).rerunnable("lookup", tokens))
                     }
                 }
             }
 
-            literal("preset", "Save flags under a name, use them as @name") {
+            literal("tp", tr("command.tp")) {
+                requiresPermission("tracel.lookup")
+                argument("world", StringArgumentType.word()) {
+                    argument("x", IntegerArgumentType.integer()) {
+                        argument("y", IntegerArgumentType.integer()) {
+                            argument("z", IntegerArgumentType.integer()) {
+                                executesCommand { ctx -> teleport(ctx) }
+                            }
+                        }
+                    }
+                }
+            }
+
+            literal("preset", tr("command.preset")) {
                 requiresPermission("tracel.preset")
-                executesCommand { ctx -> presets.list(ctx.source.sender) }
-                literal("list", "Your presets and the server's") {
+                executesCommand { ctx -> ctx.source.sender.usage("preset") }
+                literal("list", tr("command.preset_list")) {
                     executesCommand { ctx -> presets.list(ctx.source.sender) }
                 }
-                literal("save", "Save flags under a name") {
+                literal("add", tr("command.preset_add")) {
                     executesCommand { ctx ->
-                        ctx.source.sender.sendMessage("Usage: /tracel preset save <name> <flags> — for example: grief t:1h scope:30b")
+                        ctx.source.sender.usage("preset add")
                     }
                     argument("name", StringArgumentType.word()) {
-                        suggests(PresetNameSuggest)
+                        suggests(PresetAddNameSuggest)
                         argument("flags", StringArgumentType.greedyString()) {
-                            suggests(RollbackSuggest)
+                            suggests(PresetAddFlagsSuggest)
                             executesCommand { ctx ->
                                 presets.save(
                                     ctx.source.sender,
@@ -100,13 +156,29 @@ object TracelCommand {
                         }
                     }
                 }
-                literal("show", "Show what a preset holds") {
+                literal("show", tr("command.preset_show")) {
+                    executesCommand { ctx -> ctx.source.sender.usage("preset show") }
                     argument("name", StringArgumentType.word()) {
                         suggests(PresetNameSuggest)
                         executesCommand { ctx -> presets.show(ctx.source.sender, StringArgumentType.getString(ctx, "name")) }
                     }
                 }
-                literal("delete", "Delete a preset") {
+                literal("share", tr("command.preset_share")) {
+                    executesCommand { ctx -> ctx.source.sender.usage("preset share") }
+                    argument("name", StringArgumentType.word()) {
+                        suggests(PresetOwnedSuggest(server = false))
+                        executesCommand { ctx -> presets.share(ctx.source.sender, StringArgumentType.getString(ctx, "name")) }
+                    }
+                }
+                literal("unshare", tr("command.preset_unshare")) {
+                    executesCommand { ctx -> ctx.source.sender.usage("preset unshare") }
+                    argument("name", StringArgumentType.word()) {
+                        suggests(PresetOwnedSuggest(server = true))
+                        executesCommand { ctx -> presets.unshare(ctx.source.sender, StringArgumentType.getString(ctx, "name")) }
+                    }
+                }
+                literal("delete", tr("command.preset_delete")) {
+                    executesCommand { ctx -> ctx.source.sender.usage("preset delete") }
                     argument("name", StringArgumentType.word()) {
                         suggests(PresetNameSuggest)
                         executesCommand { ctx -> presets.delete(ctx.source.sender, StringArgumentType.getString(ctx, "name")) }
@@ -114,7 +186,7 @@ object TracelCommand {
                 }
             }
 
-            literal("near", "What happened around you lately") {
+            literal("near", tr("command.near")) {
                 requiresPermission("tracel.lookup")
                 executesCommand { ctx -> runNear(ctx.source.sender, emptyList(), store, lookup) }
                 argument("flags", StringArgumentType.greedyString()) {
@@ -126,9 +198,9 @@ object TracelCommand {
                 }
             }
 
-            literal("who", "What a player did, on one screen") {
+            literal("who", tr("command.who")) {
                 requiresPermission("tracel.lookup")
-                executesCommand { ctx -> ctx.source.sender.sendMessage("Usage: /tracel who <player> [time] [scope] — default: the last day") }
+                executesCommand { ctx -> ctx.source.sender.usage("who") }
                 argument("player", StringArgumentType.word()) {
                     suggests(PlayerNameSuggest)
                     executesCommand { ctx ->
@@ -148,47 +220,42 @@ object TracelCommand {
                 }
             }
 
-            literal("inspect", "Toggle the block inspector") {
+            literal("inspect", tr("command.inspect")) {
                 requiresPermission("tracel.inspect")
                 executesCommand { ctx -> inspect.execute(ctx.source.sender) }
             }
 
-            literal("purge", "Wipe the history database") {
-                requiresPermission("tracel.purge")
-                executesCommand { ctx ->
-                    ctx.source.sender.sendMessage(
-                        "Usage: /tracel purge confirm — wipes the entire Tracel database, with no undo."
-                    )
-                }
-                literal("confirm", "Yes, wipe the whole history — there is no undo") {
-                    executesCommand { ctx -> purge.execute(ctx.source.sender) }
+            literal("export", tr("command.export")) {
+                requiresPermission("tracel.export")
+                executesCommand { ctx -> export.confirmExport(ctx.source.sender) }
+                literal("#confirm", tr("command.export_confirm")) {
+                    executesCommand { ctx -> export.executeExport(ctx.source.sender) }
                 }
             }
 
-            literal("export", "Snapshot export and import") {
+            literal("import", tr("command.import")) {
                 requiresPermission("tracel.export")
-                executesCommand { ctx -> export.executeExport(ctx.source.sender) }
-                literal("import", "Replace the whole history with a snapshot file") {
+                executesCommand { ctx -> ctx.source.sender.usage("import") }
+                argument("file", StringArgumentType.string()) {
+                    suggests(ExportSuggest.suggesting(services.exportDirectory))
                     executesCommand { ctx ->
-                        ctx.source.sender.sendMessage(
-                            "Usage: /tracel export import <file> confirm — replaces the entire history with that file."
-                        )
+                        val file = StringArgumentType.getString(ctx, "file")
+                        ctx.source.sender.confirm("/tracel import $file")
                     }
-                    argument("file", StringArgumentType.string()) {
-                        suggests(ExportSuggest.suggesting(services.exportDirectory))
+                    literal("#confirm", tr("command.import_confirm")) {
                         executesCommand { ctx ->
                             val file = StringArgumentType.getString(ctx, "file")
-                            ctx.source.sender.sendMessage(
-                                "Usage: /tracel export import $file confirm — confirm is required to proceed."
-                            )
-                        }
-                        literal("confirm", "Yes, replace everything recorded so far") {
-                            executesCommand { ctx ->
-                                val file = StringArgumentType.getString(ctx, "file")
-                                export.executeImport(ctx.source.sender, file)
-                            }
+                            import.execute(ctx.source.sender, file)
                         }
                     }
+                }
+            }
+
+            literal("purge", tr("command.purge")) {
+                requiresPermission("tracel.purge")
+                executesCommand { ctx -> ctx.source.sender.confirm("/tracel purge") }
+                literal("#confirm", tr("command.purge_confirm")) {
+                    executesCommand { ctx -> purge.execute(ctx.source.sender) }
                 }
             }
         }
@@ -197,35 +264,46 @@ object TracelCommand {
         registrar.answerSuggestionsFromServer("tracel", "tr")
     }
 
-    private fun sendHelp(sender: CommandSender) {
-        sender.sendMessage("Tracel — forensics and history engine.")
-        if (sender.hasPermission("tracel.rollback")) {
-            sender.sendMessage(" /tracel rollback <flags> — roll back world and container changes")
-            sender.sendMessage(" /tracel restore — take back the last rollback")
+    private fun sendHelp(sender: CommandSender, plugin: Plugin) {
+        val meta = plugin.pluginMeta
+        val lines = mutableListOf(
+            tr("help.title", "version" to meta.version),
+            tr("help.about", "author" to meta.authors.joinToString(", ")),
+            Component.empty(),
+        )
+        for ((permission, key) in HELP) {
+            if (sender.hasPermission(permission)) lines += tr("help.$key")
         }
-        if (sender.hasPermission("tracel.lookup")) {
-            sender.sendMessage(" /tracel near — what happened around you in the last minutes")
-            sender.sendMessage(" /tracel who <player> — what a player did, on one screen")
-        }
-        if (sender.hasPermission("tracel.preset")) {
-            sender.sendMessage(" /tracel preset save <name> <flags> — save flags, then use them as @name")
-        }
-        if (sender.hasPermission("tracel.lookup")) {
-            sender.sendMessage(" /tracel lookup <flags> — inspect transaction and world logs")
-        }
-        if (sender.hasPermission("tracel.inspect")) {
-            sender.sendMessage(" /tracel inspect — toggle block inspector")
-        }
-        if (sender.hasPermission("tracel.export")) {
-            sender.sendMessage(" /tracel export [import <file> confirm] — snapshot export and import")
-        }
-        if (sender.hasPermission("tracel.purge")) {
-            sender.sendMessage(" /tracel purge confirm — wipe the history database")
-        }
+        lines += tr("help.help")
+        sender.say(Component.join(JoinConfiguration.newlines(), lines))
+    }
+
+    private fun teleport(ctx: CommandContext<CommandSourceStack>) {
+        val player = ctx.source.sender as? Player ?: return
+        val world = runCatching { Bukkit.getWorld(UUID.fromString(StringArgumentType.getString(ctx, "world"))) }.getOrNull()
+        if (world == null) return player.failed("tp.failed", tr("tp.reason.no_world"), tr("tp.hint.no_world"))
+        val at = Location(
+            world,
+            IntegerArgumentType.getInteger(ctx, "x") + 0.5,
+            IntegerArgumentType.getInteger(ctx, "y") + 1.0,
+            IntegerArgumentType.getInteger(ctx, "z") + 0.5,
+            player.location.yaw,
+            player.location.pitch,
+        )
+        player.teleportAsync(at)
+    }
+
+    private fun refresh(sender: CommandSender, flags: List<String>, store: PresetStore, lookup: LookupAction) {
+        val (command, anchor) = lookup.last(sender) ?: return sender.send("lookup.no_search")
+        val page = flags.firstNotNullOfOrNull { it.removePrefix("p:").toIntOrNull()?.takeIf { _ -> it.startsWith("p:") } } ?: 1
+        val words = tokens(command)
+        val tokens = words.drop(1)
+        val parsed = if (words.first() == "near") nearby(sender, tokens, store) else parsePresetted(sender, tokens, store)
+        lookup.execute(sender, parsed.rerunnable(words.first(), tokens).copy(page = page, anchor = anchor))
     }
 
     private fun runNear(sender: CommandSender, tokens: List<String>, store: PresetStore, lookup: LookupAction) {
-        lookup.execute(sender, nearby(sender, tokens, store))
+        lookup.execute(sender, nearby(sender, tokens, store).rerunnable("near", tokens))
     }
 
     private fun nearby(sender: CommandSender, tokens: List<String>, store: PresetStore): ParsedLookupArgs {
@@ -245,13 +323,24 @@ object TracelCommand {
         liveLists(sender),
     )
 
+    private fun ParsedLookupArgs.rerunnable(name: String, tokens: List<String>) =
+        copy(command = (listOf(name) + tokens.filterNot { it.startsWith("page:") || it.startsWith("p:") }).joinToString(" "))
+
     private fun tokens(line: String): List<String> =
         line.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
 }
 
 private fun LiteralArgumentBuilder<CommandSourceStack>.takeBack(action: UndoAction) {
     executesCommand { ctx -> action.execute(ctx.source.sender) }
-    literal("#confirm", "Take it back anyway, past the entity warning") {
+    literal("#confirm", tr("command.undo_confirm")) {
         executesCommand { ctx -> action.execute(ctx.source.sender, confirmed = true) }
+    }
+    argument("job", LongArgumentType.longArg(1)) {
+        executesCommand { ctx -> action.execute(ctx.source.sender, job = LongArgumentType.getLong(ctx, "job")) }
+        literal("#confirm", tr("command.undo_confirm")) {
+            executesCommand { ctx ->
+                action.execute(ctx.source.sender, confirmed = true, job = LongArgumentType.getLong(ctx, "job"))
+            }
+        }
     }
 }

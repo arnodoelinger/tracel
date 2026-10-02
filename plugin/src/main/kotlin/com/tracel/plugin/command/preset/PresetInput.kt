@@ -4,6 +4,7 @@ import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.args.filledFrom
 import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.suggest.SuggestLists
+import com.tracel.plugin.i18n.tr
 import java.util.UUID
 
 /**
@@ -24,7 +25,7 @@ internal fun parseWithPresets(
     for (ref in refs) {
         val preset = store?.find(ref.substring(1), owner)
         result = if (preset == null) {
-            result.copy(errors = result.errors + "unknown preset $ref — /tracel preset list")
+            result.copy(errors = result.errors + tr("preset.reason.missing", "name" to ref.substring(1).lowercase()))
         } else {
             result.filledFrom(parseLookupArgs(preset.tokens, now, known))
         }

@@ -1,9 +1,14 @@
 package com.tracel.plugin.command.suggest
 
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
+import com.tracel.plugin.i18n.Messages
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+import net.kyori.adventure.translation.GlobalTranslator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
+import java.util.Locale
 
 class SmartLookupSuggestTest {
     private val lists = SuggestLists(
@@ -19,17 +24,16 @@ class SmartLookupSuggestTest {
         val suggestions = RollbackSuggest.suggest("", lists)
         val flags = suggestions.map { it.text }
 
-        assertFalse("undo" in flags, "taking a rollback back is /tracel restore")
+        assertFalse("undo" in flags, "taking a rollback back is /tracel undo")
         assertTrue("u:" in flags)
         assertTrue("t:" in flags)
         assertTrue("#preview" in flags)
         assertTrue("#blocks" in flags)
         assertTrue("#items" in flags)
         assertFalse("user:" in flags)
-        assertFalse("#trace" in flags)
 
         val preview = suggestions.first { it.text == "#preview" }
-        assertTrue(preview.tooltip!!.contains("Preview"))
+        assertTrue(preview.tooltip!!.plain().contains("Preview"))
     }
 
     @Test
@@ -85,7 +89,7 @@ class SmartLookupSuggestTest {
     fun `comma-separated actions keep the ones that match`() {
         val texts = LookupSuggest.suggest("a:block,c", lists).map { it.text }
         assertEquals(listOf("a:block,craft", "a:block,container"), texts)
-        assertEquals("Crafting", LookupSuggest.suggest("a:block,c", lists).first { it.text.endsWith("craft") }.tooltip)
+        assertEquals("Crafting", LookupSuggest.suggest("a:block,c", lists).first { it.text.endsWith("craft") }.tooltip?.plain())
     }
 
     @Test
@@ -139,7 +143,7 @@ class SmartLookupSuggestTest {
             ),
             texts,
         )
-        assertEquals("4 blocks around you", LookupSuggest.suggest("scope:", lists).first().tooltip)
+        assertEquals("4 blocks around you", LookupSuggest.suggest("scope:", lists).first().tooltip?.plain())
         assertEquals(listOf("scope:block"), LookupSuggest.suggest("scope:bl", lists).map { it.text })
     }
 
@@ -213,8 +217,8 @@ class SmartLookupSuggestTest {
         assertTrue(texts.indexOf("t:1m") < texts.indexOf("t:10m"))
         assertTrue(texts.indexOf("t:10m") < texts.indexOf("t:1h"))
         assertTrue("t:today" in texts)
-        assertEquals("Past 10 seconds", list.first().tooltip)
-        assertEquals("Past 1 minute", list.first { it.text == "t:1m" }.tooltip)
+        assertEquals("Past 10 seconds", list.first().tooltip?.plain())
+        assertEquals("Past 1 minute", list.first { it.text == "t:1m" }.tooltip?.plain())
         assertTrue(texts.none { it.length == 3 && it.last().isDigit() })
     }
 
@@ -222,8 +226,8 @@ class SmartLookupSuggestTest {
     fun `a whole typed duration says what it means`() {
         val list = LookupSuggest.suggest("t:1h30m", lists)
         assertEquals(listOf("t:1h30m"), list.map { it.text })
-        assertEquals("Past 1 hour 30 minutes", list.single().tooltip)
-        assertEquals("2 days ago", LookupSuggest.suggest("after:2d", lists).first { it.text == "after:2d" }.tooltip)
+        assertEquals("Past 1 hour 30 minutes", list.single().tooltip?.plain())
+        assertEquals("2 days ago", LookupSuggest.suggest("after:2d", lists).first { it.text == "after:2d" }.tooltip?.plain())
     }
 
     @Test
@@ -251,7 +255,7 @@ class SmartLookupSuggestTest {
             Files.writeString(directory.resolve("notes.txt"), "nope")
             val files = ExportSuggest.files(directory, "")
             assertEquals(listOf("world.tracel"), files.map { it.text })
-            assertTrue(files.single().tooltip!!.contains("KiB"))
+            assertTrue(files.single().tooltip!!.plain().contains("KiB"))
         } finally {
             directory.toFile().deleteRecursively()
         }
@@ -265,4 +269,12 @@ class SmartLookupSuggestTest {
         assertTrue("s:" in both && "scope:" in both)
         assertEquals(listOf("s:20b", "s:20c"), LookupSuggest.suggest("s:20", lists).map { it.text })
     }
+}
+
+private fun Component.plain(locale: Locale = Locale.ENGLISH): String {
+    Messages.install(Messages.LOCALES.associateWith {
+        val file = Messages::class.java.classLoader.getResourceAsStream("lang/${it.language}.json")
+        Messages.read(checkNotNull(file)).mapKeys { key -> Messages.PREFIX + key.key }
+    })
+    return PlainTextComponentSerializer.plainText().serialize(GlobalTranslator.render(this, locale))
 }

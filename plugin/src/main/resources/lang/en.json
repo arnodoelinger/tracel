@@ -1,0 +1,478 @@
+{
+  "prefix": "<gray>T | ",
+  "common": {
+    "usage": "Please use \"/tracel <command> \\<params>\"",
+    "busy": "Another job is running... Wait for it to finish",
+    "invalid": "<token> is not a valid argument — see suggestions to see what is allowed",
+    "nothing": "there's nothing we can do",
+    "label": {
+      "info": "<gray>Info:</gray> <info>",
+      "reason": "<gray>Reason:</gray> <reason>",
+      "hint": "<gray>Try:</gray> <hint>",
+      "time": "<gray>Time taken:</gray> <time>",
+      "database": "<gray>Database:</gray> <file>",
+      "size": "<gray>Size:</gray> <size> MiB",
+      "records": "<gray>Records:</gray> <from> → <to>",
+      "rows": "<gray>Rows:</gray> <rows>"
+    },
+    "needed": {
+      "title": "<gold>⚠ Action needed!</gold>",
+      "destructive": "this is destructive and cannot be undone",
+      "run": "running it again with \"<command>\"",
+      "run_hover": "<white>Put \"<command>\" in the chat box</white>"
+    },
+    "mark": {
+      "plus": "<green>+</green>",
+      "minus": "<red>-</red>",
+      "both": "<gold>±</gold>"
+    },
+    "reason": {
+      "unknown_player": "no player named <name>",
+      "unknown_world": "no world named <name>",
+      "unknown_action": "unknown action: <name>",
+      "needs_player": "a scope around you needs a player — run this in game, or specify a world",
+      "other_world": "you are not in <world> — a scope around you cannot be used there",
+      "too_large": "scope is too large — maximum is <blocks> blocks or <chunks> chunks",
+      "no_window": "the start of the time range is after its end",
+      "need_time": "no time given",
+      "need_scope": "no scope given",
+      "denied": "the server cannot write to the export folder",
+      "no_space": "the disk is full"
+    },
+    "hint": {
+      "fix_flags": "fixing the flags, see \"/tracel <command>\"",
+      "denied": "give the server write access to that folder, then try again",
+      "no_space": "free up some disk space, then try again",
+      "unknown": "check the server log for details"
+    }
+  },
+  "help": {
+    "title": "<light_purple>◎ Tracel <version></light_purple>",
+    "about": "<gray>A fast, modern block logging and rollback system</gray>",
+    "lookup": "<gray>/tracel lookup</gray>: browse world history",
+    "inspect": "<gray>/tracel inspect</gray>: toggle the inspector",
+    "rollback": "<gray>/tracel rollback</gray>: roll back world and container changes",
+    "undo": "<gray>/tracel undo</gray>: undo the last rollback",
+    "near": "<gray>/tracel near</gray>: what happened around you in the last minutes",
+    "who": "<gray>/tracel who</gray>: what a player did, on one screen",
+    "preset": "<gray>/tracel preset</gray>: save lookup / rollback options as a preset",
+    "export": "<gray>/tracel export</gray>: snapshot export of the history database",
+    "import": "<gray>/tracel import:</gray> replace history with another database",
+    "purge": "<gray>/tracel purge</gray>: wipe the database",
+    "help": "<gray>/tracel help</gray>: this screen"
+  },
+  "lookup": {
+    "headline": "<aqua>☰ Lookup results, page <page>/<total></aqua>",
+    "title": "<gray><verb> <n> <n:time:times>:</gray> <white>first <first>, last <last></white>",
+    "net": "<gray><plus> <gained>, <minus> <lost>:</gray> <white>first <first>, last <last></white>",
+    "times": "<gray> ⋆<n></gray>",
+    "no_matches": "No matches",
+    "no_search": "No search to turn pages in",
+    "not_flushed": "Some captures had not finished being written — this page may be missing the last moment",
+    "button": {
+      "back": "<gray>[◀]</gray>",
+      "next": "<gray>[▶]</gray>",
+      "export": "<light_purple>[↑ Export]</light_purple>",
+      "refresh": "<green>[⏩ Refresh]</green>"
+    },
+    "hover": {
+      "turned": "<white><from> → <to></white>",
+      "time": "<gray>Time:</gray> <white><time></white>",
+      "coords": "<gray>Coordinates:</gray> <white><at></white>",
+      "mode": "<gray>Gamemode:</gray> <mode>",
+      "teleport": "<white>Click here to teleport</white>",
+      "page": "<white>Page <page></white>",
+      "refresh": "<white>Run this search again</white>",
+      "export": "<white>Export these results</white>"
+    },
+    "verb": {
+      "ate": "Ate",
+      "withered": "Withered",
+      "spread": "Spread",
+      "trampled": "Trampled",
+      "tilled": "Tilled",
+      "flattened": "Flattened",
+      "grew": "Grew",
+      "updated": "Updated",
+      "became": "Changed to",
+      "shuffled": "Shuffled",
+      "harvested": "Harvested",
+      "lit": "Lit",
+      "extinguished": "Put out",
+      "opened": "Opened",
+      "closed": "Closed",
+      "activated": "Activated",
+      "deactivated": "Deactivated",
+      "filled": "Filled",
+      "emptied": "Emptied",
+      "stripped": "Stripped",
+      "waxed": "Waxed",
+      "unwaxed": "Scraped wax off",
+      "oxidized": "Oxidized",
+      "scraped": "Scraped",
+      "hardened": "Hardened",
+      "cooled": "Cooled",
+      "froze": "Froze",
+      "melted": "Melted",
+      "soaked": "Soaked",
+      "dried": "Dried",
+      "carved": "Carved",
+      "extended": "Extended",
+      "retracted": "Retracted",
+      "loaded": "Loaded",
+      "unloaded": "Unloaded",
+      "picked": "Picked",
+      "put": "Put",
+      "took": "Took",
+      "dropped": "Dropped",
+      "picked_up": "Picked up",
+      "moved": "Moved",
+      "crafted": "Crafted",
+      "received": "Received",
+      "lost": "Lost",
+      "used": "Used",
+      "created": "Created",
+      "destroyed": "Destroyed",
+      "damaged": "Damaged",
+      "placed": "Placed",
+      "broke": "Broke",
+      "changed": "Changed",
+      "edited": "Edited",
+      "spawned": "Spawned",
+      "removed": "Removed",
+      "altered": "Altered",
+      "leashed": "Leashed",
+      "unleashed": "Unleashed"
+    },
+    "mode": {
+      "survival": "<green>Survival</green>",
+      "creative": "<gold>Creative</gold>",
+      "spectator": "<red>Spectator</red>",
+      "adventure": "<blue>Adventure</blue>"
+    },
+    "ago": {
+      "s": "<n>s ago",
+      "m": "<n>m ago",
+      "h": "<n>h ago",
+      "d": "<n>d ago",
+      "y": "<n>y ago"
+    },
+    "export": {
+      "start": "Exporting the results...",
+      "lines": "<gray>Lines:</gray> <lines>",
+      "button": {
+        "open": "<aqua>[→ Open]</aqua>",
+        "open_hover": "<white>Read it in the browser</white>",
+        "copy": "<gold>[☷ Copy link]</gold>",
+        "copy_hover": "<white>Copy link to the clipboard</white>"
+      },
+      "failed": "<red>✘ Upload failed!</red>",
+      "hint": {
+        "again": "again in a moment, or check the server can reach the paste server from the config"
+      },
+      "done": "<green>✔ Lookup uploaded!</green>"
+    },
+    "failed": "<red>✘ Lookup failed!</red>",
+    "hint": {
+      "again": "a shorter time range or a smaller scope, or check the server log for details"
+    }
+  },
+  "inspect": {
+    "players_only": "Only players can toggle inspect mode",
+    "on": "Inspector mode on. Click any block or container to see its history in chat",
+    "off": "Inspector mode off"
+  },
+  "rollback": {
+    "preview": {
+      "title": "<aqua>☰ Rollback preview</aqua>",
+      "ghost": "<count> blocks blinking for <seconds>s — only you see them",
+      "would": "<gray>Would:</gray> <summary>"
+    },
+    "done": {
+      "title": "<green>✔ Rolled back!</green>",
+      "result": "<gray>Result:</gray> <parts>",
+      "nothing": "<gray>Nothing changed — the world already matches</gray>"
+    },
+    "button": {
+      "undo": "<gold>[⏩ Undo]</gold>",
+      "undo_hover": "<white>Take this rollback back</white>"
+    },
+    "summary": {
+      "restored": "<green><count> restored</green>",
+      "removed": "<red><count> removed</red>",
+      "returned": "<aqua><count> item(s) returned</aqua>",
+      "uncrafted": "<aqua><count> uncrafted</aqua>"
+    },
+    "join": {
+      "and": " and ",
+      "serial_and": ", and "
+    },
+    "took": {
+      "instant": "instantly"
+    },
+    "mostly": {
+      "all": "all <type>",
+      "most": "mostly <type> — <count> of them",
+      "mixed": "mixed"
+    },
+    "halves": {
+      "both": "blocks and items",
+      "blocks": "blocks only",
+      "items": "items only",
+      "neither": "neither half"
+    },
+    "nothing": "Nothing matches (looked at <halves>)",
+    "entities": "this would bring <count> entities back (<mostly>); that is past the <limit> this server allows in one go",
+    "failed": "<red>✘ Rollback failed!</red>",
+    "reason": {
+      "opposites": "#blocks and #items are opposites — give one or neither",
+      "plan_failed": "could not work out what to do — <reason>",
+      "unreachable": "cannot touch <holder> — <reason>",
+      "stale": "the world kept changing under it (<attempts> attempts)",
+      "blocked": "another rollback is still running on this area"
+    },
+    "hint": {
+      "again": "again in a moment, or check the server log for details",
+      "unreachable": "making it reachable again, then run it once more",
+      "blocked": "again once the other rollback has finished",
+      "stale": "stopping the redstone or whatever keeps moving these items, then run it again"
+    }
+  },
+  "undo": {
+    "done": {
+      "title": "<green>✔ Undone!</green>",
+      "result": "<gray>Result:</gray> <green><changes> change(s) taken back</green>"
+    },
+    "failed": "<red>✘ Undo failed!</red>",
+    "reason": {
+      "already": "that rollback is already taken back",
+      "not_found": "that rollback is no longer on record",
+      "out_of_order": "a newer rollback by someone else touched the same blocks or items",
+      "nothing": "you have no rollback to take back"
+    },
+    "hint": {
+      "again": "running <gold>\"/tracel undo\"</gold> again",
+      "out_of_order": "having them undo theirs first",
+      "nothing": "running a rollback first"
+    }
+  },
+  "who": {
+    "title": "<red>♦ <name></red>",
+    "window": "<gray>Window:</gray> last <span>",
+    "scope": "<gray>Scope:</gray> <scope>",
+    "records": "<gray>Records:</gray> <records>",
+    "active": "<gray>Active:</gray> from <first> ago to <last> ago",
+    "busiest": "<gray>Busiest:</gray> around <x>, <y>, <z>",
+    "blocks": "<gray>Blocks:</gray> <plus><green><placed></green> <minus><red><broken></red> <both><gold><changed></gold>",
+    "empty": "nothing recorded",
+    "button": {
+      "tp": "<aqua>[→ Teleport]</aqua>",
+      "tp_hover": "<white>Put \"/tp <x> <y> <z>\" in the chat box</white>",
+      "rollback": "<red>[⏪ Roll back]</red>",
+      "rollback_hover": "<white>Start a rollback of <name></white>",
+      "lookup": "<aqua>[☰ Lookup]</aqua>",
+      "lookup_hover": "<white>Every record of <name> in this window</white>"
+    },
+    "failed": "<red>✘ Who failed!</red>",
+    "hint": {
+      "again": "a shorter time range or a smaller scope, or check the server log for details"
+    }
+  },
+  "preset": {
+    "list": {
+      "title": "<yellow>⚡ Presets</yellow>",
+      "hover": "<white>Click to start \"/tracel rollback @<name>\"</white>",
+      "entry": "<gray>@<name>:</gray> <flags>",
+      "entry_server": "<gray>@<name> (server):</gray> <flags>",
+      "empty": {
+        "info": "there's no presets yet",
+        "hint": "create one"
+      }
+    },
+    "show": "<yellow>⚡ Preset @<name></yellow>",
+    "saved": "<green>✔ Preset saved!</green>",
+    "deleted": "<green>✔ Preset deleted!</green>",
+    "shared": "<green>✔ Preset shared!</green>",
+    "unshared": "<green>✔ Preset taken back!</green>",
+    "button": {
+      "use": "<green>[→ Use it]</green>",
+      "use_hover": "<white>Put \"/tracel rollback @<name>\" in the chat box</white>",
+      "share": "<light_purple>[↑ Share]</light_purple>",
+      "share_hover": "<white>Make @<name> a preset of the whole server</white>",
+      "unshare": "<light_purple>[↓ Take back]</light_purple>",
+      "unshare_hover": "<white>Make @<name> your own preset again</white>",
+      "delete": "<red>[✘ Delete]</red>",
+      "delete_hover": "<white>Delete @<name></white>"
+    },
+    "label": {
+      "flags": "<gray>Flags:</gray> <flags>",
+      "for": "<gray>For:</gray> <who>",
+      "name": "<gray>Name:</gray> @<name>"
+    },
+    "for": {
+      "you": "you",
+      "server": "the whole server"
+    },
+    "failed": "<red>✘ Preset failed!</red>",
+    "reason": {
+      "missing": "no preset @<name>",
+      "bad_name": "not a valid name for a preset",
+      "add_empty": "no flags to save",
+      "add_nested": "a preset cannot hold another preset",
+      "console": "the console has no presets of its own",
+      "too_many": "you already have <limit> presets",
+      "global_perm": "changing the server's presets needs a permission, which you don't have",
+      "taken": "the name @<name> is already taken",
+      "already": "@<name> is already reserved for <who>"
+    },
+    "hint": {
+      "list": "checking preset list",
+      "name": "picking another name",
+      "add": "adding some flags to it first",
+      "nested": "writing the flags out",
+      "delete": "deleting one",
+      "admin": "asking an admin",
+      "rename": "saving yours under another name, then sharing that"
+    }
+  },
+  "export": {
+    "start": "Export started. Please wait...",
+    "confirm": {
+      "info": "this writes a snapshot to disk: up to <size> MiB, <free> MiB free",
+      "low": "this needs up to <size> MiB on disk, but only <free> MiB is free"
+    },
+    "done": "<green>✔ Export successful!</green>",
+    "button": {
+      "file": "<aqua>[☷ Copy file path]</aqua>",
+      "file_hover": "Copy file path to the clipboard<gray>",
+      "import": "<gold>[↓ Import]</gold>",
+      "import_hover": "Put the import command in the chat box"
+    },
+    "failed": "<red>✘ Export failed!</red>"
+  },
+  "import": {
+    "start": "Import started. All current history will be replaced. Please wait...",
+    "done": "<green>✔ Import successful!</green>",
+    "failed": "<red>✘ Import failed!</red>",
+    "reason": {
+      "missing": "the file could not be found",
+      "bad_name": "the file is not in the export folder"
+    },
+    "hint": {
+      "missing": "run the command again and pick the file from the suggestions",
+      "bad_name": "pick a file from the suggestions instead of entering a path"
+    }
+  },
+  "purge": {
+    "done": "<green>✔ Purge successful!</green>",
+    "failed": "<red>✘ Purge failed!</red>",
+    "hint": {
+      "unknown": "check the server log for details"
+    }
+  },
+  "tp": {
+    "failed": "<red>✘ Teleport failed!</red>",
+    "reason": {
+      "no_world": "that world is not loaded"
+    },
+    "hint": {
+      "no_world": "loading that world, then clicking again"
+    }
+  },
+  "change": {
+    "block": "<who> <verb> <block> at <at>",
+    "trampled": "<who> trampled <block> at <at>",
+    "entity": "<who> <verb> <entity> at <at>",
+    "turned": "<from> → <to>"
+  },
+  "holder": {
+    "block": "block <x>, <y>, <z>",
+    "player": "player <name>",
+    "entity_gone": "entity",
+    "placed_entity": "placed entity <uuid>"
+  },
+  "command": {
+    "lookup": "Browse world history",
+    "inspect": "Toggle the inspector",
+    "rollback": "Roll back world and container changes",
+    "undo": "Undo the last rollback",
+    "undo_confirm": "Undo it anyway, past the entity warning",
+    "near": "See what happened around you recently",
+    "who": "See what a player did",
+    "preset": "Save lookup and rollback options as a preset; use them as @name",
+    "preset_list": "List your presets and server presets",
+    "preset_add": "Save the current options as a preset",
+    "preset_show": "Show what a preset contains",
+    "preset_share": "Make one of your presets the server's own",
+    "preset_unshare": "Take a server preset back as your own",
+    "preset_delete": "Delete a preset",
+    "export": "Export database",
+    "export_confirm": "Yes, write the snapshot to disk",
+    "import": "Replace all history with another database",
+    "import_confirm": "Yes, replace all recorded history",
+    "purge": "Wipe all recorded history",
+    "purge_confirm": "Yes, delete all history; this cannot be undone",
+    "help": "Show help for commands",
+    "tp": "Teleport to a logged place"
+  },
+  "suggest": {
+    "online": "Online",
+    "seen": "Previously seen",
+    "snapshot": "Snapshot file",
+    "snapshot_size": "<kib> KiB snapshot",
+    "player": "Player <name>",
+    "world": "World <name>",
+    "block": "Block <name>",
+    "item": "Item <name>",
+    "scope_block": "The block you are standing on",
+    "scope_chunk": "The chunk you are standing in",
+    "scope_world": "Scope to world <name>",
+    "today": "Since midnight today",
+    "yesterday": "Since midnight yesterday",
+    "past": "Past <span>",
+    "ago": "<span> ago",
+    "span": {
+      "second": "<count> <count:second:seconds>",
+      "minute": "<count> <count:minute:minutes>",
+      "hour": "<count> <count:hour:hours>",
+      "day": "<count> <count:day:days>",
+      "week": "<count> <count:week:weeks>"
+    },
+    "around": {
+      "block": "<count> <count:block:blocks> around you",
+      "chunk": "<count> <count:chunk:chunks> around you"
+    },
+    "action": {
+      "block": "Block changes",
+      "place": "Blocks placed",
+      "break": "Blocks broken",
+      "sign": "Sign edits",
+      "entity": "Entity changes",
+      "spawn": "Entities spawned",
+      "kill": "Entities removed",
+      "container": "Container and inventory changes",
+      "craft": "Items crafted",
+      "explosion": "Explosions"
+    },
+    "flag": {
+      "preview": "Preview without changing the world or inventory",
+      "blocks": "Structure and block changes only",
+      "items": "Material and inventory movements only",
+      "explosion": "Restore the crater and destroyed container contents",
+      "strict": "Prioritize later changes over rollback accuracy",
+      "confirm": "Allow entity restores beyond the safety limit",
+      "each": "Every record on its own line, nothing folded together",
+      "natural": "Include everything that has happened naturally",
+      "wide": "Scan horizontally; ignore vertical distance",
+      "user": "Player name, comma-separated",
+      "time": "When it happened",
+      "scope": "Radius around you: 10 blocks, 2 chunks, etc.",
+      "world": "World",
+      "item": "Item",
+      "block": "Block",
+      "action": "Action or cause, comma-separated"
+    },
+    "preset_replace": "Replaces this preset",
+    "preset_name": "Name for the new preset"
+  }
+}

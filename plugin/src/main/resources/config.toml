@@ -4,14 +4,13 @@
 [rollback]
 # Maximum number of entities restored without confirmation
 # 0 = always ask for confirmation
-entity-restore-limit = 128
+entity-restore-limit = 256
 
 [storage]
 # Controls how Tracel saves the history used for queries and rollbacks
-#
-#   every-batch    Save every commit safely before continuing
-#   <duration>     Save at most once per interval, e.g. 500ms, 1s, 5s
-#   never          Never force changes to disk. Not for production
+# "every-batch" saves every commit safely before continuing
+# "<duration>" saves at most once per interval, e.g. 500ms, 1s, 5s
+# "never" never force changes to disk; not for production
 sync = "every-batch"
 
 # Amount of memory used before history is written to disk
@@ -22,6 +21,17 @@ memtable-size = "16MiB"
 max-pending-flushes = 3
 
 # How many events can be buffered during bursts of activity
-# 65536 is suitable for most servers, but busy or anarchy servers may
-# need more
+# 65536 is suitable for most servers, but busy or anarchy servers may need more
 capture-ring-slots = 65536
+
+[paste]
+# The privatebin.net server the "Export" button under "/tracel lookup" puts the results on
+# Use your own server if you would rather not trust this
+paste-url = "https://privatebin.net"
+
+# When the server forgets the paste. privatebin.net offers 5min, 10min, 30min, 1hour, 3hour,
+# 6hour, 12hour, 1day, and 3day
+paste-expire = "3day"
+
+# Delete the paste after it is read once
+paste-burn = false

@@ -22,7 +22,7 @@ internal suspend fun RollbackComposer.applyTracked(planned: Planned, strict: Boo
     val composite = planned.composite
     val allStructure = composite.create + composite.destroy
 
-    when (val preflight = planned.trace.span("preflight world") { structureHalf.preflight(allStructure) }) {
+    when (val preflight = structureHalf.preflight(allStructure)) {
         is Unreachable -> return preflight
         PreflightResult.Ok -> Unit
     }
@@ -31,7 +31,7 @@ internal suspend fun RollbackComposer.applyTracked(planned: Planned, strict: Boo
     val left = ArrayList<SkippedStep>()
     repeat(STALE_RETRIES) {
         var deltas =
-            attempt.trace.span("material deltas") { materialHalf.deltasFor(attempt.composite.material, attempt.target) }
+            materialHalf.deltasFor(attempt.composite.material, attempt.target)
 
         // A hull or container that will refuse to go must not have its item handed back either, or both exist
         val refused = services.leftHolding(attempt.composite.destroy, deltas)
@@ -39,9 +39,7 @@ internal suspend fun RollbackComposer.applyTracked(planned: Planned, strict: Boo
             left += attempt.composite.destroy.filter { it.placedHolder() in refused }
                 .map { SkippedStep(it.at, "still holds material nobody withdrew") }
             attempt = attempt.without(refused)
-            deltas = attempt.trace.span("material deltas") {
-                materialHalf.deltasFor(attempt.composite.material, attempt.target)
-            }
+            deltas = materialHalf.deltasFor(attempt.composite.material, attempt.target)
         }
         when (val preflight = materialHalf.preflight(deltas)) {
             is Unreachable -> return preflight
@@ -78,18 +76,16 @@ private suspend fun RollbackComposer.applyReserved(
 
     // Reserve before any block moves.
     // Mid-apply refusal left a half-restored world.
-    val reservation = if (planned.roots.isEmpty()) null else planned.trace.span("reserve") {
-        services.rollback.reserve(
-            job,
-            planned.roots,
-            planned.target,
-            planned.vanished,
-            prepared = composite.material,
-            preparedAt = planned.witness,
-            structural = planned.structural,
-            covered = planned.covered,
-        )
-    }
+    val reservation = if (planned.roots.isEmpty()) null else services.rollback.reserve(
+        job,
+        planned.roots,
+        planned.target,
+        planned.vanished,
+        prepared = composite.material,
+        preparedAt = planned.witness,
+        structural = planned.structural,
+        covered = planned.covered,
+    )
     when (reservation) {
         null, is Reservation.Granted -> Unit
         is Reservation.Blocked -> return Blocked(reservation.conflicts)
@@ -120,15 +116,11 @@ private suspend fun RollbackComposer.applyReserved(
 
     val later = materialAndContested(planned, strict, deltas, layout, job, startedAtMillis, first)
     val written = first.destroyedPrompt + later.extra
-    val settled = planned.trace.span("settle liquid") {
-        structureHalf.settleFluids(first.created.applied + written.applied, drain = true)
-    }
+    val settled = structureHalf.settleFluids(first.created.applied + written.applied, drain = true)
     val destroyed = written + settled
 
-    planned.trace.span("wake redstone") {
-        val waking = (first.created.applied + destroyed.applied).redstoneCells().toList()
-        if (waking.isNotEmpty()) services.scope.launch { structureHalf.wakeRedstone(waking.asSequence()) }
-    }
+    val waking = (first.created.applied + destroyed.applied).redstoneCells().toList()
+    if (waking.isNotEmpty()) services.scope.launch { structureHalf.wakeRedstone(waking.asSequence()) }
 
     return RollbackResult.Done(job, planned, first.created + destroyed, later.material)
 }

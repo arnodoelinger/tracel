@@ -4,7 +4,6 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.StructureReport
-import com.tracel.plugin.rollback.trace.RollbackTrace
 
 /**
  * World-log half as composition sees it.
@@ -19,7 +18,6 @@ interface StructureHalf {
     suspend fun restore(
         steps: List<StructureStep>,
         pass: StructurePass = StructurePass(),
-        trace: RollbackTrace = RollbackTrace.NONE, // TODO: remove me
     ): StructureReport
 
     /**

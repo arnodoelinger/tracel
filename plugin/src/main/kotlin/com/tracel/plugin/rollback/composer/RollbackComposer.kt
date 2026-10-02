@@ -11,9 +11,11 @@ import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.structure.StructureHalf
 import com.tracel.plugin.rollback.survey.WorldCensus
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+
+/** How many of a player's latest rollbacks a button may still point at. */
+private const val UNDO_LOOKBACK = 64
 
 /**
  * Entry point: [plan] reads, [apply] writes, [undo] takes a job back. Nothing else starts a rollback.
@@ -47,8 +49,7 @@ class RollbackComposer(
         filter: LookupFilter,
         structure: Boolean,
         material: Boolean,
-        trace: RollbackTrace,
-    ): Planned = planRollback(filter, structure, material, trace)
+    ): Planned = planRollback(filter, structure, material)
 
     override suspend fun apply(planned: Planned, strict: Boolean): RollbackResult = tracked {
         applyTracked(planned, strict)
@@ -58,6 +59,9 @@ class RollbackComposer(
 
     override suspend fun lastUndoable(by: HolderId?): RollbackJobId? =
         services.jobs.undoableBy(by, limit = 1).firstOrNull()
+
+    override suspend fun isUndoable(by: HolderId?, job: RollbackJobId): Boolean =
+        job in services.jobs.undoableBy(by, limit = UNDO_LOOKBACK)
 
     internal inline fun <T> tracked(block: () -> T): T {
         inFlight.incrementAndGet()

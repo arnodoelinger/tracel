@@ -1,5 +1,6 @@
 package com.tracel.plugin
 
+import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.startup.TracelRuntime
 import com.tracel.plugin.startup.enableTracel
@@ -28,6 +29,7 @@ class TracelPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
+        Messages.unload()
         val run = runtime
         stopping(logger, "storage") {
             val live = run ?: return@stopping

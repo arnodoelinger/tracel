@@ -3,6 +3,8 @@ package com.tracel.storage.ports.ops
 import com.github.luben.zstd.ZstdInputStream
 import com.github.luben.zstd.ZstdOutputStream
 import com.tracel.storage.TracelStorage
+import com.tracel.storage.codec.KeyReader
+import com.tracel.storage.codec.Keys
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
@@ -16,9 +18,16 @@ import java.nio.file.StandardCopyOption
 private const val MAGIC = 0x54455850 // TEXP
 private const val VERSION = 1
 private const val BATCH_ROWS = 20_000
+internal const val TIME_KEY_SIZE = 17
 
 /** What an export turned out to be, for the line that gets printed afterward. */
-data class ExportSummary(val rows: Long, val bytes: Long, val file: Path)
+data class ExportSummary(
+    val rows: Long,
+    val bytes: Long,
+    val file: Path,
+    val oldest: Long? = null,
+    val newest: Long? = null,
+)
 
 /** The whole history as one file you can carry. */
 suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withContext(Dispatchers.IO) {
@@ -27,6 +36,8 @@ suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withCont
     Files.createDirectories(to.toAbsolutePath().parent)
 
     var rows = 0L
+    var oldest = Long.MAX_VALUE
+    var newest = Long.MIN_VALUE
     DataOutputStream(
         BufferedOutputStream(ZstdOutputStream(Files.newOutputStream(temporary), 5), 1 shl 16),
     ).use { out ->
@@ -36,6 +47,11 @@ suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withCont
             var written = 0L
             eachRow(ByteArray(0)) { cursor ->
                 val key = cursor.key()
+                if (key.size == TIME_KEY_SIZE && key[0] == Keys.TIME) {
+                    val at = Keys.invert(KeyReader.u64(key, 1))
+                    if (at < oldest) oldest = at
+                    if (at > newest) newest = at
+                }
                 val value = cursor.value()
                 val bytes = value.readBytes(0, value.byteSize().toInt())
                 out.writeInt(key.size)
@@ -51,7 +67,7 @@ suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withCont
     }
 
     Files.move(temporary, to, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-    ExportSummary(rows, Files.size(to), to)
+    ExportSummary(rows, Files.size(to), to, oldest.takeIf { rows > 0 && it != Long.MAX_VALUE }, newest.takeIf { it != Long.MIN_VALUE })
 }
 
 /**

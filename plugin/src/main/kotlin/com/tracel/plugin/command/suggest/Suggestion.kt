@@ -1,14 +1,15 @@
 package com.tracel.plugin.command.suggest
 
-import com.mojang.brigadier.LiteralMessage
 import com.mojang.brigadier.context.StringRange
 import com.mojang.brigadier.suggestion.Suggestion as BrigadierSuggestion
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.tracel.plugin.command.args.ActionArgument
+import com.tracel.plugin.command.preset.Presets
 import com.tracel.plugin.dialog.VANILLA_BLOCK_NAMES
 import com.tracel.plugin.dialog.VANILLA_ITEM_NAMES
-import com.tracel.plugin.command.preset.Presets
+import com.tracel.plugin.i18n.asMessage
+import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -22,7 +23,7 @@ import java.util.concurrent.CompletableFuture
  */
 internal data class Suggestion(
     val text: String,
-    val tooltip: String? = null,
+    val tooltip: Component? = null,
     val tail: String? = null,
 )
 
@@ -70,7 +71,7 @@ internal fun SuggestionsBuilder.reply(suggestions: List<Suggestion>): Completabl
         val (offset, insert) = placement(suggestion, tokenStart)
         val range = StringRange.between(offset, input.length)
         val tooltip = suggestion.tooltip
-        BrigadierSuggestion(range, insert, tooltip?.let { LiteralMessage(it) })
+        BrigadierSuggestion(range, insert, tooltip?.asMessage())
     }
     val range = entries.map { it.range }.reduce(StringRange::encompassing)
     val ordered = entries.map { it.expand(input, range) }

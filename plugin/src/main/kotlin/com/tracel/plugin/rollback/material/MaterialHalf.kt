@@ -10,7 +10,6 @@ import com.tracel.model.item.ItemKey
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.RestorationReport
-import com.tracel.plugin.rollback.trace.RollbackTrace
 import kotlinx.coroutines.CompletableDeferred
 import java.util.*
 
@@ -34,7 +33,6 @@ interface MaterialHalf {
         job: RollbackJobId,
         knownGone: Set<HolderId>? = null,
         respawnAt: Map<HolderId.ItemEntity, HolderId> = emptyMap(),
-        trace: RollbackTrace = RollbackTrace.NONE,
         census: EntityCensus = EntityCensus.EMPTY,
         settled: CompletableDeferred<Set<HolderId>>? = null,
         asOf: Long? = null,
