@@ -1,7 +1,6 @@
 package com.tracel.plugin.command
 
 import com.mojang.brigadier.Command
-import com.mojang.brigadier.LiteralMessage
 import com.mojang.brigadier.RedirectModifier
 import com.mojang.brigadier.arguments.ArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
@@ -13,22 +12,24 @@ import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.mojang.brigadier.tree.CommandNode
 import com.mojang.brigadier.tree.LiteralCommandNode
+import com.tracel.plugin.i18n.asMessage
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
+import net.kyori.adventure.text.Component
 import java.util.concurrent.CompletableFuture
 import java.util.function.Predicate
 
 /** Creates a root or child literal command node builder. [tooltip] is the text shown beside the name. */
 fun literal(
     name: String,
-    tooltip: String? = null,
+    tooltip: Component? = null,
     block: LiteralArgumentBuilder<CommandSourceStack>.() -> Unit = {},
 ): LiteralArgumentBuilder<CommandSourceStack> = described(name, tooltip).apply(block)
 
 /** Adds a child literal argument to this literal node. [tooltip] is the text shown beside the name. */
 fun LiteralArgumentBuilder<CommandSourceStack>.literal(
     name: String,
-    tooltip: String? = null,
+    tooltip: Component? = null,
     block: LiteralArgumentBuilder<CommandSourceStack>.() -> Unit = {},
 ): LiteralArgumentBuilder<CommandSourceStack> {
     val child = described(name, tooltip).apply(block)
@@ -61,7 +62,7 @@ fun <T, U : Any> RequiredArgumentBuilder<CommandSourceStack, T>.argument(
 /** Adds a child literal argument to this required argument node. [tooltip] is the text shown beside the name. */
 fun <T> RequiredArgumentBuilder<CommandSourceStack, T>.literal(
     name: String,
-    tooltip: String? = null,
+    tooltip: Component? = null,
     block: LiteralArgumentBuilder<CommandSourceStack>.() -> Unit = {},
 ): LiteralArgumentBuilder<CommandSourceStack> {
     val child = described(name, tooltip).apply(block)
@@ -82,6 +83,7 @@ fun Commands.answerSuggestionsFromServer(vararg roots: String) {
             requires(sent.requirement)
             then(
                 RequiredArgumentBuilder.argument<Any, String>("command", StringArgumentType.greedyString())
+                    .executes { Command.SINGLE_SUCCESS }
                     .suggests { _, _ -> Suggestions.empty() },
             )
         }.build()
@@ -114,12 +116,12 @@ fun <T> RequiredArgumentBuilder<CommandSourceStack, T>.executesCommand(
     }
 }
 
-private fun described(name: String, tooltip: String?): LiteralArgumentBuilder<CommandSourceStack> =
+private fun described(name: String, tooltip: Component?): LiteralArgumentBuilder<CommandSourceStack> =
     if (tooltip == null) Commands.literal(name) else TooltipLiteralBuilder(name, tooltip)
 
 private class TooltipLiteralBuilder(
     private val literal: String,
-    private val tooltip: String,
+    private val tooltip: Component,
 ) : LiteralArgumentBuilder<CommandSourceStack>(literal) {
     override fun getThis(): LiteralArgumentBuilder<CommandSourceStack> = this
 
@@ -140,7 +142,7 @@ private class TooltipLiteralBuilder(
 
 private class TooltipLiteralNode(
     private val literalName: String,
-    private val tooltip: String,
+    private val tooltip: Component,
     command: Command<CommandSourceStack>?,
     requirement: Predicate<CommandSourceStack>,
     redirect: CommandNode<CommandSourceStack>?,
@@ -153,7 +155,7 @@ private class TooltipLiteralNode(
     ): CompletableFuture<Suggestions> {
         if (!canUse(context.source)) return Suggestions.empty()
         if (!literalName.lowercase().startsWith(builder.remainingLowerCase)) return Suggestions.empty()
-        return builder.suggest(literalName, LiteralMessage(tooltip)).buildFuture()
+        return builder.suggest(literalName, tooltip.asMessage()).buildFuture()
     }
 
     override fun createBuilder(): LiteralArgumentBuilder<CommandSourceStack> {

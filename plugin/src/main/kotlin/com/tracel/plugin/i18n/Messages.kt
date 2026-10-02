@@ -20,22 +20,27 @@ object Messages {
 
     /** Loads or reloads every language. */
     fun load(plugin: Plugin) {
+        install(LOCALES.associateWith { locale ->
+            val name = "lang/${locale.language}.json"
+            merged(plugin.getResource(name), plugin.dataFolder.resolve(name)) { plugin.logger.severe(it) }
+        })
+    }
+
+    /** Replaces whatever was loaded with [tables]: prefixed keys to `MiniMessage`, by language. */
+    internal fun install(tables: Map<Locale, Map<String, String>>) {
         val fresh = MiniMessageTranslationStore.create(Key.key("tracel", "messages"))
         fresh.defaultLocale(Locale.ENGLISH)
-        for (locale in LOCALES) {
-            val name = "lang/${locale.language}.json"
-            val edited = plugin.dataFolder.resolve(name)
-            if (!edited.exists()) plugin.saveResource(name, false)
-            fresh.registerAll(locale, merged(plugin.getResource(name), edited) { plugin.logger.severe(it) })
-        }
+        tables.forEach(fresh::registerAll)
         unload()
         GlobalTranslator.translator().addSource(fresh)
+        GlobalTranslator.translator().addSource(LowerCase)
         store = fresh
     }
 
     /** Unloads the language store. */
     fun unload() {
         store?.let(GlobalTranslator.translator()::removeSource)
+        GlobalTranslator.translator().removeSource(LowerCase)
         store = null
     }
 
