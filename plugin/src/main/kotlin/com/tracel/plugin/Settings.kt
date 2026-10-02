@@ -37,8 +37,8 @@ data class AutoPurgeSettings(
     val keep: Map<PurgeCategory, Long?> = PurgeCategory.entries.associateWith { DEFAULT_PURGE_KEEP_MILLIS },
 )
 
-const val DEFAULT_PURGE_INTERVAL_MILLIS = 6L * 3_600_000
-const val DEFAULT_PURGE_KEEP_MILLIS = 30L * 86_400_000
+const val DEFAULT_PURGE_INTERVAL_MILLIS = 90L * 86_400_000
+const val DEFAULT_PURGE_KEEP_MILLIS = 90L * 86_400_000
 const val MIN_PURGE_INTERVAL_MILLIS = 10L * 60_000
 
 private val FOREVER = setOf("forever", "never", "off")

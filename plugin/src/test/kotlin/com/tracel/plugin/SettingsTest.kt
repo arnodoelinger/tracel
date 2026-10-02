@@ -111,14 +111,14 @@ class SettingsTest {
         readSettings(advanced = null, complain = complaints::add, purge = Toml.parse(body).getTable("purge"))
 
     @Test
-    fun `the automatic purge is off until it is asked for, and keeps a month`() {
+    fun `the automatic purge is off until it is asked for, and keeps 90 days`() {
         val defaults = AutoPurgeSettings()
 
         assertEquals(false, defaults.enabled)
         assertEquals(defaults, purge("[purge]\nauto-purge = false").autoPurge)
         assertEquals(defaults, read().autoPurge)
         assertEquals(PurgeCategory.entries.toSet(), defaults.keep.keys)
-        assertTrue(defaults.keep.values.all { it == 30L * 86_400_000 })
+        assertTrue(defaults.keep.values.all { it == 90L * 86_400_000 })
         assertTrue(complaints.isEmpty())
     }
 
@@ -138,7 +138,7 @@ class SettingsTest {
         assertEquals(30L * 60_000, settings.intervalMillis)
         assertEquals(7L * 86_400_000, settings.keep[PurgeCategory.BLOCKS])
         assertEquals(null, settings.keep[PurgeCategory.ITEMS], "forever is no cutoff at all")
-        assertEquals(30L * 86_400_000, settings.keep[PurgeCategory.CONTAINERS], "what is not said stays the default")
+        assertEquals(90L * 86_400_000, settings.keep[PurgeCategory.CONTAINERS], "what is not said stays the default")
         assertTrue(complaints.isEmpty()) { complaints.toString() }
     }
 
