@@ -16,6 +16,7 @@ import com.tracel.engine.world.WorldCaptureCoordinator
 import com.tracel.engine.world.WorldLog
 import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
+import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.plugin.command.action.LookupAction
 import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.listener.MaterialCapture
@@ -69,6 +70,7 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param worldLog stores world changes
  * @param containerSlots stores which slot a container's contents last sat in
  * @param wear stores how worn each tool was over time
+ * @param actors stores a mob's type and a player's game mode
  * @param itemForms stores item metadata needed to reconstruct items
  * @param exportDirectory directory for history exports and imports
  * @param entityRestoreLimit how many entities one rollback may bring back before it asks
@@ -94,6 +96,7 @@ class TracelServices(
     val worldLog: WorldLog,
     val containerSlots: ContainerSlotLog,
     val wear: WearLog,
+    val actors: ActorFacts,
     val itemForms: ItemForms,
     val exportDirectory: Path,
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,

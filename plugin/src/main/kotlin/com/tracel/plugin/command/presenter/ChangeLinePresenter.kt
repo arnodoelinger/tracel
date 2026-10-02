@@ -14,8 +14,6 @@ import com.tracel.model.world.entity.leashHolder
 import com.tracel.plugin.command.presenter.support.Glyphs
 import com.tracel.plugin.i18n.lower
 import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.mode.PlayerModes
-import com.tracel.plugin.mode.PlayerSessions
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
@@ -36,8 +34,8 @@ internal object ChangeLinePresenter {
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
 
     /** Creates a component representing the change. */
-    fun of(change: WorldChange): Component {
-        val who = change.causedBy?.let(::holder) ?: Component.text(change.cause.name.lowercase())
+    fun of(change: WorldChange, actors: Actors = Actors.NONE): Component {
+        val who = change.causedBy?.let { holder(it, actors) } ?: Component.text(change.cause.name.lowercase())
         val at = at(change.at.x, change.at.y, change.at.z)
         return when (val subject = change.subject) {
             is ChangeSubject.Block -> {
@@ -83,7 +81,7 @@ internal object ChangeLinePresenter {
     class Net(val family: ItemPresenter.Family, val delta: Long, val item: Component, val material: String)
 
     /** The line of the log for [change]: what happened, who did it, when and where. */
-    fun logged(change: WorldChange): Logged {
+    fun logged(change: WorldChange, actors: Actors): Logged {
         val phrase = phrase(change)
         val (from, to) = when (val subject = change.subject) {
             is ChangeSubject.Block -> id(subject.before) to id(subject.after)
@@ -93,21 +91,21 @@ internal object ChangeLinePresenter {
             millis = change.epochMillis,
             key = listOf(change.causedBy ?: change.cause, change.cause, change.action, from, to),
             mark = mark(change.action),
-            who = who(change.causedBy, change.cause),
+            who = who(change.causedBy, change.cause, actors),
             verb = phrase.verb,
-            whoText = whoText(change.causedBy, change.cause),
+            whoText = whoText(change.causedBy, change.cause, actors),
             whatText = { phrase.whatText },
             title = phrase.title,
             what = { phrase.what },
             from = phrase.from,
             to = phrase.to,
             at = change.at,
-            mode = modeOf(change.causedBy, change.epochMillis),
+            mode = modeOf(change.causedBy, change.epochMillis, actors),
         )
     }
 
     /** The item lines of [transaction]: what was put, taken, dropped, crafted. */
-    fun logged(transaction: Transaction, item: String?, everything: Boolean = false): List<Logged> {
+    fun logged(transaction: Transaction, item: String?, everything: Boolean, actors: Actors): List<Logged> {
         if (transaction.cause.isBookkeeping || (transaction.cause == CauseKind.WEAR && !everything)) return emptyList()
         return transaction.flows.mapNotNull { flow ->
             if (item != null && !flow.itemKey.material.namesMaterial(item)) return@mapNotNull null
@@ -117,21 +115,21 @@ internal object ChangeLinePresenter {
             val place = act.place?.let { it as? HolderId.Block }
             val name = NamePresenter.of(flow.itemKey.material)
             val family = ItemPresenter.family(act.name)
-            val visit = if (family?.container == true) (doer as? HolderId.Player)?.let { PlayerSessions.at(it.uuid, transaction.epochMillis) } else null
+            val visit = if (family?.container == true) (doer as? HolderId.Player)?.let { actors.visit(it.uuid, transaction.epochMillis) } else null
             val delta = if (family == null) 0 else if (act.name == family.plus) flow.quantity.raw else -flow.quantity.raw
             Logged(
                 millis = transaction.epochMillis,
                 key = if (visit != null) listOf(doer, "visit", visit, flow.itemKey.material) else listOf(doer ?: transaction.cause, family?.name ?: act.name, flow.itemKey.material, place),
                 mark = act.mark,
-                who = who(doer, transaction.cause),
+                who = who(doer, transaction.cause, actors),
                 verb = lower("lookup.verb.${act.name}"),
-                whoText = whoText(doer, transaction.cause),
+                whoText = whoText(doer, transaction.cause, actors),
                 whatText = { total -> "$total ${NamePresenter.pretty(flow.itemKey.material)}" },
                 title = act.name,
                 what = { total -> quantity(total, name) },
                 quantity = flow.quantity.raw,
                 at = transaction.at ?: place?.let { BlockPos(it.world, it.x, it.y, it.z) },
-                mode = modeOf(doer, transaction.epochMillis),
+                mode = modeOf(doer, transaction.epochMillis, actors),
                 net = family?.let { Net(it, delta, name, flow.itemKey.material) },
                 visit = visit,
             )
@@ -228,11 +226,11 @@ internal object ChangeLinePresenter {
     }
 
     /** @return the display component for a given holder ID. */
-    fun holder(holder: HolderId): Component = when (holder) {
+    fun holder(holder: HolderId, actors: Actors = Actors.NONE): Component = when (holder) {
         is HolderId.Block -> tr("holder.block", "x" to holder.x, "y" to holder.y, "z" to holder.z)
         is HolderId.PlacedBlock -> tr("holder.block", "x" to holder.x, "y" to holder.y, "z" to holder.z)
         is HolderId.Player -> tr("holder.player", "name" to playerName(holder.uuid))
-        is HolderId.Entity -> entity(holder.uuid)
+        is HolderId.Entity -> entity(holder.uuid, actors)
         is HolderId.PlacedEntity -> tr("holder.placed_entity", "uuid" to holder.uuid)
         else -> Component.text(holder.toString())
     }
@@ -240,20 +238,21 @@ internal object ChangeLinePresenter {
     /** @return the position string for the given coordinates. */
     fun at(x: Int, y: Int, z: Int): String = "$x, $y, $z"
 
-    private fun modeOf(by: HolderId?, millis: Long): GameMode? = (by as? HolderId.Player)?.let { PlayerModes.at(it.uuid, millis) }
+    private fun modeOf(by: HolderId?, millis: Long, actors: Actors): GameMode? =
+        (by as? HolderId.Player)?.let { actors.mode(it.uuid, millis) }
 
-    private fun whoText(by: HolderId?, cause: CauseKind): String = when (by) {
+    private fun whoText(by: HolderId?, cause: CauseKind, actors: Actors): String = when (by) {
         is HolderId.Player -> playerName(by.uuid)
-        is HolderId.Entity -> EntityKindPresenter.of(by.uuid)?.let(NamePresenter::pretty) ?: english(who(by, cause))
-        else -> english(who(by, cause))
+        is HolderId.Entity -> actors.kind(by.uuid)?.let(NamePresenter::pretty) ?: english(who(by, cause, actors))
+        else -> english(who(by, cause, actors))
     }
 
     private fun english(component: Component): String =
         PlainTextComponentSerializer.plainText().serialize(GlobalTranslator.render(component, Locale.ENGLISH))
 
-    private fun who(by: HolderId?, cause: CauseKind): Component =
+    private fun who(by: HolderId?, cause: CauseKind, actors: Actors): Component =
         (by as? HolderId.Player)?.let { Component.text(playerName(it.uuid)) }
-            ?: by?.let(::holder) ?: Component.text(cause.name.lowercase())
+            ?: by?.let { holder(it, actors) } ?: Component.text(cause.name.lowercase())
 
     private fun quantity(total: Long, item: Component): Component =
         Component.textOfChildren(Component.text(total), Component.space(), item)
@@ -332,8 +331,8 @@ internal object ChangeLinePresenter {
         return tr("lookup.ago.$unit", "n" to "%02d".format(n))
     }
 
-    private fun entity(uuid: UUID): Component {
-        val kind = EntityKindPresenter.of(uuid)
+    private fun entity(uuid: UUID, actors: Actors): Component {
+        val kind = actors.kind(uuid)
         val name = if (kind != null) NamePresenter.entity(kind) else tr("holder.entity_gone")
         return name.hoverEvent(HoverEvent.showText(Component.text(uuid.toString())))
     }
