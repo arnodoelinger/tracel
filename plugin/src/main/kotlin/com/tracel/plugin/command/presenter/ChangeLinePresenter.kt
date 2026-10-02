@@ -14,6 +14,7 @@ import com.tracel.model.world.entity.leashHolder
 import com.tracel.plugin.command.presenter.support.Glyphs
 import com.tracel.plugin.i18n.lower
 import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.mode.PlayerSessions
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
@@ -115,7 +116,7 @@ internal object ChangeLinePresenter {
             val place = act.place?.let { it as? HolderId.Block }
             val name = NamePresenter.of(flow.itemKey.material)
             val family = ItemPresenter.family(act.name)
-            val visit = if (family?.container == true) (doer as? HolderId.Player)?.let { actors.visit(it.uuid, transaction.epochMillis) } else null
+            val visit = if (family?.container == true) (doer as? HolderId.Player)?.let { PlayerSessions.at(it.uuid, transaction.epochMillis) } else null
             val delta = if (family == null) 0 else if (act.name == family.plus) flow.quantity.raw else -flow.quantity.raw
             Logged(
                 millis = transaction.epochMillis,

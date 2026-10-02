@@ -52,7 +52,6 @@ import com.tracel.storage.spi.EngineCursor
  * | 28   | `lotPack / lotId`                                                  | packId               | point                |
  * | 29   | `actorKind / holderId`                                             | entityTypeId         | point                |
  * | 2A   | `actorMode / holderId / ~epochMillis`                              | game mode code       | prefix, newest first |
- * | 2B   | `actorVisit / holderId / ~openedAt`                                | closedAt (or open)   | prefix, newest first |
  */
 object Keys {
     fun tagName(tag: Byte): String = when (tag) {
@@ -96,7 +95,6 @@ object Keys {
         LOT_PACK -> "lotPack"
         ACTOR_KIND -> "actorKind"
         ACTOR_MODE -> "actorMode"
-        ACTOR_VISIT -> "actorVisit"
         else -> "tag%02x".format(tag.toInt() and 0xff)
     }
 
@@ -142,7 +140,6 @@ object Keys {
     const val LOT_PACK: Byte = 0x28
     const val ACTOR_KIND: Byte = 0x29
     const val ACTOR_MODE: Byte = 0x2A
-    const val ACTOR_VISIT: Byte = 0x2B
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -336,11 +333,6 @@ object Keys {
         KeyWriter(13).tag(ACTOR_MODE).u32(holderId).u64(invert(epochMillis)).done()
 
     fun actorModePrefix(holderId: Int): ByteArray = KeyWriter(5).tag(ACTOR_MODE).u32(holderId).done()
-
-    fun actorVisit(holderId: Int, openedAt: Long): ByteArray =
-        KeyWriter(13).tag(ACTOR_VISIT).u32(holderId).u64(invert(openedAt)).done()
-
-    fun actorVisitPrefix(holderId: Int): ByteArray = KeyWriter(5).tag(ACTOR_VISIT).u32(holderId).done()
 
     fun rbRecent(jobId: Long): ByteArray = KeyWriter(9).tag(RB_RECENT).u64(invert(jobId)).done()
 
