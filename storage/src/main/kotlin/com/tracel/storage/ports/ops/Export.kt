@@ -15,7 +15,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
-private const val MAGIC = 0x54455850 // TEXP
+private val MAGIC = "TEXP".toByteArray(Charsets.US_ASCII)
 private const val VERSION = 1
 private const val BATCH_ROWS = 20_000
 internal const val TIME_KEY_SIZE = 17
@@ -41,7 +41,7 @@ suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withCont
     DataOutputStream(
         BufferedOutputStream(ZstdOutputStream(Files.newOutputStream(temporary), 5), 1 shl 16),
     ).use { out ->
-        out.writeInt(MAGIC)
+        out.write(MAGIC)
         out.writeInt(VERSION)
         rows = storage.read {
             var written = 0L
@@ -111,7 +111,7 @@ private inline fun eachExportedRow(from: Path, row: (ByteArray, ByteArray) -> Un
     DataInputStream(
         BufferedInputStream(ZstdInputStream(Files.newInputStream(from)), 1 shl 16),
     ).use { input ->
-        require(input.readInt() == MAGIC) { "$from is not a Tracel export" }
+        require(ByteArray(MAGIC.size).also(input::readFully).contentEquals(MAGIC)) { "$from is not a Tracel export" }
         val version = input.readInt()
         require(version == VERSION) { "$from is export v$version, this build reads v$VERSION" }
         while (true) {
