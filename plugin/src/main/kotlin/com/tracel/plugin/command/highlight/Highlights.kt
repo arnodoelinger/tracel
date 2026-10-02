@@ -2,8 +2,11 @@ package com.tracel.plugin.command.highlight
 
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.plugin.adapter.block.BlockDataCache
+import io.papermc.paper.math.Position
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.World
 import org.bukkit.block.data.BlockData
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
@@ -18,35 +21,50 @@ import java.util.concurrent.ConcurrentHashMap
 internal class Highlights(private val plugin: Plugin) {
     private val ghosts = ConcurrentHashMap<UUID, Ghost>()
 
-    private class Ghost(val world: org.bukkit.World, val restore: Map<Location, BlockData>)
+    private class Entry(val at: Location, val ghost: BlockData, val was: BlockData)
+
+    private class Ghost(val world: World, val entries: List<Entry>) {
+        var task: ScheduledTask? = null
+    }
 
     /**
-     * Shows what the rollback would put back as it would look, to [player] alone, for [seconds].
-     * Only blocks; entities and items have no ghost.
+     * Shows what the rollback would do to [player] alone, for [seconds]: [create] steps put blocks back, [destroy]
+     * steps take them away. Only blocks; entities and items have no ghost.
      *
      * @return how many blocks were drawn.
      */
-    fun ghost(player: Player, steps: List<StructureStep>, seconds: Int): Int {
+    @Suppress("UnstableApiUsage")
+    fun ghost(player: Player, create: List<StructureStep>, destroy: List<StructureStep>, seconds: Int): Int {
         val world = player.world
-        val draw = LinkedHashMap<Location, BlockData>()
-        val restore = LinkedHashMap<Location, BlockData>()
-        for (step in steps) {
-            if (draw.size >= MAX_GHOSTS) break
+        val drawn = LinkedHashMap<Location, Entry>()
+        for (step in create.asSequence() + destroy.asSequence()) {
             val set = step as? StructureStep.SetBlock ?: continue
             val target = BlockDataCache.of(set.target.data) ?: continue
             val was = BlockDataCache.of(set.expected.data) ?: continue
             val at = Location(world, set.at.x.toDouble(), set.at.y.toDouble(), set.at.z.toDouble())
-            draw[at] = target
-            restore[at] = was
+            drawn[at] = Entry(at, target, was)
         }
-        if (draw.isEmpty()) return 0
+        if (drawn.isEmpty()) return 0
+        val entries = drawn.values.toList()
+        val shown = entries.associate { it.at.toBlock() to it.ghost }
+
         player.scheduler.run(plugin, {
             clearGhost(player)
-            ghosts[player.uniqueId] = Ghost(world, restore)
-            for ((at, data) in draw) player.sendBlockChange(at, data)
-            player.scheduler.runDelayed(plugin, { clearGhost(player) }, null, seconds * 20L)
+            val ghost = Ghost(world, entries)
+            ghosts[player.uniqueId] = ghost
+            var half = 0
+            val last = seconds * 20 / HALF_TICKS
+            ghost.task = player.scheduler.runAtFixedRate(plugin, { task ->
+                if (!player.isOnline || player.world != world || half >= last) {
+                    task.cancel()
+                    clearGhost(player)
+                    return@runAtFixedRate
+                }
+                player.sendMultiBlockChange(if (half % 2 == 0) shown else real(ghost))
+                half++
+            }, null, 1L, HALF_TICKS)
         }, null)
-        return draw.size
+        return entries.size
     }
 
     /** Takes the ghosts away now. */
@@ -54,16 +72,20 @@ internal class Highlights(private val plugin: Plugin) {
         player.scheduler.run(plugin, { clearGhost(player) }, null)
     }
 
+    @Suppress("UnstableApiUsage")
+    private fun real(ghost: Ghost): Map<Position, BlockData> = ghost.entries.associate {
+        it.at.toBlock() to if (Bukkit.isOwnedByCurrentRegion(it.at)) it.at.block.blockData else it.was
+    }
+
+    @Suppress("UnstableApiUsage")
     private fun clearGhost(player: Player) {
         val ghost = ghosts.remove(player.uniqueId) ?: return
+        ghost.task?.cancel()
         if (player.world != ghost.world) return
-        for ((at, planned) in ghost.restore) {
-            val real = if (Bukkit.isOwnedByCurrentRegion(at)) at.block.blockData else planned
-            player.sendBlockChange(at, real)
-        }
+        player.sendMultiBlockChange(real(ghost))
     }
 
     private companion object {
-        const val MAX_GHOSTS = 4_000
+        const val HALF_TICKS = 10L
     }
 }

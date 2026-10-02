@@ -43,4 +43,7 @@ interface RollbackGenius {
 
     /** [by]'s most recent job that has not been undone. */
     suspend fun lastUndoable(by: HolderId?): RollbackJobId?
+
+    /** Whether [job] is one of [by]'s and has not been undone yet. */
+    suspend fun isUndoable(by: HolderId?, job: RollbackJobId): Boolean
 }
