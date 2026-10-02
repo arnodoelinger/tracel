@@ -34,8 +34,8 @@ import java.nio.file.Path
  */
 object SegmentFile {
     val MAGIC = "TSEG".toByteArray(Charsets.US_ASCII)
-    const val VERSION = 7
-    const val OLDEST_READABLE_VERSION = 7
+
+    const val VERSION = 1
     const val FOOTER_BYTES = 40
     const val BLOCK_TARGET = 4096
     const val FLAG_ZSTD = 1 shl 31
@@ -100,7 +100,7 @@ object SegmentFile {
          *
          * @return the segment's metadata, including its file size and first / last keys
          */
-        fun finish(id: Long, level: Int): SegmentMeta {
+        fun finish(id: Long, level: Int, category: Int = 0, window: Long = SegmentMeta.NO_WINDOW): SegmentMeta {
             flushBlock()
 
             val indexOffset = dataBytes
@@ -129,7 +129,9 @@ object SegmentFile {
                 count,
                 Files.size(path),
                 firstKey ?: ByteArray(0),
-                lastKey.copyOf(lastKeyLength)
+                lastKey.copyOf(lastKeyLength),
+                category,
+                window,
             )
         }
 
@@ -202,10 +204,6 @@ object SegmentFile {
         require(magic.contentEquals(MAGIC)) {
             "$path is not a Tracel segment (starts ${String(magic, Charsets.ISO_8859_1)})"
         }
-        val version = segment.i32(footerAt + FOOTER_BYTES - 8)
-        require(version in OLDEST_READABLE_VERSION..VERSION) {
-            "$path was written by segment format v$version, this build reads v$OLDEST_READABLE_VERSION-v$VERSION"
-        }
 
         val indexOffset = segment.i64(footerAt)
         val indexBytes = segment.i32(footerAt + 8)
@@ -245,6 +243,12 @@ object SegmentFile {
     }
 }
 
+/**
+ * What the manifest knows about one segment.
+ *
+ * A [category] other than the engine's own `0` marks history, and then [window] says which stretch of time the
+ * segment was written in; state has no window.
+ */
 data class SegmentMeta(
     val id: Long,
     val level: Int,
@@ -252,10 +256,18 @@ data class SegmentMeta(
     val fileBytes: Long,
     val firstKey: ByteArray,
     val lastKey: ByteArray,
+    val category: Int = 0,
+    val window: Long = NO_WINDOW,
 ) {
+    val isHistory: Boolean get() = category != 0
+
     override fun equals(other: Any?): Boolean = other is SegmentMeta && other.id == id && other.level == level
 
     override fun hashCode(): Int = id.hashCode() * 31 + level
+
+    companion object {
+        const val NO_WINDOW = Long.MIN_VALUE
+    }
 }
 
 class SegmentReader internal constructor(
@@ -268,6 +280,9 @@ class SegmentReader internal constructor(
     private val bloom: Bloom?,
     private val cache: BlockCache,
 ) : AutoCloseable {
+    private val firstUserKey: ByteArray = meta.firstKey.copyOf(maxOf(0, meta.firstKey.size - InternalKey.TRAILER_BYTES))
+    private val lastUserKey: ByteArray = meta.lastKey.copyOf(maxOf(0, meta.lastKey.size - InternalKey.TRAILER_BYTES))
+
     val segment: MemorySegment get() = mapped.segment
     val path: Path get() = mapped.path
 
@@ -304,6 +319,21 @@ class SegmentReader internal constructor(
             }
         }
         return block
+    }
+
+    /** @return whether [userKey] falls between the first and the last key this segment holds. */
+    fun inRange(userKey: ByteArray): Boolean =
+        compareUnsigned(userKey, firstUserKey) >= 0 && compareUnsigned(userKey, lastUserKey) <= 0
+
+    /**
+     * @return whether anything this segment holds can be at or after [from] and under [prefix]. A window of history
+     * that is nowhere near is not even opened for a scan.
+     */
+    fun mayHoldFrom(from: ByteArray, prefix: ByteArray): Boolean {
+        if (meta.entries == 0) return false
+        if (compareUnsigned(lastUserKey, from) < 0) return false
+        val beyond = compareUnsigned(firstUserKey, prefix) > 0 && !startsWith(firstUserKey, prefix)
+        return !beyond
     }
 
     /** @return true if the segment's bloom filter says the key might be present, or if there is no filter. */
@@ -519,4 +549,19 @@ internal object Varints {
 
     /** @return the number of bytes read from the varint. */
     fun sizeOf(packed: Long): Int = (packed ushr 32).toInt()
+}
+
+private fun compareUnsigned(a: ByteArray, b: ByteArray): Int {
+    val n = minOf(a.size, b.size)
+    for (i in 0 until n) {
+        val d = (a[i].toInt() and 0xFF) - (b[i].toInt() and 0xFF)
+        if (d != 0) return d
+    }
+    return a.size - b.size
+}
+
+private fun startsWith(key: ByteArray, prefix: ByteArray): Boolean {
+    if (key.size < prefix.size) return false
+    for (i in prefix.indices) if (key[i] != prefix[i]) return false
+    return true
 }

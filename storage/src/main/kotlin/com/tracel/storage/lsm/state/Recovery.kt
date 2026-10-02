@@ -36,7 +36,7 @@ internal fun replayWals(
 
     /** Seals a full memtable to a segment and closes it. */
     fun seal(table: MemTable) {
-        sealed += writer.seal(table, nextFileId++, horizon = Long.MAX_VALUE)
+        sealed += writer.seal(table, { nextFileId++ }, horizon = Long.MAX_VALUE)
         table.close()
     }
 

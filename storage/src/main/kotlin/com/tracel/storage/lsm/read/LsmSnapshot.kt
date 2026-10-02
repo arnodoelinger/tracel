@@ -35,7 +35,7 @@ internal class LsmSnapshot(
 
         val target = InternalKey.seekTarget(key)
         for (segment in pinned.orderedSegments) {
-            if (!segment.mightContain(key)) continue
+            if (!segment.inRange(key) || !segment.mightContain(key)) continue
             val run = SegmentRun(segment)
             run.seek(target, target.size)
             // Versions of one key sit together, newest first. Walk past the ones this reader is
@@ -51,7 +51,7 @@ internal class LsmSnapshot(
     }
 
     override fun scan(prefix: ByteArray, from: ByteArray): EngineCursor {
-        val runs = pinned.runs()
+        val runs = pinned.runs(from, prefix)
         val target = InternalKey.seekTarget(from)
         runs.forEach { it.seek(target) }
         return MergingCursor(runs, prefix, at) { }
@@ -61,5 +61,13 @@ internal class LsmSnapshot(
         if (closed) return
         closed = true
         engine.releaseSnapshot(generation, at)
+    }
+
+    /** Only segment [id] of what this snapshot pinned, from [prefix] on; `null` if it was never part of it. */
+    internal fun scanSegment(id: Long, prefix: ByteArray): EngineCursor? {
+        val reader = pinned.segments.firstOrNull { it.meta.id == id } ?: return null
+        val run = SegmentRun(reader)
+        run.seek(InternalKey.seekTarget(prefix))
+        return MergingCursor(arrayOf(run), prefix, at) { }
     }
 }

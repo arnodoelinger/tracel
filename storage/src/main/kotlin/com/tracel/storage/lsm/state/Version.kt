@@ -40,7 +40,7 @@ class Version internal constructor(
      * [durableSequence] only moves here, because this is the moment those writes stop depending
      * on the write-ahead log to survive.
      */
-    internal fun flushed(flushedTable: MemTable, segment: SegmentReader, at: Long): Version {
+    internal fun flushed(flushedTable: MemTable, produced: List<SegmentReader>, at: Long): Version {
         val left = frozen.filterNot { it === flushedTable }
         val oldestLeft = left.filter { it.entries > 0 }.minOfOrNull { it.minSequence }
         val durable = when {
@@ -48,11 +48,11 @@ class Version internal constructor(
             active.entries > 0 -> active.minSequence - 1
             else -> lastSequence
         }
-        return Version(active, left, segments + segment, lastSequence, maxOf(durableSequence, durable), at)
+        return Version(active, left, segments + produced, lastSequence, maxOf(durableSequence, durable), at)
     }
 
-    /** Several segments became one. Identity comparison: two segments can carry equal metadata. */
-    internal fun compacted(inputs: List<SegmentReader>, produced: SegmentReader, at: Long): Version =
+    /** Several segments became [produced]. Identity comparison: two segments can carry equal metadata. */
+    internal fun compacted(inputs: List<SegmentReader>, produced: List<SegmentReader>, at: Long): Version =
         Version(
             active,
             frozen,
@@ -75,8 +75,9 @@ class Version internal constructor(
      * key present in two of them is the same key at two ages, and the first hit is the newest.
      */
     @Suppress("UNCHECKED_CAST")
-    internal fun runs(): Array<Run> {
-        val ordered = orderedSegments
+    internal fun runs(from: ByteArray? = null, prefix: ByteArray? = null): Array<Run> {
+        val ordered = if (from == null || prefix == null) orderedSegments
+        else orderedSegments.filter { it.mayHoldFrom(from, prefix) }
         val runs = arrayOfNulls<Run>(1 + frozen.size + ordered.size)
         var at = 0
         runs[at++] = MemTableRun(active)
