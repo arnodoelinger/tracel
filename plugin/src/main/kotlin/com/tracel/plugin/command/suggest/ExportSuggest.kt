@@ -1,11 +1,12 @@
 package com.tracel.plugin.command.suggest
 
 import com.mojang.brigadier.suggestion.SuggestionProvider
+import com.tracel.plugin.i18n.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** Suggestions for the file argument of `/tracel export import`. */
+/** Suggestions for the file argument of `/tracel import`. */
 internal object ExportSuggest {
     private data class Snapshot(val name: String, val kib: Long?)
 
@@ -27,7 +28,7 @@ internal object ExportSuggest {
             .filter { it.name.lowercase().startsWith(needle) }
             .sortedBy { it.name.lowercase() }
             .map { file ->
-                val size = file.kib?.let { "$it KiB snapshot" } ?: "Snapshot file"
+                val size = file.kib?.let { tr("suggest.snapshot_size", "kib" to it) } ?: tr("suggest.snapshot")
                 Suggestion(file.name, size)
             }
     }

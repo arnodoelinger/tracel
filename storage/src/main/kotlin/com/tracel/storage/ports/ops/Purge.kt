@@ -10,11 +10,27 @@ import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
 import com.tracel.storage.codec.records.Lot as LotRecord
 
+/** What a purge threw away, for the line that gets printed afterward. */
+data class PurgeSummary(val rows: Long, val bytes: Long, val oldest: Long? = null, val newest: Long? = null)
+
 /** Deletes the `Tracel`'s history. */
-suspend fun purgeAll(storage: TracelStorage) {
-    storage.alone {
+suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
+    return storage.alone {
         val kept = ArrayList<Pair<ByteArray, ByteArray>>()
+        var total = 0L
+        var oldest = Long.MAX_VALUE
+        var newest = Long.MIN_VALUE
+        val bytes = storage.engine.stats().liveBytes
         StorageUnit(storage.engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+            unit.eachRow(ByteArray(0)) { cursor ->
+                total++
+                val key = cursor.key()
+                if (key.size == TIME_KEY_SIZE && key[0] == Keys.TIME) {
+                    val at = Keys.invert(KeyReader.u64(key, 1))
+                    if (at < oldest) oldest = at
+                    if (at > newest) newest = at
+                }
+            }
             for (family in Keys.KEEPS_ITS_NUMBERING) {
                 unit.eachRow(Keys.tagPrefix(family)) { cursor ->
                     val value = cursor.value()
@@ -30,6 +46,7 @@ suspend fun purgeAll(storage: TracelStorage) {
             )
         }, durable = true)
         storage.reloadInterning()
+        PurgeSummary(total - kept.size, bytes, oldest.takeIf { it != Long.MAX_VALUE }, newest.takeIf { it != Long.MIN_VALUE })
     }
 }
 
