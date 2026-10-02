@@ -86,7 +86,7 @@ class UndoAction internal constructor(private val services: TracelServices, priv
         if (spawns.size <= services.entityRestoreLimit) return false
         sender.needed(
             info = tr("rollback.entities", "count" to spawns.size, "mostly" to mostly(spawns), "limit" to services.entityRestoreLimit),
-            hint = confirmHint("/tracel undo ${job.raw}"),
+            hint = confirmHint(),
         )
         return true
     }

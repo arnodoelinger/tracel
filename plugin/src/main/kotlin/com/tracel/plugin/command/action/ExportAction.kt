@@ -38,7 +38,7 @@ class ExportAction(private val services: TracelServices) {
         val args = arrayOf("size" to "%.1f".format(locale, size / MIB), "free" to "%.1f".format(locale, free / MIB))
         sender.needed(
             info = tr(if (free < size) "export.confirm.low" else "export.confirm.info", *args),
-            hint = confirmHint("/tracel export"),
+            hint = confirmHint(),
         )
     }
 

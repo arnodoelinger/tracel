@@ -24,6 +24,7 @@ import com.tracel.plugin.command.suggest.PresetNameSuggest
 import com.tracel.plugin.command.suggest.PresetOwnedSuggest
 import com.tracel.plugin.command.suggest.PresetAddFlagsSuggest
 import com.tracel.plugin.command.suggest.PresetAddNameSuggest
+import com.tracel.plugin.command.suggest.PurgeSuggest
 import com.tracel.plugin.command.suggest.RollbackSuggest
 import com.tracel.plugin.command.suggest.liveLists
 import com.tracel.plugin.i18n.confirm
@@ -240,7 +241,7 @@ object TracelCommand {
                     suggests(ExportSuggest.suggesting(services.exportDirectory))
                     executesCommand { ctx ->
                         val file = StringArgumentType.getString(ctx, "file")
-                        ctx.source.sender.confirm("/tracel import $file")
+                        ctx.source.sender.confirm()
                     }
                     literal("#confirm", tr("command.import_confirm")) {
                         executesCommand { ctx ->
@@ -253,9 +254,12 @@ object TracelCommand {
 
             literal("purge", tr("command.purge")) {
                 requiresPermission("tracel.purge")
-                executesCommand { ctx -> ctx.source.sender.confirm("/tracel purge") }
-                literal("#confirm", tr("command.purge_confirm")) {
-                    executesCommand { ctx -> purge.execute(ctx.source.sender) }
+                executesCommand { ctx -> purge.execute(ctx.source.sender, emptyList()) }
+                argument("filters", StringArgumentType.greedyString()) {
+                    suggests(PurgeSuggest)
+                    executesCommand { ctx ->
+                        purge.execute(ctx.source.sender, tokens(StringArgumentType.getString(ctx, "filters")))
+                    }
                 }
             }
         }
