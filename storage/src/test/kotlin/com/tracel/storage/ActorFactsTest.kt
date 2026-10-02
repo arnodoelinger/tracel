@@ -4,6 +4,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.intern.EntityKindSource
 import com.tracel.storage.ports.actor.ActorFacts
+import com.tracel.storage.ports.ops.purgeAll
 import com.tracel.storage.support.Stack
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -123,6 +124,23 @@ class ActorFactsTest {
             assertEquals(EntityTypeKey("minecraft:creeper"), facts.kindsOf(listOf(zombie)).getValue(zombie))
             assertEquals(3, facts.modesOf(listOf(steve)).getValue(steve).at(10))
             assertEquals(20L, facts.visitsOf(listOf(steve)).getValue(steve).at(30))
+        }
+    }
+
+    @Test
+    fun `a purge forgets visits but keeps what a mob is and the mode a player is in`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            stack.storage.interning.entityKinds = EntityKindSource { EntityTypeKey("minecraft:husk") }
+            stack.storage.write { stack.storage.interning.internHolder(this, HolderId.Entity(zombie)) }
+            val facts = ActorFacts(stack.storage)
+            facts.noteMode(steve, 2, 10)
+            facts.openVisit(steve, 20)
+
+            purgeAll(stack.storage)
+
+            assertEquals(EntityTypeKey("minecraft:husk"), facts.kindsOf(listOf(zombie)).getValue(zombie))
+            assertEquals(2, facts.modesOf(listOf(steve)).getValue(steve).at(10))
+            assertEquals(emptyMap<UUID, Any>(), facts.visitsOf(listOf(steve)))
         }
     }
 }
