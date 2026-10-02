@@ -13,6 +13,7 @@ import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ffm.Key
 import java.lang.foreign.MemorySegment
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -34,7 +35,9 @@ import java.util.concurrent.atomic.AtomicLong
  * transaction caused by holder zero different records.
  */
 class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
-    private val holders = Interned("holder", Keys.NS_HOLDER, cacheSize, Packed::holder, Packed::decodeHolder)
+    private val holders = Interned(
+        "holder", Keys.NS_HOLDER, cacheSize, Packed::holder, Packed::decodeHolder, ::noteKind,
+    )
     private val itemKeys =
         Interned("item key", Keys.NS_ITEM_KEY, ITEM_KEY_CACHE, Packed::itemKey, Packed::decodeItemKey)
     private val worlds = Interned("world", Keys.NS_WORLD, WORLD_CACHE, Packed::world, Packed::decodeWorld)
@@ -42,6 +45,9 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
         Interned("block data", Keys.NS_BLOCK_DATA, BLOCK_DATA_CACHE, Packed::blockData, Packed::decodeBlockData)
     private val entityTypes =
         Interned("entity type", Keys.NS_ENTITY_TYPE, ENTITY_TYPE_CACHE, Packed::entityType, Packed::decodeEntityType)
+
+    @Volatile
+    var entityKinds: EntityKindSource? = null
 
     private val tables = listOf(holders, itemKeys, worlds, blockData, entityTypes)
 
@@ -156,18 +162,6 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
     }
 
     /**
-     * Drops every provisional value and mapping, once there are enough of them to be worth it.
-     *
-     * Safe at any point where nothing holds an unresolved provisional id: every one of them has
-     * already been canonicalized into a real ID, and a value that turns up again simply gets a
-     * fresh placeholder.
-     */
-    fun compactProvisional() {
-        retireProvisional()
-        retireProvisional()
-    }
-
-    /**
      * Forgets the retired generation and, once the current one is big enough, retires it in turn.
      * Call only when every event claimed before the previous swap has been applied: that is what
      * makes the retired ids unreachable.
@@ -229,6 +223,12 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
         restore(unit)
     }
 
+    private fun noteKind(unit: StorageUnit, holder: HolderId, id: Int) {
+        val uuid = (holder as? HolderId.Entity)?.uuid ?: return
+        val kind = entityKinds?.kindOf(uuid) ?: return
+        unit.put(Keys.actorKind(id), Records.int(internEntityType(unit, kind)))
+    }
+
     private companion object {
         const val DEFAULT_CACHE_SIZE = 262_144L
         const val ITEM_KEY_CACHE = 16_384L
@@ -248,6 +248,7 @@ private class Interned<T : Any>(
     cacheSize: Long,
     private val pack: (T) -> ByteArray,
     private val decode: (MemorySegment) -> T,
+    private val onAssigned: ((StorageUnit, T, Int) -> Unit)? = null,
 ) {
     private val byValue: Cache<T, Int> = bounded(cacheSize)
     private val byId: Cache<Int, T> = bounded(cacheSize)
@@ -275,6 +276,7 @@ private class Interned<T : Any>(
         unit.putPinned(Keys.internReverse(namespace, packed), Records.int(id))
         unit.putPinned(Keys.counter(COUNTER_BASE + namespace), Records.long(id.toLong()))
         unit.afterCommit { remember(value, id) }
+        onAssigned?.invoke(unit, value, id)
         return id
     }
 
@@ -315,4 +317,10 @@ private class Interned<T : Any>(
 
         const val COUNTER_BASE = 0x7000_0000
     }
+}
+
+/** What a mob is, as far as the server can tell right now. */
+fun interface EntityKindSource {
+    /** @return the type of the live (or just gone) entity [uuid], or `null` if it is not known. */
+    fun kindOf(uuid: UUID): EntityTypeKey?
 }
