@@ -6,6 +6,7 @@ import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.tracel.plugin.command.preset.Presets
 import io.papermc.paper.command.brigadier.CommandSourceStack
+import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player
 import java.util.concurrent.CompletableFuture
 
@@ -19,7 +20,7 @@ internal object PresetNameSuggest : SuggestionProvider<CommandSourceStack> {
         val needle = builder.remaining.lowercase()
         val names = Presets.store?.visibleTo(owner).orEmpty()
             .filter { it.name.startsWith(needle) }
-            .map { Suggestion(it.name, it.text) }
+            .map { Suggestion(it.name, Component.text(it.text)) }
         return builder.reply(names)
     }
 }

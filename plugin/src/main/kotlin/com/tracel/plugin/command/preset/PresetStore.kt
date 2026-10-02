@@ -53,6 +53,22 @@ internal class PresetStore(private val file: Path) {
         return gone
     }
 
+    /**
+     * Hands [name] from [from] to [to], the server being `null`.
+     *
+     * @return `false` when [from] has none, or [to] already has one of that name: nothing is overwritten.
+     */
+    @Synchronized
+    fun move(name: String, from: UUID?, to: UUID?): Boolean {
+        val lower = name.lowercase()
+        val moving = presets[key(from, lower)] ?: return false
+        if (presets.containsKey(key(to, lower))) return false
+        presets.remove(key(from, lower))
+        presets[key(to, lower)] = moving.copy(owner = to)
+        persist()
+        return true
+    }
+
     private fun persist() {
         runCatching {
             Files.createDirectories(file.parent)
