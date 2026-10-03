@@ -1,10 +1,23 @@
 # Tracel configuration
 # Support: https://discord.gg/uwMMZ2KWk6
 
+[logging]
+# What Tracel writes to the history
+# Turning a kind off keeps what is already recorded; it takes a restart to apply
+blocks = true
+items = true
+events = true
+entities = true
+entity-damage = true
+
 [rollback]
 # Maximum number of entities restored without confirmation
-# 0 = always ask for confirmation
+# 0 = always ask for confirmation, "unlimited" = never ask
 entity-restore-limit = 256
+
+# Widest area, in blocks, that a rollback may cover
+# "unlimited" = no limit
+max-radius = 256
 
 # How long a rollback or undo may run in one tick, e.g., 4ms, 10ms, 20ms
 # It uses less time when the server is busy and more time when it is idle
@@ -27,9 +40,9 @@ keep-events = "90d"
 
 [advanced]
 # How often Tracel forces pending history to disk
-# "every-batch" saves every commit safely before continuing
-# "<duration>" saves at most once per interval, e.g., 500ms, 1s, 5s
-# "never" never force changes to disk; not for production
+# "every-batch" = saves every commit safely before continuing
+# "<duration>" = saves at most once per interval, e.g., 500ms, 1s, 5s
+# "never" = never force changes to disk; not for production
 sync = "every-batch"
 
 # Amount of memory used before history is written to disk

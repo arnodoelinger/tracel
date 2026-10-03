@@ -13,7 +13,7 @@ import org.bukkit.command.CommandSender
 import java.util.*
 
 object RollbackPresenter {
-    private const val INSTANT_MILLIS = 200L
+    private const val INSTANT_MILLIS = 300L
 
     /** `/tracel rollback` usage. */
     fun usage(sender: CommandSender) = sender.usage("rollback")

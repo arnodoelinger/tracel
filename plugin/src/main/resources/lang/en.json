@@ -1,5 +1,88 @@
 {
   "prefix": "<gray>T | ",
+  "setup": {
+    "title": "Welcome to Tracel",
+    "button": {
+      "continue": "Continue",
+      "confirm": "Confirm",
+      "later": "Maybe later",
+      "done": "Done"
+    },
+    "welcome": {
+      "hello": "Hello! Your server's history is ready to be logged.",
+      "intro": "Before you start, let's set up a few things."
+    },
+    "purge": {
+      "title": "How long should Tracel keep history?",
+      "explain": "Tracel automatically removes old history to keep the database under control. Each kind has its own time. You can change this later.",
+      "blocks": {
+        "label": "Keep blocks",
+        "about": "<white>Blocks</white><newline><gray>Placing, breaking, explosions, fluids</gray>"
+      },
+      "items": {
+        "label": "Keep items",
+        "about": "<white>Items</white><newline><gray>Who took, dropped or moved what</gray>"
+      },
+      "containers": {
+        "label": "Keep containers",
+        "about": "<white>Containers</white><newline><gray>What chests and barrels held</gray>"
+      },
+      "events": {
+        "label": "Keep events",
+        "about": "<white>Events</white><newline><gray>Chat, commands, joins and leaves</gray>"
+      },
+      "option": {
+        "0": "Forever",
+        "1": "1 month",
+        "3": "3 months",
+        "6": "6 months",
+        "9": "9 months",
+        "12": "1 year"
+      }
+    },
+    "safety": {
+      "title": "Rollback safety",
+      "entities": {
+        "explain": "How many entities can a rollback restore? Tracel will ask for confirmation when this limit is exceeded.",
+        "label": "Entity confirmation limit",
+        "none": "No entity limit"
+      },
+      "radius": {
+        "explain": "Prevent radius-based rollbacks from affecting areas larger than this, in blocks.",
+        "label": "Maximum scope radius",
+        "none": "No radius limit"
+      }
+    },
+    "logging": {
+      "title": "What should Tracel log?",
+      "explain": "Logging everything gives you the most complete history, but uses more storage.",
+      "blocks": {
+        "label": "Blocks <gray>(placing, breaking, explosions, fluids, redstone)</gray>"
+      },
+      "items": {
+        "label": "Items <gray>(containers, inventories, hoppers, drops)</gray>"
+      },
+      "entities": {
+        "label": "Entities <gray>(spawns, deaths, kills, leashes)</gray>"
+      },
+      "events": {
+        "label": "Events <gray>(chat, commands, joins, leaves)</gray>"
+      },
+      "damage": {
+        "label": "Entity damage <gray>(every blow a mob survives)</gray>"
+      }
+    },
+    "migrate": {
+      "title": "CoreProtect found",
+      "found": "Tracel found CoreProtect's database on this server.",
+      "explain": "Bring its history over now? CoreProtect's data is only read and never changed. You can also do it later with \"/tracel data migrate coreprotect\"."
+    },
+    "done": {
+      "config": "You can always change this in the config file.",
+      "thanks": "Thank you!",
+      "restart": "Restart the server to save your choices"
+    }
+  },
   "common": {
     "usage": "Please use \"/tracel <command> \\<params>\"",
     "busy": "Another job is running... Wait for it to finish",

@@ -17,6 +17,7 @@ import com.tracel.engine.world.WorldLog
 import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.plugin.adapter.world.playerIsOnline
+import com.tracel.plugin.command.action.CoreProtectImportAction
 import com.tracel.plugin.command.action.LookupAction
 import com.tracel.plugin.command.action.support.PurgeGate
 import com.tracel.plugin.listener.MaterialCapture
@@ -50,6 +51,7 @@ import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.ops.ForeignHistory
 import com.tracel.storage.ports.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import org.bukkit.plugin.Plugin
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
@@ -84,6 +86,7 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param logEntityDamage whether a blow a mob survives is written down as a change to it
  * @param paste where a lookup export goes
  * @param forwardCompatible server Minecraft is newer than the newest tested release
+ * @param logging which kinds of history are written
  */
 class TracelServices(
     val plugin: Plugin,
@@ -106,11 +109,18 @@ class TracelServices(
     val actors: ActorFacts,
     val itemForms: ItemForms,
     val exportDirectory: Path,
-    val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
-    governorSettings: GovernorSettings = GovernorSettings(),
     val paste: PasteSettings = PasteSettings(),
     val forwardCompatible: Boolean = false,
+    val logging: LoggingSettings = LoggingSettings(),
+
+    governorSettings: GovernorSettings = GovernorSettings(),
+
+    @Volatile
+    var entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
+
+    @Volatile
+    var autoPurge: Job? = null,
 ) : UnitOfWork by storage {
     val purging: AtomicBoolean = AtomicBoolean(false)
     val governor: TickGovernor = TickGovernor(plugin, governorSettings)
@@ -138,6 +148,7 @@ class TracelServices(
     val blockReleases: BlockReleaseQueue = BlockReleaseQueue(this)
     val inspectors: InspectorState = InspectorState()
     val lookup: LookupAction by lazy { LookupAction(this) }
+    val coreProtectImport: CoreProtectImportAction by lazy { CoreProtectImportAction(this) }
     val pendingCaptures: PendingCaptures = PendingCaptures()
     val frozen: FreezeGuard = FreezeGuard()
     val worldQuery: WorldQuery = WorldQuery(::playerIsOnline)
