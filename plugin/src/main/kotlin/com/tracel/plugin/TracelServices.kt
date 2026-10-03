@@ -40,11 +40,13 @@ import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.plugin.util.GroundWhereabouts
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
+import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.ops.Counters
+import com.tracel.storage.ports.ops.ForeignHistory
 import com.tracel.storage.ports.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
 import org.bukkit.plugin.Plugin
@@ -107,6 +109,8 @@ class TracelServices(
     val forwardCompatible: Boolean = false,
 ) : UnitOfWork by storage {
     val purging: AtomicBoolean = AtomicBoolean(false)
+    val events: EventLog = EventLog(storage)
+    val foreign: ForeignHistory = ForeignHistory(storage, worldLog, log, events, counters)
     val purgeGate: PurgeGate = PurgeGate { composite.isRunning }
     val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }
     val shape: ShapeCapture = ShapeCapture(this)

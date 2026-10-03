@@ -18,6 +18,7 @@ interval = "90d"
 keep-blocks = "90d"
 keep-items = "90d"
 keep-containers = "90d"
+keep-events = "90d"
 
 [advanced]
 # Controls how Tracel saves the history used for queries and rollbacks
