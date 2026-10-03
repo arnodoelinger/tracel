@@ -27,7 +27,6 @@ import com.tracel.plugin.command.suggest.PresetAddNameSuggest
 import com.tracel.plugin.command.suggest.PurgeSuggest
 import com.tracel.plugin.command.suggest.RollbackSuggest
 import com.tracel.plugin.command.suggest.liveLists
-import com.tracel.plugin.i18n.confirm
 import com.tracel.plugin.i18n.failed
 import com.tracel.plugin.i18n.say
 import com.tracel.plugin.i18n.send
@@ -58,8 +57,7 @@ object TracelCommand {
         "tracel.lookup" to "near",
         "tracel.lookup" to "player",
         "tracel.preset" to "preset",
-        "tracel.export" to "export",
-        "tracel.export" to "import",
+        "tracel.export" to "data",
         "tracel.purge" to "purge",
     )
 
@@ -74,6 +72,7 @@ object TracelCommand {
         val purge = PurgeAction(services)
         val export = ExportAction(services)
         val import = ImportAction(services)
+        val coreProtect = CoreProtectImportAction(services)
         val store = PresetStore(services.plugin.dataFolder.toPath().resolve("presets.toml"))
         Presets.store = store
         val presets = PresetAction(store, nothing)
@@ -226,27 +225,46 @@ object TracelCommand {
                 executesCommand { ctx -> inspect.execute(ctx.source.sender) }
             }
 
-            literal("export", tr("command.export")) {
+            literal("data", tr("command.data")) {
                 requiresPermission("tracel.export")
-                executesCommand { ctx -> export.confirmExport(ctx.source.sender) }
-                literal("#confirm", tr("command.export_confirm")) {
-                    executesCommand { ctx -> export.executeExport(ctx.source.sender) }
-                }
-            }
+                executesCommand { ctx -> ctx.source.sender.usage("data") }
 
-            literal("import", tr("command.import")) {
-                requiresPermission("tracel.export")
-                executesCommand { ctx -> ctx.source.sender.usage("import") }
-                argument("file", StringArgumentType.string()) {
-                    suggests(ExportSuggest.suggesting(services.exportDirectory))
-                    executesCommand { ctx ->
-                        val file = StringArgumentType.getString(ctx, "file")
-                        ctx.source.sender.confirm()
+                literal("export", tr("command.export")) {
+                    executesCommand { ctx -> export.confirmExport(ctx.source.sender) }
+                    literal("#confirm", tr("command.export_confirm")) {
+                        executesCommand { ctx -> export.executeExport(ctx.source.sender) }
                     }
-                    literal("#confirm", tr("command.import_confirm")) {
-                        executesCommand { ctx ->
-                            val file = StringArgumentType.getString(ctx, "file")
-                            import.execute(ctx.source.sender, file)
+                    literal("#stop", tr("command.export_stop")) {
+                        executesCommand { ctx -> export.stop(ctx.source.sender) }
+                    }
+                }
+
+                literal("import", tr("command.import")) {
+                    executesCommand { ctx -> ctx.source.sender.usage("data import") }
+                    literal("#stop", tr("command.import_stop")) {
+                        executesCommand { ctx -> import.stop(ctx.source.sender) }
+                    }
+                    argument("file", StringArgumentType.string()) {
+                        suggests(ExportSuggest.suggesting(services.exportDirectory))
+                        executesCommand { ctx -> import.preview(ctx.source.sender, StringArgumentType.getString(ctx, "file")) }
+                        literal("#confirm", tr("command.import_confirm")) {
+                            executesCommand { ctx ->
+                                val file = StringArgumentType.getString(ctx, "file")
+                                import.execute(ctx.source.sender, file)
+                            }
+                        }
+                    }
+                }
+
+                literal("migrate", tr("command.migrate")) {
+                    executesCommand { ctx -> ctx.source.sender.usage("data migrate") }
+                    literal("coreprotect", tr("command.migrate_coreprotect")) {
+                        executesCommand { ctx -> coreProtect.preview(ctx.source.sender) }
+                        literal("#confirm", tr("command.migrate_coreprotect_confirm")) {
+                            executesCommand { ctx -> coreProtect.execute(ctx.source.sender) }
+                        }
+                        literal("#stop", tr("command.migrate_coreprotect_stop")) {
+                            executesCommand { ctx -> coreProtect.stop(ctx.source.sender) }
                         }
                     }
                 }

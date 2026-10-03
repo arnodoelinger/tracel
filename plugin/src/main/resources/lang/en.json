@@ -15,15 +15,24 @@
       "records": "<gray>Records:</gray> <from> → <to>",
       "rows": "<gray>Rows:</gray> <rows>"
     },
+    "next": {
+      "confirm": "<gray>Next:</gray> to confirm the operation, run it again with #confirm"
+    },
     "needed": {
       "title": "<gold>⚠ Action needed!</gold>",
-      "destructive": "this is destructive and cannot be undone",
       "run": "running it again with \"<command>\""
+    },
+    "button": {
+      "continue": "<green>[→ Continue]</green>",
+      "continue_hover": "<white>Put the command with #confirm in the chat box</white>",
+      "backup": "<aqua>[☂ Back up first]</aqua>",
+      "backup_hover": "<white>Put \"/tracel data export\" in the chat box</white>"
     },
     "mark": {
       "plus": "<green>+</green>",
       "minus": "<red>-</red>",
-      "both": "<gold>±</gold>"
+      "both": "<gold>±</gold>",
+      "said": "<dark_aqua>●</dark_aqua>"
     },
     "reason": {
       "unknown_player": "no player named <name>",
@@ -55,8 +64,7 @@
     "near": "<gray>/tracel near</gray>: what happened around you in the last minutes",
     "player": "<gray>/tracel player</gray>: what a player did, on one screen",
     "preset": "<gray>/tracel preset</gray>: save lookup / rollback options as a preset",
-    "export": "<gray>/tracel export</gray>: snapshot export of the history database",
-    "import": "<gray>/tracel import:</gray> replace history with another database",
+    "data": "<gray>/tracel data</gray>: export, import or migrate the database",
     "purge": "<gray>/tracel purge</gray>: delete history, all of it or by filter",
     "help": "<gray>/tracel help</gray>: this screen"
   },
@@ -141,13 +149,19 @@
       "removed": "Removed",
       "altered": "Altered",
       "leashed": "Leashed",
-      "unleashed": "Unleashed"
+      "unleashed": "Unleashed",
+      "clicked": "Clicked",
+      "said": "Said",
+      "ran": "Ran",
+      "joined": "Joined",
+      "left": "Left",
+      "died": "Was killed by"
     },
     "mode": {
       "survival": "<green>Survival</green>",
       "creative": "<gold>Creative</gold>",
       "spectator": "<red>Spectator</red>",
-      "adventure": "<blue>Adventure</blue>"
+      "adventure": "<dark_aqua>Adventure</dark_aqua>"
     },
     "ago": {
       "s": "<n>s ago",
@@ -235,7 +249,8 @@
       "unreachable": "making it reachable again, then run it once more",
       "blocked": "again once the other rollback has finished",
       "stale": "stopping the redstone or whatever keeps moving these items, then run it again"
-    }
+    },
+    "imported": "<count> imported <count:record:records> left alone — imported history is read-only"
   },
   "undo": {
     "done": {
@@ -336,6 +351,12 @@
   },
   "export": {
     "start": "Export started. Please wait...",
+    "stop": "Stopping the export...",
+    "stopped": "Export stopped, no file was written",
+    "not_running": "No export is running",
+    "preview": {
+      "title": "<dark_aqua>↑ Export preview</dark_aqua>"
+    },
     "confirm": {
       "info": "this writes a snapshot to disk: up to <size> MiB, <free> MiB free",
       "low": "this needs up to <size> MiB on disk, but only <free> MiB is free"
@@ -351,6 +372,14 @@
   },
   "import": {
     "start": "Import started. All current history will be replaced. Please wait...",
+    "stop": "Stopping the import before it touches anything...",
+    "stopped": "Import stopped, the history is as it was",
+    "not_running": "No import is running",
+    "too_late": "Too late to stop. Should have thought about that earlier",
+    "preview": {
+      "title": "<dark_aqua>↓ Import preview</dark_aqua>",
+      "scope": "this replaces all recorded history with the file; this cannot be undone"
+    },
     "done": "<green>✔ Import successful!</green>",
     "failed": "<red>✘ Import failed!</red>",
     "reason": {
@@ -360,6 +389,29 @@
     "hint": {
       "missing": "run the command again and pick the file from the suggestions",
       "bad_name": "pick a file from the suggestions instead of entering a path"
+    },
+    "coreprotect": {
+      "title": "<dark_aqua>⇵ CoreProtect migrator</dark_aqua>",
+      "scope": "CoreProtect and Tracel are fundamentally different, so this import is read-only and cannot be rolled back. Don't worry, CoreProtect's suffering is not part of the migration.",
+      "nothing_left": "Everything in this database is already imported",
+      "start": "Import started. Please wait...",
+      "progress": "Importing... <percent>% (<done> of <rows> rows)",
+      "paused": "Import stopped",
+      "stop": "Stopping the import after the batch it is on...",
+      "not_running": "No CoreProtect migration is running",
+      "taken": "<gray>Imported:</gray> <count> records",
+      "skipped": "<gray>Skipped:</gray> <count> rows",
+      "reason": {
+        "not_found": "no CoreProtect database in \"plugins/CoreProtect\"",
+        "no_room": "this database was started by a Tracel build that left no room for older history",
+        "unreadable": "the CoreProtect database could not be read: <reason>"
+      },
+      "hint": {
+        "not_found": "put CoreProtect's folder, with its config and database, into plugins",
+        "no_room": "\"/tracel purge all\" first, then import again",
+        "unreadable": "check CoreProtect's config and the server log",
+        "paused": "running the command again to carry on where it stopped"
+      }
     }
   },
   "purge": {
@@ -382,7 +434,8 @@
     "category": {
       "blocks": "Blocks",
       "items": "Items",
-      "containers": "Containers"
+      "containers": "Containers",
+      "events": "Events"
     },
     "preview": {
       "title": "<light_purple>≢ Purge preview</light_purple>",
@@ -398,14 +451,8 @@
       "line": "<gray><category>:</gray> <matched> records",
       "freed": "<gray>Freed:</gray> <size> MiB"
     },
-    "button": {
-      "continue": "<green>[→ Continue]</green>",
-      "continue_hover": "<white>Go on to the final confirmation</white>",
-      "backup": "<aqua>[☂ Back up first]</aqua>",
-      "backup_hover": "<white>Put \"/tracel export\" in the chat box</white>"
-    },
     "suggest": {
-      "category": "What to purge: blocks, items, containers",
+      "category": "What to purge: blocks, items, containers, or events",
       "older": "Records older than a time span",
       "world": "What happened in a world",
       "player": "What a player did",
@@ -413,7 +460,8 @@
       "confirm": "Do it, after the preview",
       "blocks": "Block and entity changes",
       "items": "Item movements",
-      "containers": "What containers held, and who opened them"
+      "containers": "What containers held, and who opened them",
+      "events": "Chat, commands, sessions, and deaths"
     }
   },
   "tp": {
@@ -452,13 +500,20 @@
     "preset_share": "Make one of your presets the server's own",
     "preset_unshare": "Take a server preset back as your own",
     "preset_delete": "Delete a preset",
+    "data": "Export, import or migrate the history database",
     "export": "Export database",
     "export_confirm": "Yes, write the snapshot to disk",
+    "export_stop": "Stop the running export",
     "import": "Replace all history with another database",
     "import_confirm": "Yes, replace all recorded history",
+    "import_stop": "Stop the running import, while it can still be stopped",
     "purge": "Delete recorded history, all of it or by filter",
     "help": "Show help for commands",
-    "tp": "Teleport to a logged place"
+    "tp": "Teleport to this place",
+    "migrate": "Bring in history from another plugin",
+    "migrate_coreprotect": "Add CoreProtect's history under this one, read-only",
+    "migrate_coreprotect_confirm": "Yes, import it",
+    "migrate_coreprotect_stop": "Stop the running import"
   },
   "suggest": {
     "online": "Online",
@@ -497,7 +552,14 @@
       "kill": "Entities removed",
       "container": "Container and inventory changes",
       "craft": "Items crafted",
-      "explosion": "Explosions"
+      "explosion": "Explosions",
+      "click": "Blocks clicked",
+      "chat": "Chat messages",
+      "command": "Commands typed",
+      "session": "Joins and quits",
+      "join": "Players joining",
+      "quit": "Players leaving",
+      "death": "Player deaths"
     },
     "flag": {
       "preview": "Preview without changing the world or inventory",

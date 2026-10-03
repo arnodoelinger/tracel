@@ -19,6 +19,7 @@ dependencies {
     compileOnly(libs.paper.api)
     testImplementation(libs.paper.api)
     testImplementation(project(":tests"))
+    testImplementation(libs.sqlite.jdbc)
 }
 
 tasks {

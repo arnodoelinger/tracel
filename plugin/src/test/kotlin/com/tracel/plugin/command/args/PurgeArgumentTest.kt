@@ -67,15 +67,4 @@ class PurgeArgumentTest {
         assertEquals(1, parse("older 1d older 2d").errors.size)
         assertEquals(1, parse("older 1d please").errors.size)
     }
-
-    @Test
-    fun `continue is a step of its own, not a confirm`() {
-        val args = parse("all #continue")
-
-        assertTrue(args.everything)
-        assertTrue(args.continued)
-        assertFalse(args.confirmed)
-        assertEquals(emptyList<Any>(), args.errors)
-        assertEquals(1, parse("older #continue").errors.size, "a step word is no value for a flag")
-    }
 }

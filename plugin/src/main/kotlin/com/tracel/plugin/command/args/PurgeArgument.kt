@@ -12,7 +12,6 @@ internal data class PurgeArgs(
     val world: String? = null,
     val player: String? = null,
     val confirmed: Boolean = false,
-    val continued: Boolean = false,
     val errors: List<Component> = emptyList(),
 ) {
     val isEmpty: Boolean
@@ -26,7 +25,6 @@ internal object PurgeArgument {
     const val PLAYER = "player"
     const val ALL = "all"
     const val CONFIRM = "#confirm"
-    const val CONTINUE = "#continue"
 
     val KEYWORDS: List<String> = listOf(CATEGORY, OLDER, WORLD, PLAYER)
 
@@ -42,11 +40,10 @@ internal object PurgeArgument {
             val word = token.lowercase()
             when (word) {
                 CONFIRM -> args = args.copy(confirmed = true)
-                CONTINUE -> args = args.copy(continued = true)
                 ALL -> args = args.copy(everything = true)
                 CATEGORY, OLDER, WORLD, PLAYER -> {
                     val value = tokens.getOrNull(at++)
-                    if (value == null || value.lowercase() in KEYWORDS || value == CONFIRM || value == CONTINUE) {
+                    if (value == null || value.lowercase() in KEYWORDS || value == CONFIRM) {
                         errors += tr("purge.reason.needs_value", "flag" to word)
                         if (value != null) at--
                         continue
