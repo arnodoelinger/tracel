@@ -25,10 +25,15 @@ import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import kotlin.time.Duration.Companion.milliseconds
+
+/** How long planning may run before the player is told it has started. */
+private const val PLANNING_NOTICE_MILLIS = 2_000L
 
 /** Whose undo stack a job lands on: a player's own, or the console's. */
 internal fun CommandSender.actor(): HolderId? = (this as? Player)?.let { HolderId.Player(it.uniqueId) }
@@ -99,7 +104,27 @@ class RollbackAction internal constructor(
                 null
             }
         }
-        val planned = replan() ?: return
+
+        val started = System.nanoTime()
+        val notice = services.scope.launch {
+            delay(PLANNING_NOTICE_MILLIS.milliseconds)
+            sender.say(tr("rollback.planning"))
+        }
+        val planned = try {
+            replan()
+        } finally {
+            notice.cancel()
+        } ?: return
+        val tookMillis = (System.nanoTime() - started) / 1_000_000
+        if (tookMillis >= PLANNING_NOTICE_MILLIS && !parsed.preview) {
+            sender.say(
+                tr(
+                    "rollback.planned",
+                    "count" to planned.composite.create.size + planned.composite.destroy.size,
+                    "seconds" to "%.1f".format(tookMillis / 1000.0),
+                ),
+            )
+        }
         val halves = halvesOf(parsed, filter.actions)
         if (planned.imported > 0) sender.say(info(tr("rollback.imported", "count" to planned.imported)))
         if (parsed.preview) {

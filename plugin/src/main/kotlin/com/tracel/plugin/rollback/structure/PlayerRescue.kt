@@ -60,15 +60,15 @@ private val HAZARDS = setOf(
  * nearest cell with air at the feet and head and honest ground below. Everyone else stays put.
  */
 @Unstable
-internal suspend fun StructureRestorer.rescuePlayers(applied: List<StructureStep>) {
+internal fun StructureRestorer.rescuePlayers(applied: List<StructureStep>) {
     val writes = applied.filterIsInstance<StructureStep.SetBlock>().map { it.at }
     if (writes.isEmpty()) return
     val byWorld = writes.groupBy { it.world }
     val online = Bukkit.getOnlinePlayers().map { it.uniqueId }
     if (online.isEmpty()) return
 
-    sweep(online, byWorld)
     services.scope.launch {
+        sweep(online, byWorld)
         for (wait in FOLLOW_UPS_MILLIS) {
             delay(wait.milliseconds)
             sweep(online, byWorld)
@@ -212,7 +212,10 @@ private fun blocksBody(block: Block, box: BoundingBox): Boolean {
     return shape.boundingBoxes.any { it.shift(block.x.toDouble(), block.y.toDouble(), block.z.toDouble()).overlaps(box) }
 }
 
-private suspend fun StructureRestorer.safeSpotNear(world: World, from: Location, up: Int): Location? {
+private suspend fun StructureRestorer.safeSpotNear(world: World, from: Location, up: Int): Location? =
+    spotBetween(world, from, 0, up) ?: spotBetween(world, from, -SEARCH_DOWN, -1)
+
+private suspend fun StructureRestorer.spotBetween(world: World, from: Location, lowest: Int, highest: Int): Location? {
     val cx = from.blockX
     val cy = from.blockY
     val cz = from.blockZ
@@ -222,7 +225,7 @@ private suspend fun StructureRestorer.safeSpotNear(world: World, from: Location,
         for (chunkZ in ((cz - SEARCH_RADIUS) shr 4)..((cz + SEARCH_RADIUS) shr 4)) {
             val (spot, score) = inChunk(world, chunkX shl 4, cy, chunkZ shl 4) {
                 if (!world.isChunkLoaded(chunkX, chunkZ)) null to Double.MAX_VALUE
-                else searchChunk(world, from, chunkX, chunkZ, up)
+                else searchChunk(world, from, chunkX, chunkZ, lowest, highest)
             }
             if (spot != null && score < bestScore) {
                 best = spot
@@ -232,7 +235,14 @@ private suspend fun StructureRestorer.safeSpotNear(world: World, from: Location,
     return best
 }
 
-private fun searchChunk(world: World, from: Location, chunkX: Int, chunkZ: Int, up: Int): Pair<Location?, Double> {
+private fun searchChunk(
+    world: World,
+    from: Location,
+    chunkX: Int,
+    chunkZ: Int,
+    lowest: Int,
+    highest: Int,
+): Pair<Location?, Double> {
     val cx = from.blockX
     val cy = from.blockY
     val cz = from.blockZ
@@ -242,7 +252,7 @@ private fun searchChunk(world: World, from: Location, chunkX: Int, chunkZ: Int, 
         for (z in maxOf(chunkZ shl 4, cz - SEARCH_RADIUS)..minOf((chunkZ shl 4) + 15, cz + SEARCH_RADIUS)) {
             val dx = x - cx
             val dz = z - cz
-            for (dy in -SEARCH_DOWN..up) {
+            for (dy in lowest..highest) {
                 val y = cy + dy
                 if (y <= world.minHeight || y + 1 >= world.maxHeight) continue
                 val score = (dx * dx + dz * dz + dy * dy * if (dy < 0) 6 else 2).toDouble()

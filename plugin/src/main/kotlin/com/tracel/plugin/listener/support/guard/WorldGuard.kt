@@ -16,8 +16,12 @@ private const val WRITTEN_KEPT = 1 shl 20
  * nested, so the flag marks exactly those writes.
  */
 class SelfManagedWorldGuard {
-    private val active = ThreadLocal.withInitial { false }
+    val isRestoring: Boolean get() = active.get()
 
+    private val active = ThreadLocal.withInitial { false }
+    private val written = ExpiringMap<BlockPos, Unit>(WRITTEN_TTL_MS, WRITTEN_KEPT)
+
+    /** Sets the flag for the duration of [action], restoring it afterward. */
     fun <T> whileRestoring(action: () -> T): T {
         val previous = active.get()
         active.set(true)
@@ -28,13 +32,28 @@ class SelfManagedWorldGuard {
         }
     }
 
-    val isRestoring: Boolean get() = active.get()
+    /**
+     * Sets the flag without a block, for a restore that spans ticks and must drop it between them.
+     * Pair with [leave], passing back what this returned.
+     */
+    fun enter(): Boolean {
+        val previous = active.get()
+        active.set(true)
+        return previous
+    }
 
-    private val written = ExpiringMap<BlockPos, Unit>(WRITTEN_TTL_MS, WRITTEN_KEPT)
+    /** Restores the flag to what [enter] returned. */
+    fun leave(previous: Boolean) {
+        active.set(previous)
+    }
 
-    /** Region thread, right after the write. */
+    /**
+     * Marks [cells] as written, so that listeners can ignore them. The mark expires after a second.
+     *
+     * This is used for the same reason as [isRestoring].
+     */
     fun wrote(cells: Iterable<BlockPos>) {
-        for (cell in cells) written.put(cell, Unit)
+        written.putAll(cells, Unit)
     }
 
     /** Whether a restore wrote [cell] within the last second. */

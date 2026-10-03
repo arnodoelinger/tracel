@@ -11,6 +11,7 @@ import com.tracel.model.world.WorldChange
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.survey.*
+import com.tracel.plugin.util.chunkKey
 
 /**
  * Compose a plan.
@@ -43,9 +44,16 @@ internal suspend fun RollbackComposer.planRollback(
 
     // Imported history is read-only
     val importedBelow = services.foreign.importedBelow()
-    val changes = matchedChanges.filter { it.seq.raw >= importedBelow }
-    val txns = matchedTxns.filter { it.seq.raw >= importedBelow }
-    val imported = (matchedChanges.size - changes.size) + (matchedTxns.size - txns.size)
+
+    // Nothing imported is the usual case, and then there is nothing to cut out of a few million rows
+    val (changes, txns, imported) = if (importedBelow <= 0L) Triple(matchedChanges, matchedTxns, 0) else {
+        val keptChanges = matchedChanges.filter { it.seq.raw >= importedBelow }
+        val keptTxns = matchedTxns.filter { it.seq.raw >= importedBelow }
+        Triple(
+            keptChanges, keptTxns,
+            (matchedChanges.size - keptChanges.size) + (matchedTxns.size - keptTxns.size),
+        )
+    }
 
     // Partner cells: double chest / bed / door / piston, other shit are two coords; "scope:" can land between
     // them and plan left-half only. Same filter, one extra cell.
@@ -59,16 +67,14 @@ internal suspend fun RollbackComposer.planRollback(
         .filterNot { it.action == ActionKind.BLOCK_CLICK || it.seq.raw < importedBelow }
 
     // Structure first, then material
-    val (create, destroy) = if (!structure) {
-        emptyList<StructureStep>() to emptyList()
-    } else {
-        StructurePlanner().plan(paired)
-    }
+    val outcome = if (!structure) null else StructurePlanner().planAll(paired)
+    val create = outcome?.create?.inPlaceOrder() ?: emptyList()
+    val destroy = outcome?.destroy?.inPlaceOrder() ?: emptyList()
     val keepCargoOn = create.mapNotNullTo(HashSet()) { (it as? StructureStep.SpawnEntity)?.entity }
     val covered = if (!structure) null else placedCovered(create + destroy) + LiveProjectile.holders()
     val materials = if (!material) NO_MATERIAL else planMaterial(txns, keepCargoOn, structure, covered)
-    val vanishedCells = if (paired.isEmpty()) emptySet() else StructurePlanner().cellsAirToAir(paired)
-    val bornAndGone = if (paired.isEmpty()) emptySet() else StructurePlanner().entitiesBornAndGone(paired)
+    val vanishedCells = outcome?.airToAir ?: emptySet()
+    val bornAndGone = outcome?.bornAndGone ?: emptySet()
     val target = materials.target.awayFromAirToAir(vanishedCells).awayFromEntitiesGone(bornAndGone)
     return Planned(
         CompositeRollbackPlan(create, materials.plan, destroy),
@@ -83,6 +89,31 @@ internal suspend fun RollbackComposer.planRollback(
         covered,
         imported = imported,
     )
+}
+
+/** Block steps in the order they sit in the world. */
+internal fun List<StructureStep>.inPlaceOrder(): List<StructureStep> {
+    if (size < 2) return this
+    val byWorld = LinkedHashMap<Any, HashMap<Long, ArrayList<StructureStep.SetBlock>>>()
+    val others = ArrayList<StructureStep>()
+    for (step in this) {
+        if (step !is StructureStep.SetBlock) {
+            others += step
+            continue
+        }
+        byWorld.getOrPut(step.at.world) { HashMap() }.getOrPut(chunkKey(step.at.x, step.at.z)) { ArrayList() } += step
+    }
+    val out = ArrayList<StructureStep>(size)
+    for (chunks in byWorld.values) {
+        val keys = chunks.keys.toLongArray().also { it.sort() }
+        for (key in keys) {
+            val inChunk = chunks.getValue(key)
+            inChunk.sortBy { (it.at.y shl 8) or ((it.at.z and 15) shl 4) or (it.at.x and 15) }
+            out += inChunk
+        }
+    }
+    out += others
+    return out
 }
 
 private fun placedCovered(steps: List<StructureStep>): Set<HolderId> {

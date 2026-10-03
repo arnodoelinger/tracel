@@ -250,7 +250,9 @@
       "blocked": "again once the other rollback has finished",
       "stale": "stopping the redstone or whatever keeps moving these items, then run it again"
     },
-    "imported": "<count> imported <count:record:records> left alone — imported history is read-only"
+    "imported": "<count> imported <count:record:records> left alone — imported history is read-only",
+    "planning": "Reading history and planning the rollback — a big area takes a while...",
+    "planned": "Planned <count> block(s) in <seconds>s, applying..."
   },
   "undo": {
     "done": {

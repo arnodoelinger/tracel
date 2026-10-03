@@ -16,9 +16,13 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.logging.Level
 import kotlin.coroutines.cancellation.CancellationException
+
+/** How many times steps that changed regions mid-restore are sent on before they are reported as skipped. */
+private const val MAX_REDISPATCH = 3
 
 /** Apply [steps]. Grouped by chunk, all dispatched at once. */
 internal suspend fun StructureRestorer.restoreSteps(
@@ -39,13 +43,16 @@ internal suspend fun StructureRestorer.restoreSteps(
         }
     }
 
-    suspend fun dispatch(steps: List<StructureStep>): List<StructureReport> {
+    suspend fun dispatch(steps: List<StructureStep>, round: Int = 0): List<StructureReport> {
         val groups = steps.groupBy { dispatchAt(it).regionKey() }.values.toList()
 
         // Not a lock
         val claimed = AtomicIntegerArray(groups.size)
 
-        return coroutineScope {
+        // Steps whose chunk changed regions while a slow group waited for its next tick
+        val deferred = ConcurrentLinkedQueue<StructureStep>()
+
+        val reports = coroutineScope {
             groups.indices.map { index ->
                 async {
                     val anchor = dispatchAt(groups[index].first())
@@ -75,18 +82,17 @@ internal suspend fun StructureRestorer.restoreSteps(
                         } else {
                             val mine = claim(index, groups, claimed)
                             try {
-                                services.selfManagedWorld.whileRestoring {
-                                    applyGroup(
-                                        world,
-                                        mine,
-                                        force,
-                                        keepCargoFor,
-                                        ledgerCargoFor,
-                                        ledgerHeldBy,
-                                        dumpHeldCargo,
-                                        driftOnly
-                                    )
-                                }.also { report -> services.selfManagedWorld.wrote(report.applied.map { it.at }) }
+                                applyGroup(
+                                    world,
+                                    mine,
+                                    force,
+                                    keepCargoFor,
+                                    ledgerCargoFor,
+                                    ledgerHeldBy,
+                                    dumpHeldCargo,
+                                    driftOnly,
+                                    deferred,
+                                )
                             } catch (cancelled: CancellationException) {
                                 throw cancelled
                             } catch (failure: Throwable) {
@@ -102,6 +108,16 @@ internal suspend fun StructureRestorer.restoreSteps(
                     }
                 }
             }.awaitAll()
+        }
+
+        val again = deferred.toList()
+        return when {
+            again.isEmpty() -> reports
+            round >= MAX_REDISPATCH -> reports + again.map {
+                StructureReport(emptyList(), listOf(SkippedStep(it.at, "the region changed hands while this was restoring")))
+            }
+
+            else -> reports + dispatch(again, round + 1)
         }
     }
 

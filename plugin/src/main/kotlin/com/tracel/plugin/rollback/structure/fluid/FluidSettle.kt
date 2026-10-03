@@ -13,8 +13,17 @@ import org.bukkit.block.data.Waterlogged
 
 // TODO: rewrite
 
+private const val FEEDS = 1
+private const val TOUCHES = 2
+
 @Unstable
-internal fun settleFluids(world: World, steps: List<StructureStep.SetBlock>, owns: (Int, Int) -> Boolean) {
+/** Settle fluids after a rollback, so that they flow into the new empty spaces. */
+internal suspend fun settleFluids(
+    world: World,
+    steps: List<StructureStep.SetBlock>,
+    owns: (Int, Int) -> Boolean,
+    pace: suspend () -> Unit = {},
+) {
     if (steps.isEmpty()) return
     val ticked = HashSet<Long>(steps.size * 2)
 
@@ -24,10 +33,12 @@ internal fun settleFluids(world: World, steps: List<StructureStep.SetBlock>, own
     }
 
     for ((at, target, expected) in steps) {
-        if (target.feedsBubbles() || expected.feedsBubbles()) {
+        pace()
+        val flags = flagsOf(target) or flagsOf(expected)
+        if (flags and FEEDS != 0) {
             if (owns(at.x, at.z)) runCatching { world.getBlockAt(at.x, at.y, at.z).tick() }
         }
-        if (!target.touchesFluid() && !expected.touchesFluid()) continue
+        if (flags and TOUCHES == 0) continue
         if (packed(at.x, at.y, at.z) in emptied) continue
         tickFluidAt(world, at.x, at.y, at.z, owns, ticked, emptied)
         for (face in CARDINAL) {
@@ -55,11 +66,16 @@ internal fun tickFluidAt(
     runCatching { block.fluidTick() }
 }
 
-private fun BlockShape.touchesFluid(): Boolean {
+private val flagCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+private fun flagsOf(shape: BlockShape): Int = flagCache.getOrPut(shape.data.value) {
+    (if (shape.feedsBubbles()) FEEDS else 0) or (if (shape.touchesFluid()) TOUCHES else 0)
+}
+
+internal fun BlockShape.touchesFluid(): Boolean {
     if (isFluidShape(this)) return true
     val data = BlockDataCache.of(data) ?: return true
-    if (data is Waterlogged) return true
-    return false
+    return data is Waterlogged
 }
 
 private fun BlockShape.feedsBubbles(): Boolean {

@@ -52,7 +52,7 @@ public final class PalettePaste {
     private final Object chunkMap;
     private final Object light;
     private final Object cursor;
-    private final LongMap<PasteChunk> chunks = new LongMap<>();
+    private LongMap<PasteChunk> chunks = new LongMap<>();
     private final LongMap<Object> relight = new LongMap<>();
     private final List<Object> relightChunks = new ArrayList<>();
     private final List<PasteChunk> dirty = new ArrayList<>();
@@ -120,6 +120,33 @@ public final class PalettePaste {
         CURRENT.set(this);
     }
 
+    /**
+     * End of one turn of a paste that spans several ticks: tell the clients what changed so far and let go of the
+     * thread, but keep the relight and heightmap work for {@link #close()}, so a chunk is relit once however many
+     * turns touched it.
+     *
+     * <p>The chunk cache is dropped. Between ticks a chunk can be unloaded and come back as another object, and a
+     * write into the old one would be lost. A chunk touched again after {@link #resume()} is opened afresh and
+     * listed again; the relight set and the heightmap pass do not mind seeing it twice.
+     */
+    public void pause() {
+        try {
+            flushNotifications();
+        } catch (Throwable failure) {
+            LOG.log(Level.WARNING, "client updates during a rollback paste failed", failure);
+        }
+        for (PasteChunk chunk : dirty) chunk.changeCount = 0;
+        chunks = new LongMap<>();
+        lastChunk = null;
+        lastCx = Integer.MIN_VALUE;
+        if (CURRENT.get() == this) CURRENT.remove();
+    }
+
+    /** Bind to the calling thread again after {@link #pause()}. */
+    public void resume() {
+        bind();
+    }
+
     /** Relight dirty chunks and drop the thread binding. Safe to call twice. */
     public void close() {
         try {
@@ -148,9 +175,7 @@ public final class PalettePaste {
         }
     }
 
-    /**
-     * Live state at the block, or {@code null} when the chunk is not loaded or the height is outside.
-     */
+    /** Live state at the block, or {@code null} when the chunk is not loaded or the height is outside. */
     public Object read(int x, int y, int z) {
         if (dead) return null;
         try {
@@ -165,9 +190,7 @@ public final class PalettePaste {
         }
     }
 
-    /**
-     * NMS state of a {@code Bukkit} block data, or {@code null} when it is not a server block data.
-     */
+    /** NMS state of a {@code Bukkit} block data, or {@code null} when it is not a server block data. */
     public Object stateOf(BlockData data) {
         if (data == null || dead) return null;
         Object cached = nmsOf.get(data);
@@ -294,9 +317,7 @@ public final class PalettePaste {
         }
     }
 
-    /**
-     * Common rollback case: the block is still the expected plain state, so write the target.
-     */
+    /** Common rollback case: the block is still the expected plain state, so write the target. */
     public Fast placeFast(
             int x,
             int y,

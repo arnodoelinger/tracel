@@ -8,6 +8,7 @@ import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.structure.block.PalettePaste
+import com.tracel.plugin.rollback.structure.throttled
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.CancellationException
@@ -99,10 +100,13 @@ private suspend fun readPass(
         val world = worldOf(anchor.world) ?: continue
         launch {
             withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {
-                for (step in cell) {
-                    // Another region's cell by the time we got here: not ours to read
-                    if (!ownsChunkAt(world, step.at.x, step.at.z)) continue
-                    runCatching { world.getBlockAt(step.at.x, step.at.y, step.at.z).type }
+                services.governor.throttled(world, anchor.x shr 4, anchor.z shr 4) { throttle ->
+                    for (step in cell) {
+                        throttle.yieldIfSpent()
+                        // Another region's cell by the time we got here: not ours to read
+                        if (!ownsChunkAt(world, step.at.x, step.at.z)) continue
+                        runCatching { world.getBlockAt(step.at.x, step.at.y, step.at.z).type }
+                    }
                 }
             }
         }
