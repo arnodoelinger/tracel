@@ -48,7 +48,18 @@ tasks {
     // exists in 26.2 fails here rather than in production.
     runServer {
         minecraftVersion("26.1.2")
-        jvmArgs("-Xms2G", "-Xmx2G")
+        jvmArgs(
+            "-Xms6G",
+            "-Xmx6G",
+            "-XX:+UseG1GC",
+            "-XX:+ParallelRefProcEnabled",
+            "-XX:MaxGCPauseMillis=200",
+            "-XX:+UnlockExperimentalVMOptions",
+            "-XX:+DisableExplicitGC",
+            "-XX:+AlwaysPreTouch",
+            "-XX:+UnlockDiagnosticVMOptions",
+            "-XX:+DebugNonSafepoints"
+        )
     }
 }
 
