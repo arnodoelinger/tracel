@@ -15,6 +15,8 @@ import com.tracel.plugin.i18n.confirmHint
 import com.tracel.plugin.i18n.needed
 import com.tracel.plugin.i18n.asReason
 import com.tracel.plugin.i18n.send
+import com.tracel.plugin.i18n.info
+import com.tracel.plugin.i18n.say
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.i18n.unexpected
 import com.tracel.plugin.rollback.composer.warmForPreview
@@ -99,6 +101,7 @@ class RollbackAction internal constructor(
         }
         val planned = replan() ?: return
         val halves = halvesOf(parsed, filter.actions)
+        if (planned.imported > 0) sender.say(info(tr("rollback.imported", "count" to planned.imported)))
         if (parsed.preview) {
             val ghosts = if (sender is Player && highlights != null) {
                 highlights.ghost(sender, planned.composite.create, planned.composite.destroy, GHOST_SECONDS)

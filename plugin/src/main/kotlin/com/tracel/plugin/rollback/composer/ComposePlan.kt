@@ -6,6 +6,7 @@ import com.tracel.engine.rollback.structure.CompositeRollbackPlan
 import com.tracel.engine.rollback.structure.StructurePlanner
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
+import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -29,7 +30,7 @@ internal suspend fun RollbackComposer.planRollback(
 
     val flushed = services.flushCapture()
 
-    val (changes, txns) = if (!structure && !material) {
+    val (matchedChanges, matchedTxns) = if (!structure && !material) {
         emptyList<WorldChange>() to emptyList()
     } else {
         services.worldLog.queryTogether(
@@ -40,16 +41,22 @@ internal suspend fun RollbackComposer.planRollback(
         )
     }
 
+    // Imported history is read-only
+    val importedBelow = services.foreign.importedBelow()
+    val changes = matchedChanges.filter { it.seq.raw >= importedBelow }
+    val txns = matchedTxns.filter { it.seq.raw >= importedBelow }
+    val imported = (matchedChanges.size - changes.size) + (matchedTxns.size - txns.size)
+
     // Partner cells: double chest / bed / door / piston, other shit are two coords; "scope:" can land between
     // them and plan left-half only. Same filter, one extra cell.
     val partnered = if (!structure || changes.isEmpty()) changes else {
         withStructuralPartners(changes, wide)
     }
 
-    // Entity trails (snow golem layers outside the "scope:")
-    val paired = if (!structure || partnered.isEmpty()) partnered else {
-        withTrails(partnered, wide)
-    }
+    // Entity trails (snow golem layers outside the "scope:").
+    // A click left the block as it was; planning it would put that block back over whatever stands there now.
+    val paired = (if (!structure || partnered.isEmpty()) partnered else withTrails(partnered, wide))
+        .filterNot { it.action == ActionKind.BLOCK_CLICK || it.seq.raw < importedBelow }
 
     // Structure first, then material
     val (create, destroy) = if (!structure) {
@@ -74,16 +81,17 @@ internal suspend fun RollbackComposer.planRollback(
         filter.since,
         structure,
         covered,
+        imported = imported,
     )
 }
 
 private fun placedCovered(steps: List<StructureStep>): Set<HolderId> {
     val out = HashSet<HolderId>(steps.size)
     for (step in steps) {
-        when (step) {
-            is StructureStep.SetBlock -> out += HolderId.PlacedBlock(step.at.world, step.at.x, step.at.y, step.at.z)
-            is StructureStep.RemoveEntity -> out += HolderId.PlacedEntity(step.entity)
-            is StructureStep.SpawnEntity -> out += HolderId.PlacedEntity(step.entity)
+        out += when (step) {
+            is StructureStep.SetBlock -> HolderId.PlacedBlock(step.at.world, step.at.x, step.at.y, step.at.z)
+            is StructureStep.RemoveEntity -> HolderId.PlacedEntity(step.entity)
+            is StructureStep.SpawnEntity -> HolderId.PlacedEntity(step.entity)
         }
     }
     return out

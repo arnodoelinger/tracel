@@ -18,4 +18,5 @@ data class Planned(
     val structural: Boolean = true,
     val covered: Set<HolderId>? = null,
     val by: HolderId? = null,
+    val imported: Int = 0,
 )
