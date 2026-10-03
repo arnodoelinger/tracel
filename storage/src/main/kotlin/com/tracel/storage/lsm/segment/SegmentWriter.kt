@@ -37,7 +37,9 @@ internal class SegmentWriter(
         val path = Manifest.segmentPath(directory, id)
         runs.forEach { it.seek(EMPTY) }
 
-        val meta = SegmentFile.Writer(path, expectedEntries).use { writer ->
+        val flush = runs.all { it is MemTableRun }
+        val zstdLevel = if (flush) SegmentFile.FLUSH_ZSTD_LEVEL else SegmentFile.COMPACTION_ZSTD_LEVEL
+        val meta = SegmentFile.Writer(path, expectedEntries, zstdLevel).use { writer ->
             var lastKey: ByteArray? = null
             var keptBelowHorizon = false
             while (true) {

@@ -40,13 +40,18 @@ object SegmentFile {
     const val BLOCK_TARGET = 4096
     const val FLAG_ZSTD = 1 shl 31
     const val PAYLOAD_MASK = 0x7FFFFFFF
-    const val ZSTD_LEVEL = 19
+    const val FLUSH_ZSTD_LEVEL = 5
+    const val COMPACTION_ZSTD_LEVEL = 19
 
     private val LE_INT: VarHandle = MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
     private val LE_LONG: VarHandle =
         MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
 
-    class Writer(private val path: Path, expectedEntries: Int) : AutoCloseable {
+    class Writer(
+        private val path: Path,
+        expectedEntries: Int,
+        private val zstdLevel: Int = FLUSH_ZSTD_LEVEL,
+    ) : AutoCloseable {
         private val file = java.io.FileOutputStream(path.toFile())
         private val out: OutputStream = BufferedOutputStream(file, 1 shl 16)
         private val bloom = BloomBuilder(expectedEntries.coerceAtLeast(1))
@@ -152,7 +157,7 @@ object SegmentFile {
         private fun writeBlock(raw: ByteArray, length: Int) {
             val bound = Zstd.compressBound(length.toLong()).toInt()
             val packedBuf = ByteArray(bound)
-            val packed = Zstd.compressByteArray(packedBuf, 0, bound, raw, 0, length, ZSTD_LEVEL).toInt()
+            val packed = Zstd.compressByteArray(packedBuf, 0, bound, raw, 0, length, zstdLevel).toInt()
             val worthIt = packed in 1 until length
             val payload = if (worthIt) packed else length
             val flags = if (worthIt) payload or FLAG_ZSTD else payload
