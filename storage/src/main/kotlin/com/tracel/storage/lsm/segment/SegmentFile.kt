@@ -40,7 +40,7 @@ object SegmentFile {
     const val BLOCK_TARGET = 4096
     const val FLAG_ZSTD = 1 shl 31
     const val PAYLOAD_MASK = 0x7FFFFFFF
-    const val ZSTD_LEVEL = 5
+    const val ZSTD_LEVEL = 19
 
     private val LE_INT: VarHandle = MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
     private val LE_LONG: VarHandle =
