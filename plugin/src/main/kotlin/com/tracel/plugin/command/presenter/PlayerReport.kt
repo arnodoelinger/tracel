@@ -95,7 +95,7 @@ internal data class PlayerReport(
                         if (type != null) kills.merge(type.removePrefix("minecraft:"), 1, Int::plus)
                     }
 
-                    ActionKind.ENTITY_CHANGE -> Unit
+                    ActionKind.ENTITY_CHANGE, ActionKind.BLOCK_CLICK -> Unit
                 }
             }
 

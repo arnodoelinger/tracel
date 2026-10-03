@@ -19,6 +19,10 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     private val lock = ReentrantLock()
     private val reserved = HashMap<Int, Reservation>()
 
+    init {
+        storage.afterReplace(::forget)
+    }
+
     /** @return a new transaction ID. */
     suspend fun nextTxnId(): TxnId = TxnId(next(TXN))
 
@@ -96,7 +100,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
 
     private suspend fun nextRange(name: Int, count: Int): Long = storage.write {
         val key = Keys.counter(name)
-        val value = get(key)?.let(Records::asLong) ?: 1L
+        val value = get(key)?.let(Records::asLong) ?: first(name)
         putPinned(key, Records.long(value + count))
         keepSpent(this, key, value + count)
         value
@@ -106,7 +110,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         val reservation = reserved[name]
         if (reservation != null && reservation.next < reservation.exhaustedAt) return reservation.next++
         val key = Keys.counter(name)
-        val start = unit.get(key)?.let(Records::asLong) ?: 1L
+        val start = unit.get(key)?.let(Records::asLong) ?: first(name)
         unit.putPinned(key, Records.long(start + blockSize))
         keepSpent(unit, key, start + blockSize)
         reserved[name] = Reservation(start + 1, start + blockSize)
@@ -115,7 +119,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
 
     private suspend fun reserve(name: Int): Long = storage.write {
         val key = Keys.counter(name)
-        val value = get(key)?.let(Records::asLong) ?: 1L
+        val value = get(key)?.let(Records::asLong) ?: first(name)
         putPinned(key, Records.long(value + blockSize))
         keepSpent(this, key, value + blockSize)
         value
@@ -123,7 +127,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
 
     private fun keepSpent(unit: StorageUnit, key: ByteArray, until: Long) {
         unit.afterAbort {
-            val durable = storage.engine.snapshot().use { it.get(key)?.let(Records::asLong) } ?: 1L
+            val durable = storage.engine.snapshot().use { it.get(key)?.let(Records::asLong) } ?: 0L
             if (durable < until) storage.engine.write(
                 MutationBatch().apply { put(key, Records.long(until)) },
                 durable = true
@@ -139,6 +143,10 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         const val ROLLBACK_JOB = 5
         const val PENDING_DELIVERY = 6
         const val PACK = 7
+        const val IMPORT_SEQ = 8
         const val DEFAULT_BLOCK_SIZE = 256L
+        const val SEQ_BASE = 1L shl 40
+
+        fun first(name: Int): Long = if (name == SEQ) SEQ_BASE else 1L
     }
 }

@@ -37,6 +37,15 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
                     kept += cursor.key() to value.readBytes(0, value.byteSize().toInt())
                 }
             }
+            val seqKey = Keys.counter(Counters.SEQ)
+            val used = unit.get(seqKey)?.let(Records::asLong)
+            if (used != null && used < Counters.SEQ_BASE) {
+                val importKey = Keys.counter(Counters.IMPORT_SEQ)
+                val imported = unit.get(importKey)?.let(Records::asLong) ?: 1L
+                kept.removeAll { (key, _) -> key.contentEquals(seqKey) || key.contentEquals(importKey) }
+                kept += seqKey to Records.long(Counters.SEQ_BASE)
+                kept += importKey to Records.long(maxOf(imported, used))
+            }
         }
         storage.engine.wipe()
         if (kept.isNotEmpty()) storage.engine.write(MutationBatch().apply {

@@ -6,8 +6,13 @@
 # 0 = always ask for confirmation
 entity-restore-limit = 256
 
+# How long a rollback or undo may run in one tick, e.g., 4ms, 10ms, 20ms
+# It uses less time when the server is busy and more time when it is idle
+min-tick-time = "5ms"
+max-tick-time = "25ms"
+
 [purge]
-# Deletes old history automatically
+# Automatically delete old history
 auto-purge = false
 
 # How often it looks for old history, e.g., 14d, 30d, 90d
@@ -18,19 +23,20 @@ interval = "90d"
 keep-blocks = "90d"
 keep-items = "90d"
 keep-containers = "90d"
+keep-events = "90d"
 
 [advanced]
-# Controls how Tracel saves the history used for queries and rollbacks
+# How often Tracel forces pending history to disk
 # "every-batch" saves every commit safely before continuing
-# "<duration>" saves at most once per interval, e.g. 500ms, 1s, 5s
+# "<duration>" saves at most once per interval, e.g., 500ms, 1s, 5s
 # "never" never force changes to disk; not for production
 sync = "every-batch"
 
 # Amount of memory used before history is written to disk
 memtable-size = "16MiB"
 
-# Maximum number of pending writes before Tracel starts slowing down
+# Maximum number of pending disk writes before Tracel starts slowing down
 max-pending-flushes = 3
 
-# How many events can be buffered during bursts of activity
+# Number of events that can be buffered during bursts of activity
 capture-ring-slots = 65536

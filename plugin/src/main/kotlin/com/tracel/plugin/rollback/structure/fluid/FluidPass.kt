@@ -7,6 +7,7 @@ import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.claim
+import com.tracel.plugin.rollback.structure.throttled
 import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
@@ -43,10 +44,14 @@ internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep
                             )
                         }
                     }
-                    services.selfManagedWorld.wrote(mine.map { it.at })
-                    services.selfManagedWorld.whileRestoring {
+
+                    // The settle may stir fluids around what was written; the writing itself was marked as it went
+                    services.selfManagedWorld.wrote(mine.filter { it.target.touchesFluid() || it.expected.touchesFluid() }.map { it.at })
+
+                    // Every written block is walked once more here, so it takes turns like the writing did
+                    services.governor.throttled(world, anchor.x shr 4, anchor.z shr 4, services.selfManagedWorld) { throttle ->
                         val whole = !drain || drainFlowing(world, mine, owns)
-                        settleFluids(world, mine, owns)
+                        settleFluids(world, mine, owns) { throttle.yieldIfSpent { owned.clear() } }
                         if (whole) StructureReport.EMPTY
                         else StructureReport(
                             emptyList(),

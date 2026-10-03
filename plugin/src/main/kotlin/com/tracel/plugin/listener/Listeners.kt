@@ -69,11 +69,12 @@ private fun materialListeners(services: TracelServices): List<TracelListener> = 
     CompostListener(services),
 )
 
-/** Not a log: inspect wand, offline rollback deliveries, snapshot eviction. */
+/** The event log (chat, commands, sessions), inspect wand, offline rollback deliveries, snapshot eviction. */
 private fun sessionListeners(services: TracelServices): List<TracelListener> = listOf(
     InspectListener(services),
     PendingDeliveryListener(services),
     SnapshotEvictionListener(services),
     FreezeGuardListener(services),
     GapCommandListener(services),
+    ActorEventListener(services),
 )

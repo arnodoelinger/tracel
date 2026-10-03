@@ -12,11 +12,15 @@ import com.tracel.plugin.rollback.material.item.formsFor
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.result.report.RestorationReport
+import com.tracel.plugin.adapter.world.worldOf
+import com.tracel.plugin.rollback.structure.throttled
 import com.tracel.plugin.util.entityUuid
 import com.tracel.plugin.util.namedByEntity
+import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentLinkedQueue
+import org.bukkit.World
 import java.util.logging.Level
 
 @Unstable
@@ -165,35 +169,49 @@ private suspend fun MaterialRestorer.fanOut(
         }
         val others = rest.entries.groupBy { it.key.regionKey() }.values.map { group ->
             async {
-                val each = suspend {
-                    group.map { (holder, nonZero) ->
-                        val taking = nonZero.values.all { it < 0L }
-                        if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
-                        else {
-                            holder to applyTo(
-                                holder,
-                                nonZero,
-                                forms,
-                                job,
-                                sink,
-                                asOf,
-                                worn
-                            )
+                val one = suspend { holder: HolderId, nonZero: Map<ItemKey, Long> ->
+                    val taking = nonZero.values.all { it < 0L }
+                    if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
+                    else {
+                        holder to applyTo(
+                            holder,
+                            nonZero,
+                            forms,
+                            job,
+                            sink,
+                            asOf,
+                            worn
+                        )
+                    }
+                }
+                val each = suspend { group.map { (holder, nonZero) -> one(holder, nonZero) } }
+
+                suspend fun inTurns(world: World?, at: HolderId.Block): List<Pair<HolderId, ApplyResult>> {
+                    if (world == null) return each()
+                    return services.governor.throttled(world, at.x shr 4, at.z shr 4) { throttle ->
+                        val out = ArrayList<Pair<HolderId, ApplyResult>>(group.size)
+                        for ((holder, nonZero) in group) {
+                            throttle.yieldIfSpent()
+                            val cell = when (holder) {
+                                is HolderId.Block -> holder
+                                is HolderId.PlacedBlock -> HolderId.Block(holder.world, holder.x, holder.y, holder.z)
+                                else -> null
+                            }
+                            out += if (cell == null || ownsChunkAt(world, cell.x, cell.z)) one(holder, nonZero)
+                            else withContext(services.schedulers.region(cell)) { one(holder, nonZero) }
                         }
+                        out
                     }
                 }
                 when (val first = group.first().key) {
-                    is HolderId.Block -> withContext(services.schedulers.region(first)) { each() }
-                    is HolderId.PlacedBlock -> withContext(
-                        services.schedulers.region(
-                            HolderId.Block(
-                                first.world,
-                                first.x,
-                                first.y,
-                                first.z
-                            )
-                        )
-                    ) { each() }
+                    is HolderId.Block -> withContext(services.schedulers.region(first)) {
+                        inTurns(worldOf(first.world), first)
+                    }
+
+                    is HolderId.PlacedBlock -> {
+                        val at = HolderId.Block(first.world, first.x, first.y, first.z)
+                        withContext(services.schedulers.region(at)) { inTurns(worldOf(first.world), at) }
+                    }
 
                     else -> each()
                 }

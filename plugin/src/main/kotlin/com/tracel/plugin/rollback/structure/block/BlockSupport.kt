@@ -9,14 +9,10 @@ import org.bukkit.block.Block
 internal const val UNSUPPORTED = "nothing is left for it to hang on"
 
 /** Solid and not falling; safe to place in any order, needs nothing under or around it first. */
-internal fun BlockShape.standsAlone(): Boolean {
-    val material = BlockDataCache.of(data)?.material ?: return true
-    return material.isSolid && !material.hasGravity()
-}
+internal fun BlockShape.standsAlone(): Boolean = ShapeTraits.of(this) and ShapeTraits.STANDS_ALONE != 0
 
 /** Falls without support (sand, gravel, concrete powder, ...) — must go down after its support. */
-internal fun BlockShape.hasGravity(): Boolean =
-    BlockDataCache.of(data)?.material?.hasGravity() == true
+internal fun BlockShape.hasGravity(): Boolean = ShapeTraits.of(this) and ShapeTraits.GRAVITY != 0
 
 /** Would pop off, drop and all, the first time physics looks at it. */
 internal fun BlockShape.unsupportedAt(block: Block): Boolean {
@@ -26,17 +22,14 @@ internal fun BlockShape.unsupportedAt(block: Block): Boolean {
 }
 
 /** Whether a block like this has a body a hanging entity would collide with. */
-internal fun BlockShape.isSolid(): Boolean = BlockDataCache.of(data)?.material?.isSolid == true
+internal fun BlockShape.isSolid(): Boolean = ShapeTraits.of(this) and ShapeTraits.SOLID != 0
 
 /** Whether it's a fire. */
-internal fun BlockShape.isFire(): Boolean {
-    val material = BlockDataCache.of(data)?.material ?: return false
-    return material == Material.FIRE || material == Material.SOUL_FIRE
-}
+internal fun BlockShape.isFire(): Boolean = ShapeTraits.of(this) and ShapeTraits.FIRE != 0
 
 /** Whether it's an air. */
 internal fun BlockShape.isAir(): Boolean =
-    this == BlockShape.AIR || BlockDataCache.of(data)?.material?.isAir == true
+    this == BlockShape.AIR || ShapeTraits.of(this) and ShapeTraits.AIR != 0
 
 /** Same check as [BlockShape.isFire], against the block actually in the world. */
 internal fun Block.isFire(): Boolean =

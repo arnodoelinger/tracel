@@ -28,6 +28,27 @@ class SettingsTest {
     }
 
     @Test
+    fun `max tick time is read in milliseconds and a nonsense value keeps the default`() {
+        assertEquals(10_000_000L, readRollback("max-tick-time" to "10ms").governor.maxNanos)
+        assertTrue(complaints.isEmpty())
+
+        assertEquals(20_000_000L, readRollback("max-tick-time" to "1ms").governor.maxNanos)
+        assertEquals(20_000_000L, readRollback("max-tick-time" to "80ms").governor.maxNanos)
+        assertEquals(2, complaints.size)
+    }
+
+    @Test
+    fun `min tick time is read in milliseconds and may not be longer than the maximum`() {
+        assertEquals(8_000_000L, readRollback("min-tick-time" to "8ms").governor.minNanos)
+        assertTrue(complaints.isEmpty())
+
+        val both = readRollback("min-tick-time" to "12ms", "max-tick-time" to "6ms")
+        assertEquals(12_000_000L, both.governor.minNanos)
+        assertEquals(20_000_000L, both.governor.maxNanos)
+        assertEquals(1, complaints.size)
+    }
+
+    @Test
     fun `the shipped config toml is exactly the defaults, written out`() {
         val text = checkNotNull(javaClass.getResourceAsStream("/config.toml")) { "config.toml is not on the classpath" }
             .reader().readText()

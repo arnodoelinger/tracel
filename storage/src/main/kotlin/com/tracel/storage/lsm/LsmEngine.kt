@@ -71,7 +71,10 @@ class LsmEngine(
         Thread(runnable, "Tracel-Storage-Flush").apply { isDaemon = true }
     }
     private val compactor = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "Tracel-Storage-Compaction").apply { isDaemon = true }
+        Thread(runnable, "Tracel-Storage-Compaction").apply {
+            isDaemon = true
+            priority = Thread.MIN_PRIORITY
+        }
     }
     private val syncer = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "Tracel-Storage-Sync").apply { isDaemon = true }

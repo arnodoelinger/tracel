@@ -7,7 +7,7 @@ import com.tracel.plugin.command.action.ExportAction.Companion.records
 import com.tracel.plugin.command.args.PurgeArgs
 import com.tracel.plugin.command.args.PurgeArgument
 import com.tracel.plugin.i18n.asReason
-import com.tracel.plugin.i18n.confirm
+import com.tracel.plugin.i18n.confirmFooter
 import com.tracel.plugin.i18n.failed
 import com.tracel.plugin.i18n.joined
 import com.tracel.plugin.i18n.say
@@ -29,16 +29,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
-import net.kyori.adventure.text.event.ClickEvent
-import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.util.Locale
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * `/tracel purge`: takes history out of the database, all of it or only what the filters name.
- * Without `#confirm` it takes nothing: it previews, then `#continue` asks for the last word.
+ * Without `#confirm` it takes nothing: it previews, and `#confirm` is typed by hand.
  */
 class PurgeAction(private val services: TracelServices) {
     /** Runs `/tracel purge` with the words after it. */
@@ -52,7 +51,6 @@ class PurgeAction(private val services: TracelServices) {
         val spec = specOf(sender, args) ?: return
         when {
             args.confirmed -> purge(sender, spec)
-            args.continued -> sender.confirm()
             else -> preview(sender, args, spec, command)
         }
     }
@@ -86,7 +84,7 @@ class PurgeAction(private val services: TracelServices) {
         return PurgeSpec(categories, PurgeFilter(before, world, player))
     }
 
-    private fun String.isStep() = equals(PurgeArgument.CONFIRM, true) || equals(PurgeArgument.CONTINUE, true)
+    private fun String.isStep() = equals(PurgeArgument.CONFIRM, true)
 
     private fun preview(sender: CommandSender, args: PurgeArgs, spec: PurgeSpec, command: String) {
         sender.send("purge.counting")
@@ -125,7 +123,6 @@ class PurgeAction(private val services: TracelServices) {
     private fun everything(sender: CommandSender, args: PurgeArgs, command: String) {
         val locale = localeOf(sender)
         if (!args.confirmed) {
-            if (args.continued) return sender.confirm()
             val size = services.storage.engine.stats().liveBytes / MIB
             sender.say(
                 Component.join(
@@ -149,7 +146,7 @@ class PurgeAction(private val services: TracelServices) {
                 while (!services.composite.claimGate()) {
                     if (!told) sender.send("purge.waiting")
                     told = true
-                    delay(GATE_POLL_MILLIS)
+                    delay(GATE_POLL_MILLIS.milliseconds)
                 }
                 held = true
                 val summary = purgeAll(services.storage)
@@ -207,13 +204,7 @@ class PurgeAction(private val services: TracelServices) {
         return Component.join(JoinConfiguration.newlines(), lines)
     }
 
-    private fun buttons(command: String): Component {
-        val yes = tr("purge.button.continue").clickEvent(ClickEvent.runCommand("$command ${PurgeArgument.CONTINUE}"))
-            .hoverEvent(HoverEvent.showText(tr("purge.button.continue_hover")))
-        val backup = tr("purge.button.backup").clickEvent(ClickEvent.suggestCommand("/tracel export"))
-            .hoverEvent(HoverEvent.showText(tr("purge.button.backup_hover")))
-        return yes.append(Component.space()).append(backup)
-    }
+    private fun buttons(command: String): Component = confirmFooter(command)
 
     private fun report(report: PurgeReport, locale: Locale): Component {
         val lines = mutableListOf(tr("purge.done"), Component.empty())

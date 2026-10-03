@@ -7,6 +7,8 @@ import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.structure.StructureRestorer
+import com.tracel.plugin.rollback.structure.throttled
+import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -31,7 +33,19 @@ internal suspend fun StructureRestorer.wakeRedstoneAt(positions: Sequence<BlockP
                 withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {
                     val world = worldOf(anchor.world) ?: return@withContext
                     val done = HashSet<Long>(group.size * 4)
-                    for (pos in group) wake(world, pos, done)
+
+                    services.governor.throttled(world, anchor.x shr 4, anchor.z shr 4) { throttle ->
+                        for (pos in group) {
+                            throttle.yieldIfSpent()
+                            if (ownsChunkAt(world, pos.x, pos.z)) {
+                                wake(world, pos, done)
+                            } else {
+                                withContext(services.schedulers.region(HolderId.Block(pos.world, pos.x, pos.y, pos.z))) {
+                                    wake(world, pos, done)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }.awaitAll()

@@ -3,6 +3,8 @@ package com.tracel.plugin.util
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
+private const val FULL_SWEEPS_PER_TTL = 10L
+
 /**
  * A concurrent map whose entries expire after [ttlMillis].
  *
@@ -17,6 +19,7 @@ internal class ExpiringMap<K : Any, V : Any>(
 
     private val entries = ConcurrentHashMap<K, Entry<V>>()
     private val sweptAt = AtomicLong(System.currentTimeMillis())
+    private val fullSweptAt = AtomicLong(0L)
 
     val size: Int get() = entries.size
 
@@ -96,10 +99,17 @@ internal class ExpiringMap<K : Any, V : Any>(
     }
 
     private fun store(key: K, value: V, now: Long): Boolean {
-        if (entries.size >= capacity && !entries.containsKey(key)) sweep(now, force = true)
+        if (entries.size >= capacity && !entries.containsKey(key)) sweepFull(now)
         val room = entries.size < capacity || entries.containsKey(key)
         if (room) entries[key] = Entry(value, now)
         return room
+    }
+
+    private fun sweepFull(now: Long) {
+        val previous = fullSweptAt.get()
+        if (now - previous < maxOf(1L, ttlMillis / FULL_SWEEPS_PER_TTL)) return
+        if (!fullSweptAt.compareAndSet(previous, now)) return
+        sweep(now, force = true)
     }
 
     private fun sweep(now: Long, force: Boolean = false) {

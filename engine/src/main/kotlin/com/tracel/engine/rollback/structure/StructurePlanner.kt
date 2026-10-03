@@ -13,9 +13,27 @@ import java.util.*
 @RunsOn(ThreadContext.ASYNC)
 @Unstable
 public class StructurePlanner {
-    public fun plan(changes: List<WorldChange>): Pair<List<StructureStep>, List<StructureStep>> {
+    /** The steps to restore the world to the state at the start of the window. */
+    public class Outcome(
+        public val create: List<StructureStep>,
+        public val destroy: List<StructureStep>,
+        public val airToAir: Set<BlockPos>,
+        public val bornAndGone: Set<UUID>,
+    )
+
+    /** Plan the steps to restore the world to the state at the start of the window. */
+    public fun plan(changes: List<WorldChange>): Pair<List<StructureStep>, List<StructureStep>> =
+        planAll(changes).let { it.create to it.destroy }
+
+    /**
+     * [plan], [cellsAirToAir] and [entitiesBornAndGone] in one pass: all three group the changes by the same key and
+     * look at the same oldest and newest end, so asking for them one at a time built that map three times over.
+     */
+    public fun planAll(changes: List<WorldChange>): Outcome {
         val create = mutableListOf<StructureStep>()
         val destroy = mutableListOf<StructureStep>()
+        val airToAir = HashSet<BlockPos>()
+        val bornAndGone = HashSet<UUID>()
 
         val ends = HashMap<Any, Array<WorldChange>>(changes.size.coerceAtMost(65_536))
         for (change in changes) {
@@ -66,6 +84,7 @@ public class StructurePlanner {
                     // time and can make rollbacks recreate objects that never existed at the beginning of the
                     // selected window.
                     val target = subject.before
+                    if (target.isAirLike && expected.isAirLike) airToAir += last.at
                     if (target == expected) continue
                     val step = StructureStep.SetBlock(last.at, target, expected)
 
@@ -78,6 +97,7 @@ public class StructurePlanner {
                     val newest = first.subject as ChangeSubject.Entity
                     val now = newest.after
                     val before = subject.before
+                    if (before == null && now == null) bornAndGone += subject.entity
                     when {
                         now == null -> {
                             // Lived at window open: put it back. Came and went inside the window, however
@@ -116,7 +136,7 @@ public class StructurePlanner {
             create.removeAll { it is StructureStep.SetBlock && it.at in hangingIn && !it.target.isAirLike }
         }
 
-        return create to destroy
+        return Outcome(create, destroy, airToAir, bornAndGone)
     }
 
     /** Cells that were air at both window ends — do not dump restored items into a chest that never comes back. */
@@ -181,7 +201,6 @@ private fun EntityShape.hangs(): Boolean {
             name == "leash_knot"
 }
 
-/** Painting pops if the supporting block is restored first. */
 @Unstable
 private fun EntityShape.popsWhenABlockReturns(): Boolean =
     type.value.substringAfter(':') == "painting"

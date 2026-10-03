@@ -9,4 +9,5 @@ public enum class ActionKind {
     ENTITY_SPAWN,
     ENTITY_REMOVE,
     ENTITY_CHANGE,
+    BLOCK_CLICK,
 }

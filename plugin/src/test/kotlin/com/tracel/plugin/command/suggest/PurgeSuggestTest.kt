@@ -29,7 +29,7 @@ class PurgeSuggestTest {
 
     @Test
     fun `values follow their word`() {
-        assertEquals(listOf("blocks", "items", "containers"), texts("category "))
+        assertEquals(listOf("blocks", "items", "containers", "events"), texts("category "))
         assertEquals(listOf("world", "world_nether"), texts("world "))
         assertEquals(listOf("Alice", "Bob", "Zed"), texts("player ", known = listOf("Alice", "Zed")))
         assertTrue("30d" in texts("older "))
@@ -39,8 +39,8 @@ class PurgeSuggestTest {
     fun `a category list continues after the comma and skips what it already has`() {
         val next = PurgeSuggest.suggest("category blocks,", lists)
 
-        assertEquals(listOf("blocks,items", "blocks,containers"), next.map { it.text })
-        assertEquals(listOf("items", "containers"), next.map { it.tail })
+        assertEquals(listOf("blocks,items", "blocks,containers", "blocks,events"), next.map { it.text })
+        assertEquals(listOf("items", "containers", "events"), next.map { it.tail })
     }
 
     @Test

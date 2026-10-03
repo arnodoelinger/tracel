@@ -29,8 +29,15 @@ data class ExportSummary(
     val newest: Long? = null,
 )
 
-/** The whole history as one file you can carry. */
-suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withContext(Dispatchers.IO) {
+/** Thrown out of an export or an import that was told to stop, before it changed anything that outlives it. */
+class StoppedByRequest : RuntimeException("stopped on request")
+
+/**
+ * The whole history as one file you can carry.
+ *
+ * [stopped] is polled per row; stopping leaves no file behind.
+ */
+suspend fun exportTo(storage: TracelStorage, to: Path, stopped: () -> Boolean = { false }): ExportSummary = withContext(Dispatchers.IO) {
     val temporary = to.resolveSibling("${to.fileName}.writing")
     Files.deleteIfExists(temporary)
     Files.createDirectories(to.toAbsolutePath().parent)
@@ -38,32 +45,38 @@ suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withCont
     var rows = 0L
     var oldest = Long.MAX_VALUE
     var newest = Long.MIN_VALUE
-    DataOutputStream(
-        BufferedOutputStream(ZstdOutputStream(Files.newOutputStream(temporary), 5), 1 shl 16),
-    ).use { out ->
-        out.write(MAGIC)
-        out.writeInt(VERSION)
-        rows = storage.read {
-            var written = 0L
-            eachRow(ByteArray(0)) { cursor ->
-                val key = cursor.key()
-                if (key.size == TIME_KEY_SIZE && key[0] == Keys.TIME) {
-                    val at = Keys.invert(KeyReader.u64(key, 1))
-                    if (at < oldest) oldest = at
-                    if (at > newest) newest = at
+    try {
+        DataOutputStream(
+            BufferedOutputStream(ZstdOutputStream(Files.newOutputStream(temporary), 5), 1 shl 16),
+        ).use { out ->
+            out.write(MAGIC)
+            out.writeInt(VERSION)
+            rows = storage.read {
+                var written = 0L
+                eachRow(ByteArray(0)) { cursor ->
+                    if (stopped()) throw StoppedByRequest()
+                    val key = cursor.key()
+                    if (key.size == TIME_KEY_SIZE && key[0] == Keys.TIME) {
+                        val at = Keys.invert(KeyReader.u64(key, 1))
+                        if (at < oldest) oldest = at
+                        if (at > newest) newest = at
+                    }
+                    val value = cursor.value()
+                    val bytes = value.readBytes(0, value.byteSize().toInt())
+                    out.writeInt(key.size)
+                    out.write(key)
+                    out.writeInt(bytes.size)
+                    out.write(bytes)
+                    written++
                 }
-                val value = cursor.value()
-                val bytes = value.readBytes(0, value.byteSize().toInt())
-                out.writeInt(key.size)
-                out.write(key)
-                out.writeInt(bytes.size)
-                out.write(bytes)
-                written++
+                written
             }
-            written
+            out.writeInt(-1)
+            out.writeLong(rows)
         }
-        out.writeInt(-1)
-        out.writeLong(rows)
+    } catch (failure: Throwable) {
+        Files.deleteIfExists(temporary)
+        throw failure
     }
 
     Files.move(temporary, to, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
@@ -76,12 +89,20 @@ suspend fun exportTo(storage: TracelStorage, to: Path): ExportSummary = withCont
  * Destructive. Importing a history beside another one would interleave two sets of
  * sequence numbers that were never meant to meet. The store is wiped first, so what
  * comes out is the file and nothing else.
+ *
+ * Stoppable only while the file is being checked.
  */
-suspend fun importFrom(storage: TracelStorage, from: Path): ExportSummary = withContext(Dispatchers.IO) {
+suspend fun importFrom(
+    storage: TracelStorage,
+    from: Path,
+    stopped: () -> Boolean = { false },
+    commit: () -> Boolean = { true },
+): ExportSummary = withContext(Dispatchers.IO) {
     require(Files.exists(from)) { "$from does not exist" }
 
     // Checked whole before anything is wiped, then read again straight into the store
-    val rows = eachExportedRow(from) { _, _ -> }
+    val rows = eachExportedRow(from) { _, _ -> if (stopped()) throw StoppedByRequest() }
+    if (!commit()) throw StoppedByRequest()
 
     // Nothing else writes while the store is swapped, and the IDs cached for the old one go with it:
     // a new holder given an ID the file already uses overwrote history.

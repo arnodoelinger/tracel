@@ -34,17 +34,21 @@ import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
 import com.tracel.plugin.rollback.RollbackGenius
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.material.MaterialRestorer
+import com.tracel.plugin.rollback.structure.GovernorSettings
+import com.tracel.plugin.rollback.structure.TickGovernor
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.fluid.warmFluidShapes
 import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.plugin.util.GroundWhereabouts
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
+import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.ops.Counters
+import com.tracel.storage.ports.ops.ForeignHistory
 import com.tracel.storage.ports.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
 import org.bukkit.plugin.Plugin
@@ -76,6 +80,7 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param itemForms stores item metadata needed to reconstruct items
  * @param exportDirectory directory for history exports and imports
  * @param entityRestoreLimit how many entities one rollback may bring back before it asks
+ * @param governorSettings how long a rollback may hold one region tick, at least and at most
  * @param logEntityDamage whether a blow a mob survives is written down as a change to it
  * @param paste where a lookup export goes
  * @param forwardCompatible server Minecraft is newer than the newest tested release
@@ -103,10 +108,14 @@ class TracelServices(
     val exportDirectory: Path,
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
+    governorSettings: GovernorSettings = GovernorSettings(),
     val paste: PasteSettings = PasteSettings(),
     val forwardCompatible: Boolean = false,
 ) : UnitOfWork by storage {
     val purging: AtomicBoolean = AtomicBoolean(false)
+    val governor: TickGovernor = TickGovernor(plugin, governorSettings)
+    val events: EventLog = EventLog(storage)
+    val foreign: ForeignHistory = ForeignHistory(storage, worldLog, log, events, counters)
     val purgeGate: PurgeGate = PurgeGate { composite.isRunning }
     val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }
     val shape: ShapeCapture = ShapeCapture(this)

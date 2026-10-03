@@ -4,6 +4,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.plugin.command.args.TimeArgument
+import com.tracel.plugin.rollback.structure.GovernorSettings
 import com.tracel.plugin.util.PrivateBin
 import com.tracel.storage.ports.ops.PurgeCategory
 import org.tomlj.TomlTable
@@ -19,6 +20,7 @@ internal data class Settings(
     val ringSlots: Int = TracelStorage.DEFAULT_RING_SLOTS,
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
+    val governor: GovernorSettings = GovernorSettings(),
     val paste: PasteSettings = PasteSettings(),
     val autoPurge: AutoPurgeSettings = AutoPurgeSettings(),
 )
@@ -49,6 +51,9 @@ const val DEFAULT_ENTITY_RESTORE_LIMIT = 128
 const val DEFAULT_LOG_ENTITY_DAMAGE = false
 const val DEFAULT_PASTE_URL = "https://privatebin.net"
 const val DEFAULT_PASTE_EXPIRE = "3day"
+
+private const val NANOS_PER_MILLI = 1_000_000L
+private const val TICK_MILLIS = 50L
 
 /** `Tracel` settings. */
 internal fun readSettings(
@@ -86,6 +91,18 @@ internal fun readSettings(
         it as? Boolean
     }
 
+    val governorDefaults = GovernorSettings()
+    val minTickTime = rollback.setting(
+        "rollback", "min-tick-time", governorDefaults.minNanos / NANOS_PER_MILLI, complain,
+    ) {
+        parseDuration(it.toString())?.takeIf { millis -> millis in 1..TICK_MILLIS }
+    }
+    val maxTickTime = rollback.setting(
+        "rollback", "max-tick-time", governorDefaults.maxNanos / NANOS_PER_MILLI, complain,
+    ) {
+        parseDuration(it.toString())?.takeIf { millis -> millis in minTickTime..TICK_MILLIS }
+    }
+
     val pasteUrl = paste.setting("paste", "paste-url", DEFAULT_PASTE_URL, complain) {
         it.toString().trim().takeIf { url -> runCatching { URI(url) }.getOrNull()?.scheme in setOf("http", "https") }
     }
@@ -114,6 +131,7 @@ internal fun readSettings(
         ringSlots = slots,
         entityRestoreLimit = entityRestoreLimit,
         logEntityDamage = logEntityDamage,
+        governor = GovernorSettings(minNanos = minTickTime * NANOS_PER_MILLI, maxNanos = maxTickTime * NANOS_PER_MILLI),
         paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
         autoPurge = AutoPurgeSettings(autoPurge, purgeInterval, keep),
     )

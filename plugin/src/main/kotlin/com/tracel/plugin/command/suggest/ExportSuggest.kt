@@ -6,7 +6,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** Suggestions for the file argument of `/tracel import`. */
+/** Suggestions for the file argument of `/tracel data import`. */
 internal object ExportSuggest {
     private data class Snapshot(val name: String, val kib: Long?)
 

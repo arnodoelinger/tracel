@@ -2,12 +2,15 @@ package com.tracel.plugin.command.action
 
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.ExportAction.Companion.MIB
+import com.tracel.plugin.i18n.confirmFooter
 import com.tracel.plugin.i18n.failed
+import com.tracel.plugin.i18n.info
 import com.tracel.plugin.i18n.say
 import com.tracel.plugin.i18n.send
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.i18n.unexpected
 import com.tracel.storage.ports.ops.ExportSummary
+import com.tracel.storage.ports.ops.StoppedByRequest
 import com.tracel.storage.ports.ops.importFrom
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
@@ -21,20 +24,41 @@ import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.ReadOnlyFileSystemException
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Loads a `Tracel` database snapshot back from the export directory. */
 class ImportAction(private val services: TracelServices) {
+    private val phase = AtomicInteger(IDLE)
+
+    private companion object {
+        const val IDLE = 0
+        const val CHECKING = 1
+        const val STOPPING = 2
+        const val REPLACING = 3
+    }
+
+    /** Shows what would be replaced, with the buttons that go on or take a backup first. */
+    fun preview(sender: CommandSender, fileName: String) {
+        val path = exportFile(fileName) ?: return badName(sender, fileName)
+        val locale = localeOf(sender)
+        sender.say(
+            Component.join(
+                JoinConfiguration.newlines(),
+                tr("import.preview.title"),
+                Component.empty(),
+                tr("common.label.database", "file" to fileName),
+                tr("common.label.size", "size" to "%.1f".format(locale, runCatching { Files.size(path) }.getOrDefault(0L) / MIB)),
+                info(tr("import.preview.scope")),
+                Component.empty(),
+                confirmFooter("/tracel data import $fileName"),
+            ),
+        )
+    }
+
     /** Replaces the database with the snapshot [fileName] and drops every cache that still remembers the old one. */
     fun execute(sender: CommandSender, fileName: String) {
         val path = exportFile(fileName)
-        if (path == null) {
-            sender.failed(
-                "import.failed",
-                tr("import.reason.bad_name", "file" to fileName),
-                tr("import.hint.bad_name"),
-            )
-            return
-        }
+        if (path == null) return badName(sender, fileName)
 
         if (!services.purging.compareAndSet(false, true)) {
             sender.send("common.busy")
@@ -46,12 +70,21 @@ class ImportAction(private val services: TracelServices) {
             return
         }
 
+        phase.set(CHECKING)
         sender.send("import.start", "file" to fileName)
 
         services.scope.launch {
             val done = try {
-                runCatching { importFrom(services.storage, path) }
+                runCatching {
+                    importFrom(
+                        services.storage,
+                        path,
+                        stopped = { phase.get() == STOPPING },
+                        commit = { phase.compareAndSet(CHECKING, REPLACING) },
+                    )
+                }
             } finally {
+                phase.set(IDLE)
                 services.composite.releaseGate()
                 services.purging.set(false)
             }
@@ -60,9 +93,31 @@ class ImportAction(private val services: TracelServices) {
                 services.counters.forget()
                 services.differ.forgetAll()
                 sender.say(report(it, localeOf(sender)))
-            }.onFailure { sender.fail(it) }
+            }.onFailure {
+                if (it is StoppedByRequest) sender.send("import.stopped")
+                else sender.fail(it)
+            }
         }
     }
+
+    /**
+     * Stops the import while the file is still being checked;
+     * once the old history is being replaced it is too late.
+     */
+    fun stop(sender: CommandSender) {
+        when {
+            phase.compareAndSet(CHECKING, STOPPING) -> sender.send("import.stop")
+            phase.get() == REPLACING -> sender.send("import.too_late")
+            phase.get() == STOPPING -> sender.send("import.stop")
+            else -> sender.send("import.not_running")
+        }
+    }
+
+    private fun badName(sender: CommandSender, fileName: String) = sender.failed(
+        "import.failed",
+        tr("import.reason.bad_name", "file" to fileName),
+        tr("import.hint.bad_name"),
+    )
 
     private fun exportFile(name: String): Path? {
         if (name.isBlank() || !name.endsWith(".tracel")) return null

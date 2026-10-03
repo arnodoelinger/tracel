@@ -168,6 +168,7 @@ class LookupAction(private val services: TracelServices) {
                 blocks = actions.structural && !parsed.materialOnly,
                 items = actions.material && !parsed.structureOnly,
                 flushed = flushed,
+                events = actions.events,
             )
             searches[key(sender)] = search
             show(sender, search, parsed.page)

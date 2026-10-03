@@ -7,6 +7,8 @@ import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.ComponentLike
 import net.kyori.adventure.text.JoinConfiguration
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.minimessage.tag.Tag
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
@@ -39,21 +41,34 @@ fun Audience.say(line: ComponentLike) =
  * A command that needs one more word from the player before it runs: the orange headline, what [info] says
  * about why it stops, and what to try.
  */
-fun Audience.needed(info: Component, hint: Component) = say(
+fun Audience.needed(info: Component, hint: Component, buttons: Component? = null) = say(
     Component.join(
         JoinConfiguration.newlines(),
-        tr("common.needed.title"),
-        Component.empty(),
-        tr("common.label.info", "info" to info),
-        tr("common.label.hint", "hint" to hint),
+        listOfNotNull(
+            tr("common.needed.title"),
+            Component.empty(),
+            tr("common.label.info", "info" to info),
+            tr("common.label.hint", "hint" to hint),
+            buttons?.let { Component.empty() },
+            buttons,
+        ),
     ),
 )
 
 /** `running it again with #confirm`: typed by hand, never a click away. */
 fun confirmHint(): Component = tr("common.needed.run", "command" to "#confirm")
 
-/** The command is destructive and was run without `#confirm`: says so, and how to run it for real. */
-fun Audience.confirm() = needed(tr("common.needed.destructive"), confirmHint())
+/** What closes a preview: the next step, "#confirm" (put in the chat box, never run by a click), and a backup to take first. */
+fun confirmFooter(command: String, backup: Boolean = true): Component {
+    val go = tr("common.button.continue").clickEvent(ClickEvent.suggestCommand("$command #confirm"))
+        .hoverEvent(HoverEvent.showText(tr("common.button.continue_hover")))
+    val buttons = if (!backup) go else {
+        val first = tr("common.button.backup").clickEvent(ClickEvent.suggestCommand("/tracel data export"))
+            .hoverEvent(HoverEvent.showText(tr("common.button.backup_hover")))
+        go.append(Component.space()).append(first)
+    }
+    return Component.join(JoinConfiguration.newlines(), tr("common.next.confirm"), Component.empty(), buttons)
+}
 
 /** The one line a [command] says when it is run without what it needs: how to run it. */
 fun Audience.usage(command: String) = send("common.usage", "command" to command)

@@ -3,6 +3,7 @@ package com.tracel.engine.rollback.structure
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * @return the other half of the two-block object [shape] is part of, or `null`
@@ -12,7 +13,9 @@ import com.tracel.model.world.block.BlockShape
 @Unstable
 public fun structuralPartnerOf(at: BlockPos, shape: BlockShape): BlockPos? {
     val value = shape.data.value
-    val material = value.substringBefore('[').substringAfter(':')
+
+    if (!pairing.computeIfAbsent(value) { materialOf(it).let(::pairs) }) return null
+    val material = materialOf(value)
     val props = value.blockProperties()
 
     return when {
@@ -27,6 +30,19 @@ public fun structuralPartnerOf(at: BlockPos, shape: BlockShape): BlockPos? {
         else -> null
     }
 }
+
+private val pairing = ConcurrentHashMap<String, Boolean>()
+
+private fun materialOf(value: String): String {
+    val end = value.indexOf('[').let { if (it < 0) value.length else it }
+    val start = value.indexOf(':').let { if (it in 0 until end) it + 1 else 0 }
+    return value.substring(start, end)
+}
+
+private fun pairs(material: String): Boolean =
+    material == "chest" || material == "trapped_chest" || material.endsWith("_bed") || material.endsWith("_door") ||
+            material in DOUBLE_PLANTS || material == "piston_head" || material == "piston" ||
+            material == "sticky_piston"
 
 private val DOUBLE_PLANTS = setOf(
     "sunflower", "lilac", "tall_grass", "large_fern", "rose_bush", "peony",

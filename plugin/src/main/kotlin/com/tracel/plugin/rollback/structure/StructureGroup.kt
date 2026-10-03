@@ -9,7 +9,6 @@ import com.tracel.model.world.entity.leashHolder
 import com.tracel.model.world.entity.vehicle
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.applyTo
-import com.tracel.plugin.adapter.block.isFluidShape
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.adapter.entity.*
 import com.tracel.plugin.listener.support.cell.FluidCell
@@ -21,6 +20,8 @@ import com.tracel.plugin.rollback.structure.entity.despawn
 import com.tracel.plugin.rollback.structure.fluid.fixSnowyGround
 import com.tracel.plugin.util.Warnings
 import com.tracel.plugin.util.chunkKey
+import com.tracel.plugin.util.chunkKeyX
+import com.tracel.plugin.util.chunkKeyZ
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.World
@@ -32,9 +33,9 @@ import java.util.*
 /** Other region's spawn should be done. */
 private const val REATTACH_DELAY_TICKS = 5L
 
-/** Apply group structure. */
+/** Apply group structure, a slice of a tick at a time. */
 @Unstable
-internal fun StructureRestorer.applyGroup(
+internal suspend fun StructureRestorer.applyGroup(
     world: World,
     steps: List<StructureStep>,
     force: Boolean,
@@ -43,15 +44,79 @@ internal fun StructureRestorer.applyGroup(
     ledgerHeldBy: Set<UUID>,
     dumpHeldCargo: Boolean,
     driftOnly: Boolean = false,
+    deferred: MutableCollection<StructureStep> = ArrayList(),
+): StructureReport {
+    val first = steps.firstOrNull() ?: return StructureReport.EMPTY
+    val anchor = dispatchAt(first)
+    val throttle = Throttle(services.governor, services.selfManagedWorld, world, anchor.x shr 4, anchor.z shr 4)
+    throttle.enter()
+    try {
+        return applySliced(
+            throttle, world, steps, force, keepCargoFor, ledgerCargoFor, ledgerHeldBy, dumpHeldCargo, driftOnly,
+            deferred,
+        )
+    } finally {
+        throttle.leave()
+    }
+}
+
+private suspend fun StructureRestorer.applySliced(
+    throttle: Throttle,
+    world: World,
+    steps: List<StructureStep>,
+    force: Boolean,
+    keepCargoFor: Set<UUID>,
+    ledgerCargoFor: Set<UUID>,
+    ledgerHeldBy: Set<UUID>,
+    dumpHeldCargo: Boolean,
+    driftOnly: Boolean,
+    deferred: MutableCollection<StructureStep>,
 ): StructureReport {
     val skipped = mutableListOf<SkippedStep>()
-    val applied = mutableListOf<StructureStep>()
     var overwritten = 0
     var blockEntities = 0
 
     // Folia already owns this region
     val chunks = steps.mapTo(HashSet()) { dispatchAt(it).let { at -> chunkKey(at.x, at.z) } }
     loadChunks(world, chunks)
+
+    val owned = HashMap<Long, Boolean>()
+
+    var lastKey = Long.MIN_VALUE
+    var lastOwned = false
+    fun ownsKey(key: Long): Boolean {
+        if (key == lastKey) return lastOwned
+        val answer = owned.getOrPut(key) {
+            runCatching { Bukkit.isOwnedByCurrentRegion(world, chunkKeyX(key), chunkKeyZ(key)) }.getOrDefault(false)
+        }
+        lastKey = key
+        lastOwned = answer
+        return answer
+    }
+
+    fun owns(at: BlockPos): Boolean = ownsKey(chunkKey(at.x, at.z))
+    var paste: PalettePaste? = null
+    var flushed = 0
+    val applied = mutableListOf<StructureStep>()
+
+    suspend fun hop() {
+        services.selfManagedWorld.wrote(applied.subList(flushed, applied.size).map { it.at })
+        flushed = applied.size
+        throttle.nextTick()
+        owned.clear()
+        lastKey = Long.MIN_VALUE
+    }
+
+    suspend fun entityCheckpoint() {
+        if (throttle.spent()) hop()
+    }
+
+    suspend fun blockCheckpoint() {
+        if (!throttle.spent()) return
+        paste?.pause()
+        hop()
+        paste?.resume()
+    }
 
     val blocks = steps.filterIsInstance<StructureStep.SetBlock>()
     val removals = steps.filterIsInstance<StructureStep.RemoveEntity>()
@@ -67,12 +132,19 @@ internal fun StructureRestorer.applyGroup(
 
     // Seed fluid disturbance before any write. Drain also touches fluids; a few hundred blocks
     // later water is already moving. Follow the water.
-    val wetted = blocks.filter { isFluidShape(it.target) || isFluidShape(it.expected) }
+    val wetted = blocks.filter {
+        ShapeTraits.of(it.target) and ShapeTraits.FLUID != 0 || ShapeTraits.of(it.expected) and ShapeTraits.FLUID != 0
+    }
     if (wetted.isNotEmpty()) FluidCell.disturb(wetted.map { it.at })
 
     // Despawn first
     val gone = HashSet<UUID>(removals.size)
     for (step in removals) {
+        entityCheckpoint()
+        if (!owns(dispatchAt(step))) {
+            deferred += step
+            continue
+        }
         when (val outcome = despawn(world, step, ledgerCargoFor, ledgerHeldBy)) {
             is Despawn.Removed -> {
                 gone += outcome.uuid
@@ -102,10 +174,14 @@ internal fun StructureRestorer.applyGroup(
     val (standalone, rest) = placeable.partition { it.target.standsAlone() }
     val (gravity, attached) = rest.partition { it.target.hasGravity() }
 
-    val paste = PalettePaste.tryOpen(world)
+    paste = PalettePaste.tryOpen(world)
     paste?.bind()
     try {
         fun write(step: StructureStep.SetBlock) {
+            if (!owns(step.at)) {
+                deferred += step
+                return
+            }
             val outcome = paste?.place(step, force, driftOnly) ?: run {
                 val block = world.blockAt(step.at)
                 val forced = force && (!driftOnly || block.drifted(step.expected))
@@ -127,30 +203,45 @@ internal fun StructureRestorer.applyGroup(
         }
 
         val (hanging, held) = attached.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
-        for (step in standalone + hanging + gravity) write(step)
+        for (step in standalone + hanging + gravity) {
+            write(step)
+            blockCheckpoint()
+        }
 
-        fun sweep(steps: List<StructureStep.SetBlock>): List<StructureStep.SetBlock> {
+        suspend fun sweep(steps: List<StructureStep.SetBlock>): List<StructureStep.SetBlock> {
             val left = ArrayList<StructureStep.SetBlock>()
-            for (step in steps) if (step.target.unsupportedAt(world.blockAt(step.at))) left += step else write(step)
+            for (step in steps) {
+                if (!owns(step.at)) {
+                    deferred += step
+                    continue
+                }
+                if (step.target.unsupportedAt(world.blockAt(step.at))) left += step else write(step)
+                blockCheckpoint()
+            }
             return left
         }
 
         var waiting = sweep(held.sortedBy { it.at.y })
         if (waiting.isNotEmpty()) waiting = sweep(waiting.sortedByDescending { it.at.y })
         while (waiting.isNotEmpty()) {
-            val (ready, still) = waiting.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
+            val (ready, still) = waiting.partition { owns(it.at) && !it.target.unsupportedAt(world.blockAt(it.at)) }
             if (ready.isEmpty()) break
-            ready.forEach(::write)
+            for (step in ready) {
+                write(step)
+                blockCheckpoint()
+            }
             waiting = still
         }
         for ((at) in waiting) skipped += SkippedStep(at, UNSUPPORTED)
         val unwritten = waiting.mapTo(HashSet()) { it.at }
 
-        val planned = blocks.associateBy { it.at }
+        val planned = lazy { blocks.associateBy { it.at } }
         for ((at, target) in standalone + attached + gravity) {
-            if (at in unwritten || target.isAir()) continue
-            if (paste != null) {
-                extinguish(paste, world, at, target, planned, unwritten, applied)
+            blockCheckpoint()
+            if (at in unwritten || target.isAir() || !owns(at)) continue
+            val open = paste
+            if (open != null) {
+                extinguish(open, world, at, target, planned, unwritten, applied)
             } else {
                 val block = world.blockAt(at)
                 if (block.isFire() && !target.isFire()) {
@@ -163,7 +254,7 @@ internal fun StructureRestorer.applyGroup(
                 if (!target.isFire()) {
                     val above = block.getRelative(BlockFace.UP)
                     val abovePos = at.copy(y = at.y + 1)
-                    if (above.isFire() && planned[abovePos]?.target?.isFire() != true && abovePos !in unwritten) {
+                    if (above.isFire() && planned.value[abovePos]?.target?.isFire() != true && abovePos !in unwritten) {
                         val burning = above.toShape()
                         above.paint(airBlockData())
                         applied += StructureStep.SetBlock(abovePos, BlockShape.AIR, burning)
@@ -175,8 +266,9 @@ internal fun StructureRestorer.applyGroup(
 
         // Second falling sweep: first ran before writes; a gravel wall takes long enough that the
         // world outside (physics is off (!) here) can drop more onto it.
-        if (blocks.any { it.target.hasGravity() || it.expected.hasGravity() }) {
-            for (falling in overlappingFalling(world, blocks)) {
+        val mineNow = blocks.filter { owns(it.at) }
+        if (mineNow.any { it.target.hasGravity() || it.expected.hasGravity() }) {
+            for (falling in overlappingFalling(world, mineNow)) {
                 if (!gone.add(falling.uniqueId)) continue
                 falling.dropItem = false
                 runCatching { falling.cancelDrop = true }
@@ -185,14 +277,24 @@ internal fun StructureRestorer.applyGroup(
             }
         }
 
-        fixSnowyGround(world, blocks, chunks)
+        fixSnowyGround(world, mineNow, { x, z -> chunkKey(x, z).let { it in chunks && ownsKey(it) } }) {
+            if (throttle.spent()) {
+                paste?.pause()
+                hop()
+                paste?.resume()
+            }
+        }
     } finally {
-        val blocksWritten = paste?.written ?: 0
         paste?.close()
     }
 
     val looseEnds = mutableListOf<Pair<Entity, EntityShape>>()
     for (step in spawns) {
+        entityCheckpoint()
+        if (!owns(step.at)) {
+            deferred += step
+            continue
+        }
         // Do not remove() a living hull before respawn
         val inPlace = step.expected != null
         val before = if (inPlace) null else Bukkit.getEntity(step.entity)?.takeIf { it.isValid }
@@ -210,6 +312,8 @@ internal fun StructureRestorer.applyGroup(
     // Other region's knot / boat may not exist yet. One delayed retry
     for ((hull, shape) in looseEnds) reattachLater(hull, shape)
 
+    // What the last turn wrote; the earlier ones were marked as they went
+    services.selfManagedWorld.wrote(applied.subList(flushed, applied.size).map { it.at })
     return StructureReport(applied, skipped, overwritten)
 }
 
@@ -243,7 +347,7 @@ private fun extinguish(
     world: World,
     at: BlockPos,
     target: BlockShape,
-    planned: Map<BlockPos, StructureStep.SetBlock>,
+    planned: Lazy<Map<BlockPos, StructureStep.SetBlock>>,
     unwritten: Set<BlockPos>,
     applied: MutableList<StructureStep>,
 ) {
@@ -253,9 +357,9 @@ private fun extinguish(
         if (data != null && target.extras == null) block.paint(data) else target.applyTo(block, physics = false)
     }
     if (target.isFire()) return
+    if (!paste.fireAt(world, at.x, at.y + 1, at.z)) return
     val above = at.copy(y = at.y + 1)
-    if (planned[above]?.target?.isFire() == true || above in unwritten) return
-    if (!paste.fireAt(world, above.x, above.y, above.z)) return
+    if (planned.value[above]?.target?.isFire() == true || above in unwritten) return
     val block = world.getBlockAt(above.x, above.y, above.z)
     val burning = block.toShape()
     block.paint(airBlockData())

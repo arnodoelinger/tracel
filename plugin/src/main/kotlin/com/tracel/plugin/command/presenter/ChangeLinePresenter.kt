@@ -2,6 +2,8 @@ package com.tracel.plugin.command.presenter
 
 import com.tracel.annotations.CauseKind
 import com.tracel.annotations.isBookkeeping
+import com.tracel.model.event.ActorEvent
+import com.tracel.model.event.EventKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.namesMaterial
 import com.tracel.model.transaction.Transaction
@@ -57,7 +59,7 @@ internal object ChangeLinePresenter {
         return TransitionPresenter.of(subject.before.data.value, subject.after.data.value, byEntity) == null
     }
 
-    /** A line of the log, block or item, before the lines that repeat are folded into one. */
+    /** A line of the log, block, or item, before the lines that repeat are folded into one. */
     class Logged(
         val millis: Long,
         val key: Any,
@@ -101,6 +103,35 @@ internal object ChangeLinePresenter {
             to = phrase.to,
             at = change.at,
             mode = modeOf(change.causedBy, change.epochMillis, actors),
+        )
+    }
+
+    /** The line of the log for [event]: who said, typed, joined, or disconnected. */
+    fun logged(event: ActorEvent, actors: Actors): Logged {
+        val verb = when (event.kind) {
+            EventKind.CHAT -> "said"
+            EventKind.COMMAND -> "ran"
+            EventKind.JOIN -> "joined"
+            EventKind.QUIT -> "left"
+            EventKind.DEATH -> "died"
+        }
+        val text = event.text.orEmpty()
+        return Logged(
+            millis = event.epochMillis,
+            key = listOf(event.by, event.kind, text),
+            mark = when (event.kind) {
+                EventKind.JOIN -> ItemPresenter.PLUS
+                EventKind.QUIT, EventKind.DEATH -> ItemPresenter.MINUS
+                else -> tr("common.mark.said")
+            },
+            who = who(event.by, CauseKind.PLAYER_ACTION, actors),
+            verb = lower("lookup.verb.$verb"),
+            whoText = whoText(event.by, CauseKind.PLAYER_ACTION, actors),
+            whatText = { text },
+            title = verb,
+            what = { Component.text(text) },
+            at = event.at,
+            mode = modeOf(event.by, event.epochMillis, actors),
         )
     }
 
@@ -213,7 +244,9 @@ internal object ChangeLinePresenter {
         val label = if (net == null) entry.whatText(stack.quantity) else "$total ${NamePresenter.pretty(net.material)}"
         val suffix = if (stack.count > 1) " ${superscript(stack.count)}⋆" else ""
         val fixed = Glyphs.width("${english(ago)} X ${entry.whoText} ${english(verb)} ") + Glyphs.width(suffix)
-        val what = if (Glyphs.width(label) <= Glyphs.LINE - fixed) full else Component.text(Glyphs.clip(label, Glyphs.LINE - fixed))
+        val clipped = Glyphs.width(label) > Glyphs.LINE - fixed
+        val what = if (!clipped) full else Component.text(Glyphs.clip(label, Glyphs.LINE - fixed))
+        val shown = if (!clipped) hover else listOf(Component.text(label, NamedTextColor.WHITE), Component.empty()) + hover
         val row = Component.text()
             .append(ago.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
             .append(mark).append(Component.space())
@@ -221,7 +254,7 @@ internal object ChangeLinePresenter {
             .append(verb.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
             .append(what).append(times)
             .build()
-            .hoverEvent(HoverEvent.showText(Component.join(JoinConfiguration.newlines(), hover)))
+            .hoverEvent(HoverEvent.showText(Component.join(JoinConfiguration.newlines(), shown)))
         return if (at == null) row else row.clickEvent(ClickEvent.runCommand("/tracel tp ${at.world.uuid} ${at.x} ${at.y} ${at.z}"))
     }
 
@@ -300,6 +333,7 @@ internal object ChangeLinePresenter {
             val to = NamePresenter.of(after)
             val plain = verbName(change.action)
             when {
+                change.action == ActionKind.BLOCK_CLICK -> Phrase(lower("lookup.verb.$plain"), plain, to, NamePresenter.pretty(after))
                 subject.after.isAirLike -> Phrase(lower("lookup.verb.$plain"), plain, from, NamePresenter.pretty(before))
                 subject.before.isAirLike -> Phrase(lower("lookup.verb.$plain"), plain, to, NamePresenter.pretty(after))
                 named != null -> Phrase(lower("lookup.verb.${named.key}"), named.key, if (named.result) to else from, NamePresenter.pretty(if (named.result) after else before))
@@ -347,6 +381,7 @@ internal object ChangeLinePresenter {
         ActionKind.ENTITY_SPAWN -> "spawned"
         ActionKind.ENTITY_REMOVE -> "removed"
         ActionKind.ENTITY_CHANGE -> "altered"
+        ActionKind.BLOCK_CLICK -> "clicked"
     }
 
     private fun leashName(subject: ChangeSubject.Entity): String? {
