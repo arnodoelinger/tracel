@@ -1,6 +1,7 @@
 package com.tracel.plugin.command.args
 
 import com.tracel.annotations.CauseKind
+import com.tracel.model.event.EventKind
 import com.tracel.model.world.ActionKind
 
 data class ActionFilter(
@@ -11,18 +12,21 @@ data class ActionFilter(
     val mixed: Boolean = false,
     val structural: Boolean = true,
     val material: Boolean = true,
+    val events: Set<EventKind> = emptySet(),
 )
 
 private enum class Half {
     STRUCTURE,
     MATERIAL,
-    BOTH
+    BOTH,
+    EVENT,
 }
 
 private data class ActionAlias(
     val names: Set<String>,
     val actions: Set<ActionKind> = emptySet(),
     val causes: Set<CauseKind> = emptySet(),
+    val events: Set<EventKind> = emptySet(),
     val half: Half,
 )
 
@@ -70,6 +74,13 @@ private val ALIASES: List<ActionAlias> = listOf(
         causes = setOf(CauseKind.CRAFT),
         half = Half.MATERIAL,
     ),
+    ActionAlias(names = setOf("click"), actions = setOf(ActionKind.BLOCK_CLICK), half = Half.STRUCTURE),
+    ActionAlias(names = setOf("chat"), events = setOf(EventKind.CHAT), half = Half.EVENT),
+    ActionAlias(names = setOf("command"), events = setOf(EventKind.COMMAND), half = Half.EVENT),
+    ActionAlias(names = setOf("session"), events = setOf(EventKind.JOIN, EventKind.QUIT), half = Half.EVENT),
+    ActionAlias(names = setOf("+session", "join"), events = setOf(EventKind.JOIN), half = Half.EVENT),
+    ActionAlias(names = setOf("-session", "quit"), events = setOf(EventKind.QUIT), half = Half.EVENT),
+    ActionAlias(names = setOf("death"), events = setOf(EventKind.DEATH), half = Half.EVENT),
     ActionAlias(
         names = setOf("explosion"),
         causes = setOf(CauseKind.EXPLOSION),
@@ -93,6 +104,7 @@ object ActionArgument {
         val actions = mutableSetOf<ActionKind>()
         val unknown = mutableListOf<String>()
         val halves = mutableSetOf<Half>()
+        val events = mutableSetOf<EventKind>()
 
         for (raw in names) {
             val alias = ALIAS_BY_NAME[raw.lowercase()]
@@ -100,6 +112,7 @@ object ActionArgument {
                 causes += alias.causes
                 if (alias.half == Half.BOTH) worldCauses += alias.causes
                 actions += alias.actions
+                events += alias.events
                 halves += alias.half
                 continue
             }
@@ -132,6 +145,7 @@ object ActionArgument {
             mixed = actions.isNotEmpty() && worldCauses.isNotEmpty(),
             structural = Half.STRUCTURE in halves || Half.BOTH in halves,
             material = Half.MATERIAL in halves || Half.BOTH in halves,
+            events = events,
         )
     }
 

@@ -232,6 +232,15 @@ private val ACTION_TIPS = mapOf(
     "inventory" to "container",
     "craft" to "craft",
     "explosion" to "explosion",
+    "click" to "click",
+    "chat" to "chat",
+    "command" to "command",
+    "session" to "session",
+    "+session" to "join",
+    "join" to "join",
+    "-session" to "quit",
+    "quit" to "quit",
+    "death" to "death",
 )
 
 private fun actionTip(name: String): Component =

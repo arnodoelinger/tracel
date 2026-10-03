@@ -1,6 +1,7 @@
 package com.tracel.plugin.command.action.support
 
 import com.tracel.engine.log.LookupFilter
+import com.tracel.model.event.EventKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
@@ -20,11 +21,12 @@ internal class LookupSearch(
     blocks: Boolean,
     items: Boolean,
     val flushed: Boolean,
+    events: Set<EventKind> = emptySet(),
 ) {
     /** What the sender sees of the page asked for. */
     class View(val page: Int, val rows: List<ChangeLinePresenter.Stack>, val total: Int)
 
-    val complete: Boolean get() = (world?.done ?: true) && (txns?.done ?: true)
+    val complete: Boolean get() = (world?.done ?: true) && (txns?.done ?: true) && (said?.done ?: true)
 
     private val lock = Mutex()
     private val stacks = ArrayList<ChangeLinePresenter.Stack>()
@@ -40,6 +42,11 @@ internal class LookupSearch(
     private val txns = if (items) Cursor({ until, limit ->
         services.reading { services.log.query(filter.copy(until = until, limit = limit)) }
             .also { found -> actors.learn(found.flatMap(::holdersOf)) }
+    }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
+
+    private val said = if (events.isNotEmpty()) Cursor({ until, limit ->
+        services.reading { services.events.query(filter.copy(until = until, limit = limit), events) }
+            .also { found -> actors.learn(found.map { it.by }) }
     }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
 
     /** Page [asked], with the whole search read first. */
@@ -74,13 +81,17 @@ internal class LookupSearch(
     private suspend fun pull() {
         val a = world?.head()
         val b = txns?.head()
-        val takeWorld = when {
-            a == null -> false
-            b == null -> true
-            else -> a.epochMillis > b.epochMillis || (a.epochMillis == b.epochMillis && a.seq.raw >= b.seq.raw)
+        val c = said?.head()
+        val newest = listOfNotNull(
+            a?.let { Triple(it.epochMillis, it.seq.raw, 0) },
+            b?.let { Triple(it.epochMillis, it.seq.raw, 1) },
+            c?.let { Triple(it.epochMillis, it.seq.raw, 2) },
+        ).maxWithOrNull(compareBy<Triple<Long, Long, Int>> { it.first }.thenBy { it.second }.thenByDescending { it.third }) ?: return
+        when (newest.third) {
+            0 -> world!!.drop()?.let(::add)
+            1 -> txns!!.drop()?.let(::add)
+            else -> said!!.drop()?.let { stack(ChangeLinePresenter.logged(it, actors)) }
         }
-        if (a == null && b == null) return
-        if (takeWorld) world!!.drop()?.let(::add) else txns!!.drop()?.let(::add)
     }
 
     private fun add(change: WorldChange) {
