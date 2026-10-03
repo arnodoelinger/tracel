@@ -8,6 +8,7 @@ import com.tracel.model.id.LotId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.RollbackJobId
 import com.tracel.model.id.TxnId
+import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
@@ -206,7 +207,7 @@ class PortsTest {
     fun `different counters do not share a sequence`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             assertEquals(1L, stack.counters.nextTxnId().raw)
-            assertEquals(1L, stack.counters.nextSeq().raw)
+            assertEquals(Counters.SEQ_BASE, stack.counters.nextSeq().raw)
             assertEquals(1L, stack.counters.nextLotId().raw)
         }
     }
