@@ -11,14 +11,8 @@ import com.tracel.plugin.rollback.structure.block.PalettePaste
 import com.tracel.plugin.rollback.structure.throttled
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bukkit.World
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -57,7 +51,10 @@ internal suspend fun warmForPreview(services: TracelServices, planned: Planned) 
                 chunks.map { (cx, cz) ->
                     async {
                         val loaded = runCatching { world.getChunkAtAsync(cx, cz).await() }.isSuccess
-                        if (loaded && runCatching { world.addPluginChunkTicket(cx, cz, services.plugin) }.getOrDefault(false)) {
+                        if (loaded && runCatching { world.addPluginChunkTicket(cx, cz, services.plugin) }.getOrDefault(
+                                false
+                            )
+                        ) {
                             synchronized(pinned) { pinned += Triple(world, cx, cz) }
                         }
                     }

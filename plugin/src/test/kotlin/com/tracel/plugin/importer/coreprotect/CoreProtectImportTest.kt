@@ -23,17 +23,14 @@ import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.ops.ForeignHistory
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
-import java.util.UUID
+import java.util.*
 
 class CoreProtectImportTest {
     private val overworld = WorldId(UUID(0L, 1L))
@@ -66,13 +63,22 @@ class CoreProtectImportTest {
 
         override fun itemKey(material: String, metadata: List<Any?>?): ItemKey? {
             if (material == "minecraft:removed_item") return null
-            return ItemKey(material.substringAfter(':').uppercase(), metadata?.let { com.tracel.model.item.ContentHash(it.joinToString()) })
+            return ItemKey(
+                material.substringAfter(':').uppercase(),
+                metadata?.let { com.tracel.model.item.ContentHash(it.joinToString()) })
         }
 
         override fun stack(entry: Any?): Pair<ItemKey, Int>? =
             (entry as? String)?.split('x')?.takeIf { it.size == 2 }?.let { ItemKey(it[1]) to it[0].toInt() }
 
-        override fun entitySnapshot(world: WorldId, type: String, x: Double, y: Double, z: Double, kept: List<Any?>): ByteArray =
+        override fun entitySnapshot(
+            world: WorldId,
+            type: String,
+            x: Double,
+            y: Double,
+            z: Double,
+            kept: List<Any?>
+        ): ByteArray =
             "$type:${kept.joinToString("|")}".toByteArray()
     }
 
@@ -123,12 +129,21 @@ class CoreProtectImportTest {
     private fun block(
         time: Long, user: Int, x: Int, type: Int, action: Int,
         blockData: String? = null, world: Int = 1, rolledBack: Int = 0, data: Int = 0, meta: String? = null,
-    ) = "INSERT INTO co_block VALUES ($time, $user, $world, $x, 64, 0, $type, $data, ${blob(meta)}, ${blob(blockData)}, $action, $rolledBack)"
+    ) =
+        "INSERT INTO co_block VALUES ($time, $user, $world, $x, 64, 0, $type, $data, ${blob(meta)}, ${blob(blockData)}, $action, $rolledBack)"
 
     private fun sign(time: Long, x: Int, action: Int, front: String, glow: Int = 0) =
         "INSERT INTO co_sign VALUES ($time, 1, 1, $x, 64, 0, $action, 0, 0, $glow, 0, 0, '$front', '', '', '', NULL, NULL, NULL, NULL)"
 
-    private fun container(time: Long, user: Int, x: Int, type: Int, amount: Int, action: Int, metadata: String? = null) =
+    private fun container(
+        time: Long,
+        user: Int,
+        x: Int,
+        type: Int,
+        amount: Int,
+        action: Int,
+        metadata: String? = null
+    ) =
         "INSERT INTO co_container VALUES ($time, $user, 1, $x, 64, 0, $type, 0, $amount, ${blob(metadata)}, $action, 0)"
 
     private fun item(time: Long, type: Int, amount: Int, action: Int) =
@@ -164,7 +179,11 @@ class CoreProtectImportTest {
             val stairs = "minecraft:oak_stairs[facing=north,waterlogged=true,half=bottom]"
             val history = store.at(1)
             assertEquals(listOf(1_002_000L, 1_001_000L, 1_000_000L), history.map { it.epochMillis })
-            assertEquals(BlockShape(BlockDataKey("minecraft:water[level=0]")), history[0].block().after, "a waterlogged block leaves its water")
+            assertEquals(
+                BlockShape(BlockDataKey("minecraft:water[level=0]")),
+                history[0].block().after,
+                "a waterlogged block leaves its water"
+            )
             assertEquals(stairs, history[0].block().before.data.value)
             assertEquals(BlockShape.AIR, history[1].block().before, "placed where the row before said nothing was left")
             assertEquals(stairs, history[1].block().after.data.value)
@@ -211,7 +230,11 @@ class CoreProtectImportTest {
                 listOf(ActionKind.BLOCK_BREAK, ActionKind.SIGN_EDIT, ActionKind.SIGN_EDIT, ActionKind.BLOCK_PLACE),
                 history.map { it.action },
             )
-            assertEquals("sign:bye///////:true:false", history[0].block().before.detail(), "a rollback puts the text back with the sign")
+            assertEquals(
+                "sign:bye///////:true:false",
+                history[0].block().before.detail(),
+                "a rollback puts the text back with the sign"
+            )
             assertEquals("sign:hello///////:false:false", history[1].block().before.detail())
             assertEquals("sign:bye///////:true:false", history[1].block().after.detail())
             assertNull(history[2].block().before.detail())
@@ -248,19 +271,37 @@ class CoreProtectImportTest {
             val tally = store.import(location).tally
             assertEquals(mapOf(Taken.BLOCKS to 3L, Taken.ENTITIES to 2L, Taken.DEATHS to 1L), tally.taken.toMap())
             val death = store.events.query(LookupFilter(), setOf(EventKind.DEATH)).single()
-            assertEquals(HolderId.Player(steve) to "tnt", death.by to death.text, "a player killed is a row of its own kind")
+            assertEquals(
+                HolderId.Player(steve) to "tnt",
+                death.by to death.text,
+                "a player killed is a row of its own kind"
+            )
 
             val box = HolderId.Block(overworld, 1, 64, 0)
             val (blown, placed) = store.transactions.query(LookupFilter(holders = setOf(box)))
-            assertEquals(mapOf("DIAMOND" to 8L, "DIRT" to 2L), placed.flows.associate { it.itemKey.material to it.quantity.raw })
-            assertTrue(placed.flows.all { it.source == HolderId.Player(steve) && it.destination == box }, "put down with these in it")
+            assertEquals(
+                mapOf("DIAMOND" to 8L, "DIRT" to 2L),
+                placed.flows.associate { it.itemKey.material to it.quantity.raw })
+            assertTrue(
+                placed.flows.all { it.source == HolderId.Player(steve) && it.destination == box },
+                "put down with these in it"
+            )
             assertEquals(FlowKind.BURN, blown.flows.single().kind, "nobody took them: the blast did")
             assertEquals(box, blown.flows.single().source)
-            assertTrue(store.transactions.query(LookupFilter(holders = setOf(HolderId.Block(overworld, 2, 64, 0)))).isEmpty(), "an empty box moved nothing")
+            assertTrue(
+                store.transactions.query(LookupFilter(holders = setOf(HolderId.Block(overworld, 2, 64, 0)))).isEmpty(),
+                "an empty box moved nothing"
+            )
 
             val pig = store.at(3).single().subject as ChangeSubject.Entity
-            assertEquals("minecraft:pig:baby|tame|Dolly", (pig.before!!.extras as EntityExtras.Opaque).nbt.toString(Charsets.UTF_8))
-            assertNull((store.at(4).single().subject as ChangeSubject.Entity).before!!.extras, "nothing kept of it, so only what it was")
+            assertEquals(
+                "minecraft:pig:baby|tame|Dolly",
+                (pig.before!!.extras as EntityExtras.Opaque).nbt.toString(Charsets.UTF_8)
+            )
+            assertNull(
+                (store.at(4).single().subject as ChangeSubject.Entity).before!!.extras,
+                "nothing kept of it, so only what it was"
+            )
         }
     }
 
@@ -284,7 +325,13 @@ class CoreProtectImportTest {
         Store(dir.resolve("tracel")).use { store ->
             val tally = store.import(location).tally
             assertEquals(
-                mapOf(Taken.CONTAINERS to 3L, Taken.ITEMS to 3L, Taken.SESSIONS to 2L, Taken.COMMANDS to 1L, Taken.CHAT to 1L),
+                mapOf(
+                    Taken.CONTAINERS to 3L,
+                    Taken.ITEMS to 3L,
+                    Taken.SESSIONS to 2L,
+                    Taken.COMMANDS to 1L,
+                    Taken.CHAT to 1L
+                ),
                 tally.taken.toMap(),
             )
             assertEquals(mapOf(Skipped.ITEM to 1L, Skipped.UNREADABLE to 2L), tally.skipped.toMap())
@@ -297,19 +344,30 @@ class CoreProtectImportTest {
             assertEquals(player to chest, put.flows.single().let { it.source to it.destination })
             assertEquals(5L, put.flows.single().quantity.raw)
             assertEquals(chest to player, took.flows.single().let { it.source to it.destination })
-            assertEquals("sharp", took.flows.single().itemKey.decoration?.hex, "what the item carried is part of what it is")
+            assertEquals(
+                "sharp",
+                took.flows.single().itemKey.decoration?.hex,
+                "what the item carried is part of what it is"
+            )
             assertEquals(CauseKind.HOPPER, hopper.cause)
             assertEquals(FlowKind.MINT, hopper.flows.single().kind)
-            assertTrue(moved.all { store.transactions.lotsAt(it.seq).isEmpty() }, "no lots, so nothing a rollback can move")
+            assertTrue(
+                moved.all { store.transactions.lotsAt(it.seq).isEmpty() },
+                "no lots, so nothing a rollback can move"
+            )
 
             val handled = store.transactions.query(LookupFilter(holders = setOf(player), since = 1_010_000))
-            assertEquals(listOf(FlowKind.TRANSFORM_OUT, FlowKind.MOVE, FlowKind.MOVE), handled.map { it.flows.single().kind })
+            assertEquals(
+                listOf(FlowKind.TRANSFORM_OUT, FlowKind.MOVE, FlowKind.MOVE),
+                handled.map { it.flows.single().kind })
             assertEquals(CauseKind.CRAFT, handled[0].cause)
             assertTrue(handled[1].flows.single().source is HolderId.ItemEntity, "picked up")
             assertTrue(handled[2].flows.single().destination is HolderId.ItemEntity, "dropped")
 
             val events = store.events.query(LookupFilter(holders = setOf(player)), EventKind.entries.toSet())
-            assertEquals(listOf(EventKind.QUIT, EventKind.COMMAND, EventKind.CHAT, EventKind.JOIN), events.map { it.kind })
+            assertEquals(
+                listOf(EventKind.QUIT, EventKind.COMMAND, EventKind.CHAT, EventKind.JOIN),
+                events.map { it.kind })
             assertEquals("/home", events[1].text)
             assertEquals("hi there", events[2].text)
             assertNull(events[2].at, "said in a world that is gone: the words stay, the place does not")
@@ -346,8 +404,13 @@ class CoreProtectImportTest {
         Store(dir.resolve("tracel")).use { store ->
             store.log.append(
                 WorldChange(
-                    store.counters.nextSeq(), ActionKind.BLOCK_PLACE, CauseKind.PLAYER_ACTION, HolderId.Player(steve), 5_000_000,
-                    BlockPos(overworld, 1, 64, 0), ChangeSubject.Block(BlockShape.AIR, BlockShape(BlockDataKey("minecraft:stone"))),
+                    store.counters.nextSeq(),
+                    ActionKind.BLOCK_PLACE,
+                    CauseKind.PLAYER_ACTION,
+                    HolderId.Player(steve),
+                    5_000_000,
+                    BlockPos(overworld, 1, 64, 0),
+                    ChangeSubject.Block(BlockShape.AIR, BlockShape(BlockDataKey("minecraft:stone"))),
                 ),
             )
             val tally = store.import(location).tally
@@ -390,12 +453,15 @@ class CoreProtectImportTest {
         assumeTrue(Files.isRegularFile(real))
         val lenient = object : ImportPlatform by platform {
             override fun world(name: String): WorldId = WorldId(UUID.nameUUIDFromBytes(name.toByteArray()))
-            override fun blockState(state: String): String = if (state == "minecraft:water") "minecraft:water[level=0]" else state
+            override fun blockState(state: String): String =
+                if (state == "minecraft:water") "minecraft:water[level=0]" else state
+
             override fun entityType(name: String): String = "minecraft:${name.substringAfter(':')}"
             override fun decode(blob: ByteArray): List<Any?>? = null
         }
         Store(dir).use { store ->
-            val outcome = CoreProtectDatabase.open(CoreProtectLocation.File(real)).use { store.importer(lenient).run(it, { false }) { _, _ -> } }
+            val outcome = CoreProtectDatabase.open(CoreProtectLocation.File(real))
+                .use { store.importer(lenient).run(it, { false }) { _, _ -> } }
             val tally = outcome.tally
             println("CoreProtect ${outcome.outlook.version}: ${tally.rows} rows -> ${tally.taken}, skipped ${tally.skipped}, folded ${tally.folded}, ${outcome.tookMillis} ms")
             assertEquals(outcome.outlook.lastRows.sum(), tally.rows)

@@ -42,7 +42,8 @@ class TakeRunEquivalenceTest {
 
     // The same store with the shortcut switched off: every root walks
     private class Walked(private val inner: LotRepository) : LotRepository by inner {
-        override suspend fun placedRuns(roots: Collection<LotId>): PlacedRuns = PlacedRuns(emptyList(), roots.distinct())
+        override suspend fun placedRuns(roots: Collection<LotId>): PlacedRuns =
+            PlacedRuns(emptyList(), roots.distinct())
     }
 
     private suspend fun history(stack: Stack, seed: Long): List<LotId> {
@@ -57,12 +58,21 @@ class TakeRunEquivalenceTest {
                 in 0 until 30 -> repeat(random.nextInt(1, 30)) {
                     made += stack.ledger.mint(a, item, Quantity(random.nextLong(1, 5)), stack.counters.nextTxnId()).id
                 }
+
                 in 30 until 70 -> if (have > 0) {
                     stack.ledger.move(a, b, item, Quantity(random.nextLong(1, have + 1)), stack.counters.nextTxnId())
                 }
+
                 in 70 until 80 -> if (have > 0) {
-                    stack.ledger.burn(a, item, Quantity(random.nextLong(1, have + 1)), SinkKind.LAVA, stack.counters.nextTxnId())
+                    stack.ledger.burn(
+                        a,
+                        item,
+                        Quantity(random.nextLong(1, have + 1)),
+                        SinkKind.LAVA,
+                        stack.counters.nextTxnId()
+                    )
                 }
+
                 in 80 until 88 -> if (have > 0) {
                     made += stack.ledger.craft(
                         listOf(Ingredient(a, item, Quantity(random.nextLong(1, have + 1)))),
@@ -70,6 +80,7 @@ class TakeRunEquivalenceTest {
                         stack.counters.nextTxnId(),
                     ).output.id
                 }
+
                 else -> stack.repo.relocate(a, b)
             }
         }
@@ -141,7 +152,10 @@ class TakeRunEquivalenceTest {
                 val fastPlan = (fast as RollbackOutcome.Applied).plan
                 val slowPlan = (slow as RollbackOutcome.Applied).plan
 
-                assertTrue(fastPlan.steps.any { it is RollbackStep.TakeRun }, "seed $seed: the history has to leave something to take whole")
+                assertTrue(
+                    fastPlan.steps.any { it is RollbackStep.TakeRun },
+                    "seed $seed: the history has to leave something to take whole"
+                )
                 for (step in fastPlan.steps.filterIsInstance<RollbackStep.TakeRun>()) {
                     val keys = (0 until step.size).map { runs.repo.lot(step.lotAt(it)).itemKey }.toSet()
                     assertEquals(1, keys.size, "seed $seed: a run is one item, got $keys")

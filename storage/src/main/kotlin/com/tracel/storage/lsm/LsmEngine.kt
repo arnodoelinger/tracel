@@ -10,14 +10,7 @@ import com.tracel.storage.lsm.state.replayWals
 import com.tracel.storage.lsm.write.MemTable
 import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.write.WalSet
-import com.tracel.storage.spi.Dropped
-import com.tracel.storage.spi.EngineCursor
-import com.tracel.storage.spi.EngineSnapshot
-import com.tracel.storage.spi.HistorySegment
-import com.tracel.storage.spi.Rewritten
-import com.tracel.storage.spi.EngineStats
-import com.tracel.storage.spi.KeyValueEngine
-import com.tracel.storage.spi.MutationBatch
+import com.tracel.storage.spi.*
 import java.lang.foreign.MemorySegment
 import java.nio.file.Files
 import java.nio.file.Path
@@ -399,7 +392,8 @@ class LsmEngine(
         try {
             val ids = ArrayList<Long>()
             try {
-                val readers = segmentWriter.seal(frozen, { reserveSegmentId().also { ids += it } }, retirement.horizon())
+                val readers =
+                    segmentWriter.seal(frozen, { reserveSegmentId().also { ids += it } }, retirement.horizon())
 
                 lock.withLock {
                     if (closed) {

@@ -46,10 +46,16 @@ internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep
                     }
 
                     // The settle may stir fluids around what was written; the writing itself was marked as it went
-                    services.selfManagedWorld.wrote(mine.filter { it.target.touchesFluid() || it.expected.touchesFluid() }.map { it.at })
+                    services.selfManagedWorld.wrote(mine.filter { it.target.touchesFluid() || it.expected.touchesFluid() }
+                        .map { it.at })
 
                     // Every written block is walked once more here, so it takes turns like the writing did
-                    services.governor.throttled(world, anchor.x shr 4, anchor.z shr 4, services.selfManagedWorld) { throttle ->
+                    services.governor.throttled(
+                        world,
+                        anchor.x shr 4,
+                        anchor.z shr 4,
+                        services.selfManagedWorld
+                    ) { throttle ->
                         val whole = !drain || drainFlowing(world, mine, owns)
                         settleFluids(world, mine, owns) { throttle.yieldIfSpent { owned.clear() } }
                         if (whole) StructureReport.EMPTY

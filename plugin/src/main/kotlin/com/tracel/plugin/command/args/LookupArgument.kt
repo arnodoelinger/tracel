@@ -160,7 +160,11 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
  * Parses flag tokens. A token that is no flag is read for what it looks like ([SmartInput]): `10m` is a time,
  * `20b` a scope, a name is a player, a world, an action or an item — [known] says which names exist.
  */
-internal fun parseLookupArgs(args: List<String>, nowMillis: Long, known: SuggestLists = SuggestLists()): ParsedLookupArgs =
+internal fun parseLookupArgs(
+    args: List<String>,
+    nowMillis: Long,
+    known: SuggestLists = SuggestLists()
+): ParsedLookupArgs =
     args.fold(ParsedLookupArgs()) { result, token ->
         val argument = LOOKUP_ARGUMENTS.firstOrNull { it.matches(token) }
         argument?.apply(result, token, nowMillis) ?: SmartInput.read(result, token, nowMillis, known)

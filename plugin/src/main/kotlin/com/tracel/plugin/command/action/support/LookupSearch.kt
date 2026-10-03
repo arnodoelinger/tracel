@@ -6,9 +6,10 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.TracelServices
+import com.tracel.plugin.command.action.support.LookupSearch.Companion.WINDOW
 import com.tracel.plugin.command.args.ParsedLookupArgs
-import com.tracel.plugin.command.presenter.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.Actors
+import com.tracel.plugin.command.presenter.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.LookupPresenter
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -86,7 +87,8 @@ internal class LookupSearch(
             a?.let { Triple(it.epochMillis, it.seq.raw, 0) },
             b?.let { Triple(it.epochMillis, it.seq.raw, 1) },
             c?.let { Triple(it.epochMillis, it.seq.raw, 2) },
-        ).maxWithOrNull(compareBy<Triple<Long, Long, Int>> { it.first }.thenBy { it.second }.thenByDescending { it.third }) ?: return
+        ).maxWithOrNull(compareBy<Triple<Long, Long, Int>> { it.first }.thenBy { it.second }
+            .thenByDescending { it.third }) ?: return
         when (newest.third) {
             0 -> world!!.drop()?.let(::add)
             1 -> txns!!.drop()?.let(::add)

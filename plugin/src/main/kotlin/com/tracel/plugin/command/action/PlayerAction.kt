@@ -8,12 +8,7 @@ import com.tracel.plugin.command.args.ScopeArgument
 import com.tracel.plugin.command.args.scopeProblem
 import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.PlayerReport
-import com.tracel.plugin.i18n.asReason
-import com.tracel.plugin.i18n.failed
-import com.tracel.plugin.i18n.info
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.unexpected
+import com.tracel.plugin.i18n.*
 import com.tracel.plugin.util.resolvePlayerUuid
 import com.tracel.plugin.util.toLookupRegion
 import kotlinx.coroutines.CancellationException
@@ -77,7 +72,8 @@ internal class PlayerAction(private val services: TracelServices) {
         }
     }
 
-    private fun refuse(sender: CommandSender, reason: Component) = sender.failed("player.failed", reason, tr("common.hint.fix_flags", "command" to "player"))
+    private fun refuse(sender: CommandSender, reason: Component) =
+        sender.failed("player.failed", reason, tr("common.hint.fix_flags", "command" to "player"))
 
     private fun render(
         sender: CommandSender,
@@ -87,7 +83,8 @@ internal class PlayerAction(private val services: TracelServices) {
         scope: String?,
     ) {
         val span = shortSpan(window)
-        val head = mutableListOf(tr("player.title", "name" to name), Component.empty(), tr("player.window", "span" to span))
+        val head =
+            mutableListOf(tr("player.title", "name" to name), Component.empty(), tr("player.window", "span" to span))
         scope?.let { head += tr("player.scope", "scope" to it) }
         if (r.records == 0) {
             head += info(tr("player.empty"))
@@ -96,7 +93,11 @@ internal class PlayerAction(private val services: TracelServices) {
         }
         head += tr("player.records", "records" to r.records)
         val now = System.currentTimeMillis()
-        head += tr("player.active", "first" to shortSpan(now - (r.firstAt ?: now)), "last" to shortSpan(now - (r.lastAt ?: now)))
+        head += tr(
+            "player.active",
+            "first" to shortSpan(now - (r.firstAt ?: now)),
+            "last" to shortSpan(now - (r.lastAt ?: now))
+        )
         r.hotspot?.let { spot -> head += tr("player.busiest", "x" to spot.x, "y" to spot.y, "z" to spot.z) }
 
         val lines = buildList {
@@ -119,7 +120,16 @@ internal class PlayerAction(private val services: TracelServices) {
                 add(
                     tr("player.button.tp")
                         .clickEvent(ClickEvent.suggestCommand("/tp ${spot.x} ${spot.y} ${spot.z}"))
-                        .hoverEvent(HoverEvent.showText(tr("player.button.tp_hover", "x" to spot.x, "y" to spot.y, "z" to spot.z))),
+                        .hoverEvent(
+                            HoverEvent.showText(
+                                tr(
+                                    "player.button.tp_hover",
+                                    "x" to spot.x,
+                                    "y" to spot.y,
+                                    "z" to spot.z
+                                )
+                            )
+                        ),
                 )
             }
             add(

@@ -50,7 +50,9 @@ internal object PurgeArgument {
                     }
                     if (!seen.add(word)) errors += tr("purge.reason.twice", "flag" to word)
                     args = when (word) {
-                        CATEGORY -> categories(value, errors)?.let { args.copy(categories = args.categories + it) } ?: args
+                        CATEGORY -> categories(value, errors)?.let { args.copy(categories = args.categories + it) }
+                            ?: args
+
                         OLDER -> span(value, errors)?.let { args.copy(olderMillis = it) } ?: args
                         WORLD -> args.copy(world = value)
                         else -> args.copy(player = value)

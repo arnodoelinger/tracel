@@ -8,7 +8,7 @@ import net.kyori.adventure.translation.GlobalTranslator
 import org.bukkit.plugin.Plugin
 import java.io.File
 import java.io.InputStream
-import java.util.Locale
+import java.util.*
 
 /** `Tracel`'s texts. */
 object Messages {

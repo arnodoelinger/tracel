@@ -180,7 +180,13 @@ internal suspend fun MaterialRestorer.spawnReturnedDrops(
             withContext(services.schedulers.region(group.first().value)) {
                 group.map { (holder, at) ->
                     holder to inRegion {
-                        spawnReturnedDrop(holder, work.getValue(holder), at, forms, sink)?.let { ApplyResult.Failed(it) }
+                        spawnReturnedDrop(
+                            holder,
+                            work.getValue(holder),
+                            at,
+                            forms,
+                            sink
+                        )?.let { ApplyResult.Failed(it) }
                     }
                 }
             }

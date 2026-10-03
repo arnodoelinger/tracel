@@ -15,7 +15,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.minimessage.translation.Argument
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator
-import java.util.Locale
+import java.util.*
 import kotlin.math.abs
 
 private val MESSAGES: MessageComponentSerializer? = runCatching { MessageComponentSerializer.message() }.getOrNull()
@@ -136,5 +136,12 @@ private fun argument(name: String, value: Any?): ComponentLike = when (value) {
 
 private fun plural(name: String, value: Number): TagResolver = TagResolver.resolver(name) { args, _ ->
     val forms = generateSequence { if (args.hasNext()) args.pop().value() else null }.toList()
-    Tag.inserting(Component.text(if (forms.isEmpty()) value.toString() else forms[pluralForm(value.toLong(), forms.size)]))
+    Tag.inserting(
+        Component.text(
+            if (forms.isEmpty()) value.toString() else forms[pluralForm(
+                value.toLong(),
+                forms.size
+            )]
+        )
+    )
 }

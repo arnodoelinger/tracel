@@ -4,11 +4,10 @@ import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.LongArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.mojang.brigadier.context.CommandContext
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.*
 import com.tracel.plugin.command.action.support.NothingWeCanDo
-import com.tracel.plugin.command.action.PresetAction
-import com.tracel.plugin.command.action.PlayerAction
 import com.tracel.plugin.command.args.LookupScope
 import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.highlight.Highlights
@@ -17,32 +16,18 @@ import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.preset.PresetStore
 import com.tracel.plugin.command.preset.Presets
 import com.tracel.plugin.command.preset.parseWithPresets
-import com.tracel.plugin.command.suggest.ExportSuggest
-import com.tracel.plugin.command.suggest.LookupSuggest
-import com.tracel.plugin.command.suggest.PlayerNameSuggest
-import com.tracel.plugin.command.suggest.PresetNameSuggest
-import com.tracel.plugin.command.suggest.PresetOwnedSuggest
-import com.tracel.plugin.command.suggest.PresetAddFlagsSuggest
-import com.tracel.plugin.command.suggest.PresetAddNameSuggest
-import com.tracel.plugin.command.suggest.PurgeSuggest
-import com.tracel.plugin.command.suggest.RollbackSuggest
-import com.tracel.plugin.command.suggest.liveLists
-import com.tracel.plugin.i18n.failed
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.usage
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.command.suggest.*
+import com.tracel.plugin.i18n.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
-import com.mojang.brigadier.context.CommandContext
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
-import java.util.UUID
+import java.util.*
 
 /** `Tracel` commands. */
 object TracelCommand {
@@ -110,11 +95,19 @@ object TracelCommand {
                     executesCommand { ctx ->
                         val tokens = tokens(StringArgumentType.getString(ctx, "flags"))
                         if ("#export" in tokens) return@executesCommand lookup.export(ctx.source.sender)
-                        if ("#refresh" in tokens) return@executesCommand refresh(ctx.source.sender, tokens, store, lookup)
+                        if ("#refresh" in tokens) return@executesCommand refresh(
+                            ctx.source.sender,
+                            tokens,
+                            store,
+                            lookup
+                        )
                         val turned = tokens.singleOrNull()?.takeIf { it.startsWith("p:") || it.startsWith("page:") }
                             ?.substringAfter(':')?.toIntOrNull()
                         if (turned != null && turned >= 1) lookup.turn(ctx.source.sender, turned)
-                        else lookup.execute(ctx.source.sender, parsePresetted(ctx.source.sender, tokens, store).rerunnable("lookup", tokens))
+                        else lookup.execute(
+                            ctx.source.sender,
+                            parsePresetted(ctx.source.sender, tokens, store).rerunnable("lookup", tokens)
+                        )
                     }
                 }
             }
@@ -160,28 +153,48 @@ object TracelCommand {
                     executesCommand { ctx -> ctx.source.sender.usage("preset show") }
                     argument("name", StringArgumentType.word()) {
                         suggests(PresetNameSuggest)
-                        executesCommand { ctx -> presets.show(ctx.source.sender, StringArgumentType.getString(ctx, "name")) }
+                        executesCommand { ctx ->
+                            presets.show(
+                                ctx.source.sender,
+                                StringArgumentType.getString(ctx, "name")
+                            )
+                        }
                     }
                 }
                 literal("share", tr("command.preset_share")) {
                     executesCommand { ctx -> ctx.source.sender.usage("preset share") }
                     argument("name", StringArgumentType.word()) {
                         suggests(PresetOwnedSuggest(server = false))
-                        executesCommand { ctx -> presets.share(ctx.source.sender, StringArgumentType.getString(ctx, "name")) }
+                        executesCommand { ctx ->
+                            presets.share(
+                                ctx.source.sender,
+                                StringArgumentType.getString(ctx, "name")
+                            )
+                        }
                     }
                 }
                 literal("unshare", tr("command.preset_unshare")) {
                     executesCommand { ctx -> ctx.source.sender.usage("preset unshare") }
                     argument("name", StringArgumentType.word()) {
                         suggests(PresetOwnedSuggest(server = true))
-                        executesCommand { ctx -> presets.unshare(ctx.source.sender, StringArgumentType.getString(ctx, "name")) }
+                        executesCommand { ctx ->
+                            presets.unshare(
+                                ctx.source.sender,
+                                StringArgumentType.getString(ctx, "name")
+                            )
+                        }
                     }
                 }
                 literal("delete", tr("command.preset_delete")) {
                     executesCommand { ctx -> ctx.source.sender.usage("preset delete") }
                     argument("name", StringArgumentType.word()) {
                         suggests(PresetNameSuggest)
-                        executesCommand { ctx -> presets.delete(ctx.source.sender, StringArgumentType.getString(ctx, "name")) }
+                        executesCommand { ctx ->
+                            presets.delete(
+                                ctx.source.sender,
+                                StringArgumentType.getString(ctx, "name")
+                            )
+                        }
                     }
                 }
             }
@@ -204,7 +217,11 @@ object TracelCommand {
                 argument("player", StringArgumentType.word()) {
                     suggests(PlayerNameSuggest)
                     executesCommand { ctx ->
-                        player.execute(ctx.source.sender, StringArgumentType.getString(ctx, "player"), ParsedLookupArgs())
+                        player.execute(
+                            ctx.source.sender,
+                            StringArgumentType.getString(ctx, "player"),
+                            ParsedLookupArgs()
+                        )
                     }
                     argument("flags", StringArgumentType.greedyString()) {
                         suggests(LookupSuggest)
@@ -246,7 +263,12 @@ object TracelCommand {
                     }
                     argument("file", StringArgumentType.string()) {
                         suggests(ExportSuggest.suggesting(services.exportDirectory))
-                        executesCommand { ctx -> import.preview(ctx.source.sender, StringArgumentType.getString(ctx, "file")) }
+                        executesCommand { ctx ->
+                            import.preview(
+                                ctx.source.sender,
+                                StringArgumentType.getString(ctx, "file")
+                            )
+                        }
                         literal("#confirm", tr("command.import_confirm")) {
                             executesCommand { ctx ->
                                 val file = StringArgumentType.getString(ctx, "file")
@@ -302,7 +324,8 @@ object TracelCommand {
 
     private fun teleport(ctx: CommandContext<CommandSourceStack>) {
         val player = ctx.source.sender as? Player ?: return
-        val world = runCatching { Bukkit.getWorld(UUID.fromString(StringArgumentType.getString(ctx, "world"))) }.getOrNull()
+        val world =
+            runCatching { Bukkit.getWorld(UUID.fromString(StringArgumentType.getString(ctx, "world"))) }.getOrNull()
         if (world == null) return player.failed("tp.failed", tr("tp.reason.no_world"), tr("tp.hint.no_world"))
         val at = Location(
             world,
@@ -317,10 +340,12 @@ object TracelCommand {
 
     private fun refresh(sender: CommandSender, flags: List<String>, store: PresetStore, lookup: LookupAction) {
         val (command, anchor) = lookup.last(sender) ?: return sender.send("lookup.no_search")
-        val page = flags.firstNotNullOfOrNull { it.removePrefix("p:").toIntOrNull()?.takeIf { _ -> it.startsWith("p:") } } ?: 1
+        val page =
+            flags.firstNotNullOfOrNull { it.removePrefix("p:").toIntOrNull()?.takeIf { _ -> it.startsWith("p:") } } ?: 1
         val words = tokens(command)
         val tokens = words.drop(1)
-        val parsed = if (words.first() == "near") nearby(sender, tokens, store) else parsePresetted(sender, tokens, store)
+        val parsed =
+            if (words.first() == "near") nearby(sender, tokens, store) else parsePresetted(sender, tokens, store)
         lookup.execute(sender, parsed.rerunnable(words.first(), tokens).copy(page = page, anchor = anchor))
     }
 
@@ -346,7 +371,11 @@ object TracelCommand {
     )
 
     private fun ParsedLookupArgs.rerunnable(name: String, tokens: List<String>) =
-        copy(command = (listOf(name) + tokens.filterNot { it.startsWith("page:") || it.startsWith("p:") }).joinToString(" "))
+        copy(
+            command = (listOf(name) + tokens.filterNot { it.startsWith("page:") || it.startsWith("p:") }).joinToString(
+                " "
+            )
+        )
 
     private fun tokens(line: String): List<String> =
         line.trim().split(Regex("\\s+")).filter { it.isNotBlank() }

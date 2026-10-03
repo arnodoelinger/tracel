@@ -57,7 +57,8 @@ class EventLog(private val storage: TracelStorage) {
         val holderIds = filter.holders.map { interning.findHolderId(this, it) ?: return@map null }
         if (filter.holders.isNotEmpty() && holderIds.all { it == null }) return@read emptyList()
         val excluded = filter.excludedHolders.mapNotNullTo(HashSet()) { interning.findHolderId(this, it) }
-        val worldId = (filter.region?.world ?: filter.world)?.let { interning.findWorldId(this, it) ?: return@read emptyList() }
+        val worldId =
+            (filter.region?.world ?: filter.world)?.let { interning.findWorldId(this, it) ?: return@read emptyList() }
         val until = filter.until ?: Long.MAX_VALUE
         val want = filter.offset.toLong() + filter.limit
 
@@ -103,7 +104,12 @@ class EventLog(private val storage: TracelStorage) {
             kind = EventKind.entries[record.i8(KIND).toInt()],
             by = if (byId == 0) null else interning.resolveHolder(unit, byId),
             epochMillis = record.i64(EPOCH),
-            at = if (worldId == 0) null else BlockPos(interning.resolveWorld(unit, worldId), record.i32(X), record.i32(Y), record.i32(Z)),
+            at = if (worldId == 0) null else BlockPos(
+                interning.resolveWorld(unit, worldId),
+                record.i32(X),
+                record.i32(Y),
+                record.i32(Z)
+            ),
             text = if (length == 0) null else record.readBytes(HEADER_BYTES.toLong(), length).toString(Charsets.UTF_8),
         )
     }

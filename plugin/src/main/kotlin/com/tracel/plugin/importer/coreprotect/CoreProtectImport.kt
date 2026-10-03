@@ -5,7 +5,6 @@ import com.tracel.storage.ports.ops.ImportMark
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 
 /**
  * What an import is about to do, or did.
@@ -22,7 +21,8 @@ class ImportOutlook(
     val ownSince: Long?,
 ) {
     /** The rows of each table still to read, counted by row number. */
-    val left: List<Long> = lastRows.mapIndexed { i, last -> (last - (resumed?.rows?.getOrNull(i) ?: 0L)).coerceAtLeast(0) }
+    val left: List<Long> =
+        lastRows.mapIndexed { i, last -> (last - (resumed?.rows?.getOrNull(i) ?: 0L)).coerceAtLeast(0) }
 }
 
 /** How an import ended. */
@@ -59,7 +59,14 @@ class CoreProtectImport(
         val started = System.currentTimeMillis()
         val source = database.fingerprint()
         val outlook = outlook(database)
-        val translator = CoreProtectTranslator(database.tables(), platform, source, outlook.ownSince ?: started, database::skull, database::entity)
+        val translator = CoreProtectTranslator(
+            database.tables(),
+            platform,
+            source,
+            outlook.ownSince ?: started,
+            database::skull,
+            database::entity
+        )
         val stream = CoreProtectStream(database, outlook.resumed?.rows.orEmpty(), outlook.lastRows)
         val total = stream.left
 

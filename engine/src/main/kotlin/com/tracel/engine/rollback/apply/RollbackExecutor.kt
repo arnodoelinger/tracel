@@ -104,7 +104,13 @@ public class RollbackExecutor(
                             }
                             sent.merge(uniform ?: target.destinationFor(plan, lot), quantity, Long::plus)
                         }
-                        for ((to, quantity) in sent) flows += Flow(itemKey, Quantity(quantity), done.holder, to, FlowKind.MOVE)
+                        for ((to, quantity) in sent) flows += Flow(
+                            itemKey,
+                            Quantity(quantity),
+                            done.holder,
+                            to,
+                            FlowKind.MOVE
+                        )
                     }
 
                     else -> error("a batch of takes held a ${done::class.simpleName}")

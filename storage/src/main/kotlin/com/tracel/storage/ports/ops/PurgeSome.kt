@@ -16,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.lang.foreign.MemorySegment
 import java.nio.ByteBuffer
-import java.util.UUID
+import java.util.*
 
 /** Runs [it] immediately, without waiting for anything. */
 private val IMMEDIATELY: Around = { it() }
@@ -182,7 +182,14 @@ private suspend fun purge(storage: TracelStorage, spec: PurgeSpec, apply: Boolea
                 if (analysis.matched == 0L) return@around
                 if (apply) {
                     val done = withContext(Dispatchers.IO) {
-                        storage.engine.rewriteSegment(segment.id) { key, value -> !doomed(analysis, category, key, value) }
+                        storage.engine.rewriteSegment(segment.id) { key, value ->
+                            !doomed(
+                                analysis,
+                                category,
+                                key,
+                                value
+                            )
+                        }
                     }
                     rows += done.rowsRemoved
                     bytes += done.bytesFreed
@@ -209,7 +216,12 @@ private fun doomed(analysis: Analysis, category: PurgeCategory, key: ByteArray, 
     return seq >= 0 && analysis.seqs?.contains(seq) == true
 }
 
-private suspend fun countRows(storage: TracelStorage, category: PurgeCategory, segment: HistorySegment, analysis: Analysis): Long =
+private suspend fun countRows(
+    storage: TracelStorage,
+    category: PurgeCategory,
+    segment: HistorySegment,
+    analysis: Analysis
+): Long =
     storage.read {
         storage.engine.readSegment(segment.id, ByteArray(0)) { cursor ->
             var rows = 0L

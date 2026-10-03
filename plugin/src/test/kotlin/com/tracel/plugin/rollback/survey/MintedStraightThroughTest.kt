@@ -63,7 +63,11 @@ class MintedStraightThroughTest {
             val passedThrough = txn.mintedStraightThrough()
             for (flow in txn.flows) roots.rootedByFlow(lot, flow.source, passedThrough)
         }
-        assertEquals(worldgen, roots[lot], "not the pile it was picked up from: the mob comes back, its meat does not spill")
+        assertEquals(
+            worldgen,
+            roots[lot],
+            "not the pile it was picked up from: the mob comes back, its meat does not spill"
+        )
     }
 
     @Test

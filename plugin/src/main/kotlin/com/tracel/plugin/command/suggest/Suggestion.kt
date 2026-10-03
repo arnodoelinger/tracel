@@ -1,7 +1,6 @@
 package com.tracel.plugin.command.suggest
 
 import com.mojang.brigadier.context.StringRange
-import com.mojang.brigadier.suggestion.Suggestion as BrigadierSuggestion
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.tracel.plugin.command.args.ActionArgument
@@ -14,6 +13,7 @@ import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.util.concurrent.CompletableFuture
+import com.mojang.brigadier.suggestion.Suggestion as BrigadierSuggestion
 
 /**
  * One tab entry.

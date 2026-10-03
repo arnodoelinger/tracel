@@ -15,7 +15,9 @@ import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/** Server methods used to read and write a chunk section. */
+/**
+ * Server methods used to read and write a chunk section.
+ */
 final class PasteBridge {
     private static final Logger LOG = Logger.getLogger("Tracel");
     private static volatile PasteBridge bridge;
@@ -216,7 +218,6 @@ final class PasteBridge {
         LOG.log(Level.WARNING, "direct section paste is unavailable; rollbacks will write blocks through bukkit", failure);
     }
 
-    /** {@code Paper} keeps these on {@code Level}. {@code Folia} does not, and a missing field must not disable the paste. */
     private static MethodHandle optionalBoolean(MethodHandles.Lookup lookup, Class<?> owner, String name) {
         try {
             return lookup.findGetter(owner, name, boolean.class)

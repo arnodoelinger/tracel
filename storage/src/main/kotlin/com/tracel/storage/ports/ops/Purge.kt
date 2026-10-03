@@ -55,7 +55,11 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
             )
         }, durable = true)
         storage.reloadInterning()
-        PurgeSummary(total - kept.size, bytes, oldest.takeIf { it != Long.MAX_VALUE }, newest.takeIf { it != Long.MIN_VALUE })
+        PurgeSummary(
+            total - kept.size,
+            bytes,
+            oldest.takeIf { it != Long.MAX_VALUE },
+            newest.takeIf { it != Long.MIN_VALUE })
     }
 }
 

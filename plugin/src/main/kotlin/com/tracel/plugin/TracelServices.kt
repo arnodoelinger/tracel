@@ -1,7 +1,5 @@
 package com.tracel.plugin
 
-import com.tracel.plugin.command.action.support.PurgeGate
-import java.util.concurrent.atomic.AtomicBoolean
 import com.tracel.engine.capture.CaptureCoordinator
 import com.tracel.engine.capture.SnapshotDiffer
 import com.tracel.engine.capture.WearCapture
@@ -18,9 +16,9 @@ import com.tracel.engine.world.WorldCaptureCoordinator
 import com.tracel.engine.world.WorldLog
 import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
-import com.tracel.storage.ports.actor.ActorFacts
-import com.tracel.plugin.command.action.LookupAction
 import com.tracel.plugin.adapter.world.playerIsOnline
+import com.tracel.plugin.command.action.LookupAction
+import com.tracel.plugin.command.action.support.PurgeGate
 import com.tracel.plugin.listener.MaterialCapture
 import com.tracel.plugin.listener.ShapeCapture
 import com.tracel.plugin.listener.session.InspectorState
@@ -35,13 +33,14 @@ import com.tracel.plugin.rollback.RollbackGenius
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.structure.GovernorSettings
-import com.tracel.plugin.rollback.structure.TickGovernor
 import com.tracel.plugin.rollback.structure.StructureRestorer
+import com.tracel.plugin.rollback.structure.TickGovernor
 import com.tracel.plugin.rollback.structure.fluid.warmFluidShapes
 import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.plugin.util.GroundWhereabouts
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
+import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.ledger.ItemForms
@@ -53,6 +52,7 @@ import com.tracel.storage.ports.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
 import org.bukkit.plugin.Plugin
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val WHEREABOUTS_KEPT = 200_000
 

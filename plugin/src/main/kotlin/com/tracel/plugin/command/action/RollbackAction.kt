@@ -11,14 +11,7 @@ import com.tracel.plugin.command.presenter.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
 import com.tracel.plugin.command.presenter.RollbackPresenter.resurrections
-import com.tracel.plugin.i18n.confirmHint
-import com.tracel.plugin.i18n.needed
-import com.tracel.plugin.i18n.asReason
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.info
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.unexpected
+import com.tracel.plugin.i18n.*
 import com.tracel.plugin.rollback.composer.warmForPreview
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -62,18 +55,30 @@ class RollbackAction internal constructor(
         // TODO: add more guards
 
         if (parsed.errors.isNotEmpty()) {
-            RollbackPresenter.refused(sender, parsed.errors.asReason(), tr("common.hint.fix_flags", "command" to "rollback"))
+            RollbackPresenter.refused(
+                sender,
+                parsed.errors.asReason(),
+                tr("common.hint.fix_flags", "command" to "rollback")
+            )
             return
         }
 
         if (parsed.structureOnly && parsed.materialOnly) {
-            RollbackPresenter.refused(sender, tr("rollback.reason.opposites"), tr("common.hint.fix_flags", "command" to "rollback"))
+            RollbackPresenter.refused(
+                sender,
+                tr("rollback.reason.opposites"),
+                tr("common.hint.fix_flags", "command" to "rollback")
+            )
             return
         }
 
         when (val filter = RollbackArgument.build(sender, parsed, limit = Int.MAX_VALUE)) {
             is FilterResult.Rejected -> {
-                RollbackPresenter.refused(sender, filter.reasons.asReason(), tr("common.hint.fix_flags", "command" to "rollback"))
+                RollbackPresenter.refused(
+                    sender,
+                    filter.reasons.asReason(),
+                    tr("common.hint.fix_flags", "command" to "rollback")
+                )
             }
 
             is FilterResult.Ok -> if (!services.composite.claimGate()) {
@@ -100,7 +105,11 @@ class RollbackAction internal constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
-                RollbackPresenter.refused(sender, tr("rollback.reason.plan_failed", "reason" to unexpected(failure)), tr("rollback.hint.again"))
+                RollbackPresenter.refused(
+                    sender,
+                    tr("rollback.reason.plan_failed", "reason" to unexpected(failure)),
+                    tr("rollback.hint.again")
+                )
                 null
             }
         }
@@ -186,7 +195,15 @@ class RollbackAction internal constructor(
                 }
 
                 is Unreachable -> {
-                    RollbackPresenter.refused(sender, tr("rollback.reason.unreachable", "holder" to ChangeLinePresenter.holder(outcome.holder), "reason" to outcome.reason), tr("rollback.hint.unreachable"))
+                    RollbackPresenter.refused(
+                        sender,
+                        tr(
+                            "rollback.reason.unreachable",
+                            "holder" to ChangeLinePresenter.holder(outcome.holder),
+                            "reason" to outcome.reason
+                        ),
+                        tr("rollback.hint.unreachable")
+                    )
                     return
                 }
 
@@ -198,7 +215,11 @@ class RollbackAction internal constructor(
                 RollbackResult.Stale -> attempt = replan() ?: return
             }
         }
-        RollbackPresenter.refused(sender, tr("rollback.reason.stale", "attempts" to STALE_ATTEMPTS), tr("rollback.hint.stale"))
+        RollbackPresenter.refused(
+            sender,
+            tr("rollback.reason.stale", "attempts" to STALE_ATTEMPTS),
+            tr("rollback.hint.stale")
+        )
     }
 
     private fun askedAboutEntities(sender: CommandSender, planned: Planned, confirmed: Boolean): Boolean {
@@ -206,7 +227,12 @@ class RollbackAction internal constructor(
         val spawns = planned.composite.create.resurrections()
         if (spawns.size <= services.entityRestoreLimit) return false
         sender.needed(
-            info = tr("rollback.entities", "count" to spawns.size, "mostly" to mostly(spawns), "limit" to services.entityRestoreLimit),
+            info = tr(
+                "rollback.entities",
+                "count" to spawns.size,
+                "mostly" to mostly(spawns),
+                "limit" to services.entityRestoreLimit
+            ),
             hint = confirmHint(),
         )
         return true

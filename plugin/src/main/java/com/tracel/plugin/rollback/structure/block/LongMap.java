@@ -1,6 +1,10 @@
 package com.tracel.plugin.rollback.structure.block;
 
-/** Open-addressed map from a packed chunk key to a non-null value. A null slot is empty. */
+/**
+ * Open-addressed map from a packed chunk key to a non-null value.
+ *
+ * A `null` slot is empty.
+ */
 final class LongMap<T> {
     private long[] keys = new long[16];
     private Object[] values = new Object[16];

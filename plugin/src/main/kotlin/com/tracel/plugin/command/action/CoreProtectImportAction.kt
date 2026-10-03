@@ -2,21 +2,8 @@ package com.tracel.plugin.command.action
 
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.ExportAction.Companion.records
-import com.tracel.plugin.i18n.confirmFooter
-import com.tracel.plugin.i18n.failed
-import com.tracel.plugin.i18n.info
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.tryHint
-import com.tracel.plugin.i18n.unexpected
-import com.tracel.plugin.importer.coreprotect.CoreProtectDatabase
-import com.tracel.plugin.importer.coreprotect.CoreProtectImport
-import com.tracel.plugin.importer.coreprotect.CoreProtectLocation
-import com.tracel.plugin.importer.coreprotect.CoreProtectLocator
-import com.tracel.plugin.importer.coreprotect.ImportOutcome
-import com.tracel.plugin.importer.coreprotect.ImportOutlook
-import com.tracel.plugin.importer.coreprotect.ServerImportPlatform
+import com.tracel.plugin.i18n.*
+import com.tracel.plugin.importer.coreprotect.*
 import com.tracel.storage.ports.ops.NoRoomForImport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +13,7 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import java.util.Locale
+import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Level
 
@@ -46,7 +33,8 @@ class CoreProtectImportAction(private val services: TracelServices) {
         val location = locate(sender) ?: return
         services.scope.launch {
             try {
-                val outlook = withContext(Dispatchers.IO) { CoreProtectDatabase.open(location).use { importer.outlook(it) } }
+                val outlook =
+                    withContext(Dispatchers.IO) { CoreProtectDatabase.open(location).use { importer.outlook(it) } }
                 sender.say(card(outlook, location, localeOf(sender)))
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -88,7 +76,11 @@ class CoreProtectImportAction(private val services: TracelServices) {
                 sender.say(report(outcome, locale))
                 services.plugin.logger.info(
                     "CoreProtect import ${if (outcome.stopped) "paused" else "finished"}: " +
-                            "${outcome.tally.taken.values.sum()} record(s) from ${outcome.tally.rows} row(s), ${shortSpan(outcome.tookMillis)}."
+                            "${outcome.tally.taken.values.sum()} record(s) from ${outcome.tally.rows} row(s), ${
+                                shortSpan(
+                                    outcome.tookMillis
+                                )
+                            }."
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -112,7 +104,11 @@ class CoreProtectImportAction(private val services: TracelServices) {
         val plugins = services.plugin.dataFolder.toPath().toAbsolutePath().parent
         val found = CoreProtectLocator.find(plugins)
         if (found == null) {
-            sender.failed("import.failed", tr("import.coreprotect.reason.not_found"), tr("import.coreprotect.hint.not_found"))
+            sender.failed(
+                "import.failed",
+                tr("import.coreprotect.reason.not_found"),
+                tr("import.coreprotect.hint.not_found")
+            )
         }
         return found
     }
@@ -124,7 +120,14 @@ class CoreProtectImportAction(private val services: TracelServices) {
             Component.empty(),
             tr("common.label.database", "file" to location.toString()),
         )
-        outlook.span?.let { (oldest, newest) -> records("common.label.records", oldest * MILLIS, newest * MILLIS, locale)?.let { lines += it } }
+        outlook.span?.let { (oldest, newest) ->
+            records(
+                "common.label.records",
+                oldest * MILLIS,
+                newest * MILLIS,
+                locale
+            )?.let { lines += it }
+        }
         lines += tr("common.label.rows", "rows" to count(left, locale))
         lines += Component.empty()
         if (left <= 0) {
@@ -139,9 +142,15 @@ class CoreProtectImportAction(private val services: TracelServices) {
 
     private fun report(outcome: ImportOutcome, locale: Locale): Component {
         val tally = outcome.tally
-        val lines = mutableListOf(tr(if (outcome.stopped) "import.coreprotect.paused" else "import.done"), Component.empty())
+        val lines =
+            mutableListOf(tr(if (outcome.stopped) "import.coreprotect.paused" else "import.done"), Component.empty())
         lines += tr("import.coreprotect.taken", "count" to count(tally.taken.values.sum().toLong(), locale))
-        if (tally.oldest <= tally.newest) records("common.label.records", tally.oldest, tally.newest, locale)?.let { lines += it }
+        if (tally.oldest <= tally.newest) records(
+            "common.label.records",
+            tally.oldest,
+            tally.newest,
+            locale
+        )?.let { lines += it }
         val skipped = tally.skipped.values.sum().toLong()
         if (skipped > 0) lines += tr("import.coreprotect.skipped", "count" to count(skipped, locale))
         lines += tr("common.label.time", "time" to shortSpan(outcome.tookMillis))
@@ -152,7 +161,11 @@ class CoreProtectImportAction(private val services: TracelServices) {
     private fun CommandSender.fail(reason: Throwable) {
         if (reason is NoRoomForImport) {
             services.plugin.logger.warning("CoreProtect import refused: this database numbers its own history from the start.")
-            return failed("import.failed", tr("import.coreprotect.reason.no_room"), tr("import.coreprotect.hint.no_room"))
+            return failed(
+                "import.failed",
+                tr("import.coreprotect.reason.no_room"),
+                tr("import.coreprotect.hint.no_room")
+            )
         }
         services.plugin.logger.log(Level.WARNING, "CoreProtect import failed", reason)
         failed(

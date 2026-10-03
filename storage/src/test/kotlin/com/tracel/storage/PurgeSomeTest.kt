@@ -8,11 +8,7 @@ import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.Seq
-import com.tracel.model.id.TxnId
-import com.tracel.model.id.WorldId
+import com.tracel.model.id.*
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
@@ -26,12 +22,7 @@ import com.tracel.storage.codec.History
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.lsm.LsmConfig
-import com.tracel.storage.ports.ops.PurgeCategory
-import com.tracel.storage.ports.ops.PurgeFilter
-import com.tracel.storage.ports.ops.PurgeReport
-import com.tracel.storage.ports.ops.PurgeSpec
-import com.tracel.storage.ports.ops.previewPurge
-import com.tracel.storage.ports.ops.purgeSome
+import com.tracel.storage.ports.ops.*
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
@@ -41,7 +32,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.atomic.AtomicLong
 
 class PurgeSomeTest {
@@ -116,7 +107,15 @@ class PurgeSomeTest {
             scan(Keys.tagPrefix(tag)).use { while (it.next()) live += KeyReader.u64(it.key(), 1) }
         }
         val lost = ArrayList<String>()
-        for (tag in listOf(Keys.ACTOR, Keys.ITEM, Keys.TIME, Keys.SPATIAL, Keys.WCHG_AT, Keys.WCHG_AT_SECTION, Keys.WCHG_ENTITY)) {
+        for (tag in listOf(
+            Keys.ACTOR,
+            Keys.ITEM,
+            Keys.TIME,
+            Keys.SPATIAL,
+            Keys.WCHG_AT,
+            Keys.WCHG_AT_SECTION,
+            Keys.WCHG_ENTITY
+        )) {
             scan(Keys.tagPrefix(tag)).use {
                 while (it.next()) {
                     val key = it.key()
@@ -126,7 +125,12 @@ class PurgeSomeTest {
             }
         }
         scan(Keys.tagPrefix(Keys.TXN_LOT)).use {
-            while (it.next()) if (KeyReader.u64(it.key(), 1) !in live) lost += "txnLot of seq ${KeyReader.u64(it.key(), 1)}"
+            while (it.next()) if (KeyReader.u64(it.key(), 1) !in live) lost += "txnLot of seq ${
+                KeyReader.u64(
+                    it.key(),
+                    1
+                )
+            }"
         }
         lost
     }
@@ -143,7 +147,11 @@ class PurgeSomeTest {
             report.tallies.mapValues { it.value.copy(bytes = 0) },
             "the preview says what the purge then does",
         )
-        assertEquals(before.values.sum().toLong() - report.rows, rows(stack).values.sum().toLong(), "every row it counted is gone, and no other")
+        assertEquals(
+            before.values.sum().toLong() - report.rows,
+            rows(stack).values.sum().toLong(),
+            "every row it counted is gone, and no other"
+        )
         assertEquals(emptyList<String>(), orphans(stack), "an index row outlived its record")
         return report
     }
@@ -155,7 +163,11 @@ class PurgeSomeTest {
             val report = purgeAndCheck(stack, PurgeSpec(all, PurgeFilter(before = 500)))
 
             assertTrue(report.matched > 0)
-            assertEquals(listOf(503L), stack.worldLog.at(BlockPos(overworld, 3, 70, 3)).map { it.seq.raw }, "newer stays")
+            assertEquals(
+                listOf(503L),
+                stack.worldLog.at(BlockPos(overworld, 3, 70, 3)).map { it.seq.raw },
+                "newer stays"
+            )
             assertTrue(stack.worldLog.at(BlockPos(overworld, 1, 70, 3)).isEmpty(), "older goes")
             assertEquals(1003L, stack.log.find(TxnId(1003))?.id?.raw, "a newer transaction stays")
             assertEquals(null, stack.log.find(TxnId(1001)), "an older one goes")
@@ -184,7 +196,11 @@ class PurgeSomeTest {
             )
 
             assertTrue(report.matched > 0)
-            assertEquals(listOf(503L), stack.worldLog.at(BlockPos(overworld, 3, 70, 3)).map { it.seq.raw }, "alex stays")
+            assertEquals(
+                listOf(503L),
+                stack.worldLog.at(BlockPos(overworld, 3, 70, 3)).map { it.seq.raw },
+                "alex stays"
+            )
             assertEquals(1003L, stack.log.find(TxnId(1003))?.id?.raw)
             assertEquals(null, stack.log.find(TxnId(1001)))
         }
@@ -206,7 +222,10 @@ class PurgeSomeTest {
     fun `a world or a player the store never saw matches nothing`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             fill(stack)
-            val spec = PurgeSpec(PurgeCategory.entries.toSet() - PurgeCategory.CONTAINERS, PurgeFilter(world = WorldId(UUID(9, 9))))
+            val spec = PurgeSpec(
+                PurgeCategory.entries.toSet() - PurgeCategory.CONTAINERS,
+                PurgeFilter(world = WorldId(UUID(9, 9)))
+            )
             assertEquals(0L, purgeSome(stack.storage, spec).matched)
             val nobody = PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(player = UUID(9, 9)))
             assertEquals(0L, purgeSome(stack.storage, nobody).matched)
@@ -217,7 +236,11 @@ class PurgeSomeTest {
     fun `a slice boundary does not skip or repeat a record`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             for (seq in 1L..25_000L) stack.worldLog.append(broke(seq, overworld, steve, seq))
-            assertEquals(25_000L, previewPurge(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS))).matched, "a preview counts a row once, however many slices it takes")
+            assertEquals(
+                25_000L,
+                previewPurge(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS))).matched,
+                "a preview counts a row once, however many slices it takes"
+            )
 
             val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = 20_001)))
 
@@ -281,12 +304,16 @@ class PurgeSomeTest {
         val now = AtomicLong(start)
         clocked(dir, now).use { stack ->
             fillDays(stack, now, days = 4, perDay = 4_000)
-            val untouched = stack.storage.engine.history(History.BLOCKS).filter { it.window > start / day + 2 }.map { it.id }
+            val untouched =
+                stack.storage.engine.history(History.BLOCKS).filter { it.window > start / day + 2 }.map { it.id }
 
             val cut = start + 2 * day + 1_000 + 250
             val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = cut)))
 
-            assertTrue(report.matched > 8_000 && report.matched < 12_000, "two whole days and part of the third: ${report.matched}")
+            assertTrue(
+                report.matched > 8_000 && report.matched < 12_000,
+                "two whole days and part of the third: ${report.matched}"
+            )
             assertEquals(
                 untouched,
                 stack.storage.engine.history(History.BLOCKS).filter { it.window > start / day + 2 }.map { it.id },
@@ -308,7 +335,11 @@ class PurgeSomeTest {
             assertEquals(18_000L, report.matched)
             val after = stack.storage.engine.stats().liveBytes
             assertTrue(after < before * 0.75, "about half of it is gone and the disk says so: $before -> $after")
-            assertEquals(6, stack.storage.engine.history(History.BLOCKS).size, "the windows stay, with the other world in them")
+            assertEquals(
+                6,
+                stack.storage.engine.history(History.BLOCKS).size,
+                "the windows stay, with the other world in them"
+            )
             assertEquals(18_000L, previewPurge(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS))).matched)
             assertEquals(emptyList<String>(), orphans(stack))
         }
@@ -321,7 +352,8 @@ class PurgeSomeTest {
 
         clocked(dir, now).use { stack ->
             assertEquals(3, stack.storage.engine.history(History.BLOCKS).size)
-            val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = start + day)))
+            val report =
+                purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = start + day)))
             assertEquals(2_000L, report.matched)
             assertEquals(2, stack.storage.engine.history(History.BLOCKS).size)
         }
@@ -334,12 +366,19 @@ class PurgeSomeTest {
             fillDays(stack, now, days = 4, perDay = 4_000)
             val edge = stack.storage.engine.history(History.BLOCKS).first { it.window == start / day + 2 }.id
 
-            val spec = PurgeSpec(setOf(PurgeCategory.BLOCKS), PurgeFilter(before = start + 2 * day + 1_000 + 250), wholeWindowsOnly = true)
+            val spec = PurgeSpec(
+                setOf(PurgeCategory.BLOCKS),
+                PurgeFilter(before = start + 2 * day + 1_000 + 250),
+                wholeWindowsOnly = true
+            )
             val report = purgeSome(stack.storage, spec)
 
             assertEquals(8_000L, report.matched, "two whole days, and not a record of the third")
             assertEquals(2, stack.storage.engine.history(History.BLOCKS).size)
-            assertTrue(stack.storage.engine.history(History.BLOCKS).any { it.id == edge }, "the same file, not rewritten")
+            assertTrue(
+                stack.storage.engine.history(History.BLOCKS).any { it.id == edge },
+                "the same file, not rewritten"
+            )
         }
     }
 }

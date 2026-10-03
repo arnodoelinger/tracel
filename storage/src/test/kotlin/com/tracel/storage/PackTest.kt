@@ -24,23 +24,29 @@ class PackTest {
     }
 
     @Test
-    fun `a thousand stolen lots are four packs, and taking them all back rewrites no lot`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            val chest = block(0, 64, 0)
-            val thief = player(1)
-            val lots = (1..1_000).map { stack.ledger.mint(chest, diamond, Quantity(1), stack.counters.nextTxnId()).id }
-            stack.ledger.move(chest, thief, diamond, Quantity(1_000), stack.counters.nextTxnId())
+    fun `a thousand stolen lots are four packs, and taking them all back rewrites no lot`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                val chest = block(0, 64, 0)
+                val thief = player(1)
+                val lots =
+                    (1..1_000).map { stack.ledger.mint(chest, diamond, Quantity(1), stack.counters.nextTxnId()).id }
+                stack.ledger.move(chest, thief, diamond, Quantity(1_000), stack.counters.nextTxnId())
 
-            assertEquals(4, stack.rows(Keys.PACK_AT).size, "1000 lots in packs of at most 256")
-            val pointers = stack.rows(Keys.LOT_PACK)
-            assertEquals(1_000, pointers.size)
+                assertEquals(4, stack.rows(Keys.PACK_AT).size, "1000 lots in packs of at most 256")
+                val pointers = stack.rows(Keys.LOT_PACK)
+                assertEquals(1_000, pointers.size)
 
-            val moved = stack.ledger.moveExactAll(thief, chest, lots)
-            assertEquals(1_000, moved.size)
-            assertEquals(pointers, stack.rows(Keys.LOT_PACK), "whole packs move; the lots inside them do not")
-            assertEquals(1_000L, stack.ledger.totalAt(chest, diamond)?.raw)
-            assertEquals(null, stack.ledger.totalAt(thief, diamond))
-            assertEquals(lots, stack.repo.accountQueue(chest, diamond).map { it.lot.id }, "same order they were taken in")
+                val moved = stack.ledger.moveExactAll(thief, chest, lots)
+                assertEquals(1_000, moved.size)
+                assertEquals(pointers, stack.rows(Keys.LOT_PACK), "whole packs move; the lots inside them do not")
+                assertEquals(1_000L, stack.ledger.totalAt(chest, diamond)?.raw)
+                assertEquals(null, stack.ledger.totalAt(thief, diamond))
+                assertEquals(
+                    lots,
+                    stack.repo.accountQueue(chest, diamond).map { it.lot.id },
+                    "same order they were taken in"
+                )
+            }
         }
-    }
 }

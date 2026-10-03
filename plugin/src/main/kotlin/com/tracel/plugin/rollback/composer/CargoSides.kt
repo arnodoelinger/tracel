@@ -44,7 +44,9 @@ internal suspend fun TracelServices.leftHolding(
     val cargo = LinkedHashMap<HolderId, HolderId>()
     for (step in steps) {
         when {
-            step is StructureStep.RemoveEntity -> cargo[HolderId.Entity(step.entity)] = HolderId.PlacedEntity(step.entity)
+            step is StructureStep.RemoveEntity -> cargo[HolderId.Entity(step.entity)] =
+                HolderId.PlacedEntity(step.entity)
+
             step is StructureStep.SetBlock && step.target.isAirLike && !step.expected.isAirLike &&
                     containerBlockNamed(step.expected.data.value) ->
                 cargo[HolderId.Block(step.at.world, step.at.x, step.at.y, step.at.z)] =

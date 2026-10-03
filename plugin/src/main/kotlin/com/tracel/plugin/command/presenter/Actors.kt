@@ -6,7 +6,7 @@ import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.storage.ports.actor.ModeTimeline
 import com.tracel.storage.ports.actor.VisitTimeline
 import org.bukkit.GameMode
-import java.util.UUID
+import java.util.*
 
 /** Caches what is known about the mobs and players among the holders of a lookup, so that the presenter can show it. */
 internal class Actors(private val facts: ActorFacts?) {

@@ -4,8 +4,7 @@ import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
-import java.util.Properties
-import java.util.UUID
+import java.util.*
 
 /** Where a `CoreProtect` database is kept. */
 sealed interface CoreProtectLocation {
@@ -51,7 +50,15 @@ enum class SourceTable(val suffix: String) {
 }
 
 /** One row of any table: who, when and where. */
-sealed class SourceRow(val rowId: Long, val time: Long, val user: Int, val world: Int, val x: Int, val y: Int, val z: Int) {
+sealed class SourceRow(
+    val rowId: Long,
+    val time: Long,
+    val user: Int,
+    val world: Int,
+    val x: Int,
+    val y: Int,
+    val z: Int
+) {
     abstract val table: SourceTable
 }
 
@@ -142,8 +149,10 @@ class CoreProtectDatabase private constructor(
      * file is the same database and gets the same answer.
      */
     fun fingerprint(): Long {
-        val made = runCatching { one("SELECT time FROM ${prefix}version ORDER BY time LIMIT 1") { it.getLong(1) } }.getOrNull()
-        val first = one("SELECT time, user FROM ${prefix}user ORDER BY $userId LIMIT 1") { "${it.getLong(1)}:${it.getString(2)}" }
+        val made =
+            runCatching { one("SELECT time FROM ${prefix}version ORDER BY time LIMIT 1") { it.getLong(1) } }.getOrNull()
+        val first =
+            one("SELECT time, user FROM ${prefix}user ORDER BY $userId LIMIT 1") { "${it.getLong(1)}:${it.getString(2)}" }
         var hash = FNV_OFFSET
         for (byte in "$made|$first".toByteArray()) hash = (hash xor (byte.toLong() and 0xFF)) * FNV_PRIME
         return hash
@@ -151,7 +160,9 @@ class CoreProtectDatabase private constructor(
 
     /** The last row of every table, in [SourceTable] order; `0` for a table that is empty or not there. */
     fun lastRows(): List<Long> = SourceTable.entries.map { table ->
-        if (columns.getValue(table).isEmpty()) 0L else one("SELECT MAX(rowid) FROM $prefix${table.suffix}") { it.getLong(1) } ?: 0L
+        if (columns.getValue(table)
+                .isEmpty()
+        ) 0L else one("SELECT MAX(rowid) FROM $prefix${table.suffix}") { it.getLong(1) } ?: 0L
     }
 
     /** When the first and the last block row were written, in epoch seconds. */
@@ -178,7 +189,8 @@ class CoreProtectDatabase private constructor(
         runCatching {
             connection.prepareStatement("SELECT owner, skin FROM ${prefix}skull WHERE $skullId = ?").use { statement ->
                 statement.setInt(1, id)
-                statement.executeQuery().use { row -> if (row.next()) SkullRow(row.getString(1), row.getString(2)) else null }
+                statement.executeQuery()
+                    .use { row -> if (row.next()) SkullRow(row.getString(1), row.getString(2)) else null }
             }
         }.getOrNull()
     }.also { if (skulls.size > SKULLS_REMEMBERED) skulls.clear() }
@@ -187,7 +199,8 @@ class CoreProtectDatabase private constructor(
     fun entity(id: Int): ByteArray? = runCatching {
         connection.prepareStatement("SELECT data FROM ${prefix}entity WHERE $entityId = ?").use { statement ->
             statement.setInt(1, id)
-            statement.executeQuery().use { row -> if (row.next()) row.getBytes(1)?.takeIf { it.isNotEmpty() } else null }
+            statement.executeQuery()
+                .use { row -> if (row.next()) row.getBytes(1)?.takeIf { it.isNotEmpty() } else null }
         }
     }.getOrNull()
 
@@ -199,7 +212,12 @@ class CoreProtectDatabase private constructor(
         fun column(name: String, missing: String = "NULL") = if (name in has) name else missing
         val own = when (table) {
             SourceTable.BLOCK -> "type, data, ${column("meta")}, ${column("blockdata")}, action, rolled_back"
-            SourceTable.SIGN -> "action, ${column("color", "0")}, ${column("color_secondary", "0")}, ${column("data", "0")}, " +
+            SourceTable.SIGN -> "action, ${column("color", "0")}, ${column("color_secondary", "0")}, ${
+                column(
+                    "data",
+                    "0"
+                )
+            }, " +
                     "${column("waxed", "0")}, " + (1..SIGN_LINES).joinToString(", ") { column("line_$it") }
 
             SourceTable.CONTAINER -> "type, amount, ${column("metadata")}, action"
@@ -259,7 +277,17 @@ class CoreProtectDatabase private constructor(
             )
 
             SourceTable.SESSION -> SessionRow(rowId, time, user, world, x, y, z, action = row.getInt(OWN))
-            SourceTable.COMMAND, SourceTable.CHAT -> TextRow(table, rowId, time, user, world, x, y, z, row.getString(OWN).orEmpty())
+            SourceTable.COMMAND, SourceTable.CHAT -> TextRow(
+                table,
+                rowId,
+                time,
+                user,
+                world,
+                x,
+                y,
+                z,
+                row.getString(OWN).orEmpty()
+            )
         }
     }
 
@@ -290,7 +318,8 @@ class CoreProtectDatabase private constructor(
 
     private fun <T : Any> one(sql: String, read: (ResultSet) -> T?): T? =
         connection.createStatement().use { statement ->
-            statement.executeQuery(sql).use { rows -> if (rows.next()) read(rows).takeUnless { rows.wasNull() } else null }
+            statement.executeQuery(sql)
+                .use { rows -> if (rows.next()) read(rows).takeUnless { rows.wasNull() } else null }
         }
 
     companion object {

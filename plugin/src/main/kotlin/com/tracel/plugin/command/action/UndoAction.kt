@@ -8,11 +8,7 @@ import com.tracel.plugin.command.presenter.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
 import com.tracel.plugin.command.presenter.RollbackPresenter.resurrections
-import com.tracel.plugin.i18n.confirmHint
-import com.tracel.plugin.i18n.needed
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.unexpected
+import com.tracel.plugin.i18n.*
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
@@ -65,19 +61,42 @@ class UndoAction internal constructor(private val services: TracelServices, priv
 
         when (outcome) {
             is UndoResult.Done -> RollbackPresenter.reportUndo(sender, outcome, took)
-            UndoResult.NotFound -> RollbackPresenter.refusedUndo(sender, tr("undo.reason.not_found"), tr("undo.hint.again"))
+            UndoResult.NotFound -> RollbackPresenter.refusedUndo(
+                sender,
+                tr("undo.reason.not_found"),
+                tr("undo.hint.again")
+            )
+
             is UndoResult.OutOfOrder ->
                 RollbackPresenter.refusedUndo(sender, tr("undo.reason.out_of_order"), tr("undo.hint.out_of_order"))
 
-            UndoResult.AlreadyUndone -> RollbackPresenter.refusedUndo(sender, tr("undo.reason.already"), nothing.on(tr("common.nothing")))
+            UndoResult.AlreadyUndone -> RollbackPresenter.refusedUndo(
+                sender,
+                tr("undo.reason.already"),
+                nothing.on(tr("common.nothing"))
+            )
+
             is Unreachable -> RollbackPresenter.refusedUndo(
                 sender,
-                tr("rollback.reason.unreachable", "holder" to ChangeLinePresenter.holder(outcome.holder), "reason" to outcome.reason),
+                tr(
+                    "rollback.reason.unreachable",
+                    "holder" to ChangeLinePresenter.holder(outcome.holder),
+                    "reason" to outcome.reason
+                ),
                 tr("rollback.hint.unreachable"),
             )
 
-            is Blocked -> RollbackPresenter.refusedUndo(sender, tr("rollback.reason.blocked"), tr("rollback.hint.blocked"))
-            is UndoResult.Failed -> RollbackPresenter.refusedUndo(sender, Component.text(outcome.reason), tr("rollback.hint.again"))
+            is Blocked -> RollbackPresenter.refusedUndo(
+                sender,
+                tr("rollback.reason.blocked"),
+                tr("rollback.hint.blocked")
+            )
+
+            is UndoResult.Failed -> RollbackPresenter.refusedUndo(
+                sender,
+                Component.text(outcome.reason),
+                tr("rollback.hint.again")
+            )
         }
     }
 
@@ -86,7 +105,12 @@ class UndoAction internal constructor(private val services: TracelServices, priv
         val spawns = (record.create + record.destroy).map { it.inverse() }.resurrections()
         if (spawns.size <= services.entityRestoreLimit) return false
         sender.needed(
-            info = tr("rollback.entities", "count" to spawns.size, "mostly" to mostly(spawns), "limit" to services.entityRestoreLimit),
+            info = tr(
+                "rollback.entities",
+                "count" to spawns.size,
+                "mostly" to mostly(spawns),
+                "limit" to services.entityRestoreLimit
+            ),
             hint = confirmHint(),
         )
         return true

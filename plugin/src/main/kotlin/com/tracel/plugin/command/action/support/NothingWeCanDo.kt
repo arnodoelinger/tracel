@@ -6,12 +6,12 @@ import net.kyori.adventure.sound.Sound
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickCallback
 import net.kyori.adventure.text.event.ClickEvent
-import org.bukkit.Sound as BukkitSound
 import org.bukkit.entity.Player
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.pow
 import kotlin.math.roundToLong
+import org.bukkit.Sound as BukkitSound
 
 /**
  * There's nothing we can do Easter egg.
@@ -76,7 +76,8 @@ internal class NothingWeCanDo(private val services: TracelServices) {
     )
 
     private val d = Chord(bass = "D2", leftHand = "F#3 A3 D4", rightLow = "F#3 A3 D4", rightHigh = "A3 D4 F#4")
-    private val fSharpMinor = Chord(bass = "F#2", leftHand = "A3 C#4 F#4", rightLow = "F#3 A3 C#4", rightHigh = "A3 C#4 F#4")
+    private val fSharpMinor =
+        Chord(bass = "F#2", leftHand = "A3 C#4 F#4", rightLow = "F#3 A3 C#4", rightHigh = "A3 C#4 F#4")
     private val bMinor = Chord(
         bass = "B1", leftHand = "D3 F#3 B3", rolled = "B2 D3 F#3 B3",
         rightLow = "F#3 B3 D4", rightHigh = "B3 D4 F#4",
@@ -149,7 +150,13 @@ internal class NothingWeCanDo(private val services: TracelServices) {
         }
     }
 
-    private class Note(bar: Int, beat: Double, private val instrument: Instrument, name: String, private val volume: Float) {
+    private class Note(
+        bar: Int,
+        beat: Double,
+        private val instrument: Instrument,
+        name: String,
+        private val volume: Float
+    ) {
         private val key = midi(name)
 
         // A quarter at 120 a minute is half a second
@@ -158,7 +165,12 @@ internal class NothingWeCanDo(private val services: TracelServices) {
         @Suppress("REMOVAL", "DEPRECATION")
         fun sound(): Sound {
             val step = key - midi(instrument.lowest)
-            return Sound.sound(instrument.sound.key(), Sound.Source.RECORD, volume, 2.0.pow((step - 12) / 12.0).toFloat())
+            return Sound.sound(
+                instrument.sound.key(),
+                Sound.Source.RECORD,
+                volume,
+                2.0.pow((step - 12) / 12.0).toFloat()
+            )
         }
     }
 

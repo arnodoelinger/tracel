@@ -8,8 +8,8 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.namesMaterial
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.leashHolder
@@ -26,10 +26,9 @@ import net.kyori.adventure.translation.GlobalTranslator
 import org.bukkit.Bukkit
 import org.bukkit.GameMode
 import java.time.Instant
-import java.util.Locale
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.UUID
+import java.util.*
 
 /** One line per recorded change: lookup, the inspector and rollback previews all read the same. */
 internal object ChangeLinePresenter {
@@ -43,11 +42,23 @@ internal object ChangeLinePresenter {
             is ChangeSubject.Block -> {
                 val trampled = trampled(subject)
                 if (trampled != null) tr("change.trampled", "who" to who, "block" to trampled, "at" to at)
-                else tr("change.block", "who" to who, "verb" to verb(change.action), "block" to block(subject), "at" to at)
+                else tr(
+                    "change.block",
+                    "who" to who,
+                    "verb" to verb(change.action),
+                    "block" to block(subject),
+                    "at" to at
+                )
             }
 
             is ChangeSubject.Entity ->
-                tr("change.entity", "who" to who, "verb" to (leash(subject) ?: verb(change.action)), "entity" to NamePresenter.entity(subject.type.value), "at" to at)
+                tr(
+                    "change.entity",
+                    "who" to who,
+                    "verb" to (leash(subject) ?: verb(change.action)),
+                    "entity" to NamePresenter.entity(subject.type.value),
+                    "at" to at
+                )
         }
     }
 
@@ -140,17 +151,29 @@ internal object ChangeLinePresenter {
         if (transaction.cause.isBookkeeping || (transaction.cause == CauseKind.WEAR && !everything)) return emptyList()
         return transaction.flows.mapNotNull { flow ->
             if (item != null && !flow.itemKey.material.namesMaterial(item)) return@mapNotNull null
-            val act = (if (transaction.cause == CauseKind.WEAR) ItemPresenter.Act("damaged", ItemPresenter.BOTH) else ItemPresenter.of(flow, everything))
+            val act = (if (transaction.cause == CauseKind.WEAR) ItemPresenter.Act(
+                "damaged",
+                ItemPresenter.BOTH
+            ) else ItemPresenter.of(flow, everything))
                 ?: return@mapNotNull null
-            val doer = transaction.causedBy ?: listOf(flow.source, flow.destination).firstOrNull { it is HolderId.Player }
+            val doer =
+                transaction.causedBy ?: listOf(flow.source, flow.destination).firstOrNull { it is HolderId.Player }
             val place = act.place?.let { it as? HolderId.Block }
             val name = NamePresenter.of(flow.itemKey.material)
             val family = ItemPresenter.family(act.name)
-            val visit = if (family?.container == true) (doer as? HolderId.Player)?.let { actors.visit(it.uuid, transaction.epochMillis) } else null
-            val delta = if (family == null) 0 else if (act.name == family.plus) flow.quantity.raw else -flow.quantity.raw
+            val visit = if (family?.container == true) (doer as? HolderId.Player)?.let {
+                actors.visit(
+                    it.uuid,
+                    transaction.epochMillis
+                )
+            } else null
+            val delta =
+                if (family == null) 0 else if (act.name == family.plus) flow.quantity.raw else -flow.quantity.raw
             Logged(
                 millis = transaction.epochMillis,
-                key = if (visit != null) listOf(doer, "visit", visit, flow.itemKey.material) else listOf(doer ?: transaction.cause, family?.name ?: act.name, flow.itemKey.material, place),
+                key = if (visit != null) listOf(doer, "visit", visit, flow.itemKey.material) else listOf(
+                    doer ?: transaction.cause, family?.name ?: act.name, flow.itemKey.material, place
+                ),
                 mark = act.mark,
                 who = who(doer, transaction.cause, actors),
                 verb = lower("lookup.verb.${act.name}"),
@@ -197,7 +220,10 @@ internal object ChangeLinePresenter {
             add("Made ${STAMP.format(Instant.ofEpochMilli(nowMillis))}, ${stacks.size} lines, newest first")
             add("")
         }
-        val tail = if (stacks.size > shown.size) listOf("", "... and ${stacks.size - shown.size} older lines more") else emptyList()
+        val tail = if (stacks.size > shown.size) listOf(
+            "",
+            "... and ${stacks.size - shown.size} older lines more"
+        ) else emptyList()
         return (head + shown.map(::plain) + tail).joinToString("\n")
     }
 
@@ -218,17 +244,27 @@ internal object ChangeLinePresenter {
         val hover = buildList {
             if (entry.from != null) add(tr("lookup.hover.turned", "from" to entry.from, "to" to entry.to))
             if (stack.count > 1 && net != null) {
-                add(tr(
-                    "lookup.net",
-                    "plus" to tr("lookup.verb.${net.family.plus}"),
-                    "gained" to stack.gained,
-                    "minus" to lower("lookup.verb.${net.family.minus}"),
-                    "lost" to stack.lost,
-                    "first" to ago(nowMillis - stack.oldest),
-                    "last" to ago,
-                ))
+                add(
+                    tr(
+                        "lookup.net",
+                        "plus" to tr("lookup.verb.${net.family.plus}"),
+                        "gained" to stack.gained,
+                        "minus" to lower("lookup.verb.${net.family.minus}"),
+                        "lost" to stack.lost,
+                        "first" to ago(nowMillis - stack.oldest),
+                        "last" to ago,
+                    )
+                )
             } else if (stack.count > 1) {
-                add(tr("lookup.title", "verb" to tr("lookup.verb.${entry.title}"), "n" to stack.count, "first" to ago(nowMillis - stack.oldest), "last" to ago))
+                add(
+                    tr(
+                        "lookup.title",
+                        "verb" to tr("lookup.verb.${entry.title}"),
+                        "n" to stack.count,
+                        "first" to ago(nowMillis - stack.oldest),
+                        "last" to ago
+                    )
+                )
             }
             add(tr("lookup.hover.time", "time" to STAMP.format(Instant.ofEpochMilli(entry.millis))))
             if (at != null) add(tr("lookup.hover.coords", "at" to "${at.x}, ${at.y}, ${at.z}"))
@@ -239,14 +275,16 @@ internal object ChangeLinePresenter {
             }
         }
         val verb = verbName?.let { lower("lookup.verb.$it") } ?: entry.verb
-        val total = if (net == null) stack.quantity else if (stack.net != 0L) kotlin.math.abs(stack.net) else stack.gained
+        val total =
+            if (net == null) stack.quantity else if (stack.net != 0L) kotlin.math.abs(stack.net) else stack.gained
         val full = if (net == null) entry.what(stack.quantity) else netted(net, stack)
         val label = if (net == null) entry.whatText(stack.quantity) else "$total ${NamePresenter.pretty(net.material)}"
         val suffix = if (stack.count > 1) " ${superscript(stack.count)}⋆" else ""
         val fixed = Glyphs.width("${english(ago)} X ${entry.whoText} ${english(verb)} ") + Glyphs.width(suffix)
         val clipped = Glyphs.width(label) > Glyphs.LINE - fixed
         val what = if (!clipped) full else Component.text(Glyphs.clip(label, Glyphs.LINE - fixed))
-        val shown = if (!clipped) hover else listOf(Component.text(label, NamedTextColor.WHITE), Component.empty()) + hover
+        val shown =
+            if (!clipped) hover else listOf(Component.text(label, NamedTextColor.WHITE), Component.empty()) + hover
         val row = Component.text()
             .append(ago.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
             .append(mark).append(Component.space())
@@ -304,7 +342,8 @@ internal object ChangeLinePresenter {
         val verb = netVerb(stack)?.let { english(lower("lookup.verb.$it")) } ?: english(entry.verb)
         val what = if (net == null) entry.whatText(stack.quantity)
         else "${if (stack.net != 0L) kotlin.math.abs(stack.net) else stack.gained} ${NamePresenter.pretty(net.material)}"
-        val repeat = if (stack.count > 1) " (x${stack.count} since ${STAMP.format(Instant.ofEpochMilli(stack.oldest))})" else ""
+        val repeat =
+            if (stack.count > 1) " (x${stack.count} since ${STAMP.format(Instant.ofEpochMilli(stack.oldest))})" else ""
         val place = entry.at?.let { " at ${it.x},${it.y},${it.z}" }.orEmpty()
         return "${STAMP.format(Instant.ofEpochMilli(entry.millis))} ${entry.whoText} $verb $what$repeat$place"
     }
@@ -321,7 +360,12 @@ internal object ChangeLinePresenter {
     private fun phrase(change: WorldChange): Phrase = when (val subject = change.subject) {
         is ChangeSubject.Entity -> {
             val name = leashName(subject) ?: verbName(change.action)
-            Phrase(lower("lookup.verb.$name"), name, NamePresenter.entity(subject.type.value), NamePresenter.pretty(subject.type.value))
+            Phrase(
+                lower("lookup.verb.$name"),
+                name,
+                NamePresenter.entity(subject.type.value),
+                NamePresenter.pretty(subject.type.value)
+            )
         }
 
         is ChangeSubject.Block -> {
@@ -333,10 +377,28 @@ internal object ChangeLinePresenter {
             val to = NamePresenter.of(after)
             val plain = verbName(change.action)
             when {
-                change.action == ActionKind.BLOCK_CLICK -> Phrase(lower("lookup.verb.$plain"), plain, to, NamePresenter.pretty(after))
-                subject.after.isAirLike -> Phrase(lower("lookup.verb.$plain"), plain, from, NamePresenter.pretty(before))
+                change.action == ActionKind.BLOCK_CLICK -> Phrase(
+                    lower("lookup.verb.$plain"),
+                    plain,
+                    to,
+                    NamePresenter.pretty(after)
+                )
+
+                subject.after.isAirLike -> Phrase(
+                    lower("lookup.verb.$plain"),
+                    plain,
+                    from,
+                    NamePresenter.pretty(before)
+                )
+
                 subject.before.isAirLike -> Phrase(lower("lookup.verb.$plain"), plain, to, NamePresenter.pretty(after))
-                named != null -> Phrase(lower("lookup.verb.${named.key}"), named.key, if (named.result) to else from, NamePresenter.pretty(if (named.result) after else before))
+                named != null -> Phrase(
+                    lower("lookup.verb.${named.key}"),
+                    named.key,
+                    if (named.result) to else from,
+                    NamePresenter.pretty(if (named.result) after else before)
+                )
+
                 before == after -> Phrase(lower("lookup.verb.updated"), "updated", to, NamePresenter.pretty(after))
                 else -> Phrase(lower("lookup.verb.became"), "changed", to, NamePresenter.pretty(after), from, to)
             }

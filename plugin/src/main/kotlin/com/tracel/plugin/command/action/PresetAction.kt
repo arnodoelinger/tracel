@@ -5,12 +5,7 @@ import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.preset.Preset
 import com.tracel.plugin.command.preset.PresetStore
 import com.tracel.plugin.command.suggest.liveLists
-import com.tracel.plugin.i18n.asReason
-import com.tracel.plugin.i18n.failed
-import com.tracel.plugin.i18n.info
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.tryHint
+import com.tracel.plugin.i18n.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
@@ -29,11 +24,21 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
     fun list(sender: CommandSender) {
         val visible = store.visibleTo((sender as? Player)?.uniqueId)
         if (visible.isEmpty()) {
-            report(sender, tr("preset.list.title"), Component.empty(), info(tr("preset.list.empty.info")), tryHint(tr("preset.list.empty.hint")))
+            report(
+                sender,
+                tr("preset.list.title"),
+                Component.empty(),
+                info(tr("preset.list.empty.info")),
+                tryHint(tr("preset.list.empty.hint"))
+            )
             return
         }
         val entries = visible.map { preset ->
-            tr(if (preset.owner == null) "preset.list.entry_server" else "preset.list.entry", "name" to preset.name, "flags" to preset.text)
+            tr(
+                if (preset.owner == null) "preset.list.entry_server" else "preset.list.entry",
+                "name" to preset.name,
+                "flags" to preset.text
+            )
                 .clickEvent(ClickEvent.suggestCommand("/tracel rollback @${preset.name} "))
                 .hoverEvent(HoverEvent.showText(tr("preset.list.hover", "name" to preset.name)))
         }
@@ -103,10 +108,18 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
     fun share(sender: CommandSender, name: String) {
         val owner = (sender as? Player)?.uniqueId
         val lower = name.lowercase()
-        if (!sender.hasPermission(GLOBAL)) return refuse(sender, tr("preset.reason.global_perm"), tr("preset.hint.admin"))
+        if (!sender.hasPermission(GLOBAL)) return refuse(
+            sender,
+            tr("preset.reason.global_perm"),
+            tr("preset.hint.admin")
+        )
         if (owner == null || store.find(lower, owner)?.owner != owner) {
             if (store.find(lower, null) != null) {
-                return refuse(sender, tr("preset.reason.already", "name" to lower, "who" to who(true)), nothing.on(tr("common.nothing")))
+                return refuse(
+                    sender,
+                    tr("preset.reason.already", "name" to lower, "who" to who(true)),
+                    nothing.on(tr("common.nothing"))
+                )
             }
             return refuse(sender, tr("preset.reason.missing", "name" to lower), tr("preset.hint.list"))
         }
@@ -126,11 +139,19 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
     fun unshare(sender: CommandSender, name: String) {
         val owner = (sender as? Player)?.uniqueId
         val lower = name.lowercase()
-        if (!sender.hasPermission(GLOBAL)) return refuse(sender, tr("preset.reason.global_perm"), tr("preset.hint.admin"))
+        if (!sender.hasPermission(GLOBAL)) return refuse(
+            sender,
+            tr("preset.reason.global_perm"),
+            tr("preset.hint.admin")
+        )
         if (owner == null) return refuse(sender, tr("preset.reason.console"), tr("preset.hint.delete"))
         if (store.find(lower, null) == null) {
             if (store.find(lower, owner) != null) {
-                return refuse(sender, tr("preset.reason.already", "name" to lower, "who" to who(false)), nothing.on(tr("common.nothing")))
+                return refuse(
+                    sender,
+                    tr("preset.reason.already", "name" to lower, "who" to who(false)),
+                    nothing.on(tr("common.nothing"))
+                )
             }
             return refuse(sender, tr("preset.reason.missing", "name" to lower), tr("preset.hint.list"))
         }
@@ -182,10 +203,12 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
         val line = Component.text().append(useButton(preset.name))
         if (sender is Player && mayChangeServer) {
             val key = if (server) "unshare" else "share"
-            line.append(Component.space()).append(run("preset.button.$key", "/tracel preset $key ${preset.name}", preset.name))
+            line.append(Component.space())
+                .append(run("preset.button.$key", "/tracel preset $key ${preset.name}", preset.name))
         }
         if (!server || mayChangeServer) {
-            line.append(Component.space()).append(run("preset.button.delete", "/tracel preset delete ${preset.name}", preset.name))
+            line.append(Component.space())
+                .append(run("preset.button.delete", "/tracel preset delete ${preset.name}", preset.name))
         }
         return line.build()
     }
@@ -203,5 +226,6 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
     private fun report(sender: CommandSender, vararg lines: Component) =
         sender.say(Component.join(JoinConfiguration.newlines(), *lines))
 
-    private fun refuse(sender: CommandSender, reason: Component, hint: Component) = sender.failed("preset.failed", reason, hint)
+    private fun refuse(sender: CommandSender, reason: Component, hint: Component) =
+        sender.failed("preset.failed", reason, hint)
 }

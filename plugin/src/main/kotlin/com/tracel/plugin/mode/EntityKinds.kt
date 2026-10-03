@@ -11,13 +11,14 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import java.time.Duration
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 /** What every mob in the world is, for the storage thread to ask the first time it writes one down. */
 internal class EntityKinds : EntityKindSource, Listener {
     private val living = ConcurrentHashMap<UUID, EntityTypeKey>()
-    private val gone = Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).maximumSize(GONE_KEPT).build<UUID, EntityTypeKey>()
+    private val gone = Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).maximumSize(GONE_KEPT)
+        .build<UUID, EntityTypeKey>()
 
     private companion object {
         const val GONE_KEPT = 50_000L

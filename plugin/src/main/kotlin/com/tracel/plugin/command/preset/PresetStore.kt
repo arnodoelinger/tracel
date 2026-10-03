@@ -1,12 +1,12 @@
 package com.tracel.plugin.command.preset
 
+import org.tomlj.Toml
+import org.tomlj.TomlTable
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import org.tomlj.Toml
-import org.tomlj.TomlTable
 
 /** A saved set of flags. [owner] `null` is the server's own: everyone sees it, a personal one of the same name wins. */
 internal data class Preset(val name: String, val owner: UUID?, val tokens: List<String>) {
@@ -68,7 +68,11 @@ internal class PresetStore(private val file: Path) {
     private fun load() {
         val parsed = Toml.parse(file)
         if (parsed.hasErrors()) {
-            Files.copy(file, file.resolveSibling(file.fileName.toString() + ".broken"), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(
+                file,
+                file.resolveSibling(file.fileName.toString() + ".broken"),
+                StandardCopyOption.REPLACE_EXISTING
+            )
             return
         }
         parsed.getTable("server")?.let { read(null, it) }

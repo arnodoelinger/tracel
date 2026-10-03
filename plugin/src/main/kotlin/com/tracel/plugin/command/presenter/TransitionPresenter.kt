@@ -48,9 +48,15 @@ internal object TransitionPresenter {
         val bites = delta(from, to, "bites")
         if (bites != null && bites > 0) return Hit("ate", false)
         val age = delta(from, to, "age") ?: delta(from, to, "stage") ?: delta(from, to, "honey_level")
-        if (age != null) return if (age > 0) Hit("grew", false) else if (id in CROPS || id == "beehive" || id == "bee_nest") Hit("harvested", false) else null
+        if (age != null) return if (age > 0) Hit(
+            "grew",
+            false
+        ) else if (id in CROPS || id == "beehive" || id == "bee_nest") Hit("harvested", false) else null
         val level = delta(from, to, "level")
-        if (level != null && (id.endsWith("cauldron") || id == "composter")) return Hit(if (level > 0) "filled" else "emptied", false)
+        if (level != null && (id.endsWith("cauldron") || id == "composter")) return Hit(
+            if (level > 0) "filled" else "emptied",
+            false
+        )
         return null
     }
 
@@ -83,6 +89,7 @@ internal object TransitionPresenter {
             from == "waxed_$to" -> Hit("unwaxed", true)
             from.removePrefix(STAGES[stage]) == to.removePrefix(STAGES[stageTo]) && stage != stageTo ->
                 Hit(if (stageTo > stage) "oxidized" else "scraped", true)
+
             to == "dead_$from" -> Hit("withered", false)
             from.endsWith("_concrete_powder") && to == from.removeSuffix("_powder") -> Hit("hardened", true)
             (from == "water" || from == "lava") && to in COOLED -> Hit("cooled", true)

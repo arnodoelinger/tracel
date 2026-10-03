@@ -5,51 +5,22 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.storage.codec.records.World
+import io.papermc.paper.entity.EntitySerializationFlag
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-import org.bukkit.Bukkit
-import org.bukkit.Color
-import org.bukkit.DyeColor
-import org.bukkit.FireworkEffect
-import org.bukkit.Keyed
-import org.bukkit.Location
-import org.bukkit.Material
-import org.bukkit.NamespacedKey
-import org.bukkit.Registry
+import org.bukkit.*
+import org.bukkit.attribute.AttributeModifier
 import org.bukkit.block.CommandBlock
 import org.bukkit.block.CreatureSpawner
 import org.bukkit.block.Sign
 import org.bukkit.block.banner.Pattern
 import org.bukkit.block.sign.Side
-import org.bukkit.attribute.AttributeModifier
-import org.bukkit.entity.Ageable
-import org.bukkit.entity.Breedable
-import org.bukkit.entity.Cat
-import org.bukkit.entity.Creeper
-import org.bukkit.entity.Entity
-import org.bukkit.entity.LivingEntity
-import org.bukkit.entity.Phantom
-import org.bukkit.entity.Sheep
-import org.bukkit.entity.Slime
-import org.bukkit.entity.Tameable
-import org.bukkit.entity.Villager
-import org.bukkit.entity.Wolf
-import org.bukkit.entity.Zombie
-import io.papermc.paper.entity.EntitySerializationFlag
-import com.tracel.storage.codec.records.World
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.configuration.serialization.ConfigurationSerialization
 import org.bukkit.configuration.serialization.DelegateDeserialization
+import org.bukkit.entity.*
 import org.bukkit.inventory.ItemStack
-import org.bukkit.inventory.meta.BannerMeta
-import org.bukkit.inventory.meta.BlockStateMeta
-import org.bukkit.inventory.meta.FireworkEffectMeta
-import org.bukkit.inventory.meta.FireworkMeta
-import org.bukkit.inventory.meta.ItemMeta
-import org.bukkit.inventory.meta.LeatherArmorMeta
-import org.bukkit.inventory.meta.MapMeta
-import org.bukkit.inventory.meta.PotionMeta
-import org.bukkit.inventory.meta.SkullMeta
-import org.bukkit.inventory.meta.SuspiciousStewMeta
+import org.bukkit.inventory.meta.*
 import org.bukkit.potion.PotionEffect
 import org.bukkit.util.io.BukkitObjectInputStream
 import java.io.ByteArrayInputStream
@@ -59,7 +30,7 @@ import java.io.ObjectStreamClass
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 
 /** The server this plugin runs on, as the translator needs it. */
 object ServerImportPlatform : ImportPlatform {
@@ -77,7 +48,11 @@ object ServerImportPlatform : ImportPlatform {
     private const val MAX_VILLAGER_LEVEL = 5
 
     private val TRUSTED = listOf(
-        "java.lang.", "java.util.", "org.bukkit.", "com.google.common.collect.", LegacyRegistryValue::class.java.packageName + ".Legacy",
+        "java.lang.",
+        "java.util.",
+        "org.bukkit.",
+        "com.google.common.collect.",
+        LegacyRegistryValue::class.java.packageName + ".Legacy",
     )
 
     private val filter = ObjectInputFilter { info ->
@@ -117,7 +92,8 @@ object ServerImportPlatform : ImportPlatform {
     @Suppress("UsePropertyAccessSyntax")
     override fun blockExtras(state: String, detail: BlockDetail): ByteArray? = runCatching {
         val data = Bukkit.createBlockData(state)
-        val placed = data.placementMaterial.takeIf { it != Material.AIR && it.isItem } ?: data.material.takeIf { it.isItem }
+        val placed =
+            data.placementMaterial.takeIf { it != Material.AIR && it.isItem } ?: data.material.takeIf { it.isItem }
         val carrier = ItemStack(placed ?: return@runCatching null)
         val meta = carrier.itemMeta
         when (detail) {
@@ -130,9 +106,12 @@ object ServerImportPlatform : ImportPlatform {
                 val block = holder.blockState
                 when (detail) {
                     is BlockDetail.Sign -> sign(block as? Sign ?: return@runCatching null, detail)
-                    is BlockDetail.Command -> (block as? CommandBlock ?: return@runCatching null).setCommand(detail.command)
+                    is BlockDetail.Command -> (block as? CommandBlock
+                        ?: return@runCatching null).setCommand(detail.command)
+
                     is BlockDetail.Spawner -> (block as? CreatureSpawner ?: return@runCatching null).spawnedType =
-                        NamespacedKey.fromString(detail.entity.lowercase())?.let(Registry.ENTITY_TYPE::get) ?: return@runCatching null
+                        NamespacedKey.fromString(detail.entity.lowercase())?.let(Registry.ENTITY_TYPE::get)
+                            ?: return@runCatching null
 
                 }
                 holder.blockState = block
@@ -153,14 +132,23 @@ object ServerImportPlatform : ImportPlatform {
         runCatching { stackOf(entry)?.let { it.toItemKey() to it.amount } }.getOrNull()
 
     @Suppress("DEPRECATION")
-    override fun entitySnapshot(world: WorldId, type: String, x: Double, y: Double, z: Double, kept: List<Any?>): ByteArray? =
+    override fun entitySnapshot(
+        world: WorldId,
+        type: String,
+        x: Double,
+        y: Double,
+        z: Double,
+        kept: List<Any?>
+    ): ByteArray? =
         runCatching {
             val home = Bukkit.getWorld(world.uuid) ?: return@runCatching null
-            val kind = NamespacedKey.fromString(type)?.let(Registry.ENTITY_TYPE::get)?.entityClass ?: return@runCatching null
+            val kind =
+                NamespacedKey.fromString(type)?.let(Registry.ENTITY_TYPE::get)?.entityClass ?: return@runCatching null
             val mob = home.createEntity(Location(home, x, y, z), kind)
             (mob as? LivingEntity)?.equipment?.clear()
             dress(mob, kept)
-            Bukkit.getUnsafe().serializeEntity(mob, EntitySerializationFlag.FORCE).takeIf { it.size <= World.MAX_EXTRAS_BYTES }
+            Bukkit.getUnsafe().serializeEntity(mob, EntitySerializationFlag.FORCE)
+                .takeIf { it.size <= World.MAX_EXTRAS_BYTES }
         }.getOrNull()
 
     private fun stackOf(entry: Any?): ItemStack? {
@@ -183,7 +171,11 @@ object ServerImportPlatform : ImportPlatform {
             (tame.getOrNull(1) as? String)?.let(Bukkit::getOfflinePlayerIfCached)?.let { mob.owner = it }
         }
         (kept.getOrNull(KEPT_NAME_SHOWN) as? Boolean)?.let { mob.isCustomNameVisible = it }
-        (kept.getOrNull(KEPT_NAME) as? String)?.let { mob.customName(LegacyComponentSerializer.legacySection().deserialize(it)) }
+        (kept.getOrNull(KEPT_NAME) as? String)?.let {
+            mob.customName(
+                LegacyComponentSerializer.legacySection().deserialize(it)
+            )
+        }
         when (mob) {
             is Creeper -> (info.getOrNull(0) as? Boolean)?.let { mob.isPowered = it }
             is Sheep -> {
@@ -207,7 +199,8 @@ object ServerImportPlatform : ImportPlatform {
             is Villager -> {
                 keyOf(info.getOrNull(0))?.let(Registry.VILLAGER_PROFESSION::get)?.let { mob.profession = it }
                 keyOf(info.getOrNull(1))?.let(Registry.VILLAGER_TYPE::get)?.let { mob.villagerType = it }
-                (info.getOrNull(VILLAGER_LEVEL) as? Int)?.takeIf { it in 1..MAX_VILLAGER_LEVEL }?.let { mob.villagerLevel = it }
+                (info.getOrNull(VILLAGER_LEVEL) as? Int)?.takeIf { it in 1..MAX_VILLAGER_LEVEL }
+                    ?.let { mob.villagerLevel = it }
                 (info.getOrNull(VILLAGER_EXPERIENCE) as? Int)?.let { mob.villagerExperience = it }
             }
 
@@ -217,7 +210,8 @@ object ServerImportPlatform : ImportPlatform {
     }
 
     private fun keyOf(kept: Any?): NamespacedKey? {
-        val text = (kept as? LegacyRegistryValue)?.key ?: (kept as? Keyed)?.key?.toString() ?: kept?.toString() ?: return null
+        val text =
+            (kept as? LegacyRegistryValue)?.key ?: (kept as? Keyed)?.key?.toString() ?: kept?.toString() ?: return null
         return NamespacedKey.fromString(text.lowercase())
     }
 
@@ -227,7 +221,10 @@ object ServerImportPlatform : ImportPlatform {
             val front = side == Side.FRONT
             val text = sign.getSide(side)
             val first = if (front) 0 else SIDE_LINES
-            for (line in 0 until SIDE_LINES) text.line(line, legacy.deserialize(detail.lines.getOrElse(first + line) { "" }))
+            for (line in 0 until SIDE_LINES) text.line(
+                line,
+                legacy.deserialize(detail.lines.getOrElse(first + line) { "" })
+            )
             val rgb = if (front) detail.color else detail.colorBack
             DyeColor.entries.firstOrNull { it.color.asRGB() == rgb }?.let { text.color = it }
             text.isGlowingText = if (front) detail.glowing else detail.glowingBack
@@ -242,7 +239,11 @@ object ServerImportPlatform : ImportPlatform {
         val skin = detail.skin?.takeIf { it.isNotBlank() }
         if (owner == null && skin == null) return
         val name = owner?.takeIf { uuid == null && it.length <= MAX_NAME }
-        val profile = Bukkit.createProfile(uuid ?: if (name == null) UUID.nameUUIDFromBytes((skin ?: owner!!).toByteArray()) else null, name)
+        val profile = Bukkit.createProfile(
+            uuid ?: if (name == null) UUID.nameUUIDFromBytes(
+                (skin ?: owner!!).toByteArray()
+            ) else null, name
+        )
         if (skin != null && skin.startsWith(PROFILE)) {
             val parts = skin.removePrefix(PROFILE).split(':', limit = 2)
             profile.setProperty(ProfileProperty("textures", parts[0], parts.getOrNull(1)?.takeIf { it.isNotEmpty() }))
@@ -276,7 +277,8 @@ object ServerImportPlatform : ImportPlatform {
                         for (map in maps) burst?.withFade(Color.deserialize(strings(map)))
                         runCatching { burst?.build() }.getOrNull()?.let { effect ->
                             val meta = item.itemMeta
-                            if (meta is FireworkMeta) meta.addEffect(effect) else (meta as FireworkEffectMeta).effect = effect
+                            if (meta is FireworkMeta) meta.addEffect(effect) else (meta as FireworkEffectMeta).effect =
+                                effect
                             item.itemMeta = meta
                         }
                         burst = null
@@ -314,7 +316,12 @@ object ServerImportPlatform : ImportPlatform {
         val meta = item.itemMeta
         for (entry in kept.orEmpty()) for ((attribute, modifier) in entry as? Map<*, *> ?: continue) {
             val known = keyOf(attribute)?.let(Registry.ATTRIBUTE::get) ?: continue
-            runCatching { meta.addAttributeModifier(known, AttributeModifier.deserialize(strings(modifier as Map<*, *>))) }
+            runCatching {
+                meta.addAttributeModifier(
+                    known,
+                    AttributeModifier.deserialize(strings(modifier as Map<*, *>))
+                )
+            }
         }
         item.itemMeta = meta
     }
@@ -338,7 +345,8 @@ object CoreProtectLocator {
     fun find(plugins: Path): CoreProtectLocation? {
         val folder = plugins.resolve(FOLDER)
         val configFile = folder.resolve("config.yml")
-        val config = if (Files.isRegularFile(configFile)) YamlConfiguration.loadConfiguration(configFile.toFile()) else null
+        val config =
+            if (Files.isRegularFile(configFile)) YamlConfiguration.loadConfiguration(configFile.toFile()) else null
         val prefix = config?.getString("table-prefix")?.takeIf { it.isNotBlank() } ?: CoreProtectLocation.DEFAULT_PREFIX
         if (config?.getBoolean("use-mysql") == true) {
             return CoreProtectLocation.Server(

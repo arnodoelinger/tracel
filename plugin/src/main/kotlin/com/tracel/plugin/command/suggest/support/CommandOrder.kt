@@ -37,7 +37,8 @@ internal object CommandOrder {
         val path = words.drop(1).dropLast(1).map { it.lowercase() }
         val ranking = LEVELS[path] ?: return suggestions
         val rank = ranking.withIndex().associate { it.value to it.index }
-        val ordered = suggestions.list.filterNot { path.isEmpty() && it.text.lowercase() == "tp" }.sortedBy { rank[it.text.lowercase()] ?: Int.MAX_VALUE }
+        val ordered = suggestions.list.filterNot { path.isEmpty() && it.text.lowercase() == "tp" }
+            .sortedBy { rank[it.text.lowercase()] ?: Int.MAX_VALUE }
         return if (ordered == suggestions.list) suggestions else Suggestions(suggestions.range, ordered)
     }
 

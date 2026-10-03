@@ -106,7 +106,8 @@ internal class SegmentWriter(
     private fun categoryOf(run: Run): Int {
         val tag = run.keySegment.get(ValueLayout.JAVA_BYTE, run.keyOffset).toInt() and 0xFF
         val value = run.value()
-        val first = if (value == null || value.byteSize() == 0L) -1 else value.get(ValueLayout.JAVA_BYTE, 0).toInt() and 0xFF
+        val first =
+            if (value == null || value.byteSize() == 0L) -1 else value.get(ValueLayout.JAVA_BYTE, 0).toInt() and 0xFF
         return config.classifier.categoryOf(tag, first)
     }
 

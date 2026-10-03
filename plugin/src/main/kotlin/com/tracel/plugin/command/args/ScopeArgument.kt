@@ -69,7 +69,11 @@ internal fun scopeProblem(scope: LookupScope?, center: Location?, world: World?)
         tr("common.reason.other_world", "scope" to ScopeArgument.describe(scope), "world" to world.name)
 
     scope.isOversized() ->
-        tr("common.reason.too_large", "blocks" to ScopeLimits.MAX_BLOCK_RADIUS, "chunks" to ScopeLimits.MAX_CHUNK_RADIUS)
+        tr(
+            "common.reason.too_large",
+            "blocks" to ScopeLimits.MAX_BLOCK_RADIUS,
+            "chunks" to ScopeLimits.MAX_CHUNK_RADIUS
+        )
 
     else -> null
 }

@@ -53,7 +53,12 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
         val placed = when (step) {
             is StructureStep.SpawnEntity -> HolderId.PlacedEntity(step.entity)
             is StructureStep.SetBlock ->
-                if (step.target.isAirLike) null else HolderId.PlacedBlock(step.at.world, step.at.x, step.at.y, step.at.z)
+                if (step.target.isAirLike) null else HolderId.PlacedBlock(
+                    step.at.world,
+                    step.at.x,
+                    step.at.y,
+                    step.at.z
+                )
 
             else -> null
         }
@@ -61,7 +66,12 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
     }
     val notBrought = StructureReport(
         emptyList(),
-        unbacked.map { SkippedStep(it.at, "its item is no longer where the rollback left it, so it was not brought back") },
+        unbacked.map {
+            SkippedStep(
+                it.at,
+                "its item is no longer where the rollback left it, so it was not brought back"
+            )
+        },
     )
 
     when (val preflight = structureHalf.preflight(putBack + takeAway)) {
@@ -87,7 +97,16 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
     // Where a hull that does not come back last stood: what it was owed then lands on the ground there
     for (step in record.destroy.map { it.inverse() }) if (step is StructureStep.SpawnEntity) rememberHull(step)
 
-    return services.frozen.whileFrozen(undoDeltas.keys) { undoFrozen(job, record, putBack, takeAway, undoDeltas, notBrought) }
+    return services.frozen.whileFrozen(undoDeltas.keys) {
+        undoFrozen(
+            job,
+            record,
+            putBack,
+            takeAway,
+            undoDeltas,
+            notBrought
+        )
+    }
 }
 
 private suspend fun RollbackComposer.undoFrozen(

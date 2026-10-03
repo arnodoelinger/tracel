@@ -40,7 +40,8 @@ public sealed interface RollbackStep {
             other is TakeRun && holder == other.holder && lots.contentEquals(other.lots) &&
                     quantities.contentEquals(other.quantities)
 
-        override fun hashCode(): Int = (holder.hashCode() * 31 + lots.contentHashCode()) * 31 + quantities.contentHashCode()
+        override fun hashCode(): Int =
+            (holder.hashCode() * 31 + lots.contentHashCode()) * 31 + quantities.contentHashCode()
 
         override fun toString(): String = "TakeRun(${lots.size} lots at $holder)"
     }

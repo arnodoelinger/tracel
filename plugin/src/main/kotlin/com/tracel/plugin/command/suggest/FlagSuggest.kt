@@ -2,13 +2,7 @@ package com.tracel.plugin.command.suggest
 
 import com.tracel.plugin.command.args.ScopeLimits
 import com.tracel.plugin.command.args.TimeArgument
-import com.tracel.plugin.command.suggest.support.QuantityUnit
-import com.tracel.plugin.command.suggest.support.ago
-import com.tracel.plugin.command.suggest.support.around
-import com.tracel.plugin.command.suggest.support.past
-import com.tracel.plugin.command.suggest.support.presetsOf
-import com.tracel.plugin.command.suggest.support.span
-import com.tracel.plugin.command.suggest.support.suggestQuantity
+import com.tracel.plugin.command.suggest.support.*
 import com.tracel.plugin.i18n.joined
 import com.tracel.plugin.i18n.tr
 import net.kyori.adventure.text.Component
@@ -259,7 +253,8 @@ internal enum class FlagProfile {
     PRESET,
 }
 
-private fun FlagProfile.accepts(flag: FlagToken) = if (this == FlagProfile.PRESET) flag.profiles.isNotEmpty() else this in flag.profiles
+private fun FlagProfile.accepts(flag: FlagToken) =
+    if (this == FlagProfile.PRESET) flag.profiles.isNotEmpty() else this in flag.profiles
 
 internal object FlagSuggest {
     fun complete(
@@ -285,14 +280,19 @@ internal object FlagSuggest {
                     }
                     .map { Suggestion(it, tr("suggest.flag.${flag.tooltip}")) }
             }
-        return flags + bare(typed, used, if (profile == FlagProfile.PRESET) lists.copy(presets = emptyList()) else lists)
+        return flags + bare(
+            typed,
+            used,
+            if (profile == FlagProfile.PRESET) lists.copy(presets = emptyList()) else lists
+        )
     }
 
     private fun bare(typed: String, used: Set<FlagGroup>, lists: SuggestLists): List<Suggestion> {
         if (typed.isEmpty()) return lists.presets.take(5).map { Suggestion("@${it.first}", Component.text(it.second)) }
         if (typed.startsWith("@")) {
             val needle = typed.substring(1).lowercase()
-            return lists.presets.filter { it.first.startsWith(needle) }.map { Suggestion("@${it.first}", Component.text(it.second)) }
+            return lists.presets.filter { it.first.startsWith(needle) }
+                .map { Suggestion("@${it.first}", Component.text(it.second)) }
         }
         if (typed.startsWith("#")) return emptyList()
         val out = ArrayList<Suggestion>()
@@ -320,7 +320,10 @@ internal object FlagSuggest {
             return out
         }
         val needle = typed
-        for (name in rank(lists.onlinePlayers, needle, limit = 10)) out += Suggestion(name, tr("suggest.player", "name" to name))
+        for (name in rank(lists.onlinePlayers, needle, limit = 10)) out += Suggestion(
+            name,
+            tr("suggest.player", "name" to name)
+        )
         if (FlagGroup.SCOPE !in used) {
             for ((word, tip) in WHERE_WORDS) {
                 if (word.startsWith(needle.lowercase())) out += Suggestion(word, tip)
@@ -330,7 +333,10 @@ internal object FlagSuggest {
             for ((word, tip) in NAMED_DAYS) if (word.startsWith(needle.lowercase())) out += Suggestion(word, tip)
         }
         if (FlagGroup.WORLD !in used) {
-            for (name in rank(lists.worldNames, needle, limit = 5)) out += Suggestion(name, tr("suggest.world", "name" to name))
+            for (name in rank(lists.worldNames, needle, limit = 5)) out += Suggestion(
+                name,
+                tr("suggest.world", "name" to name)
+            )
         }
         if (FlagGroup.ACTION !in used) {
             for (name in rank(lists.actionNames, needle, limit = 8)) out += Suggestion(name, actionTip(name))
@@ -372,7 +378,14 @@ internal object FlagSuggest {
                     units = units,
                     presets = presetsOf(TIME_PRESETS, units) + if (window) NAMED_DAYS else emptyList(),
                     compound = true,
-                    describeWhole = { text -> spanOf(text)?.let { tr(if (window) "suggest.past" else "suggest.ago", "span" to it) } },
+                    describeWhole = { text ->
+                        spanOf(text)?.let {
+                            tr(
+                                if (window) "suggest.past" else "suggest.ago",
+                                "span" to it
+                            )
+                        }
+                    },
                 )
             }
 

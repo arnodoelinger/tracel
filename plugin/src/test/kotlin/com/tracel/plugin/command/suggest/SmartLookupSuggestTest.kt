@@ -8,7 +8,7 @@ import net.kyori.adventure.translation.GlobalTranslator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
-import java.util.Locale
+import java.util.*
 
 class SmartLookupSuggestTest {
     private val lists = SuggestLists(
@@ -89,7 +89,10 @@ class SmartLookupSuggestTest {
     fun `comma-separated actions keep the ones that match`() {
         val texts = LookupSuggest.suggest("a:block,c", lists).map { it.text }
         assertEquals(listOf("a:block,craft", "a:block,container"), texts)
-        assertEquals("Crafting", LookupSuggest.suggest("a:block,c", lists).first { it.text.endsWith("craft") }.tooltip?.plain())
+        assertEquals(
+            "Crafting",
+            LookupSuggest.suggest("a:block,c", lists).first { it.text.endsWith("craft") }.tooltip?.plain()
+        )
     }
 
     @Test
@@ -227,7 +230,10 @@ class SmartLookupSuggestTest {
         val list = LookupSuggest.suggest("t:1h30m", lists)
         assertEquals(listOf("t:1h30m"), list.map { it.text })
         assertEquals("Past 1 hour 30 minutes", list.single().tooltip?.plain())
-        assertEquals("2 days ago", LookupSuggest.suggest("after:2d", lists).first { it.text == "after:2d" }.tooltip?.plain())
+        assertEquals(
+            "2 days ago",
+            LookupSuggest.suggest("after:2d", lists).first { it.text == "after:2d" }.tooltip?.plain()
+        )
     }
 
     @Test
@@ -244,7 +250,10 @@ class SmartLookupSuggestTest {
         assertTrue(LookupSuggest.suggest("-al", lists).isEmpty(), "there is no exclusion by name")
         assertTrue("world_nether" in LookupSuggest.suggest("nether", lists).map { it.text })
         assertTrue("chunk" in LookupSuggest.suggest("ch", lists).map { it.text })
-        assertTrue(LookupSuggest.suggest("", lists).none { it.text == "Alice" }, "nothing bare until something is typed")
+        assertTrue(
+            LookupSuggest.suggest("", lists).none { it.text == "Alice" },
+            "nothing bare until something is typed"
+        )
     }
 
     @Test

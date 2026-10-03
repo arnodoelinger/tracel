@@ -12,7 +12,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import java.util.Locale
+import java.util.*
 
 private const val NOW = 1_756_000_000_000L
 
@@ -39,8 +39,11 @@ class LookupFlagsTest {
         assertEquals(LookupScope.Blocks(20), parseLookupArgs(listOf("s:20b"), NOW).scope)
         assertEquals(LookupScope.CurrentBlock, parseLookupArgs(listOf("s:block"), NOW).scope)
         assertEquals("world_nether", parseLookupArgs(listOf("s:world_nether"), NOW).world)
-        assertEquals(0, com.tracel.plugin.command.args.RollbackArgument.missingBounds(
-            parseLookupArgs(listOf("t:10m", "s:2c"), NOW)).size)
+        assertEquals(
+            0, com.tracel.plugin.command.args.RollbackArgument.missingBounds(
+                parseLookupArgs(listOf("t:10m", "s:2c"), NOW)
+            ).size
+        )
     }
 
     @Test

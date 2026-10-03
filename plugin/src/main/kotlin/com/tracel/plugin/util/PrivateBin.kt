@@ -12,7 +12,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.security.SecureRandom
 import java.time.Duration
-import java.util.Base64
+import java.util.*
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
@@ -30,7 +30,8 @@ class PrivateBin(server: URI, private val expire: String, private val burn: Bool
     suspend fun upload(text: String): URI = withContext(Dispatchers.IO) {
         val random = SecureRandom()
         val key = ByteArray(KEY_BYTES).also(random::nextBytes)
-        val body = paste(text, key, ByteArray(IV_BYTES).also(random::nextBytes), ByteArray(SALT_BYTES).also(random::nextBytes))
+        val body =
+            paste(text, key, ByteArray(IV_BYTES).also(random::nextBytes), ByteArray(SALT_BYTES).also(random::nextBytes))
         val request = HttpRequest.newBuilder(server)
             .timeout(Duration.ofSeconds(30))
             .header("Content-Type", "application/json")
@@ -47,7 +48,8 @@ class PrivateBin(server: URI, private val expire: String, private val burn: Bool
     /** The request body: [text] encrypted under [key], with the parameters it needs to be read back. */
     internal fun paste(text: String, key: ByteArray, iv: ByteArray, salt: ByteArray): JsonObject {
         val b64 = Base64.getEncoder()
-        val adata = "[[\"${b64.encodeToString(iv)}\",\"${b64.encodeToString(salt)}\",$ITERATIONS,256,128,\"aes\",\"gcm\",\"none\"],\"plaintext\",0,${if (burn) 1 else 0}]"
+        val adata =
+            "[[\"${b64.encodeToString(iv)}\",\"${b64.encodeToString(salt)}\",$ITERATIONS,256,128,\"aes\",\"gcm\",\"none\"],\"plaintext\",0,${if (burn) 1 else 0}]"
         val plain = JsonObject().apply { addProperty("paste", text) }.toString().toByteArray(Charsets.UTF_8)
         val ct = encrypt(plain, key, iv, salt, adata.toByteArray(Charsets.UTF_8))
         return JsonObject().apply {

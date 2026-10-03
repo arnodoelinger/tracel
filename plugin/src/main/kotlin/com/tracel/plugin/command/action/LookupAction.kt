@@ -3,26 +3,22 @@ package com.tracel.plugin.command.action
 import com.tracel.annotations.CauseKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
-import com.tracel.model.id.WorldId
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.WorldId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.support.LookupSearch
 import com.tracel.plugin.command.args.*
 import com.tracel.plugin.command.args.support.MaterialAliases
 import com.tracel.plugin.command.presenter.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.LookupPresenter
-import com.tracel.plugin.i18n.asReason
-import com.tracel.plugin.i18n.failed
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.unexpected
-import net.kyori.adventure.text.Component
+import com.tracel.plugin.i18n.*
 import com.tracel.plugin.util.PrivateBin
 import com.tracel.plugin.util.resolvePlayerUuid
 import com.tracel.plugin.util.toLookupRegion
 import com.tracel.plugin.util.toWorldId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.block.Block
@@ -59,12 +55,17 @@ class LookupAction(private val services: TracelServices) {
             val done = runCatching {
                 val stacks = search.all()
                 if (stacks.isEmpty()) return@runCatching null
-                val text = ChangeLinePresenter.document(stacks, search.parsed.command, System.currentTimeMillis(), MAX_LINES)
+                val text =
+                    ChangeLinePresenter.document(stacks, search.parsed.command, System.currentTimeMillis(), MAX_LINES)
                 val paste = services.paste
                 PrivateBin(URI.create(paste.url), paste.expire, paste.burn).upload(text) to stacks.size
             }
             done.onSuccess { sent ->
-                if (sent == null) sender.send("lookup.no_matches") else LookupPresenter.exported(sender, sent.first, sent.second)
+                if (sent == null) sender.send("lookup.no_matches") else LookupPresenter.exported(
+                    sender,
+                    sent.first,
+                    sent.second
+                )
             }.onFailure {
                 if (it is CancellationException) throw it
                 sender.failed("lookup.export.failed", Component.text(unexpected(it)), tr("lookup.export.hint.again"))
@@ -123,7 +124,9 @@ class LookupAction(private val services: TracelServices) {
             material = parsed.item?.let { MaterialAliases.resolve(it).first },
             blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
             causes = actions.causes,
-            excludedCauses = if (parsed.natural || "world" in parsed.actions.map(String::lowercase)) emptySet() else setOf(CauseKind.WORLD),
+            excludedCauses = if (parsed.natural || "world" in parsed.actions.map(String::lowercase)) emptySet() else setOf(
+                CauseKind.WORLD
+            ),
             worldCauses = actions.worldCauses,
             actions = actions.actions,
             since = parsed.since,

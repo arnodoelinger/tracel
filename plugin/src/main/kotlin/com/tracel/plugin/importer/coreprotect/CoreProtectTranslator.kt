@@ -23,8 +23,7 @@ import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.ports.ops.ForeignRecord
-import java.util.EnumMap
-import java.util.UUID
+import java.util.*
 
 /** What a block entity carried that its block state does not say. */
 sealed interface BlockDetail {
@@ -292,28 +291,51 @@ class CoreProtectTranslator(
             } else {
                 tally.took(Taken.DEATHS, millis)
                 val killer = tables.users[row.user]?.name.orEmpty().removePrefix("#").replace('_', ' ')
-                ForeignRecord.Happened(EventKind.DEATH, HolderId.Player(victim.uuid ?: platform.player(victim.name)), millis, at, killer)
+                ForeignRecord.Happened(
+                    EventKind.DEATH,
+                    HolderId.Player(victim.uuid ?: platform.player(victim.name)),
+                    millis,
+                    at,
+                    killer
+                )
             }
         }
 
         KILL -> {
-            val type = entityTypes.getOrPut(row.type) { tables.entities[row.type]?.let(platform::entityType)?.let(::EntityTypeKey) }
+            val type = entityTypes.getOrPut(row.type) {
+                tables.entities[row.type]?.let(platform::entityType)?.let(::EntityTypeKey)
+            }
             if (type == null) {
                 tally.skip(Skipped.ENTITY)
                 null
             } else {
                 val kept = row.data.takeIf { it > 0 }?.let(entity)?.let(platform::decode)
                 // Newer rows say which mob it was; for the rest the row itself has to do
-                val uuid = (kept?.getOrNull(KEPT_UUID) as? String)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                    ?: UUID.nameUUIDFromBytes("tracel:coreprotect:entity:$source:${row.rowId}".toByteArray())
-                val snapshot = kept?.let { platform.entitySnapshot(at.world, type.value, row.x + CENTER, row.y.toDouble(), row.z + CENTER, it) }
+                val uuid =
+                    (kept?.getOrNull(KEPT_UUID) as? String)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                        ?: UUID.nameUUIDFromBytes("tracel:coreprotect:entity:$source:${row.rowId}".toByteArray())
+                val snapshot = kept?.let {
+                    platform.entitySnapshot(
+                        at.world,
+                        type.value,
+                        row.x + CENTER,
+                        row.y.toDouble(),
+                        row.z + CENTER,
+                        it
+                    )
+                }
                 val before = EntityShape(
                     type, row.x + CENTER, row.y.toDouble(), row.z + CENTER,
                     extras = snapshot?.let(EntityExtras::Opaque),
                 )
                 tally.took(Taken.ENTITIES, millis)
                 ForeignRecord.Change(
-                    ActionKind.ENTITY_REMOVE, actor.cause, actor.by, millis, at, ChangeSubject.Entity(uuid, type, before, null),
+                    ActionKind.ENTITY_REMOVE,
+                    actor.cause,
+                    actor.by,
+                    millis,
+                    at,
+                    ChangeSubject.Entity(uuid, type, before, null),
                 )
             }
         }
@@ -325,7 +347,14 @@ class CoreProtectTranslator(
                 null
             } else {
                 tally.took(Taken.CLICKS, millis)
-                ForeignRecord.Change(ActionKind.BLOCK_CLICK, actor.cause, actor.by, millis, at, ChangeSubject.Block(shape, shape))
+                ForeignRecord.Change(
+                    ActionKind.BLOCK_CLICK,
+                    actor.cause,
+                    actor.by,
+                    millis,
+                    at,
+                    ChangeSubject.Block(shape, shape)
+                )
             }
         }
 
@@ -364,7 +393,14 @@ class CoreProtectTranslator(
             return null
         }
         tally.took(Taken.SIGNS, millis)
-        return ForeignRecord.Change(ActionKind.SIGN_EDIT, actor.cause, actor.by, millis, at, ChangeSubject.Block(stood, reads))
+        return ForeignRecord.Change(
+            ActionKind.SIGN_EDIT,
+            actor.cause,
+            actor.by,
+            millis,
+            at,
+            ChangeSubject.Block(stood, reads)
+        )
     }
 
     private fun shapeOf(row: BlockRow): BlockShape? {
@@ -376,7 +412,8 @@ class CoreProtectTranslator(
                 // A number of points into the map; an old database wrote the property out in place
                 word.toIntOrNull()?.let { tables.blockData[it] } ?: word.takeIf { '=' in it }
             }.orEmpty()
-            val state = if (properties.isEmpty()) null else platform.blockState("$material[${properties.joinToString(",")}]")
+            val state =
+                if (properties.isEmpty()) null else platform.blockState("$material[${properties.joinToString(",")}]")
             (state ?: platform.blockState(material))?.let { BlockShape(BlockDataKey(it)) } ?: UNKNOWN
         }
         return found as? BlockShape
@@ -409,7 +446,8 @@ class CoreProtectTranslator(
                 row.meta?.let(platform::decode)?.firstNotNullOfOrNull { it as? String }?.let(BlockDetail::Command)
 
             material.endsWith("_banner") ->
-                row.meta?.let(platform::decode)?.filterIsInstance<Map<*, *>>()?.takeIf { it.isNotEmpty() }?.let(BlockDetail::Banner)
+                row.meta?.let(platform::decode)?.filterIsInstance<Map<*, *>>()?.takeIf { it.isNotEmpty() }
+                    ?.let(BlockDetail::Banner)
 
             material.endsWith("_head") || material.endsWith("_skull") ->
                 row.data.takeIf { it > 0 }?.let(skull)?.let { BlockDetail.Head(it.owner, it.skin) }
@@ -461,7 +499,8 @@ class CoreProtectTranslator(
 
     private fun itemFlow(row: ItemRow, player: HolderId.Player, item: ItemKey): Flow? {
         val quantity = Quantity(row.amount.toLong())
-        fun pile() = HolderId.ItemEntity(UUID.nameUUIDFromBytes("tracel:coreprotect:item:$source:${row.rowId}".toByteArray()))
+        fun pile() =
+            HolderId.ItemEntity(UUID.nameUUIDFromBytes("tracel:coreprotect:item:$source:${row.rowId}".toByteArray()))
         return when (row.action) {
             ITEM_DROP, ITEM_THROW -> Flow(item, quantity, player, pile(), FlowKind.MOVE)
             ITEM_PICKUP -> Flow(item, quantity, pile(), player, FlowKind.MOVE)
@@ -549,7 +588,14 @@ class CoreProtectTranslator(
         private val edits = ArrayList<BlockEdit>()
         private val seen = HashSet<Long>()
 
-        fun takes(action: ActionKind, cause: CauseKind, by: HolderId?, millis: Long, world: WorldId, at: BlockPos): Boolean =
+        fun takes(
+            action: ActionKind,
+            cause: CauseKind,
+            by: HolderId?,
+            millis: Long,
+            world: WorldId,
+            at: BlockPos
+        ): Boolean =
             edits.size < MAX_GROUP && action == this.action && cause == this.cause && by == this.by &&
                     millis == this.millis && world == this.world && Standing.key(at.x, at.y, at.z) !in seen
 

@@ -1,11 +1,11 @@
 package com.tracel.plugin
 
-import com.tracel.storage.TracelStorage
-import com.tracel.storage.lsm.LsmConfig
-import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.plugin.command.args.TimeArgument
 import com.tracel.plugin.rollback.structure.GovernorSettings
 import com.tracel.plugin.util.PrivateBin
+import com.tracel.storage.TracelStorage
+import com.tracel.storage.lsm.LsmConfig
+import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.ports.ops.PurgeCategory
 import org.tomlj.TomlTable
 import java.net.URI
@@ -113,7 +113,8 @@ internal fun readSettings(
 
     val autoPurge = purge.setting("purge", "auto-purge", false, complain) { it as? Boolean }
     val purgeInterval = purge.setting("purge", "interval", DEFAULT_PURGE_INTERVAL_MILLIS, complain) {
-        TimeArgument.parseDuration(it.toString().trim().lowercase())?.takeIf { millis -> millis >= MIN_PURGE_INTERVAL_MILLIS }
+        TimeArgument.parseDuration(it.toString().trim().lowercase())
+            ?.takeIf { millis -> millis >= MIN_PURGE_INTERVAL_MILLIS }
     }
     val keep = PurgeCategory.entries.associateWith { category ->
         purge.setting("purge", "keep-${category.name.lowercase()}", DEFAULT_PURGE_KEEP_MILLIS, complain) { raw ->

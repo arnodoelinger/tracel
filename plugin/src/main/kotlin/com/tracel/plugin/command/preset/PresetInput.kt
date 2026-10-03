@@ -5,7 +5,7 @@ import com.tracel.plugin.command.args.filledFrom
 import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.suggest.SuggestLists
 import com.tracel.plugin.i18n.tr
-import java.util.UUID
+import java.util.*
 
 /**
  * Parses flag tokens where any `@name` stands for a saved preset.

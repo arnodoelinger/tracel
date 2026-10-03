@@ -30,7 +30,7 @@ internal fun PalettePaste.place(step: StructureStep.SetBlock, force: Boolean, dr
     val targetState = stateOf(targetData) ?: return null
     val expectedData = BlockDataCache.of(step.expected.data)
     val expectedAir = expectedData?.material?.isAir == true ||
-        (expectedData == null && step.expected == BlockShape.AIR)
+            (expectedData == null && step.expected == BlockShape.AIR)
     val expectedState = if (expectedData != null && !expectedData.material.isAir) stateOf(expectedData) else null
     if (expectedData != null && !expectedData.material.isAir && expectedState == null) return null
     when (
@@ -49,6 +49,7 @@ internal fun PalettePaste.place(step: StructureStep.SetBlock, force: Boolean, dr
             wakeIfNeeded(step.at.x, step.at.y, step.at.z, targetData)
             return Applied(step)
         }
+
         PalettePaste.Fast.BUKKIT -> return null
         PalettePaste.Fast.DRIFTED -> Unit
     }

@@ -22,7 +22,13 @@ internal object PurgeSuggest : SuggestionProvider<CommandSourceStack> {
         return when (previous.lastOrNull()?.lowercase()) {
             PurgeArgument.CATEGORY -> categories(current)
             PurgeArgument.OLDER -> spans(current)
-            PurgeArgument.WORLD -> rank(lists.worldNames, current).map { Suggestion(it, tr("suggest.world", "name" to it)) }
+            PurgeArgument.WORLD -> rank(lists.worldNames, current).map {
+                Suggestion(
+                    it,
+                    tr("suggest.world", "name" to it)
+                )
+            }
+
             PurgeArgument.PLAYER -> {
                 val online = rank(lists.onlinePlayers, current).map { Suggestion(it, tr("suggest.online")) }
                 online + rank(known.filter { it !in lists.onlinePlayers }, current, limit = 20)

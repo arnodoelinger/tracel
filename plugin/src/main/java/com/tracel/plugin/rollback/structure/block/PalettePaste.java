@@ -52,7 +52,6 @@ public final class PalettePaste {
     private final Object chunkMap;
     private final Object light;
     private final Object cursor;
-    private LongMap<PasteChunk> chunks = new LongMap<>();
     private final LongMap<Object> relight = new LongMap<>();
     private final List<Object> relightChunks = new ArrayList<>();
     private final List<PasteChunk> dirty = new ArrayList<>();
@@ -63,28 +62,41 @@ public final class PalettePaste {
     private final IdentityHashMap<Object, Material> materials = new IdentityHashMap<>();
     public int written;
     public Object lastRead;
+    private LongMap<PasteChunk> chunks = new LongMap<>();
     private int lastCx = Integer.MIN_VALUE;
     private int lastCz;
     private PasteChunk lastChunk;
     private boolean dead;
     private byte capture; // 0 unknown, 1 capturing, -1 not. Read once per paste
 
-    /** Result of {@link #placeFast}. */
+    /**
+     * Result of {@link #placeFast}.
+     */
     public enum Fast {
-        /** Already the target state. */
+        /**
+         * Already the target state.
+         */
         UNCHANGED,
 
-        /** Written into the section palette. */
+        /**
+         * Written into the section palette.
+         */
         WRITTEN,
 
-        /** Paste cannot handle this cell; use {@code Bukkit}. */
+        /**
+         * Paste cannot handle this cell; use {@code Bukkit}.
+         */
         BUKKIT,
 
-        /** Live block is not the expected one; the slow check decides. */
+        /**
+         * Live block is not the expected one; the slow check decides.
+         */
         DRIFTED
     }
 
-    /** Paste currently bound to this thread, or {@code null}. */
+    /**
+     * Paste currently bound to this thread, or {@code null}.
+     */
     public static PalettePaste current() {
         return CURRENT.get();
     }
@@ -110,12 +122,16 @@ public final class PalettePaste {
         }
     }
 
-    /** Section index for a block y, given the chunk's minimum section y. */
+    /**
+     * Section index for a block y, given the chunk's minimum section y.
+     */
     public static int sectionIndex(int blockY, int minSectionY) {
         return (blockY >> 4) - minSectionY;
     }
 
-    /** Bind this paste to the calling thread so nested block edits (leaves, fluids) hit it too. */
+    /**
+     * Bind this paste to the calling thread so nested block edits (leaves, fluids) hit it too.
+     */
     public void bind() {
         CURRENT.set(this);
     }
@@ -142,12 +158,16 @@ public final class PalettePaste {
         if (CURRENT.get() == this) CURRENT.remove();
     }
 
-    /** Bind to the calling thread again after {@link #pause()}. */
+    /**
+     * Bind to the calling thread again after {@link #pause()}.
+     */
     public void resume() {
         bind();
     }
 
-    /** Relight dirty chunks and drop the thread binding. Safe to call twice. */
+    /**
+     * Relight dirty chunks and drop the thread binding. Safe to call twice.
+     */
     public void close() {
         try {
             flush();
@@ -156,7 +176,9 @@ public final class PalettePaste {
         }
     }
 
-    /** World capture (trees, structure blocks) must keep going through vanilla. */
+    /**
+     * World capture (trees, structure blocks) must keep going through vanilla.
+     */
     public boolean capturing() {
         if (dead) return true;
         if (capture != 0) return capture > 0;
@@ -175,7 +197,9 @@ public final class PalettePaste {
         }
     }
 
-    /** Live state at the block, or {@code null} when the chunk is not loaded or the height is outside. */
+    /**
+     * Live state at the block, or {@code null} when the chunk is not loaded or the height is outside.
+     */
     public Object read(int x, int y, int z) {
         if (dead) return null;
         try {
@@ -190,7 +214,9 @@ public final class PalettePaste {
         }
     }
 
-    /** NMS state of a {@code Bukkit} block data, or {@code null} when it is not a server block data. */
+    /**
+     * NMS state of a {@code Bukkit} block data, or {@code null} when it is not a server block data.
+     */
     public Object stateOf(BlockData data) {
         if (data == null || dead) return null;
         Object cached = nmsOf.get(data);
@@ -204,7 +230,9 @@ public final class PalettePaste {
         }
     }
 
-    /** Whether it's an air. */
+    /**
+     * Whether it's an air.
+     */
     public boolean isAir(Object state) {
         try {
             return (traits(state) & AIR) != 0;
@@ -214,7 +242,9 @@ public final class PalettePaste {
         }
     }
 
-    /** Whether it's a block entity. */
+    /**
+     * Whether it's a block entity.
+     */
     public boolean hasBlockEntity(Object state) {
         try {
             return (traits(state) & ENTITY) != 0;
@@ -224,7 +254,9 @@ public final class PalettePaste {
         }
     }
 
-    /** Whether it's a liquid. */
+    /**
+     * Whether it's a liquid.
+     */
     public boolean liquid(Object state) {
         try {
             return (boolean) nms.liquid.invokeExact(state);
@@ -234,7 +266,9 @@ public final class PalettePaste {
         }
     }
 
-    /** Whether it can be replaced. */
+    /**
+     * Whether it can be replaced.
+     */
     public boolean canReplace(Object state) {
         try {
             return (boolean) nms.canReplace.invokeExact(state);
@@ -244,7 +278,9 @@ public final class PalettePaste {
         }
     }
 
-    /** Whether it's a material. */
+    /**
+     * Whether it's a material.
+     */
     public Material material(Object state) {
         Material cached = materials.get(state);
         if (cached != null) return cached;
@@ -258,18 +294,24 @@ public final class PalettePaste {
         }
     }
 
-    /** Whether it's ageable. */
+    /**
+     * Whether it's ageable.
+     */
     public boolean ageable(Object state) {
         return view(state) instanceof Ageable;
     }
 
-    /** Whether it's waterlogged. */
+    /**
+     * Whether it's waterlogged.
+     */
     public boolean waterlogged(Object state) {
         BlockData data = view(state);
         return data instanceof Waterlogged logged && logged.isWaterlogged();
     }
 
-    /** Whether it's a string. */
+    /**
+     * Whether it's a string.
+     */
     public String asString(Object state) {
         String cached = strings.get(state);
         if (cached != null) return cached;
@@ -317,7 +359,9 @@ public final class PalettePaste {
         }
     }
 
-    /** Common rollback case: the block is still the expected plain state, so write the target. */
+    /**
+     * Common rollback case: the block is still the expected plain state, so write the target.
+     */
     public Fast placeFast(
             int x,
             int y,

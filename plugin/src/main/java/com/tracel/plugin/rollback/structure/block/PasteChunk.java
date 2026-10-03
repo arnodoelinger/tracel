@@ -3,7 +3,9 @@ package com.tracel.plugin.rollback.structure.block;
 import java.util.Arrays;
 import java.util.Map;
 
-/** One loaded chunk touched by a paste: sections, heightmaps, and the deferred client queue. */
+/**
+ * One loaded chunk touched by a paste: sections, heightmaps, and the deferred client queue.
+ */
 final class PasteChunk {
     final Object nms;
     final Object[] sections;
@@ -26,48 +28,6 @@ final class PasteChunk {
     byte watch;
     int cachedIndex = Integer.MIN_VALUE;
     Object cachedSection;
-
-    /** Section at block y, or {@code null} when the height is outside this chunk. */
-    Object section(int y) {
-        int index = PalettePaste.sectionIndex(y, minSection);
-        if (index == cachedIndex) return cachedSection;
-        cachedIndex = index;
-        if (index < 0 || index >= sections.length) {
-            cachedSection = null;
-            return null;
-        }
-        cachedSection = sections[index];
-        return cachedSection;
-    }
-
-    Object stateAt(PasteBridge nms, int localX, int y, int localZ) throws Throwable {
-        int index = PalettePaste.sectionIndex(y, minSection);
-        if (index < 0 || index >= sections.length) return null;
-        Object section = sections[index];
-        if (section == null) return null;
-        return nms.getState.invokeExact(section, localX, y & 15, localZ);
-    }
-
-    @SuppressWarnings("unchecked")
-    static PasteChunk open(PasteBridge nms, Object chunk, Object chunkMap, int cx, int cz) throws Throwable {
-        Object sections = nms.getSections.invokeExact(chunk);
-        int minY = (int) nms.getMinY.invokeExact(chunk);
-        Map<Object, Object> maps = (Map<Object, Object>) nms.heightmaps.invokeExact(chunk);
-        long packed = (long) nms.pack.invokeExact(cx, cz);
-        Object holder = nms.visible.invokeExact(chunkMap, packed);
-        return new PasteChunk(
-                chunk,
-                (Object[]) sections,
-                minY >> 4,
-                cx,
-                cz,
-                holder,
-                maps.get(nms.motion),
-                maps.get(nms.motionNoLeaves),
-                maps.get(nms.ocean),
-                maps.get(nms.surface)
-        );
-    }
 
     private PasteChunk(
             Object nms,
@@ -92,5 +52,49 @@ final class PasteChunk {
         this.ocean = ocean;
         this.surface = surface;
         Arrays.fill(columnTop, Integer.MIN_VALUE);
+    }
+
+    @SuppressWarnings("unchecked")
+    static PasteChunk open(PasteBridge nms, Object chunk, Object chunkMap, int cx, int cz) throws Throwable {
+        Object sections = nms.getSections.invokeExact(chunk);
+        int minY = (int) nms.getMinY.invokeExact(chunk);
+        Map<Object, Object> maps = (Map<Object, Object>) nms.heightmaps.invokeExact(chunk);
+        long packed = (long) nms.pack.invokeExact(cx, cz);
+        Object holder = nms.visible.invokeExact(chunkMap, packed);
+        return new PasteChunk(
+                chunk,
+                (Object[]) sections,
+                minY >> 4,
+                cx,
+                cz,
+                holder,
+                maps.get(nms.motion),
+                maps.get(nms.motionNoLeaves),
+                maps.get(nms.ocean),
+                maps.get(nms.surface)
+        );
+    }
+
+    /**
+     * Section at block y, or {@code null} when the height is outside this chunk.
+     */
+    Object section(int y) {
+        int index = PalettePaste.sectionIndex(y, minSection);
+        if (index == cachedIndex) return cachedSection;
+        cachedIndex = index;
+        if (index < 0 || index >= sections.length) {
+            cachedSection = null;
+            return null;
+        }
+        cachedSection = sections[index];
+        return cachedSection;
+    }
+
+    Object stateAt(PasteBridge nms, int localX, int y, int localZ) throws Throwable {
+        int index = PalettePaste.sectionIndex(y, minSection);
+        if (index < 0 || index >= sections.length) return null;
+        Object section = sections[index];
+        if (section == null) return null;
+        return nms.getState.invokeExact(section, localX, y & 15, localZ);
     }
 }

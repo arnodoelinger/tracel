@@ -10,8 +10,8 @@ import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.Seq
-import com.tracel.model.item.ItemKey
 import com.tracel.model.id.WorldId
+import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
@@ -23,27 +23,16 @@ import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ports.event.EventLog
-import com.tracel.storage.ports.ops.Counters
-import com.tracel.storage.ports.ops.ForeignHistory
-import com.tracel.storage.ports.ops.ForeignRecord
-import com.tracel.storage.ports.ops.ImportMark
-import com.tracel.storage.ports.ops.NoRoomForImport
-import com.tracel.storage.ports.ops.PurgeCategory
-import com.tracel.storage.ports.ops.PurgeFilter
-import com.tracel.storage.ports.ops.PurgeSpec
-import com.tracel.storage.ports.ops.purgeAll
-import com.tracel.storage.ports.ops.purgeSome
+import com.tracel.storage.ports.ops.*
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 
 class ForeignHistoryTest {
     private val world = WorldId(UUID(0L, 1L))
@@ -54,7 +43,13 @@ class ForeignHistoryTest {
     private fun Stack.foreign() = ForeignHistory(storage, worldLog, log, EventLog(storage), counters)
 
     private fun broke(at: BlockPos, millis: Long, before: BlockShape = stone) = ForeignRecord.Blocks(
-        BlockEdits(ActionKind.BLOCK_BREAK, CauseKind.PLAYER_ACTION, player(1), millis, listOf(BlockEdit(at, before, BlockShape.AIR))),
+        BlockEdits(
+            ActionKind.BLOCK_BREAK,
+            CauseKind.PLAYER_ACTION,
+            player(1),
+            millis,
+            listOf(BlockEdit(at, before, BlockShape.AIR))
+        ),
     )
 
     private suspend fun Stack.own(at: BlockPos, millis: Long, before: BlockShape, after: BlockShape) = worldLog.append(
@@ -70,7 +65,11 @@ class ForeignHistoryTest {
             stack.own(here, 5_000, BlockShape.AIR, dirt)
             val foreign = stack.foreign()
             assertEquals(5_000L, foreign.room(7).ownSince)
-            assertEquals(Counters.SEQ_BASE, foreign.importedBelow(), "a rollback leaves alone whatever is numbered below this")
+            assertEquals(
+                Counters.SEQ_BASE,
+                foreign.importedBelow(),
+                "a rollback leaves alone whatever is numbered below this"
+            )
 
             assertEquals(1, foreign.append(7, listOf(40L), listOf(broke(here, 1_000))))
 
@@ -123,7 +122,15 @@ class ForeignHistoryTest {
         Stack(dir).use { stack ->
             stack.storage.write { putPinned(Keys.counter(Counters.SEQ), Records.long(300)) }
             stack.worldLog.append(
-                WorldChange(Seq(5), ActionKind.BLOCK_BREAK, CauseKind.PLAYER_ACTION, player(1), 1_000, here, ChangeSubject.Block(stone, BlockShape.AIR)),
+                WorldChange(
+                    Seq(5),
+                    ActionKind.BLOCK_BREAK,
+                    CauseKind.PLAYER_ACTION,
+                    player(1),
+                    1_000,
+                    here,
+                    ChangeSubject.Block(stone, BlockShape.AIR)
+                ),
             )
             assertThrows<NoRoomForImport> { stack.foreign().room(7) }
         }
@@ -159,41 +166,50 @@ class ForeignHistoryTest {
             assertEquals(3L, moved.flows.single().quantity.raw)
             assertTrue(stack.log.lotsAt(moved.seq).isEmpty(), "nothing a rollback could take hold of")
             assertTrue(moved.id.raw > before)
-            assertTrue((1..600).none { stack.counters.nextTxnId() == moved.id }, "the allocator never hands the import's id out again")
+            assertTrue(
+                (1..600).none { stack.counters.nextTxnId() == moved.id },
+                "the allocator never hands the import's id out again"
+            )
 
             val events = EventLog(stack.storage)
             val all = events.query(LookupFilter(), EventKind.entries.toSet())
             assertEquals(listOf(EventKind.QUIT, EventKind.CHAT), all.map { it.kind })
             assertEquals("hello", all.last().text)
             assertNull(all.first().at)
-            assertEquals(1, events.query(LookupFilter(holders = setOf(player(1)), until = 2_500), EventKind.entries.toSet()).size)
+            assertEquals(
+                1,
+                events.query(LookupFilter(holders = setOf(player(1)), until = 2_500), EventKind.entries.toSet()).size
+            )
             assertTrue(events.query(LookupFilter(holders = setOf(player(2))), EventKind.entries.toSet()).isEmpty())
             assertTrue(events.query(LookupFilter(), setOf(EventKind.COMMAND)).isEmpty())
 
             val purged = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.EVENTS), PurgeFilter(before = 2_500)))
             assertEquals(1, purged.matched)
-            assertEquals(listOf(EventKind.QUIT), events.query(LookupFilter(), EventKind.entries.toSet()).map { it.kind })
+            assertEquals(
+                listOf(EventKind.QUIT),
+                events.query(LookupFilter(), EventKind.entries.toSet()).map { it.kind })
         }
     }
 
     @Test
-    fun `purging everything makes room, and what is recorded right after does not take it back`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
-            stack.storage.write { putPinned(Keys.counter(Counters.SEQ), Records.long(300)) }
-            stack.own(here, 1_000, BlockShape.AIR, dirt)
-            assertThrows<NoRoomForImport> { stack.foreign().room(7) }
-            assertEquals(0L, stack.foreign().importedBelow(), "numbered from one, so what is down there is its own")
+    fun `purging everything makes room, and what is recorded right after does not take it back`(@TempDir dir: Path) =
+        runTest {
+            Stack(dir).use { stack ->
+                stack.storage.write { putPinned(Keys.counter(Counters.SEQ), Records.long(300)) }
+                stack.own(here, 1_000, BlockShape.AIR, dirt)
+                assertThrows<NoRoomForImport> { stack.foreign().room(7) }
+                assertEquals(0L, stack.foreign().importedBelow(), "numbered from one, so what is down there is its own")
 
-            purgeAll(stack.storage)
-            stack.own(here, 9_000, BlockShape.AIR, stone)
+                purgeAll(stack.storage)
+                stack.own(here, 9_000, BlockShape.AIR, stone)
 
-            assertEquals(9_000L, stack.foreign().room(7).ownSince)
-            assertEquals(Counters.SEQ_BASE, stack.foreign().importedBelow())
-            stack.foreign().append(7, listOf(1L), listOf(broke(here, 2_000)))
-            val history = stack.worldLog.at(here, 10)
-            assertEquals(listOf(9_000L, 2_000L), history.map { it.epochMillis })
-            assertTrue(history.first().seq.raw >= Counters.SEQ_BASE)
-            assertTrue(history.last().seq.raw >= 300, "above every number the old history could have used")
+                assertEquals(9_000L, stack.foreign().room(7).ownSince)
+                assertEquals(Counters.SEQ_BASE, stack.foreign().importedBelow())
+                stack.foreign().append(7, listOf(1L), listOf(broke(here, 2_000)))
+                val history = stack.worldLog.at(here, 10)
+                assertEquals(listOf(9_000L, 2_000L), history.map { it.epochMillis })
+                assertTrue(history.first().seq.raw >= Counters.SEQ_BASE)
+                assertTrue(history.last().seq.raw >= 300, "above every number the old history could have used")
+            }
         }
-    }
 }

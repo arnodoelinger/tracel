@@ -92,7 +92,8 @@ internal class Packs(private val counters: Counters) {
 
     /** [old] becomes [new], or goes. Lot pointers are the caller's. */
     fun swap(unit: StorageUnit, old: Pack, new: Pack?) {
-        val slotMoved = new == null || new.holderId != old.holderId || new.itemKeyId != old.itemKeyId || new.tail != old.tail
+        val slotMoved =
+            new == null || new.holderId != old.holderId || new.itemKeyId != old.itemKeyId || new.tail != old.tail
         if (slotMoved) {
             unit.delete(Keys.packAt(old.holderId, old.itemKeyId, old.tail))
             unit.delete(Keys.packItem(old.itemKeyId, old.holderId, old.tail))
@@ -102,7 +103,14 @@ internal class Packs(private val counters: Counters) {
     }
 
     /** Puts entries, oldest first, into an account's queue. */
-    fun insert(unit: StorageUnit, holderId: Int, itemKeyId: Int, lots: LongArray, remaining: LongArray, fifo: LongArray) {
+    fun insert(
+        unit: StorageUnit,
+        holderId: Int,
+        itemKeyId: Int,
+        lots: LongArray,
+        remaining: LongArray,
+        fifo: LongArray
+    ) {
         if (lots.isEmpty()) return
         val overlapping = overlapping(unit, holderId, itemKeyId, fifo[0], fifo[fifo.size - 1])
         if (overlapping.isEmpty()) return chunks(unit, holderId, itemKeyId, lots, remaining, fifo)
@@ -148,7 +156,14 @@ internal class Packs(private val counters: Counters) {
         return out ?: emptyList()
     }
 
-    private fun chunks(unit: StorageUnit, holderId: Int, itemKeyId: Int, lots: LongArray, remaining: LongArray, fifo: LongArray) {
+    private fun chunks(
+        unit: StorageUnit,
+        holderId: Int,
+        itemKeyId: Int,
+        lots: LongArray,
+        remaining: LongArray,
+        fifo: LongArray
+    ) {
         var from = 0
         while (from < lots.size) {
             val until = minOf(from + PACK_CAP, lots.size)

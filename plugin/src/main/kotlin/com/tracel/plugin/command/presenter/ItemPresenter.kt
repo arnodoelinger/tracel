@@ -44,8 +44,16 @@ internal object ItemPresenter {
         return when (flow.kind) {
             FlowKind.TRANSFORM_IN -> if (everything) Act("used", MINUS) else null
             FlowKind.TRANSFORM_OUT -> Act("crafted", PLUS)
-            FlowKind.MINT -> if (to is HolderId.Player) Act("received", PLUS) else if (everything) Act("created", PLUS) else null
-            FlowKind.BURN -> if (from is HolderId.Player) Act("lost", MINUS) else if (everything) Act("destroyed", MINUS) else null
+            FlowKind.MINT -> if (to is HolderId.Player) Act("received", PLUS) else if (everything) Act(
+                "created",
+                PLUS
+            ) else null
+
+            FlowKind.BURN -> if (from is HolderId.Player) Act("lost", MINUS) else if (everything) Act(
+                "destroyed",
+                MINUS
+            ) else null
+
             FlowKind.MOVE -> when {
                 to is HolderId.ItemEntity -> Act("dropped", MINUS)
                 from is HolderId.ItemEntity -> Act("picked_up", PLUS, to.takeIf(::isContainer))

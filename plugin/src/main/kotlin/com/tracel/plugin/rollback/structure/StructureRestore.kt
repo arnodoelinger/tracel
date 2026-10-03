@@ -114,7 +114,10 @@ internal suspend fun StructureRestorer.restoreSteps(
         return when {
             again.isEmpty() -> reports
             round >= MAX_REDISPATCH -> reports + again.map {
-                StructureReport(emptyList(), listOf(SkippedStep(it.at, "the region changed hands while this was restoring")))
+                StructureReport(
+                    emptyList(),
+                    listOf(SkippedStep(it.at, "the region changed hands while this was restoring"))
+                )
             }
 
             else -> reports + dispatch(again, round + 1)

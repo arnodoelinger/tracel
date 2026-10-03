@@ -1,17 +1,16 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.annotations.CauseKind
-import com.tracel.engine.world.BlockEdits
 import com.tracel.engine.log.TransactionLog
+import com.tracel.engine.world.BlockEdits
 import com.tracel.engine.world.WorldLog
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
 import com.tracel.model.flow.Flow
-import com.tracel.model.id.TxnId
-import com.tracel.model.transaction.Transaction
-import com.tracel.storage.ports.event.EventLog
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Seq
+import com.tracel.model.id.TxnId
+import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
@@ -24,8 +23,9 @@ import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.recordBytes
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.putI64
+import com.tracel.storage.ports.event.EventLog
 import java.lang.foreign.MemorySegment
-import java.util.UUID
+import java.util.*
 
 /**
  * Foreign history is what another plugin recorded, filed under this one's.
@@ -118,7 +118,8 @@ class ForeignHistory(
      */
     suspend fun append(source: Long, rows: List<Long>, records: List<ForeignRecord>): Int = storage.batched {
         var next = storage.read { nextImportSeq() }
-        val firstTxn = storage.read { get(Keys.counter(Counters.TXN))?.let(Records::asLong) ?: Counters.first(Counters.TXN) }
+        val firstTxn =
+            storage.read { get(Keys.counter(Counters.TXN))?.let(Records::asLong) ?: Counters.first(Counters.TXN) }
         var nextTxn = firstTxn
         var written = 0
         fun take(count: Int): Seq {
@@ -129,14 +130,30 @@ class ForeignHistory(
             is ForeignRecord.Blocks -> written += world.appendAll(record.edits) { take(it) }
             is ForeignRecord.Change -> {
                 world.append(
-                    WorldChange(take(1), record.action, record.cause, record.causedBy, record.epochMillis, record.at, record.subject)
+                    WorldChange(
+                        take(1),
+                        record.action,
+                        record.cause,
+                        record.causedBy,
+                        record.epochMillis,
+                        record.at,
+                        record.subject
+                    )
                 )
                 written++
             }
 
             is ForeignRecord.Moved -> {
                 transactions.append(
-                    Transaction(TxnId(nextTxn++), take(1), record.epochMillis, record.cause, record.causedBy, record.flows, at = record.at)
+                    Transaction(
+                        TxnId(nextTxn++),
+                        take(1),
+                        record.epochMillis,
+                        record.cause,
+                        record.causedBy,
+                        record.flows,
+                        at = record.at
+                    )
                 )
                 written++
             }

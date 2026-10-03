@@ -26,8 +26,8 @@ import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.atomic.AtomicLong
-import com.tracel.storage.codec.records.Lot as LotRecord
 import com.tracel.engine.ledger.LotRepository as LotRepositoryPort
+import com.tracel.storage.codec.records.Lot as LotRecord
 
 /** [LotRepositoryPort] over the packed keyspace. */
 class LotRepository(

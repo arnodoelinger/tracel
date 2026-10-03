@@ -6,23 +6,14 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.util.ownsChunkAt
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.bukkit.Bukkit
-import org.bukkit.GameMode
-import org.bukkit.Location
-import org.bukkit.Material
-import org.bukkit.World
+import org.bukkit.*
 import org.bukkit.block.Block
 import org.bukkit.entity.Player
 import org.bukkit.event.player.PlayerTeleportEvent
 import org.bukkit.util.BoundingBox
-import java.util.UUID
+import java.util.*
 import java.util.logging.Level
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.floor
@@ -117,7 +108,7 @@ internal suspend fun StructureRestorer.rescueJoined(player: Player) {
 
 private suspend fun StructureRestorer.move(player: Player, here: Location, up: Int = SEARCH_UP) {
     val spot = safeSpotNear(here.world, here, up) ?: surfaceSpotNear(here.world, here)
-        ?: return
+    ?: return
     if (player.teleportAsync(spot, PlayerTeleportEvent.TeleportCause.PLUGIN).await()) {
         player.fallDistance = 0f
         player.fireTicks = 0
@@ -209,7 +200,9 @@ private suspend fun StructureRestorer.hasGround(world: World, box: BoundingBox):
 private fun blocksBody(block: Block, box: BoundingBox): Boolean {
     if (block.isPassable) return false
     val shape = block.collisionShape
-    return shape.boundingBoxes.any { it.shift(block.x.toDouble(), block.y.toDouble(), block.z.toDouble()).overlaps(box) }
+    return shape.boundingBoxes.any {
+        it.shift(block.x.toDouble(), block.y.toDouble(), block.z.toDouble()).overlaps(box)
+    }
 }
 
 private suspend fun StructureRestorer.safeSpotNear(world: World, from: Location, up: Int): Location? =
@@ -288,7 +281,10 @@ private suspend fun StructureRestorer.surfaceSpotNear(world: World, from: Locati
                 var near: Location? = null
                 var nearScore = Double.MAX_VALUE
                 for (x in maxOf(chunkX shl 4, cx - SURFACE_RADIUS)..minOf((chunkX shl 4) + 15, cx + SURFACE_RADIUS))
-                    for (z in maxOf(chunkZ shl 4, cz - SURFACE_RADIUS)..minOf((chunkZ shl 4) + 15, cz + SURFACE_RADIUS)) {
+                    for (z in maxOf(chunkZ shl 4, cz - SURFACE_RADIUS)..minOf(
+                        (chunkZ shl 4) + 15,
+                        cz + SURFACE_RADIUS
+                    )) {
                         val score = ((x - cx) * (x - cx) + (z - cz) * (z - cz)).toDouble()
                         if (score >= nearScore) continue
                         val y = world.getHighestBlockYAt(x, z) + 1

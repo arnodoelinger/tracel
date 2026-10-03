@@ -59,6 +59,7 @@ object LookupPresenter {
         fun turn(key: String, page: Int) = tr("lookup.button.$key")
             .clickEvent(ClickEvent.runCommand("/tracel lookup p:$page"))
             .hoverEvent(HoverEvent.showText(tr("lookup.hover.page", "page" to page)))
+
         val total = view.total
         val export = tr("lookup.button.export")
             .clickEvent(ClickEvent.runCommand("/tracel lookup #export"))

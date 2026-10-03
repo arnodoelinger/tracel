@@ -6,9 +6,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
-import java.util.NavigableMap
-import java.util.TreeMap
-import java.util.UUID
+import java.util.*
 
 /**
  * What the log cannot say about who did a thing: a mob's type and a player's game mode.
@@ -56,7 +54,8 @@ class ActorFacts(private val storage: TracelStorage) {
                 val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: continue
                 val rows = TreeMap<Long, Long>()
                 scan(Keys.actorVisitPrefix(holder)).use { cursor ->
-                    while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] = Records.asLong(cursor.value())
+                    while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] =
+                        Records.asLong(cursor.value())
                 }
                 if (rows.isNotEmpty()) out[player] = VisitTimeline(rows)
             }
@@ -73,7 +72,8 @@ class ActorFacts(private val storage: TracelStorage) {
                 val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: continue
                 val rows = TreeMap<Long, Int>()
                 scan(Keys.actorModePrefix(holder)).use { cursor ->
-                    while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] = Records.asInt(cursor.value())
+                    while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] =
+                        Records.asInt(cursor.value())
                 }
                 if (rows.isNotEmpty()) out[player] = ModeTimeline(rows)
             }

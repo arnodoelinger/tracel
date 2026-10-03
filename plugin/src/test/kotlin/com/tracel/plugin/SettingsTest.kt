@@ -3,10 +3,10 @@ package com.tracel.plugin
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.write.SyncPolicy
+import com.tracel.storage.ports.ops.PurgeCategory
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import com.tracel.storage.ports.ops.PurgeCategory
 import org.tomlj.Toml
 
 class SettingsTest {
@@ -54,7 +54,16 @@ class SettingsTest {
             .reader().readText()
         val config = Toml.parse(text)
 
-        assertEquals(Settings(), readSettings(config.getTable("advanced"), config.getTable("rollback"), complaints::add, config.getTable("paste"), config.getTable("purge")))
+        assertEquals(
+            Settings(),
+            readSettings(
+                config.getTable("advanced"),
+                config.getTable("rollback"),
+                complaints::add,
+                config.getTable("paste"),
+                config.getTable("purge")
+            )
+        )
         assertTrue(complaints.isEmpty()) { complaints.toString() }
     }
 

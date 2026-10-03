@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 
 class ActorFactsTest {
     private val steve = UUID(0L, 1L)
@@ -57,7 +57,8 @@ class ActorFactsTest {
     @Test
     fun `a mob's type is written down the first time it gets an id`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
-            stack.storage.interning.entityKinds = EntityKindSource { EntityTypeKey("minecraft:zombie").takeIf { _ -> it == zombie } }
+            stack.storage.interning.entityKinds =
+                EntityKindSource { EntityTypeKey("minecraft:zombie").takeIf { _ -> it == zombie } }
 
             stack.storage.write { stack.storage.interning.internHolder(this, HolderId.Entity(zombie)) }
 

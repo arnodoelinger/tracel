@@ -6,24 +6,9 @@ import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.command.action.ExportAction.Companion.records
 import com.tracel.plugin.command.args.PurgeArgs
 import com.tracel.plugin.command.args.PurgeArgument
-import com.tracel.plugin.i18n.asReason
-import com.tracel.plugin.i18n.confirmFooter
-import com.tracel.plugin.i18n.failed
-import com.tracel.plugin.i18n.joined
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.unexpected
-import com.tracel.plugin.i18n.usage
+import com.tracel.plugin.i18n.*
 import com.tracel.plugin.util.resolvePlayerUuid
-import com.tracel.storage.ports.ops.PurgeCategory
-import com.tracel.storage.ports.ops.PurgeFilter
-import com.tracel.storage.ports.ops.PurgeReport
-import com.tracel.storage.ports.ops.PurgeSpec
-import com.tracel.storage.ports.ops.PurgeSummary
-import com.tracel.storage.ports.ops.previewPurge
-import com.tracel.storage.ports.ops.purgeAll
-import com.tracel.storage.ports.ops.purgeSome
+import com.tracel.storage.ports.ops.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -32,7 +17,7 @@ import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import java.util.Locale
+import java.util.*
 import kotlin.time.Duration.Companion.milliseconds
 
 /**

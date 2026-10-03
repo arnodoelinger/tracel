@@ -77,7 +77,9 @@ private fun unitSuggestions(
             Suggestion(
                 text = "$prefix$value",
                 // After `1h`, `30m` alone would read as thirty minutes
-                tooltip = preset ?: head.takeIf { it.isNotEmpty() }?.let { describeWhole(value) } ?: unit.describe(amount),
+                tooltip = preset ?: head.takeIf { it.isNotEmpty() }?.let { describeWhole(value) } ?: unit.describe(
+                    amount
+                ),
             )
         }
 }

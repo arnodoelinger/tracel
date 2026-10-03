@@ -40,7 +40,16 @@ internal suspend fun StructureRestorer.wakeRedstoneAt(positions: Sequence<BlockP
                             if (ownsChunkAt(world, pos.x, pos.z)) {
                                 wake(world, pos, done)
                             } else {
-                                withContext(services.schedulers.region(HolderId.Block(pos.world, pos.x, pos.y, pos.z))) {
+                                withContext(
+                                    services.schedulers.region(
+                                        HolderId.Block(
+                                            pos.world,
+                                            pos.x,
+                                            pos.y,
+                                            pos.z
+                                        )
+                                    )
+                                ) {
                                     wake(world, pos, done)
                                 }
                             }

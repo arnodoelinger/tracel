@@ -59,7 +59,16 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         val at = runCatching { player.toBlockPos() }.getOrNull()
         val millis = System.currentTimeMillis()
         owing {
-            services.events.append(ActorEvent(services.counters.nextSeq(), kind, HolderId.Player(player.uniqueId), millis, at, text))
+            services.events.append(
+                ActorEvent(
+                    services.counters.nextSeq(),
+                    kind,
+                    HolderId.Player(player.uniqueId),
+                    millis,
+                    at,
+                    text
+                )
+            )
         }
     }
 

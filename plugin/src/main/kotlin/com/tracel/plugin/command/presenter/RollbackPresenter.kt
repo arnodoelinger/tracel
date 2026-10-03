@@ -1,12 +1,7 @@
 package com.tracel.plugin.command.presenter
 
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.plugin.i18n.failed
-import com.tracel.plugin.i18n.info
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.usage
+import com.tracel.plugin.i18n.*
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
@@ -15,7 +10,7 @@ import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.command.CommandSender
-import java.util.Locale
+import java.util.*
 
 object RollbackPresenter {
     private const val INSTANT_MILLIS = 200L
@@ -24,7 +19,8 @@ object RollbackPresenter {
     fun usage(sender: CommandSender) = sender.usage("rollback")
 
     /** A rollback that did not start or did not finish, told like every other failure: why, and what to do. */
-    fun refused(sender: CommandSender, reason: Component, hint: Component) = sender.failed("rollback.failed", reason, hint)
+    fun refused(sender: CommandSender, reason: Component, hint: Component) =
+        sender.failed("rollback.failed", reason, hint)
 
     /** A preview of what a rollback would do, with a link to apply it. */
     fun preview(sender: CommandSender, planned: Planned, halves: Component, ghosts: Int, ghostSeconds: Int) {
@@ -79,7 +75,8 @@ object RollbackPresenter {
     }
 
     /** A rollback that did not start or did not finish, told like every other failure: why, and what to do. */
-    fun refusedUndo(sender: CommandSender, reason: Component, hint: Component) = sender.failed("undo.failed", reason, hint)
+    fun refusedUndo(sender: CommandSender, reason: Component, hint: Component) =
+        sender.failed("undo.failed", reason, hint)
 
     /** Whether [done] changed nothing at all: no block, no entity, no item. */
     fun appliedNothing(done: RollbackResult.Done): Boolean = counts(done).isEmpty()
@@ -112,7 +109,13 @@ object RollbackPresenter {
         this,
     )
 
-    private data class Counts(val restored: Int, val removed: Int, val reclaimed: Int, val uncrafted: Int, val compensated: Int) {
+    private data class Counts(
+        val restored: Int,
+        val removed: Int,
+        val reclaimed: Int,
+        val uncrafted: Int,
+        val compensated: Int
+    ) {
         fun isEmpty() = restored + removed + reclaimed + uncrafted + compensated == 0
         fun world() = listOf("restored" to restored, "removed" to removed).tally()
         fun items() = listOf("returned" to reclaimed + compensated, "uncrafted" to uncrafted).tally()
@@ -133,6 +136,12 @@ object RollbackPresenter {
     private fun counts(planned: Planned): Counts {
         val composite = planned.composite
         val material = composite.material
-        return Counts(composite.create.size, composite.destroy.size, material.takeCount, material.unmakeCount, material.mintCount)
+        return Counts(
+            composite.create.size,
+            composite.destroy.size,
+            material.takeCount,
+            material.unmakeCount,
+            material.mintCount
+        )
     }
 }

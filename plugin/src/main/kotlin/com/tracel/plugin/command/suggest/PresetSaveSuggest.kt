@@ -39,7 +39,14 @@ internal object PresetAddFlagsSuggest : SuggestionProvider<CommandSourceStack> {
         builder: SuggestionsBuilder,
     ): CompletableFuture<Suggestions> {
         val (previous, current) = splitTrailing(builder.remaining)
-        return builder.reply(FlagSuggest.complete(FlagProfile.PRESET, current, previous, liveLists(context.source.sender)))
+        return builder.reply(
+            FlagSuggest.complete(
+                FlagProfile.PRESET,
+                current,
+                previous,
+                liveLists(context.source.sender)
+            )
+        )
     }
 }
 
