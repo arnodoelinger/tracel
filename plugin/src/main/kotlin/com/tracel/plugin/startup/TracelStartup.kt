@@ -18,6 +18,8 @@ import com.tracel.plugin.setup.SetupListener
 import com.tracel.plugin.setup.SetupState
 import com.tracel.plugin.command.suggest.support.CommandOrderListener
 import com.tracel.plugin.i18n.Messages
+import com.tracel.plugin.integration.worldedit.WorldEditAttachListener
+import com.tracel.plugin.integration.worldedit.WorldEditSupport
 import com.tracel.plugin.listener.api.registerObserved
 import com.tracel.plugin.listener.listenersOf
 import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
@@ -252,6 +254,11 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     }
 
     services.autoPurge = startAutoPurge(plugin, services, settings.autoPurge)
+
+    if (settings.logging.blocks && settings.logging.worldEdit) {
+        WorldEditSupport.attach(services)
+        registerObserved(WorldEditAttachListener(services), plugin)
+    }
 
     if (setup.pending) {
         registerObserved(SetupListener(services, setup), plugin)

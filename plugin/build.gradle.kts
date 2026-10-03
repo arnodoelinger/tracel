@@ -17,6 +17,7 @@ dependencies {
     ksp(project(":codegen"))
 
     compileOnly(libs.paper.api)
+    compileOnly(libs.worldedit.bukkit)
     testImplementation(libs.paper.api)
     testImplementation(project(":tests"))
     testImplementation(libs.sqlite.jdbc)

@@ -34,6 +34,7 @@ class TracelPlugin : JavaPlugin() {
         stopping(logger, "storage") {
             val live = run ?: return@stopping
             val clean = live.storage.closeAfter(5_000L) {
+                stopping(logger, "the WorldEdit hook") { live.services.worldEdit?.close() }
                 stopping(logger, "the last captures") { live.lastCaptures() }
                 live.drain.cancel()
                 live.entityDrain.cancel()

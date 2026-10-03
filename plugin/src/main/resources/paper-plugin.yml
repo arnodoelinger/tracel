@@ -7,3 +7,13 @@ website: https://github.com/arnodoelinger/Tracel
 api-version: '26.1'
 load: POSTWORLD
 folia-supported: true
+dependencies:
+  server:
+    WorldEdit:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    FastAsyncWorldEdit:
+      load: BEFORE
+      required: false
+      join-classpath: true

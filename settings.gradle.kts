@@ -17,6 +17,9 @@ dependencyResolutionManagement {
         maven("https://repo.papermc.io/repository/maven-public/") {
             name = "papermc"
         }
+        maven("https://maven.enginehub.org/repo/") {
+            name = "enginehub"
+        }
     }
 }
 

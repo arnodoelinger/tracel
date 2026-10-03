@@ -5,6 +5,7 @@ import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.ports.ops.PurgeCategory
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.tomlj.Toml
@@ -201,5 +202,12 @@ class SettingsTest {
         assertEquals(LoggingSettings(), readSettings(advanced = null).logging)
         val off = readSettings(advanced = null, logging = Toml.parse("items = false\nevents = false"))
         assertEquals(LoggingSettings(blocks = true, items = false, entities = true, events = false), off.logging)
+    }
+
+    @Test
+    fun `worldedit edits are logged unless the config says otherwise`() {
+        assertTrue(readSettings(advanced = null).logging.worldEdit)
+        assertFalse(readSettings(advanced = null, logging = Toml.parse("worldedit = false")).logging.worldEdit)
+        assertTrue(readSettings(advanced = null, logging = Toml.parse("worldedit = true")).logging.worldEdit)
     }
 }

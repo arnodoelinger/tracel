@@ -9,6 +9,7 @@ items = true
 events = true
 entities = true
 entity-damage = true
+worldedit = true
 
 [rollback]
 # Maximum number of entities restored without confirmation

@@ -121,6 +121,9 @@ class TracelServices(
 
     @Volatile
     var autoPurge: Job? = null,
+
+    @Volatile
+    var worldEdit: AutoCloseable? = null
 ) : UnitOfWork by storage {
     val purging: AtomicBoolean = AtomicBoolean(false)
     val governor: TickGovernor = TickGovernor(plugin, governorSettings)
