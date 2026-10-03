@@ -143,6 +143,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         itemForms = ItemForms(storage),
         exportDirectory = plugin.dataFolder.resolve("database").resolve("exports").toPath(),
         entityRestoreLimit = settings.entityRestoreLimit,
+        governorSettings = settings.governor,
         logEntityDamage = settings.logEntityDamage,
         paste = settings.paste,
         forwardCompatible = forwardCompatible,
