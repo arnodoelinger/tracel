@@ -44,7 +44,7 @@ object RollbackArgument {
 
         val scope = parsed.scope
         val center = if (scope != null) (sender as? Player)?.location else null
-        scopeProblem(scope, center, namedWorld)?.let { reasons += it }
+        scopeProblem(scope, center, namedWorld, ScopeLimits.rollbackMaxBlocks)?.let { reasons += it }
 
         reasons += missingBounds(parsed)
         if (parsed.since != null && parsed.until != null && parsed.since > parsed.until) {

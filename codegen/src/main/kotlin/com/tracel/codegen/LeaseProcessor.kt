@@ -29,9 +29,6 @@ public class LeaseProcessor(
         written = true
 
         val markers = resolver.getSymbolsWithAnnotation(LEASE).filterIsInstance<KSClassDeclaration>().toList()
-        if (markers.isEmpty()) {
-            logger.warn("@Lease marker is unused; nothing to emit the lease schema next to.")
-        }
         markers.forEach(::generateSchema)
 
         resolver.getSymbolsWithAnnotation(LEASE_STORE)

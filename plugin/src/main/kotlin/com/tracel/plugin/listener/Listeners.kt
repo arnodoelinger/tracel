@@ -20,32 +20,41 @@ import com.tracel.plugin.listener.world.entity.EntityLifecycleListener
 import com.tracel.plugin.listener.world.entity.ExplosionListener
 import com.tracel.plugin.listener.world.entity.RedstoneListener
 
-/** Listener registration list. */
-internal fun listenersOf(services: TracelServices): List<TracelListener> =
-    worldListeners(services) + materialListeners(services) + sessionListeners(services)
+/** Listener registration list. A kind of history that is turned off in the config loses its listeners. */
+internal fun listenersOf(services: TracelServices): List<TracelListener> {
+    val logging = services.logging
+    return buildList {
+        if (logging.blocks) addAll(blockListeners(services))
+        if (logging.entities) addAll(entityListeners(services))
+        if (logging.items) addAll(itemListeners(services))
+        if (logging.events) add(ActorEventListener(services))
+        addAll(sessionListeners(services))
+    }
+}
 
-/** World log — what occupies a cell or entity UUID. Never items. */
-private fun worldListeners(services: TracelServices): List<TracelListener> = listOf(
-    // Cells
+/** Cells, and the items that go with placing and breaking them. */
+private fun blockListeners(services: TracelServices): List<TracelListener> = listOf(
     BlockChangeListener(services),
     NaturalChangeListener(services),
     BlockInteractListener(services),
     PistonListener(services),
     StructureCommandListener(services),
-
-    // Entities
-    EntityLifecycleListener(services),
     ExplosionListener(services),
     RedstoneListener(services),
-)
-
-/** Transaction log — lots moving between holders. */
-private fun materialListeners(services: TracelServices): List<TracelListener> = listOf(
-    // Place, break, harvest
     BlockListener(services),
     ContainerListener(services),
     HarvestListener(services),
+)
 
+/** Entity lifecycles, and what mobs carry and drop. */
+private fun entityListeners(services: TracelServices): List<TracelListener> = listOf(
+    EntityLifecycleListener(services),
+    EntityCargoListener(services),
+    DeathListener(services),
+)
+
+/** Lots moving between holders, apart from the blocks and mobs above. */
+private fun itemListeners(services: TracelServices): List<TracelListener> = listOf(
     // Inventories
     InventoryClickListener(services),
     HandMutationListener(services),
@@ -60,8 +69,6 @@ private fun materialListeners(services: TracelServices): List<TracelListener> = 
     // Items
     ItemEntityListener(services),
     ProjectileListener(services),
-    EntityCargoListener(services),
-    DeathListener(services),
     LootCaptureListener(services),
 
     // Recipes
@@ -69,12 +76,11 @@ private fun materialListeners(services: TracelServices): List<TracelListener> = 
     CompostListener(services),
 )
 
-/** The event log (chat, commands, sessions), inspect wand, offline rollback deliveries, snapshot eviction. */
+/** The inspect wand, offline rollback deliveries, snapshot eviction. Always on. */
 private fun sessionListeners(services: TracelServices): List<TracelListener> = listOf(
     InspectListener(services),
     PendingDeliveryListener(services),
     SnapshotEvictionListener(services),
     FreezeGuardListener(services),
     GapCommandListener(services),
-    ActorEventListener(services),
 )

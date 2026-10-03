@@ -187,4 +187,19 @@ class SettingsTest {
         assertEquals(AutoPurgeSettings(), settings)
         assertEquals(4, complaints.size) { complaints.toString() }
     }
+
+    @Test
+    fun `unlimited lifts the entity limit and the rollback radius`() {
+        assertEquals(Int.MAX_VALUE, readRollback("entity-restore-limit" to "unlimited").entityRestoreLimit)
+        assertEquals(null, readRollback("max-radius" to "unlimited").rollbackMaxRadius)
+        assertEquals(256, readRollback("max-radius" to 256).rollbackMaxRadius)
+        assertTrue(complaints.isEmpty())
+    }
+
+    @Test
+    fun `every kind of history is logged unless the config says otherwise`() {
+        assertEquals(LoggingSettings(), readSettings(advanced = null).logging)
+        val off = readSettings(advanced = null, logging = Toml.parse("items = false\nevents = false"))
+        assertEquals(LoggingSettings(blocks = true, items = false, entities = true, events = false), off.logging)
+    }
 }

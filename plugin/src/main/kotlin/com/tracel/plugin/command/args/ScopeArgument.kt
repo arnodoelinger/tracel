@@ -49,9 +49,13 @@ object ScopeLimits {
     const val MAX_BLOCK_RADIUS: Int = 1024
     const val MAX_CHUNK_RADIUS: Int = MAX_BLOCK_RADIUS shr 4
 
-    fun LookupScope.isOversized(): Boolean = when (this) {
-        is LookupScope.Blocks -> radius > MAX_BLOCK_RADIUS
-        is LookupScope.Chunks -> radius > MAX_CHUNK_RADIUS
+    @Volatile
+    var rollbackMaxBlocks: Int? = MAX_BLOCK_RADIUS
+
+    /** Whether it reaches past [maxBlocks] (or [maxBlocks] shifted to chunks); `null` limits nothing. */
+    fun LookupScope.isOversized(maxBlocks: Int? = MAX_BLOCK_RADIUS): Boolean = when (this) {
+        is LookupScope.Blocks -> maxBlocks != null && radius > maxBlocks
+        is LookupScope.Chunks -> maxBlocks != null && radius > (maxBlocks shr 4)
         LookupScope.CurrentChunk, LookupScope.CurrentBlock -> false
     }
 }
@@ -62,17 +66,22 @@ internal fun ParsedLookupArgs.withScope(value: ScopeValue): ParsedLookupArgs = w
 }
 
 /** Why [scope] cannot be searched from [center] in [world], or `null` when it can. */
-internal fun scopeProblem(scope: LookupScope?, center: Location?, world: World?): Component? = when {
+internal fun scopeProblem(
+    scope: LookupScope?,
+    center: Location?,
+    world: World?,
+    maxBlocks: Int? = ScopeLimits.MAX_BLOCK_RADIUS,
+): Component? = when {
     scope == null -> null
     center == null -> tr("common.reason.needs_player", "scope" to ScopeArgument.describe(scope))
     world != null && center.world?.uid != world.uid ->
         tr("common.reason.other_world", "scope" to ScopeArgument.describe(scope), "world" to world.name)
 
-    scope.isOversized() ->
+    scope.isOversized(maxBlocks) ->
         tr(
             "common.reason.too_large",
-            "blocks" to ScopeLimits.MAX_BLOCK_RADIUS,
-            "chunks" to ScopeLimits.MAX_CHUNK_RADIUS
+            "blocks" to maxBlocks,
+            "chunks" to ((maxBlocks ?: 0) shr 4)
         )
 
     else -> null

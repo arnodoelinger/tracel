@@ -13,6 +13,9 @@ import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.command.TracelCommand
+import com.tracel.plugin.command.args.ScopeLimits
+import com.tracel.plugin.setup.SetupListener
+import com.tracel.plugin.setup.SetupState
 import com.tracel.plugin.command.suggest.support.CommandOrderListener
 import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.listener.api.registerObserved
@@ -66,7 +69,10 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     // Config
     plugin.dataFolder.mkdirs()
     val configFile = plugin.dataFolder.resolve("config.toml")
-    if (!configFile.exists()) plugin.saveResource("config.toml", false)
+    val firstRun = !configFile.exists()
+    if (firstRun) plugin.saveResource("config.toml", false)
+    val setup = SetupState(plugin.dataFolder.toPath())
+    if (firstRun) setup.begin()
     val config = Toml.parse(configFile.toPath())
     config.errors().forEach { plugin.logger.severe(it.toString()) }
     Messages.load(plugin)
@@ -78,7 +84,9 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         complain = { plugin.logger.severe(it) },
         paste = config.getTable("paste"),
         purge = config.getTable("purge"),
+        logging = config.getTable("logging"),
     )
+    ScopeLimits.rollbackMaxBlocks = settings.rollbackMaxRadius
     val storage = TracelStorage.open(
         plugin.dataFolder.resolve("database").toPath(),
         ringSlots = settings.ringSlots,
@@ -147,6 +155,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         logEntityDamage = settings.logEntityDamage,
         paste = settings.paste,
         forwardCompatible = forwardCompatible,
+        logging = settings.logging,
     )
     Bukkit.getAsyncScheduler().runNow(plugin) { services.warmRollback() }
     val drainer = Drainer(
@@ -242,7 +251,11 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         TracelCommand.register(event.registrar(), services)
     }
 
-    startAutoPurge(plugin, services, settings.autoPurge)
+    services.autoPurge = startAutoPurge(plugin, services, settings.autoPurge)
+
+    if (setup.pending) {
+        registerObserved(SetupListener(services, setup), plugin)
+    }
 
     plugin.logger.info("Tracel ${plugin.pluginMeta.version} enabled.")
 

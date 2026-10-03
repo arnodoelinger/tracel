@@ -1,5 +1,6 @@
 package com.tracel.plugin
 
+import com.tracel.plugin.command.args.ScopeLimits
 import com.tracel.plugin.command.args.TimeArgument
 import com.tracel.plugin.rollback.structure.GovernorSettings
 import com.tracel.plugin.util.PrivateBin
@@ -20,9 +21,19 @@ internal data class Settings(
     val ringSlots: Int = TracelStorage.DEFAULT_RING_SLOTS,
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
+    val rollbackMaxRadius: Int? = ScopeLimits.MAX_BLOCK_RADIUS,
+    val logging: LoggingSettings = LoggingSettings(),
     val governor: GovernorSettings = GovernorSettings(),
     val paste: PasteSettings = PasteSettings(),
     val autoPurge: AutoPurgeSettings = AutoPurgeSettings(),
+)
+
+/** What gets written to the history. Every kind is on unless it is turned off. */
+data class LoggingSettings(
+    val blocks: Boolean = true,
+    val items: Boolean = true,
+    val entities: Boolean = true,
+    val events: Boolean = true,
 )
 
 /** Where a lookup export goes. */
@@ -44,11 +55,12 @@ const val DEFAULT_PURGE_KEEP_MILLIS = 90L * 86_400_000
 const val MIN_PURGE_INTERVAL_MILLIS = 10L * 60_000
 
 private val FOREVER = setOf("forever", "never", "off")
+private val UNLIMITED = setOf("unlimited", "none", "off")
 private const val NEVER = -1L
 
 const val MIN_RING_SLOTS = 1024
 const val DEFAULT_ENTITY_RESTORE_LIMIT = 128
-const val DEFAULT_LOG_ENTITY_DAMAGE = false
+const val DEFAULT_LOG_ENTITY_DAMAGE = true
 const val DEFAULT_PASTE_URL = "https://privatebin.net"
 const val DEFAULT_PASTE_EXPIRE = "3day"
 
@@ -62,6 +74,7 @@ internal fun readSettings(
     complain: (String) -> Unit = {},
     paste: TomlTable? = null,
     purge: TomlTable? = null,
+    logging: TomlTable? = null,
 ): Settings {
     val defaults = LsmConfig()
 
@@ -82,14 +95,27 @@ internal fun readSettings(
     val entityRestoreLimit = rollback.setting(
         "rollback", "entity-restore-limit", DEFAULT_ENTITY_RESTORE_LIMIT, complain,
     ) {
-        (it as? Number)?.toInt()?.takeIf { limit -> limit >= 0 }
+        if (it.toString().trim().lowercase() in UNLIMITED) Int.MAX_VALUE
+        else (it as? Number)?.toInt()?.takeIf { limit -> limit >= 0 }
     }
 
-    val logEntityDamage = rollback.setting(
-        "rollback", "log-entity-damage", DEFAULT_LOG_ENTITY_DAMAGE, complain,
+    val maxRadius = rollback.setting(
+        "rollback", "max-radius", ScopeLimits.MAX_BLOCK_RADIUS, complain,
+    ) {
+        if (it.toString().trim().lowercase() in UNLIMITED) Int.MAX_VALUE
+        else (it as? Number)?.toInt()?.takeIf { radius -> radius > 0 }
+    }.takeIf { it != Int.MAX_VALUE }
+
+    val logEntityDamage = logging.setting(
+        "logging", "entity-damage", DEFAULT_LOG_ENTITY_DAMAGE, complain,
     ) {
         it as? Boolean
     }
+
+    val logBlocks = logging.setting("logging", "blocks", true, complain) { it as? Boolean }
+    val logItems = logging.setting("logging", "items", true, complain) { it as? Boolean }
+    val logEntities = logging.setting("logging", "entities", true, complain) { it as? Boolean }
+    val logEvents = logging.setting("logging", "events", true, complain) { it as? Boolean }
 
     val governorDefaults = GovernorSettings()
     val minTickTime = rollback.setting(
@@ -132,6 +158,8 @@ internal fun readSettings(
         ringSlots = slots,
         entityRestoreLimit = entityRestoreLimit,
         logEntityDamage = logEntityDamage,
+        rollbackMaxRadius = maxRadius,
+        logging = LoggingSettings(logBlocks, logItems, logEntities, logEvents),
         governor = GovernorSettings(minNanos = minTickTime * NANOS_PER_MILLI, maxNanos = maxTickTime * NANOS_PER_MILLI),
         paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
         autoPurge = AutoPurgeSettings(autoPurge, purgeInterval, keep),
