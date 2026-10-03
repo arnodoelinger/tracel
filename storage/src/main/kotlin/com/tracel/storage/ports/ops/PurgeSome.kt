@@ -9,6 +9,7 @@ import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.ContainerSlot
+import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.spi.HistorySegment
 import com.tracel.storage.util.LongSet
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,9 @@ enum class PurgeCategory(internal val history: Int) {
 
     /** Container layouts over time, and the visits that opened them. */
     CONTAINERS(History.CONTAINERS),
+
+    /** What was said and typed, and who joined and disconnected. */
+    EVENTS(History.EVENTS),
 }
 
 /**
@@ -243,6 +247,18 @@ private suspend fun analyze(
                 analysis.total++
                 val epoch = Records.txnEpochMillis(v)
                 if (everything || wanted.accepts(epoch, Records.txnWorldId(v), Records.txnCausedBy(v))) {
+                    analysis.took(epoch)
+                    analysis.seqs?.add(KeyReader.u64(cursor.key(), 1))
+                }
+            }
+        }
+
+        PurgeCategory.EVENTS -> storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.EVENT)) { cursor ->
+            while (cursor.next()) {
+                val v = cursor.value()
+                analysis.total++
+                val epoch = EventLog.epochMillis(v)
+                if (everything || wanted.accepts(epoch, EventLog.worldId(v), EventLog.byId(v))) {
                     analysis.took(epoch)
                     analysis.seqs?.add(KeyReader.u64(cursor.key(), 1))
                 }

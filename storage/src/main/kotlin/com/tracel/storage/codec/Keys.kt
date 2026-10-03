@@ -53,6 +53,10 @@ import com.tracel.storage.spi.EngineCursor
  * | 29   | `actorKind / holderId`                                             | entityTypeId         | point                |
  * | 2A   | `actorMode / holderId / ~epochMillis`                              | game mode code       | prefix, newest first |
  * | 2B   | `actorVisit / holderId / ~openedAt`                                | closedAt (or open)   | prefix, newest first |
+ * | 2C   | `importMark / sourceId`                                            | last rows, records   | point                |
+ * | 2D   | `evt / seq`                                                        | packed event         | retention            |
+ * | 2E   | `evtActor / holderId / ~epochMillis / ~seq`                        | —                    | range, newest first  |
+ * | 2F   | `evtTime / ~epochMillis / ~seq`                                    | —                    | range, newest first  |
  */
 object Keys {
     fun tagName(tag: Byte): String = when (tag) {
@@ -97,6 +101,10 @@ object Keys {
         ACTOR_KIND -> "actorKind"
         ACTOR_MODE -> "actorMode"
         ACTOR_VISIT -> "actorVisit"
+        IMPORT_MARK -> "importMark"
+        EVENT -> "evt"
+        EVENT_ACTOR -> "evtActor"
+        EVENT_TIME -> "evtTime"
         else -> "tag%02x".format(tag.toInt() and 0xff)
     }
 
@@ -143,6 +151,10 @@ object Keys {
     const val ACTOR_KIND: Byte = 0x29
     const val ACTOR_MODE: Byte = 0x2A
     const val ACTOR_VISIT: Byte = 0x2B
+    const val IMPORT_MARK: Byte = 0x2C
+    const val EVENT: Byte = 0x2D
+    const val EVENT_ACTOR: Byte = 0x2E
+    const val EVENT_TIME: Byte = 0x2F
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -342,6 +354,23 @@ object Keys {
 
     fun actorVisitPrefix(holderId: Int): ByteArray = KeyWriter(5).tag(ACTOR_VISIT).u32(holderId).done()
 
+    fun importMark(sourceId: Long): ByteArray = KeyWriter(9).tag(IMPORT_MARK).u64(sourceId).done()
+
+    fun event(seq: Long): ByteArray = KeyWriter(9).tag(EVENT).u64(seq).done()
+
+    fun eventActor(holderId: Int, epochMillis: Long, seq: Long): ByteArray =
+        KeyWriter(21).tag(EVENT_ACTOR).u32(holderId).u64(invert(epochMillis)).u64(invert(seq)).done()
+
+    fun eventActorPrefix(holderId: Int): ByteArray = KeyWriter(5).tag(EVENT_ACTOR).u32(holderId).done()
+
+    fun eventActorFrom(holderId: Int, untilMillis: Long): ByteArray =
+        KeyWriter(13).tag(EVENT_ACTOR).u32(holderId).u64(invert(untilMillis)).done()
+
+    fun eventTime(epochMillis: Long, seq: Long): ByteArray =
+        KeyWriter(17).tag(EVENT_TIME).u64(invert(epochMillis)).u64(invert(seq)).done()
+
+    fun eventTimeFrom(untilMillis: Long): ByteArray = KeyWriter(9).tag(EVENT_TIME).u64(invert(untilMillis)).done()
+
     fun rbRecent(jobId: Long): ByteArray = KeyWriter(9).tag(RB_RECENT).u64(invert(jobId)).done()
 
     fun rbRecentPrefix(): ByteArray = KeyWriter(1).tag(RB_RECENT).done()
@@ -400,6 +429,10 @@ object Keys {
         ACTOR_KIND,
         ACTOR_MODE,
         ACTOR_VISIT,
+        IMPORT_MARK,
+        EVENT,
+        EVENT_ACTOR,
+        EVENT_TIME,
     )
 }
 
