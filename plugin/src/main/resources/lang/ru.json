@@ -89,17 +89,17 @@
     "invalid": "<token> — недопустимый аргумент, смотрите подсказки, что разрешено",
     "nothing": "ничего, что мы бы могли сделать",
     "label": {
-      "info": "<gray>Инфо:</gray> <info>",
-      "reason": "<gray>Причина:</gray> <reason>",
-      "hint": "<gray>Попробуйте:</gray> <hint>",
-      "time": "<gray>Заняло:</gray> <time>",
-      "database": "<gray>База:</gray> <file>",
-      "size": "<gray>Размер:</gray> <size> МиБ",
-      "records": "<gray>Записи:</gray> <from> → <to>",
-      "rows": "<gray>Строк:</gray> <rows>"
+      "info": "<gray>Инфо</gray>: <info>",
+      "reason": "<gray>Причина</gray>: <reason>",
+      "hint": "<gray>Попробуйте</gray>: <hint>",
+      "time": "<gray>Заняло</gray>: <time>",
+      "database": "<gray>База</gray>: <file>",
+      "size": "<gray>Размер</gray>: <size> МиБ",
+      "records": "<gray>Записи</gray>: <from> → <to>",
+      "rows": "<gray>Строк</gray>: <rows>"
     },
     "next": {
-      "confirm": "<gray>Дальше:</gray> чтобы подтвердить операцию, запустите команду ещё раз с #confirm"
+      "confirm": "<gray>Дальше</gray>: чтобы подтвердить операцию, запустите команду ещё раз с #confirm"
     },
     "needed": {
       "title": "<gold>⚠ Требуется подтверждение!</gold>",
@@ -154,8 +154,8 @@
   },
   "lookup": {
     "headline": "<aqua>☰ Результаты поиска, страница <page>/<total></aqua>",
-    "title": "<gray><verb> <n> <n:раз:раза:раз>:</gray> <white>первый <first>, последний <last></white>",
-    "net": "<gray><plus> <gained>, <minus> <lost>:</gray> <white>первый <first>, последний <last></white>",
+    "title": "<gray><verb> <n> <n:раз:раза:раз></gray>: <white>первый <first>, последний <last></white>",
+    "net": "<gray><plus> <gained>, <minus> <lost></gray>: <white>первый <first>, последний <last></white>",
     "times": "<gray> ⋆<n></gray>",
     "no_matches": "Ничего не найдено",
     "no_search": "Нет поиска, по которому можно листать страницы",
@@ -168,10 +168,10 @@
     },
     "hover": {
       "turned": "<white><from> → <to></white>",
-      "time": "<gray>Время:</gray> <white><time></white>",
-      "rolled_back": "<gray>Откачено:</gray> <white><time></white> <gray>(<ago>)</gray>",
-      "coords": "<gray>Координаты:</gray> <white><at></white>",
-      "mode": "<gray>Режим игры:</gray> <mode>",
+      "time": "<gray>Время</gray>: <white><time></white>",
+      "rolled_back": "<gray>Откачено</gray>: <white><time></white> <gray>(<ago>)</gray>",
+      "coords": "<gray>Координаты</gray>: <white><at></white>",
+      "mode": "<gray>Режим игры</gray>: <mode>",
       "teleport": "<white>Нажмите, чтобы телепортироваться</white>",
       "page": "<white>Страница <page></white>",
       "refresh": "<white>Повторить этот же поиск</white>",
@@ -257,7 +257,7 @@
     },
     "export": {
       "start": "Выгрузка результатов...",
-      "lines": "<gray>Строк:</gray> <lines>",
+      "lines": "<gray>Строк</gray>: <lines>",
       "button": {
         "open": "<aqua>[→ Открыть]</aqua>",
         "open_hover": "<white>Прочитать в браузере</white>",
@@ -284,11 +284,11 @@
     "preview": {
       "title": "<aqua>☰ Предпросмотр отката</aqua>",
       "ghost": "<count> блоков мигают <seconds> с — их видите только вы",
-      "would": "<gray>Будет:</gray> <summary>"
+      "would": "<gray>Будет</gray>: <summary>"
     },
     "done": {
       "title": "<green>✔ Откачено!</green>",
-      "result": "<gray>Результат:</gray> <parts>",
+      "result": "<gray>Результат</gray>: <parts>",
       "nothing": "<gray>Ничего не изменилось — мир остался прежним</gray>"
     },
     "button": {
@@ -343,7 +343,7 @@
   "undo": {
     "done": {
       "title": "<green>✔ Отменено!</green>",
-      "result": "<gray>Результат:</gray> <green>изменений отменено: <changes></green>"
+      "result": "<gray>Результат</gray>: <green>изменений отменено: <changes></green>"
     },
     "failed": "<red>✘ Отмена не удалась!</red>",
     "reason": {
@@ -360,12 +360,12 @@
   },
   "player": {
     "title": "<red>♦ <name></red>",
-    "window": "<gray>Период:</gray> последние <span>",
-    "scope": "<gray>Область:</gray> <scope>",
-    "records": "<gray>Записей:</gray> <records>",
-    "active": "<gray>Активен:</gray> с <first> назад до <last> назад",
-    "busiest": "<gray>Чаще всего активен:</gray> в районе <x>, <y>, <z>",
-    "blocks": "<gray>Блоки:</gray> <plus><green><placed></green> <minus><red><broken></red> <both><gold><changed></gold>",
+    "window": "<gray>Период</gray>: последние <span>",
+    "scope": "<gray>Область</gray>: <scope>",
+    "records": "<gray>Записей</gray>: <records>",
+    "active": "<gray>Активен</gray>: с <first> назад до <last> назад",
+    "busiest": "<gray>Чаще всего активен</gray>: в районе <x>, <y>, <z>",
+    "blocks": "<gray>Блоки</gray>: <plus><green><placed></green> <minus><red><broken></red> <both><gold><changed></gold>",
     "empty": "ничего не записано",
     "button": {
       "tp": "<aqua>[→ Телепорт]</aqua>",
@@ -384,8 +384,8 @@
     "list": {
       "title": "<yellow>⚡ Пресеты</yellow>",
       "hover": "<white>Нажмите, чтобы начать \"/tracel rollback @<name>\"</white>",
-      "entry": "<gray>@<name>:</gray> <flags>",
-      "entry_server": "<gray>@<name> (сервер):</gray> <flags>",
+      "entry": "<gray>@<name></gray>: <flags>",
+      "entry_server": "<gray>@<name> (сервер)</gray>: <flags>",
       "empty": {
         "info": "пресетов пока нет",
         "hint": "создать первый"
@@ -407,9 +407,9 @@
       "delete_hover": "<white>Удалить @<name></white>"
     },
     "label": {
-      "flags": "<gray>Флаги:</gray> <flags>",
-      "for": "<gray>Для:</gray> <who>",
-      "name": "<gray>Имя:</gray> @<name>"
+      "flags": "<gray>Флаги</gray>: <flags>",
+      "for": "<gray>Для</gray>: <who>",
+      "name": "<gray>Имя</gray>: @<name>"
     },
     "for": {
       "you": "вас",
@@ -487,8 +487,8 @@
       "paused": "Импорт остановлен",
       "stop": "Останавливаю импорт после текущей пачки...",
       "not_running": "Миграция из CoreProtect не запущена",
-      "taken": "<gray>Импортировано:</gray> <count> записей",
-      "skipped": "<gray>Пропущено:</gray> <count> строк",
+      "taken": "<gray>Импортировано</gray>: <count> записей",
+      "skipped": "<gray>Пропущено</gray>: <count> строк",
       "reason": {
         "not_found": "в \"plugins/CoreProtect\" нет базы данных CoreProtect",
         "no_room": "эта база данных создана Tracel, которая не оставила места для старой истории",
@@ -504,22 +504,22 @@
   },
   "status": {
     "title": "<red>♦ Tracel статус</red>",
-    "records": "<gray>Записи:</gray> ~<blocks> блоков, <items> предметов, <events> событий",
-    "period": "<gray>Период:</gray> <from> → сейчас <gray>(<span>)</gray>",
-    "period_empty": "<gray>Период:</gray> истории пока нет",
-    "format": "<gray>Формат базы:</gray> <version>",
-    "size": "<gray>Размер:</gray> <size>",
-    "disk": "<gray>Диск:</gray> свободно <free> <gray>(<percent>%)</gray>",
-    "purge_off": "<gray>Автопурдж:</gray> выключен",
-    "purge_on": "<gray>Автопурдж:</gray> включён<star>, последний <last>",
+    "records": "<gray>Записи</gray>: ~<blocks> блоков, <items> предметов, <events> событий",
+    "period": "<gray>Период</gray>: <from> → сейчас <gray>(<span>)</gray>",
+    "period_empty": "<gray>Период</gray>: истории пока нет",
+    "format": "<gray>Формат базы</gray>: <version>",
+    "size": "<gray>Размер</gray>: <size>",
+    "disk": "<gray>Диск</gray>: свободно <free> <gray>(<percent>%)</gray>",
+    "purge_off": "<gray>Автопурдж</gray>: выключен",
+    "purge_on": "<gray>Автопурдж</gray>: включён<star>, последний <last>",
     "purge_star": "<white>*</white>",
     "purge_never": "никогда не запускался",
-    "queue": "<gray>Очередь:</gray> <n> в ожидании",
-    "load": "<gray>Нагрузка:</gray> <rate> записей/с",
-    "load_unknown": "<gray>Нагрузка:</gray> измеряется...",
-    "rollbacks_none": "<gray>Откаты:</gray> нет",
-    "rollbacks": "<gray>Откаты:</gray> <n> <n:активный:активных:активных> (<sizes>)",
-    "state": "<gray>Состояние:</gray> <state>",
+    "queue": "<gray>Очередь</gray>: <n> в ожидании",
+    "load": "<gray>Нагрузка</gray>: <rate> записей/с",
+    "load_unknown": "<gray>Нагрузка</gray>: измеряется...",
+    "rollbacks_none": "<gray>Откаты</gray>: нет",
+    "rollbacks": "<gray>Откаты</gray>: <n> <n:активный:активных:активных> (<sizes>)",
+    "state": "<gray>Состояние</gray>: <state>",
     "forever": "навсегда",
     "failed": "<red>✘ Не удалось прочитать состояние!</red>",
     "category": {
@@ -545,7 +545,7 @@
     },
     "hover": {
       "purge_interval": "<gray>Ищет старую историю каждые</gray> <white><interval></white>",
-      "purge_keep": "<gray><category>:</gray> <white><keep></white>",
+      "purge_keep": "<gray><category></gray>: <white><keep></white>",
       "ok": "<white>Всё отлично</white>",
       "forward": "<white>Сервер новее, чем последняя версия Minecraft, на которой тестировался Tracel</white>",
       "load": "<white>Тик сервера в среднем занимает <mspt> мс</white>",
@@ -579,17 +579,17 @@
     },
     "preview": {
       "title": "<light_purple>≢ Предпросмотр удаления</light_purple>",
-      "categories": "<gray>Категории:</gray> <list>",
-      "older": "<gray>Старше:</gray> <span>",
-      "world": "<gray>Мир:</gray> <name>",
-      "player": "<gray>Игрок:</gray> <name>",
-      "line": "<gray><category>:</gray> <matched> из <total> записей",
+      "categories": "<gray>Категории</gray>: <list>",
+      "older": "<gray>Старше</gray>: <span>",
+      "world": "<gray>Мир</gray>: <name>",
+      "player": "<gray>Игрок</gray>: <name>",
+      "line": "<gray><category></gray>: <matched> из <total> записей",
       "nothing": "Под эти фильтры ничего не подходит, удалять нечего",
-      "all": "<gray>Область:</gray> всё, база целиком"
+      "all": "<gray>Область</gray>: всё, база целиком"
     },
     "report": {
-      "line": "<gray><category>:</gray> <matched> записей",
-      "freed": "<gray>Освобождено:</gray> <size> МиБ"
+      "line": "<gray><category></gray>: <matched> записей",
+      "freed": "<gray>Освобождено</gray>: <size> МиБ"
     },
     "suggest": {
       "category": "Что удалять: блоки, предметы, контейнеры или события",

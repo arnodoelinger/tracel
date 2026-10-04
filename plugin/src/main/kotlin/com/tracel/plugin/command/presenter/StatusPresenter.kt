@@ -51,10 +51,11 @@ internal object StatusPresenter {
         buildList {
             add(tr("status.title"))
             add(Component.empty())
+            add(tr("status.format", "version" to status.format))
+            add(Component.empty())
             add(records(status))
             add(period(status))
             add(tr("status.size", "size" to bytes(status.databaseBytes)))
-            add(tr("status.format", "version" to status.format))
             add(disk(status))
             add(purge(status))
             add(Component.empty())
