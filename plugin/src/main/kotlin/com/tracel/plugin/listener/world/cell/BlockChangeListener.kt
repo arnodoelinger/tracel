@@ -8,7 +8,6 @@ import com.tracel.engine.world.BlockEdit
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.TracelServices
@@ -18,7 +17,6 @@ import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.FireCell
-import com.tracel.plugin.listener.support.cell.FluidCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.entity.explosionActor
 import io.papermc.paper.event.block.BlockBreakBlockEvent
@@ -160,7 +158,6 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         if (type != Material.BUCKET && !type.name.endsWith("_BUCKET")) return
         val facing = (event.block.blockData as? Directional)?.facing ?: return
         val target = event.block.getRelative(facing)
-        claimFluid(target)
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
             cause = CauseKind.WORLD,
@@ -248,7 +245,6 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         val touched = (event.blocks.map { it.block } + event.block).distinct()
         val by = ColumnCell.playerAt(event.block)?.let(HolderId::Player)
         val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
-        FluidCell.claim(touched.map { it.toBlockPos() })
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
             cause = cause,
@@ -310,25 +306,13 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onBucketEmpty(event: PlayerBucketEmptyEvent) {
         ColumnCell.rememberFluidAround(event.player.uniqueId, event.block, FLUID_RADIUS)
-        claimFluid(event.block)
         afterTick(event.block, ActionKind.BLOCK_CHANGE, event.player.uniqueId)
     }
 
     @Observes
     fun onBucketFill(event: PlayerBucketFillEvent) {
         ColumnCell.rememberFluidAround(event.player.uniqueId, event.block, FLUID_RADIUS)
-        claimFluid(event.block)
         afterTick(event.block, ActionKind.BLOCK_CHANGE, event.player.uniqueId)
-    }
-
-    private fun claimFluid(block: Block) {
-        val cells = ArrayList<BlockPos>(7)
-        cells += block.toBlockPos()
-        for (face in BlockFace.entries) {
-            if (!face.isCartesian) continue
-            cells += block.getRelative(face).toBlockPos()
-        }
-        FluidCell.claim(cells)
     }
 
     @Observes

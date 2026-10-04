@@ -11,10 +11,8 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.TracelServices
-import com.tracel.plugin.adapter.block.isFluidShape
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toShape
-import com.tracel.plugin.listener.support.cell.FluidCell
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.launch
 import org.bukkit.Bukkit
@@ -37,9 +35,10 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
     /**
      * Record a batch of already-snapshotted cell changes.
      *
-     * Identical before / after is not a change. Fluid still settling after a restore is the
-     * world finishing our write, not new history. Plain blocks go on the 24-byte ring;
-     * signs and tile extras do not fit a slot, wait beside the ring behind a marker and drain in turn.
+     * Identical before / after is not a change. A cell a fluid batch is still waiting to read is
+     * reported from where that batch first saw it, see [throughPendingFlow]. Plain blocks go on the
+     * 24-byte ring; signs and tile extras do not fit a slot, wait beside the ring behind a marker and
+     * drain in turn.
      */
     fun edits(
         action: ActionKind,
@@ -51,9 +50,8 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
     ) {
         if (restoring) return
 
-        val real = edits.filter {
-            it.before != it.after && !(isSettlingFluid(it))
-        }
+        val seen = if (pending.isEmpty()) edits else edits.map(::throughPendingFlow)
+        val real = seen.filter { it.before != it.after }
         if (real.isEmpty()) return
 
         if (real.none { it.before.extras != null || it.after.extras != null }) {
@@ -119,6 +117,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         if (restoring) return
         if (blocks.isEmpty()) return
         val epochMillis = System.currentTimeMillis()
+        val readNanos = System.nanoTime()
         val snapshots = blocks.map { Triple(it, it.toBlockPos(), it.toShape()) }
         for ((_, group) in snapshots.groupBy { it.second.regionKey() }) {
             val world = group.first().second.world
@@ -130,7 +129,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
                         cause,
                         causedBy,
                         world,
-                        group.filter { !services.selfManagedWorld.justWrote(it.second) }.map { (block, at, shape) ->
+                        group.filter { !services.selfManagedWorld.wroteSince(it.second, readNanos) }.map { (block, at, shape) ->
                             BlockEdit(at, shape, block.toShape())
                         }.filter(keep),
                         epochMillis,
@@ -142,22 +141,38 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         }
     }
 
+    private class FlowCell(
+        val block: Block,
+        val shape: BlockShape,
+        val readNanos: Long,
+        val cause: CauseKind,
+        val causedBy: HolderId?,
+    )
+
     private class FlowBatch(val world: WorldId, val epochMillis: Long) {
-        val cells = LinkedHashMap<BlockPos, Pair<Block, BlockShape>>()
+        val cells = ConcurrentHashMap<BlockPos, FlowCell>()
     }
 
-    private val flows = ConcurrentHashMap<Triple<Any, CauseKind, HolderId?>, FlowBatch>()
+    private val flows = ConcurrentHashMap<Any, FlowBatch>()
+    private val pending = ConcurrentHashMap<BlockPos, FlowBatch>()
 
     /**
-     * [reread] for fluid flow, one task per chunk per tick instead of one per event: an ocean
-     * draining fires tens of thousands a second, each with its own scheduled task.
+     * [reread] for fluid flow and fluid level changes, one task per chunk per tick instead of one
+     * per event: an ocean draining fires tens of thousands a second, each with its own scheduled task.
+     * A cell keeps the shape it had when its first event fired, and is read once, a tick later, for
+     * where all of that tick's flowing left it.
+     *
+     * It was made as one batch per region and tick, so whoever the flow is put down to: a cell the
+     * player's water and the world's both reached in one tick sat in two batches, and the second one's
+     * look at it — water already — wiped out the first one's air -> water. The cell keeps the first event's
+     * attribution.
      *
      * Region thread of [block] only, which is also the only thread the batch's task runs on.
      */
     fun flowed(block: Block, cause: CauseKind, causedBy: HolderId?) {
         if (restoring) return
         val at = block.toBlockPos()
-        val key = Triple(at.regionKey(), cause, causedBy)
+        val key = at.regionKey()
         var batch = flows[key]
         if (batch == null) {
             val fresh = FlowBatch(at.world, System.currentTimeMillis())
@@ -167,15 +182,23 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
             Bukkit.getRegionScheduler().runDelayed(services.plugin, block.location, {
                 try {
                     flows.remove(key, fresh)
-                    val edits = fresh.cells.filterKeys { !services.selfManagedWorld.justWrote(it) }
-                        .map { (pos, cell) -> BlockEdit(pos, cell.second, cell.first.toShape()) }
-                    edits(ActionKind.BLOCK_CHANGE, cause, causedBy, fresh.world, edits, fresh.epochMillis)
+                    for (pos in fresh.cells.keys) pending.remove(pos, fresh)
+                    val byWhom = LinkedHashMap<Pair<CauseKind, HolderId?>, MutableList<BlockEdit>>()
+                    for ((pos, cell) in fresh.cells) {
+                        if (services.selfManagedWorld.wroteSince(pos, cell.readNanos)) continue
+                        byWhom.getOrPut(cell.cause to cell.causedBy) { ArrayList() } +=
+                            BlockEdit(pos, cell.shape, cell.block.toShape())
+                    }
+                    for ((who, changed) in byWhom) {
+                        edits(ActionKind.BLOCK_CHANGE, who.first, who.second, fresh.world, changed, fresh.epochMillis)
+                    }
                 } finally {
                     services.pendingCaptures.done(ticket)
                 }
             }, 1L)
         }
-        batch.cells.putIfAbsent(at, block to block.toShape())
+        val first = FlowCell(block, block.toShape(), System.nanoTime(), cause, causedBy)
+        if (batch.cells.putIfAbsent(at, first) == null) pending[at] = batch
     }
 
     /** An entity appeared, changed pose, or vanished. Same restore skip as blocks. */
@@ -184,15 +207,13 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         services.entityCapture.offer(change)
     }
 
-    @Suppress("RedundantIf")
-    private fun isSettlingFluid(edit: BlockEdit): Boolean {
-        if (!edit.before.isFluidOrAir() || !edit.after.isFluidOrAir()) return false
-        return FluidCell.isDisturbed(edit.at)
-    }
-
-    private fun BlockShape.isFluidOrAir(): Boolean {
-        if (isFluidShape(this)) return true
-        val value = data.value
-        return value == "minecraft:air" || value == "minecraft:cave_air" || value == "minecraft:void_air"
+    private fun throughPendingFlow(edit: BlockEdit): BlockEdit {
+        val batch = pending[edit.at] ?: return edit
+        var before = edit.before
+        batch.cells.computeIfPresent(edit.at) { _, cell ->
+            before = cell.shape
+            FlowCell(cell.block, edit.after, System.nanoTime(), cell.cause, cell.causedBy)
+        }
+        return if (before == edit.before) edit else edit.copy(before = before)
     }
 }

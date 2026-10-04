@@ -11,7 +11,6 @@ import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.applyTo
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.adapter.entity.*
-import com.tracel.plugin.listener.support.cell.FluidCell
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.block.*
@@ -134,7 +133,6 @@ private suspend fun StructureRestorer.applySliced(
     val attached = ArrayList<StructureStep.SetBlock>()
     val removals = ArrayList<StructureStep.RemoveEntity>()
     val unordered = ArrayList<StructureStep.SpawnEntity>()
-    val wetted = ArrayList<BlockPos>()
     var anyGravity = false
     var anySolid = false
     var anySnow = false
@@ -144,7 +142,6 @@ private suspend fun StructureRestorer.applySliced(
                 blocks += step
                 val target = ShapeTraits.of(step.target)
                 val either = target or ShapeTraits.of(step.expected)
-                if (either and ShapeTraits.FLUID != 0) wetted += step.at
                 if (either and ShapeTraits.GRAVITY != 0) anyGravity = true
                 if (target and ShapeTraits.SOLID != 0) anySolid = true
                 if (either and ShapeTraits.SNOW != 0) anySnow = true
@@ -167,10 +164,6 @@ private suspend fun StructureRestorer.applySliced(
         step.shape.extras.vehicle?.let(anchors::add)
     }
     val spawns = if (anchors.isEmpty()) unordered else unordered.sortedBy { if (it.entity in anchors) 0 else 1 }
-
-    // Seed fluid disturbance before any write. Drain also touches fluids; a few hundred blocks
-    // later water is already moving. Follow the water.
-    if (wetted.isNotEmpty()) FluidCell.disturb(wetted)
 
     // Despawn first
     val gone = HashSet<UUID>(removals.size)

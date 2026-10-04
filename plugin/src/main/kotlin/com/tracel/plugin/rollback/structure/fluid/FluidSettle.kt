@@ -1,69 +1,58 @@
 package com.tracel.plugin.rollback.structure.fluid
 
-import com.tracel.annotations.Unstable
+import com.tracel.engine.log.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.id.WorldId
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.isFluidShape
-import com.tracel.plugin.rollback.structure.block.isAir
 import com.tracel.plugin.util.LongHashSet
 import com.tracel.plugin.util.packed
 import org.bukkit.Material
 import org.bukkit.World
+import org.bukkit.block.data.Levelled
 import org.bukkit.block.data.Waterlogged
-
-// TODO: rewrite
 
 private const val FEEDS = 1
 private const val TOUCHES = 2
+private const val FLOWING = 4
 
-@Unstable
-/** Settle fluids after a rollback, so that they flow into the new empty spaces. */
-internal suspend fun settleFluids(
+/**
+ * One tick for the fluids among [steps] and against them outside [footprint], like the neighbor update the write
+ * skipped. A bubble column base written gets its block tick, which rebuilds the column above it.
+ */
+internal suspend fun wakeFluids(
     world: World,
     steps: List<StructureStep.SetBlock>,
+    footprint: LongHashSet,
+    asItStood: LookupRegion?,
     owns: (Int, Int) -> Boolean,
     pace: suspend () -> Unit = {},
 ) {
-    if (steps.isEmpty()) return
-    val stirring = steps.filter { touchesOrFeeds(it.target) || touchesOrFeeds(it.expected) }
-    if (stirring.isEmpty()) return
-    val ticked = LongHashSet(stirring.size * 7)
-
-    val emptied = LongHashSet(steps.size)
+    val woken = LongHashSet(steps.size)
+    val stood = asItStood?.takeIf { it.world == WorldId(world.uid) }
     for ((at, target) in steps) {
-        if (target.isAir()) emptied += packed(at.x, at.y, at.z)
-    }
-
-    for ((at, target, expected) in stirring) {
         pace()
-        val flags = flagsOf(target) or flagsOf(expected)
-        if (flags and FEEDS != 0) {
-            if (owns(at.x, at.z)) runCatching { world.getBlockAt(at.x, at.y, at.z).tick() }
-        }
-        if (flags and TOUCHES == 0) continue
-        if (packed(at.x, at.y, at.z) in emptied) continue
-        tickFluidAt(world, at.x, at.y, at.z, owns, ticked, emptied)
+        val x = at.x
+        val y = at.y
+        val z = at.z
+        if (!owns(x, z)) continue
+        val flags = flagsOf(target)
+        if (flags and FEEDS != 0) runCatching { world.getBlockAt(x, y, z).tick() }
+        if (flags and TOUCHES != 0 && (stood == null || flags and FLOWING != 0)) wake(world, x, y, z, woken)
         for (face in CARDINAL) {
-            tickFluidAt(world, at.x + face.modX, at.y + face.modY, at.z + face.modZ, owns, ticked, emptied)
+            val nx = x + face.modX
+            val ny = y + face.modY
+            val nz = z + face.modZ
+            if (packed(nx, ny, nz) in footprint || !owns(nx, nz)) continue
+            if (stood != null && stood.containsBlock(nx, ny, nz)) continue
+            wake(world, nx, ny, nz, woken)
         }
     }
 }
 
-internal fun tickFluidAt(
-    world: World,
-    x: Int,
-    y: Int,
-    z: Int,
-    owns: (Int, Int) -> Boolean,
-    ticked: LongHashSet,
-    emptied: LongHashSet,
-) {
-    if (!owns(x, z)) return
-    for (face in CARDINAL) {
-        if (packed(x + face.modX, y + face.modY, z + face.modZ) in emptied) return
-    }
-    if (!ticked.add(packed(x, y, z))) return
+private fun wake(world: World, x: Int, y: Int, z: Int, woken: LongHashSet) {
+    if (!woken.add(packed(x, y, z))) return
     val block = world.getBlockAt(x, y, z)
     if (!block.holdsFreeFluid()) return
     runCatching { block.fluidTick() }
@@ -71,15 +60,17 @@ internal fun tickFluidAt(
 
 private val flagCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
-internal fun touchesOrFeeds(shape: BlockShape): Boolean = flagsOf(shape) != 0
-
-internal fun touchesFluidCached(shape: BlockShape): Boolean = flagsOf(shape) and TOUCHES != 0
-
 private fun flagsOf(shape: BlockShape): Int = flagCache.getOrPut(shape.data.value) {
-    (if (shape.feedsBubbles()) FEEDS else 0) or (if (shape.touchesFluid()) TOUCHES else 0)
+    (if (shape.feedsBubbles()) FEEDS else 0) or (if (shape.touchesFluid()) TOUCHES else 0) or
+            (if (shape.flowing()) FLOWING else 0)
 }
 
-internal fun BlockShape.touchesFluid(): Boolean {
+private fun BlockShape.flowing(): Boolean {
+    val data = BlockDataCache.of(data) as? Levelled ?: return false
+    return (data.material == Material.WATER || data.material == Material.LAVA) && data.level != 0
+}
+
+private fun BlockShape.touchesFluid(): Boolean {
     if (isFluidShape(this)) return true
     val data = BlockDataCache.of(data) ?: return true
     return data is Waterlogged

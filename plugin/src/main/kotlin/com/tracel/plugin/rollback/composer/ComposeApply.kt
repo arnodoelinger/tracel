@@ -95,35 +95,49 @@ private suspend fun RollbackComposer.applyReserved(
         }
     }
 
-    val first = try {
-        ledgerAndStructure(planned, strict, deltas, layout, reservation)
-    } catch (failure: Throwable) {
-        if (reservation is Reservation.Granted) services.rollback.cancel(reservation)
-        throw failure
+    // Fluids held still from the first write to the last, the inverse of a failed ledger included
+    val held = structureHalf.holdingFluids(composite.create + composite.destroy) {
+        val first = try {
+            ledgerAndStructure(planned, strict, deltas, layout, reservation)
+        } catch (failure: Throwable) {
+            if (reservation is Reservation.Granted) services.rollback.cancel(reservation)
+            throw failure
+        }
+        if (first.ledgerFailure != null) {
+            // Ledger failed: inverse structure outside the canceled scope
+            val applied = first.created.applied + first.destroyedPrompt.applied
+            val inverted = if (applied.isEmpty()) null else {
+                structureHalf.restore(applied.map { it.inverse() }, StructurePass(force = true))
+            }
+            Written(first, inverted, null)
+        } else {
+            Written(first, null, materialAndContested(planned, strict, deltas, layout, job, startedAtMillis, first))
+        }
     }
+    val first = held.first
 
-    // Ledger failed: inverse structure outside the canceled scope
     first.ledgerFailure?.let { failure ->
-        val applied = first.created.applied + first.destroyedPrompt.applied
-        if (applied.isNotEmpty()) {
-            val inverted = structureHalf.restore(applied.map { it.inverse() }, StructurePass(force = true))
-            structureHalf.settleFluids(inverted.applied, drain = false)
+        structureHalf.letGoOfArea()
+        held.inverted?.let { inverted ->
+            structureHalf.settleFluids(inverted.applied)
             val waking = inverted.applied.redstoneCells().toList()
             if (waking.isNotEmpty()) structureHalf.wakeRedstone(waking.asSequence())
         }
         throw failure
     }
 
-    val later = materialAndContested(planned, strict, deltas, layout, job, startedAtMillis, first)
-    val written = first.destroyedPrompt + later.extra
-    val settled = structureHalf.settleFluids(first.created.applied + written.applied, drain = true)
-    val destroyed = written + settled
+    val later = checkNotNull(held.later) { "the ledger went through, so the material half ran" }
+    val destroyed = first.destroyedPrompt + later.extra
+    structureHalf.letGoOfArea()
+    structureHalf.settleFluids(first.created.applied + destroyed.applied, planned.asItStood)
 
     val waking = (first.created.applied + destroyed.applied).redstoneCells().toList()
     if (waking.isNotEmpty()) services.scope.launch { structureHalf.wakeRedstone(waking.asSequence()) }
 
     return RollbackResult.Done(job, planned, first.created + destroyed, later.material)
 }
+
+private class Written(val first: FirstWait, val inverted: StructureReport?, val later: MaterialWait?)
 
 private fun StructureStep.placedHolder(): HolderId? = when (this) {
     is StructureStep.RemoveEntity -> HolderId.PlacedEntity(entity)

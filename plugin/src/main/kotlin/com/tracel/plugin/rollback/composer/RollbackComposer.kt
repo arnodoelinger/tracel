@@ -1,6 +1,7 @@
 package com.tracel.plugin.rollback.composer
 
 import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.LookupRegion
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.TracelServices
@@ -50,6 +51,9 @@ class RollbackComposer(
         structure: Boolean,
         material: Boolean,
     ): Planned = planRollback(filter, structure, material)
+
+    override suspend fun <T> holdingStill(region: LookupRegion?, work: suspend () -> T): T =
+        structureHalf.holdingArea(region, work)
 
     override suspend fun apply(planned: Planned, strict: Boolean): RollbackResult = tracked {
         applyTracked(planned, strict)

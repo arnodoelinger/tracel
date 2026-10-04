@@ -8,15 +8,12 @@ import com.tracel.engine.world.BlockEdit
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.block.BlockDataKey
-import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DragonEggCell
-import com.tracel.plugin.listener.support.cell.FluidCell
 import com.tracel.plugin.util.ExpiringSet
 import org.bukkit.Material
 import org.bukkit.block.Block
@@ -108,7 +105,6 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = if (egg) DragonEggCell.lastAt(event.block)
         else ColumnCell.fluidPlayerAt(event.block) ?: ColumnCell.fluidPlayerAt(event.toBlock)
         if (by != null && !egg) ColumnCell.rememberFluidAround(by, event.toBlock, 1, refresh = false)
-        FluidCell.onFlow(event.block.toBlockPos(), event.toBlock.toBlockPos())
         val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
         val causedBy = by?.let { HolderId.Player(it) }
         if (egg) shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, listOf(event.block, event.toBlock))
@@ -118,17 +114,10 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     @Observes
     fun onFluidLevel(event: FluidLevelChangeEvent) {
         val by = ColumnCell.fluidPlayerAt(event.block)
-        FluidCell.inherit(
-            event.block.toBlockPos(),
-            BlockFace.entries.filter { it.isCartesian }.map { event.block.getRelative(it).toBlockPos() },
-        )
-        shape.edit(
-            block = event.block,
-            before = event.block.toShape(),
-            after = BlockShape(BlockDataKey(event.newData.asString)),
-            action = ActionKind.BLOCK_CHANGE,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
-            causedBy = by?.let { HolderId.Player(it) },
+        shape.flowed(
+            event.block,
+            if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            by?.let { HolderId.Player(it) },
         )
     }
 

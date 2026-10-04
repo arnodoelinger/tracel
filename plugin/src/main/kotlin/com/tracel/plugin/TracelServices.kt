@@ -36,6 +36,7 @@ import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.structure.GovernorSettings
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.TickGovernor
+import com.tracel.plugin.rollback.structure.fluid.FluidFreeze
 import com.tracel.plugin.rollback.structure.fluid.warmFluidShapes
 import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.plugin.util.GroundWhereabouts
@@ -154,6 +155,7 @@ class TracelServices(
     val coreProtectImport: CoreProtectImportAction by lazy { CoreProtectImportAction(this) }
     val pendingCaptures: PendingCaptures = PendingCaptures()
     val frozen: FreezeGuard = FreezeGuard()
+    internal val fluidFreeze: FluidFreeze = FluidFreeze()
     val worldQuery: WorldQuery = WorldQuery(::playerIsOnline)
     var flushCapture: suspend () -> Boolean = { true }
 

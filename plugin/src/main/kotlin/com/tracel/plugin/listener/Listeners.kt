@@ -82,5 +82,6 @@ private fun sessionListeners(services: TracelServices): List<TracelListener> = l
     PendingDeliveryListener(services),
     SnapshotEvictionListener(services),
     FreezeGuardListener(services),
+    FluidFreezeListener(services),
     GapCommandListener(services),
 )

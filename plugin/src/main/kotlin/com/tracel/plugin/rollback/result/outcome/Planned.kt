@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.result.outcome
 
+import com.tracel.engine.log.LookupRegion
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
 import com.tracel.model.holder.HolderId
@@ -19,4 +20,5 @@ data class Planned(
     val covered: Set<HolderId>? = null,
     val by: HolderId? = null,
     val imported: Int = 0,
+    val asItStood: LookupRegion? = null,
 )

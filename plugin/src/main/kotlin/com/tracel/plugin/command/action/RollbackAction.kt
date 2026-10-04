@@ -12,6 +12,7 @@ import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
 import com.tracel.plugin.command.presenter.RollbackPresenter.resurrections
 import com.tracel.plugin.i18n.*
+import com.tracel.plugin.rollback.composer.FULL_FLUSH_SECONDS
 import com.tracel.plugin.rollback.composer.warmForPreview
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -86,7 +87,7 @@ class RollbackAction internal constructor(
             } else services.scope.launch {
                 try {
                     services.purgeGate.awaitSlice()
-                    rollbackFiltered(sender, parsed, filter)
+                    services.composite.holdingStill(filter.filter.region) { rollbackFiltered(sender, parsed, filter) }
                 } finally {
                     services.composite.releaseGate()
                 }
@@ -136,6 +137,7 @@ class RollbackAction internal constructor(
         }
         val halves = halvesOf(parsed, filter.actions)
         if (planned.imported > 0) sender.say(info(tr("rollback.imported", "count" to planned.imported)))
+        if (!planned.flushed) sender.say(info(tr("rollback.not_flushed", "seconds" to FULL_FLUSH_SECONDS)))
         if (parsed.preview) {
             val ghosts = if (sender is Player && highlights != null) {
                 highlights.ghost(sender, planned.composite.create, planned.composite.destroy, GHOST_SECONDS)

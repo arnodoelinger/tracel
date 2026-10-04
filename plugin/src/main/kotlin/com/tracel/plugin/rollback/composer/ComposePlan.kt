@@ -12,6 +12,12 @@ import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.survey.*
 import com.tracel.plugin.util.chunkKey
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
+
+internal const val FULL_FLUSH_SECONDS = 60
+
+private const val FLUSH_ROUND_PAUSE_MILLIS = 50L
 
 /**
  * Compose a plan.
@@ -29,7 +35,7 @@ internal suspend fun RollbackComposer.planRollback(
         excludedCauses = filter.excludedCauses + CauseKind.ROLLBACK + CauseKind.INVOLUTION,
     )
 
-    val flushed = services.flushCapture()
+    val flushed = flushedFully()
 
     val (matchedChanges, matchedTxns) = if (!structure && !material) {
         emptyList<WorldChange>() to emptyList()
@@ -88,6 +94,7 @@ internal suspend fun RollbackComposer.planRollback(
         structure,
         covered,
         imported = imported,
+        asItStood = filter.region?.takeIf { structure && imported == 0 && filter.leavesNothingOut() },
     )
 }
 
@@ -114,6 +121,20 @@ internal fun List<StructureStep>.inPlaceOrder(): List<StructureStep> {
     }
     out += others
     return out
+}
+
+private fun LookupFilter.leavesNothingOut(): Boolean =
+    holders.isEmpty() && excludedHolders.isEmpty() && material == null && blockMaterials.isEmpty() &&
+            causes.isEmpty() && worldCauses.isNullOrEmpty() && excludedCauses.isEmpty() && actions.isEmpty() &&
+            until == null && (world == null || world == region?.world)
+
+private suspend fun RollbackComposer.flushedFully(): Boolean {
+    val deadline = System.currentTimeMillis() + FULL_FLUSH_SECONDS * 1_000L
+    while (!services.flushCapture()) {
+        if (System.currentTimeMillis() >= deadline) return false
+        delay(FLUSH_ROUND_PAUSE_MILLIS.milliseconds)
+    }
+    return true
 }
 
 private fun placedCovered(steps: List<StructureStep>): Set<HolderId> {

@@ -19,7 +19,7 @@ class SelfManagedWorldGuard {
     val isRestoring: Boolean get() = active.get()
 
     private val active = ThreadLocal.withInitial { false }
-    private val written = ExpiringMap<BlockPos, Unit>(WRITTEN_TTL_MS, WRITTEN_KEPT)
+    private val written = ExpiringMap<BlockPos, Long>(WRITTEN_TTL_MS, WRITTEN_KEPT)
 
     /** Sets the flag for the duration of [action], restoring it afterward. */
     fun <T> whileRestoring(action: () -> T): T {
@@ -52,10 +52,15 @@ class SelfManagedWorldGuard {
      *
      * This is used for the same reason as [isRestoring].
      */
-    fun wrote(cells: Iterable<BlockPos>) {
-        written.putAll(cells, Unit)
+    fun wrote(cells: Iterable<BlockPos>, nanos: Long = System.nanoTime()) {
+        written.putAll(cells, nanos)
     }
 
-    /** Whether a restore wrote [cell] within the last second. */
-    fun justWrote(cell: BlockPos): Boolean = cell in written
+    /**
+     * Whether a restore wrote [cell] after a listener read it at [readNanos]: that listener's before is from ahead of
+     * the restore, and its after is the restore.
+     *
+     * One read after the write is the world's own, and stands.
+     */
+    fun wroteSince(cell: BlockPos, readNanos: Long): Boolean = (written[cell] ?: return false) >= readNanos
 }

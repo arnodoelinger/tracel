@@ -1,74 +1,81 @@
 package com.tracel.plugin.rollback.structure.fluid
 
+import com.tracel.engine.log.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.groupByChunk
 import com.tracel.model.holder.HolderId
+import com.tracel.model.id.WorldId
+import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.world.worldOf
-import com.tracel.plugin.rollback.result.report.SkippedStep
-import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.claim
 import com.tracel.plugin.rollback.structure.throttled
+import com.tracel.plugin.util.LongHashSet
 import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.ownsChunkAt
+import com.tracel.plugin.util.packed
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicIntegerArray
 
-/** Drain and settle over everything a job wrote, once per region, after the last pass. */
-internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep>, drain: Boolean): StructureReport {
+/** Wakes the fluids in and around everything a job wrote, once per region, after the freeze is off. */
+internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep>, asItStood: LookupRegion?) {
     val blocks = written.filterIsInstance<StructureStep.SetBlock>()
-    if (blocks.isEmpty()) return StructureReport.EMPTY
-    if (blocks.none { touchesOrFeeds(it.target) || touchesOrFeeds(it.expected) }) return StructureReport.EMPTY
+    if (blocks.isEmpty()) return
+    val footprint = HashMap<WorldId, LongHashSet>()
+    for (step in blocks) footprint.getOrPut(step.at.world) { LongHashSet(blocks.size) } += packed(step.at.x, step.at.y, step.at.z)
     val groups: List<List<StructureStep>> = groupByChunk(blocks) { it.at }
     val claimed = AtomicIntegerArray(groups.size)
 
-    val reports = coroutineScope {
+    coroutineScope {
         groups.indices.map { index ->
             async {
                 val anchor = groups[index].first().at
                 withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {
-                    val world = worldOf(anchor.world) ?: return@withContext StructureReport.EMPTY
+                    val world = worldOf(anchor.world) ?: return@withContext
                     val mine = claim(index, groups, claimed).filterIsInstance<StructureStep.SetBlock>()
-                    if (mine.isEmpty()) return@withContext StructureReport.EMPTY
+                    if (mine.isEmpty()) return@withContext
+                    val cells = footprint.getValue(anchor.world)
 
-                    // A loaded chunk this region owns, whether or not a step sits in it: streams cross chunk lines
+                    // A loaded chunk this region owns, whether a step sits in it: streams cross chunk lines
                     val owned = HashMap<Long, Boolean>()
                     val owns = { x: Int, z: Int ->
                         owned.getOrPut(chunkKey(x, z)) {
-                            world.isChunkLoaded(x shr 4, z shr 4) && ownsChunkAt(
-                                world,
-                                x,
-                                z
-                            )
+                            world.isChunkLoaded(x shr 4, z shr 4) && ownsChunkAt(world, x, z)
                         }
                     }
 
-                    // The settle may stir fluids around what was written; the writing itself was marked as it went
-                    services.selfManagedWorld.wrote(
-                        mine.filter { touchesFluidCached(it.target) || touchesFluidCached(it.expected) }.map { it.at }
-                    )
-
-                    // Every written block is walked once more here, so it takes turns like the writing did
-                    services.governor.throttled(
-                        world,
-                        anchor.x shr 4,
-                        anchor.z shr 4,
-                        services.selfManagedWorld
-                    ) { throttle ->
-                        val whole = !drain || drainFlowing(world, mine, owns)
-                        settleFluids(world, mine, owns) { throttle.yieldIfSpent { owned.clear() } }
-                        if (whole) StructureReport.EMPTY
-                        else StructureReport(
-                            emptyList(),
-                            listOf(SkippedStep(mine.first().at, "the fluid drain hit its $MAX_DRAINED cell limit"))
-                        )
+                    // A fresh guard: the flag stays down, so whatever these ticks set off is logged
+                    services.governor.throttled(world, anchor.x shr 4, anchor.z shr 4) { throttle ->
+                        wakeFluids(world, mine, cells, asItStood, owns) { throttle.yieldIfSpent { owned.clear() } }
                     }
                 }
             }
         }.awaitAll()
     }
-    return reports.fold(StructureReport.EMPTY, StructureReport::plus)
+}
+
+/** One fluid tick for each of [cells] the freeze stopped mid-move, on the region that owns it, flag down. */
+internal suspend fun StructureRestorer.wakeCells(cells: List<BlockPos>) {
+    if (cells.isEmpty()) return
+    coroutineScope {
+        groupByChunk(cells) { it }.map { group ->
+            async {
+                val anchor = group.first()
+                withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {
+                    val world = worldOf(anchor.world) ?: return@withContext
+                    if (!world.isChunkLoaded(anchor.x shr 4, anchor.z shr 4)) return@withContext
+                    services.governor.throttled(world, anchor.x shr 4, anchor.z shr 4) { throttle ->
+                        for (cell in group) {
+                            throttle.yieldIfSpent()
+                            val block = world.getBlockAt(cell.x, cell.y, cell.z)
+                            if (block.holdsFreeFluid()) runCatching { block.fluidTick() }
+                        }
+                    }
+                }
+            }
+        }.awaitAll()
+    }
 }

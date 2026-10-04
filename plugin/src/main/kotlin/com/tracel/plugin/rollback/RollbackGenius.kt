@@ -1,6 +1,7 @@
 package com.tracel.plugin.rollback
 
 import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.LookupRegion
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -34,6 +35,12 @@ interface RollbackGenius {
         structure: Boolean = true,
         material: Boolean = true,
     ): Planned
+
+    /**
+     * Holds every fluid in [region] still while [work] plans and applies there, so what the log says when the plan is
+     * made is what the world still holds when it is written.
+     */
+    suspend fun <T> holdingStill(region: LookupRegion?, work: suspend () -> T): T
 
     /** Preflight then apply. [strict]: skip cells the world has moved on from. */
     suspend fun apply(planned: Planned, strict: Boolean = false): RollbackResult

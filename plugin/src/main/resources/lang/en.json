@@ -334,6 +334,7 @@
       "stale": "stopping the redstone or whatever keeps moving these items, then run it again"
     },
     "imported": "<count> imported <count:record:records> left alone — imported history is read-only",
+    "not_flushed": "History was still being written after <seconds>s of waiting — what had not landed yet is not in this rollback; run it again in a moment for the rest",
     "planning": "Reading history and planning the rollback — a big area takes a while...",
     "planned": "Planned <count> block(s) in <seconds>s, applying..."
   },

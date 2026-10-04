@@ -1,9 +1,11 @@
 package com.tracel.plugin.rollback.structure
 
+import com.tracel.engine.log.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.StructureReport
+import com.tracel.plugin.rollback.structure.fluid.FluidFreeze
 
 /**
  * World-log half as composition sees it.
@@ -20,11 +22,25 @@ interface StructureHalf {
         pass: StructurePass = StructurePass(),
     ): StructureReport
 
+    /** Holds still every cell [steps] write, see [FluidFreeze], until [work] returns. */
+    suspend fun <T> holdingFluids(steps: List<StructureStep>, work: suspend () -> T): T
+
+    /** Holds still every fluid in [region] until [work] returns: plan and write there against a world that waits. */
+    suspend fun <T> holdingArea(region: LookupRegion?, work: suspend () -> T): T
+
+    /** Lets go of the area [holdingArea] holds around the caller, if any, once the last write is in. */
+    suspend fun letGoOfArea()
+
     /**
-     * Fluids, once every pass of a job has [written]: [drain] streams that lost their source (forward
-     * only: an undo is putting those very streams back), then one tick for what was put back.
+     * Fluids, once a job has let go of what it [written]: the tick a neighbor update would have given them, where the
+     * world may now be other than it stood.
+     *
+     * Inside [asItStood] every cell is back exactly as it stood, so only flowing water caught mid-stream is ticked
+     * there, and water against it beyond the area; without one, every fluid in and against what was written is.
+     *
+     * What moves from here on is the world's doing, logged as such.
      */
-    suspend fun settleFluids(written: List<StructureStep>, drain: Boolean): StructureReport
+    suspend fun settleFluids(written: List<StructureStep>, asItStood: LookupRegion? = null)
 
     /** Physics was off. Run after structure (!) and cargo. */
     suspend fun wakeRedstone(positions: Sequence<BlockPos>)

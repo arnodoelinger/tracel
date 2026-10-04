@@ -100,14 +100,21 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
     for (step in record.destroy.map { it.inverse() }) if (step is StructureStep.SpawnEntity) rememberHull(step)
 
     return services.frozen.whileFrozen(undoDeltas.keys) {
-        undoFrozen(
-            job,
-            record,
-            putBack,
-            takeAway,
-            undoDeltas,
-            notBrought
-        )
+        // Fluids held still while the job is taken back, woken once it is
+        val written = ArrayList<StructureStep>()
+        val result = structureHalf.holdingFluids(putBack + takeAway) {
+            undoFrozen(
+                job,
+                record,
+                putBack,
+                takeAway,
+                undoDeltas,
+                notBrought,
+                written,
+            )
+        }
+        structureHalf.settleFluids(written)
+        result
     }
 }
 
@@ -118,6 +125,7 @@ private suspend fun RollbackComposer.undoFrozen(
     takeAway: List<StructureStep>,
     undoDeltas: Map<HolderId, Map<ItemKey, Long>>,
     notBrought: StructureReport,
+    written: MutableList<StructureStep>,
 ): UndoResult {
 
     // Strip ledger-filled hulls; keep unbooked snapshot cargo or undo empties the creative frame
@@ -150,7 +158,7 @@ private suspend fun RollbackComposer.undoFrozen(
     suspend fun putBackAgain() {
         if (restored.applied.isNotEmpty()) {
             val inverted = structureHalf.restore(restored.applied.map { it.inverse() }, StructurePass(force = true))
-            structureHalf.settleFluids(inverted.applied, drain = false)
+            written += inverted.applied
         }
     }
 
@@ -169,7 +177,7 @@ private suspend fun RollbackComposer.undoFrozen(
             services.undoJournal.markCompleted(job, MATERIAL_RETURNED)
             if (record.executedAtMillis > 0L) materialHalf.rewearUndo(outcome.steps, record.executedAtMillis)
             val removed = structureHalf.restore(takeAway, takingAway)
-            structureHalf.settleFluids(restored.applied + removed.applied, drain = false)
+            written += restored.applied + removed.applied
 
             // Return-to-vanished-drop from an entity hull
             val hullAt = HashMap<UUID, HolderId>()
@@ -199,7 +207,7 @@ private suspend fun RollbackComposer.undoFrozen(
         // Ledger already undone, job still on the stack: finish takeAway
         is InvolutionOutcome.AlreadyUndone -> if (services.undoJournal.isCompleted(job, MATERIAL_RETURNED)) {
             val removed = structureHalf.restore(takeAway, takingAway)
-            structureHalf.settleFluids(restored.applied + removed.applied, drain = false)
+            written += restored.applied + removed.applied
             services.jobs.markUndone(job)
             UndoResult.AlreadyUndone
         } else {
