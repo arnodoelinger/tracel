@@ -39,7 +39,7 @@ class CodecGoldensTest {
         assertEquals(
             listOf(
                 "BLOCK_PLACE", "BLOCK_BREAK", "BLOCK_CHANGE", "SIGN_EDIT",
-                "ENTITY_SPAWN", "ENTITY_REMOVE", "ENTITY_CHANGE", "BLOCK_CLICK",
+                "ENTITY_SPAWN", "ENTITY_REMOVE", "ENTITY_CHANGE", "BLOCK_CLICK", "BLOCK_GROW",
             ),
             ActionKind.entries.map { it.name },
         )

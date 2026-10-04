@@ -80,7 +80,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     fun onFertilize(event: BlockFertilizeEvent) {
         val by = event.player?.let { HolderId.Player(it.uniqueId) }
         shape.edits(
-            action = ActionKind.BLOCK_CHANGE,
+            action = ActionKind.BLOCK_GROW,
             cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
             causedBy = by,
             world = WorldId(event.block.world.uid),

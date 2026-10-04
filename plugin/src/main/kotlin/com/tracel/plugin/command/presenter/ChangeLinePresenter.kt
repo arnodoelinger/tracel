@@ -66,6 +66,7 @@ internal object ChangeLinePresenter {
     /** A block that only became another block, with no name for it in [TransitionPresenter]: crops, doors, redstone. Noise. */
     fun isUnnamedChange(change: WorldChange): Boolean {
         val subject = change.subject as? ChangeSubject.Block ?: return false
+        if (change.action == ActionKind.BLOCK_GROW) return false
         if (subject.before.isAirLike || subject.after.isAirLike) return false
         val byEntity = change.cause == CauseKind.ENTITY_ACTION || change.causedBy is HolderId.Entity
         return TransitionPresenter.of(subject.before.data.value, subject.after.data.value, byEntity) == null
@@ -398,7 +399,8 @@ internal object ChangeLinePresenter {
             val to = NamePresenter.of(after)
             val plain = verbName(change.action)
             when {
-                change.action == ActionKind.BLOCK_CLICK -> Phrase(
+                // What bone meal grew reads the same whether it was a flower or a crop going up a stage
+                change.action == ActionKind.BLOCK_CLICK || change.action == ActionKind.BLOCK_GROW -> Phrase(
                     lower("lookup.verb.$plain"),
                     plain,
                     to,
@@ -431,7 +433,7 @@ internal object ChangeLinePresenter {
     private fun superscript(n: Int): String = n.toString().map { "⁰¹²³⁴⁵⁶⁷⁸⁹"[it - '0'] }.joinToString("")
 
     private fun mark(action: ActionKind): Component = when (action) {
-        ActionKind.BLOCK_PLACE, ActionKind.ENTITY_SPAWN -> ItemPresenter.PLUS
+        ActionKind.BLOCK_PLACE, ActionKind.ENTITY_SPAWN, ActionKind.BLOCK_GROW -> ItemPresenter.PLUS
         ActionKind.BLOCK_BREAK, ActionKind.ENTITY_REMOVE -> ItemPresenter.MINUS
         else -> ItemPresenter.BOTH
     }
@@ -465,6 +467,7 @@ internal object ChangeLinePresenter {
         ActionKind.ENTITY_REMOVE -> "removed"
         ActionKind.ENTITY_CHANGE -> "altered"
         ActionKind.BLOCK_CLICK -> "clicked"
+        ActionKind.BLOCK_GROW -> "grew"
     }
 
     private fun leashName(subject: ChangeSubject.Entity): String? {

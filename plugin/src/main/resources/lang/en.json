@@ -289,7 +289,7 @@
     "done": {
       "title": "<green>✔ Rolled back!</green>",
       "result": "<gray>Result</gray>: <parts>",
-      "nothing": "<gray>Nothing changed — the world already matches</gray>"
+      "nothing": "<gray>Result</gray>: nothing changed — the world already matches"
     },
     "button": {
       "undo": "<gold>[⏩ Undo]</gold>",

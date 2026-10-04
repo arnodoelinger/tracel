@@ -10,4 +10,5 @@ public enum class ActionKind {
     ENTITY_REMOVE,
     ENTITY_CHANGE,
     BLOCK_CLICK,
+    BLOCK_GROW,
 }

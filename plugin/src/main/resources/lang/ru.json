@@ -289,7 +289,7 @@
     "done": {
       "title": "<green>✔ Откачено!</green>",
       "result": "<gray>Результат</gray>: <parts>",
-      "nothing": "<gray>Ничего не изменилось — мир остался прежним</gray>"
+      "nothing": "<gray>Результат</gray>: ничего не изменилось — мир остался прежним"
     },
     "button": {
       "undo": "<gold>[⏩ Отменить]</gold>",

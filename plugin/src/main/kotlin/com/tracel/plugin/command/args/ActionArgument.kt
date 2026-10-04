@@ -33,7 +33,7 @@ private data class ActionAlias(
 private val ALIASES: List<ActionAlias> = listOf(
     ActionAlias(
         names = setOf("block"),
-        actions = setOf(ActionKind.BLOCK_PLACE, ActionKind.BLOCK_BREAK, ActionKind.BLOCK_CHANGE),
+        actions = setOf(ActionKind.BLOCK_PLACE, ActionKind.BLOCK_BREAK, ActionKind.BLOCK_CHANGE, ActionKind.BLOCK_GROW),
         half = Half.STRUCTURE,
     ),
     ActionAlias(
@@ -75,6 +75,7 @@ private val ALIASES: List<ActionAlias> = listOf(
         half = Half.MATERIAL,
     ),
     ActionAlias(names = setOf("click"), actions = setOf(ActionKind.BLOCK_CLICK), half = Half.STRUCTURE),
+    ActionAlias(names = setOf("grow"), actions = setOf(ActionKind.BLOCK_GROW), half = Half.STRUCTURE),
     ActionAlias(names = setOf("chat"), events = setOf(EventKind.CHAT), half = Half.EVENT),
     ActionAlias(names = setOf("command"), events = setOf(EventKind.COMMAND), half = Half.EVENT),
     ActionAlias(names = setOf("session"), events = setOf(EventKind.JOIN, EventKind.QUIT), half = Half.EVENT),

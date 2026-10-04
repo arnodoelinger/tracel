@@ -87,7 +87,7 @@ internal data class PlayerReport(
                         (subject as? ChangeSubject.Block)?.before?.let { broken.merge(it.name(), 1, Int::plus) }
                     }
 
-                    ActionKind.BLOCK_CHANGE -> change++
+                    ActionKind.BLOCK_CHANGE, ActionKind.BLOCK_GROW -> change++
                     ActionKind.SIGN_EDIT -> signs++
                     ActionKind.ENTITY_SPAWN -> spawned++
                     ActionKind.ENTITY_REMOVE -> {

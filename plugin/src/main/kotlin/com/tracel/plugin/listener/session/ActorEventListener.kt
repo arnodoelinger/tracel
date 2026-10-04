@@ -11,6 +11,7 @@ import com.tracel.plugin.listener.TracelListener
 import io.papermc.paper.event.player.AsyncChatEvent
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
+import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
@@ -42,8 +43,11 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onDeath(event: PlayerDeathEvent) {
         val source = event.damageSource
+        val falling = (source.directEntity as? FallingBlock)?.blockData?.material?.key?.key?.let { "falling $it" }
         val killer = (source.causingEntity as? Player)?.name
             ?: source.causingEntity?.type?.key?.key
+            ?: falling
+            ?: source.directEntity?.type?.key?.key
             ?: source.damageType.key.key
         record(EventKind.DEATH, event.player, killer.replace('_', ' '))
     }
