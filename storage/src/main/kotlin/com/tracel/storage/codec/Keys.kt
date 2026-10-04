@@ -60,6 +60,7 @@ import com.tracel.storage.spi.EngineCursor
  * | 30   | `rolled / seq`                                                     | jobId, epochMillis   | point                |
  * | 31   | `rolledJob / jobId / seq`                                          | —                    | prefix               |
  * | 32   | `meta / 0`                                                         | format major, minor  | point                |
+ *       | `meta / 1`                                                         | import in progress   | point                |
  */
 object Keys {
     fun tagName(tag: Byte): String = when (tag) {
@@ -366,6 +367,8 @@ object Keys {
     fun importMark(sourceId: Long): ByteArray = KeyWriter(9).tag(IMPORT_MARK).u64(sourceId).done()
 
     fun formatVersion(): ByteArray = KeyWriter(2).tag(META).u8(0).done()
+
+    fun importProgress(): ByteArray = KeyWriter(2).tag(META).u8(1).done()
 
     fun rolled(seq: Long): ByteArray = KeyWriter(9).tag(ROLLED).u64(seq).done()
 

@@ -18,7 +18,6 @@ import java.nio.file.StandardCopyOption
 
 private val MAGIC = "TEXP".toByteArray(Charsets.US_ASCII)
 private const val VERSION = Versions.Format.EXPORT
-private const val BATCH_ROWS = 20_000
 internal const val TIME_KEY_SIZE = 17
 
 /** What an export turned out to be, for the line that gets printed afterward. */
@@ -58,6 +57,7 @@ suspend fun exportTo(storage: TracelStorage, to: Path, stopped: () -> Boolean = 
                     eachRow(ByteArray(0)) { cursor ->
                         if (stopped()) throw StoppedByRequest()
                         val key = cursor.key()
+                        if (key.contentEquals(Keys.importProgress())) return@eachRow
                         if (key.size == TIME_KEY_SIZE && key[0] == Keys.TIME) {
                             val at = Keys.invert(KeyReader.u64(key, 1))
                             if (at < oldest) oldest = at
@@ -114,26 +114,18 @@ suspend fun importFrom(
     // Nothing else writes while the store is swapped, and the IDs cached for the old one go with it:
     // a new holder given an ID the file already uses overwrote history.
     storage.alone {
-        storage.engine.wipe()
-        var batch = MutationBatch()
-        var inBatch = 0
-        eachExportedRow(from) { key, value ->
-            batch.put(key, value)
-            if (++inBatch >= BATCH_ROWS) {
-                storage.engine.write(batch, durable = false)
-                batch = MutationBatch()
-                inBatch = 0
-            }
-        }
-        if (inBatch > 0) storage.engine.write(batch, durable = false)
-        storage.engine.sync()
+        // The wipe and the record that an import is under way land as one commit: from here a crash is finished at
+        // the next start from the file, and never leaves a database that is a part of it and says nothing.
+        val progress = ImportProgress(from.toAbsolutePath().toString(), Files.size(from), rows, 0L)
+        storage.engine.wipe(MutationBatch().apply { put(Keys.importProgress(), progress.encode()) })
+        copyImportRows(storage.engine, from, progress, startAt = 0L)
         storage.reloadInterning()
     }
     ExportSummary(rows, Files.size(from), from)
 }
 
 /** Streams every row of the export at [from] through [row], and checks the count it ends on. */
-private inline fun eachExportedRow(from: Path, row: (ByteArray, ByteArray) -> Unit): Long {
+internal fun eachExportedRow(from: Path, row: (ByteArray, ByteArray) -> Unit): Long {
     var rows = 0L
     var stated = -1L
     DataInputStream(
