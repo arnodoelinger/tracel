@@ -29,6 +29,9 @@ class PendingCaptures {
         return ticket
     }
 
+    /** How many captures are accepted and not yet written, right now. */
+    fun owedNow(): Int = outstanding.values.sumOf { it.get().coerceAtLeast(0) }
+
     /** Marks the capture [ticket] belongs to as written. */
     fun done(ticket: Long) {
         outstanding.computeIfAbsent(ticket) { AtomicInteger() }.decrementAndGet()

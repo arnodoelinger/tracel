@@ -12,6 +12,7 @@ import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.structure.StructureHalf
 import com.tracel.plugin.rollback.survey.WorldCensus
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -55,8 +56,18 @@ class RollbackComposer(
     override suspend fun <T> holdingStill(region: LookupRegion?, work: suspend () -> T): T =
         structureHalf.holdingArea(region, work)
 
+    private val applying = ConcurrentHashMap<Any, Long>()
+
+    override val activeRollbacks: List<Long> get() = applying.values.toList()
+
     override suspend fun apply(planned: Planned, strict: Boolean): RollbackResult = tracked {
-        applyTracked(planned, strict)
+        val token = Any()
+        applying[token] = planned.taken.size.toLong()
+        try {
+            applyTracked(planned, strict)
+        } finally {
+            applying.remove(token)
+        }
     }
 
     override suspend fun undo(job: RollbackJobId): UndoResult = tracked { undoTracked(job) }

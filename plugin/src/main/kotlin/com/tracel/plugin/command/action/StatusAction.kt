@@ -1,0 +1,77 @@
+package com.tracel.plugin.command.action
+
+import com.tracel.plugin.TracelServices
+import com.tracel.plugin.command.presenter.StatusPresenter
+import com.tracel.plugin.command.presenter.StatusSnapshot
+import com.tracel.plugin.i18n.failed
+import com.tracel.plugin.i18n.say
+import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.i18n.unexpected
+import com.tracel.plugin.status.LAG_PROBE_MILLIS
+import com.tracel.storage.codec.History
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import net.kyori.adventure.text.Component
+import org.bukkit.Bukkit
+import org.bukkit.command.CommandSender
+
+/** `/tracel status`: how the plugin is doing, on one screen. */
+class StatusAction(private val services: TracelServices) {
+    /** Reads the status, then says it. A late capture queue is waited out for a few seconds so it can be measured. */
+    fun execute(sender: CommandSender) {
+        services.scope.launch {
+            try {
+                sender.say(StatusPresenter.render(read()))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                sender.failed("status.failed", Component.text(unexpected(failure)), tr("common.hint.unknown"))
+            }
+        }
+    }
+
+    private suspend fun read(): StatusSnapshot {
+        val engine = services.storage.engine
+        val (history, bytes) = withContext(Dispatchers.IO) {
+            listOf(History.BLOCKS, History.ITEMS, History.EVENTS, History.CONTAINERS).map(engine::history) to
+                    engine.stats().liveBytes
+        }
+        val (blocks, items, events, containers) = history
+        val database = services.plugin.dataFolder.resolve("database")
+
+        // What waits right now, before the wait below changes it: captures not written, and ring slots not applied
+        val queued = services.pendingCaptures.owedNow() + services.storage.ring.backlog.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+
+        // How late the queue is is how long it takes to empty: asked of it now, answered when it is
+        val started = System.nanoTime()
+        val applied = withTimeoutOrNull(LAG_PROBE_MILLIS) { services.storage.ring.awaitApplied(LAG_PROBE_MILLIS) } == true
+        val left = (LAG_PROBE_MILLIS - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(1)
+        val settled = withTimeoutOrNull(left) { services.pendingCaptures.await(left) } == true
+        val took = (System.nanoTime() - started) / 1_000_000
+        val beyond = !applied || !settled
+        val lag = if (beyond) LAG_PROBE_MILLIS else took
+
+        return StatusSnapshot(
+            nowMillis = System.currentTimeMillis(),
+            blockRows = blocks.sumOf { it.entries },
+            itemRows = items.sumOf { it.entries },
+            eventRows = events.sumOf { it.entries },
+            oldestMillis = history.flatten().filter { it.entries > 0 }.minOfOrNull { it.windowStartMillis },
+            databaseBytes = bytes,
+            diskFree = database.usableSpace,
+            diskTotal = database.totalSpace,
+            queued = queued,
+            writesPerSecond = services.writeRate.perSecond(),
+            rollbacks = services.composite.activeRollbacks,
+            purge = services.purgeSettings,
+            lastPurgeMillis = services.lastPurgeMillis,
+            lagMillis = lag,
+            lagBeyondProbe = beyond,
+            mspt = runCatching { Bukkit.getAverageTickTime() }.getOrNull(),
+            forwardCompatible = services.forwardCompatible,
+        )
+    }
+}

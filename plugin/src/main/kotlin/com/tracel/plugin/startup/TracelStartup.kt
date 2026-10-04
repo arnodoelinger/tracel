@@ -47,10 +47,12 @@ import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.wear.WearLog
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import kotlinx.coroutines.*
+import kotlin.time.Duration.Companion.milliseconds
 import org.bukkit.Bukkit
 import org.tomlj.Toml
 
 private const val LAST_CAPTURE_WAIT_MILLIS = 500L
+private const val WRITE_RATE_SAMPLE_MILLIS = 5_000L
 
 /** Wired plugin after a successful [enable]. */
 internal class TracelRuntime(
@@ -257,7 +259,14 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         TracelCommand.register(event.registrar(), services)
     }
 
+    services.purgeSettings = settings.autoPurge
     services.autoPurge = startAutoPurge(plugin, services, settings.autoPurge)
+    services.scope.launch {
+        while (isActive) {
+            services.writeRate.sample()
+            delay(WRITE_RATE_SAMPLE_MILLIS.milliseconds)
+        }
+    }
 
     if (settings.logging.blocks && settings.logging.worldEdit) {
         WorldEditSupport.attach(services)

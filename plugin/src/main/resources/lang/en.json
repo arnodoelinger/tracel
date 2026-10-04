@@ -149,6 +149,7 @@
     "preset": "<gray>/tracel preset</gray>: save lookup / rollback options as a preset",
     "data": "<gray>/tracel data</gray>: export, import or migrate the database",
     "purge": "<gray>/tracel purge</gray>: delete history, all of it or by filter",
+    "status": "<gray>/tracel status</gray>: how the plugin is doing",
     "help": "<gray>/tracel help</gray>: this screen"
   },
   "lookup": {
@@ -501,6 +502,57 @@
       }
     }
   },
+  "status": {
+    "title": "<red>♦ Tracel status</red>",
+    "records": "<gray>Records:</gray> ~<blocks> blocks, <items> items, <events> events",
+    "period": "<gray>Period:</gray> <from> → now <gray>(<span>)</gray>",
+    "period_empty": "<gray>Period:</gray> no history yet",
+    "size": "<gray>Size:</gray> <size>",
+    "disk": "<gray>Disk:</gray> <free> free <gray>(<percent>%)</gray>",
+    "purge_off": "<gray>Auto-purge:</gray> off",
+    "purge_on": "<gray>Auto-purge:</gray> on<star>, last <last>",
+    "purge_star": "<white>*</white>",
+    "purge_never": "never ran",
+    "queue": "<gray>Queue:</gray> <n> waiting",
+    "load": "<gray>Load:</gray> <rate> records/s",
+    "load_unknown": "<gray>Load:</gray> measuring...",
+    "rollbacks_none": "<gray>Rollbacks:</gray> none",
+    "rollbacks": "<gray>Rollbacks:</gray> <n> active (<sizes>)",
+    "state": "<gray>State:</gray> <state>",
+    "forever": "forever",
+    "failed": "<red>✘ Could not read the status!</red>",
+    "category": {
+      "blocks": "Blocks",
+      "items": "Items",
+      "containers": "Containers",
+      "events": "Events"
+    },
+    "size_word": {
+      "tiny": "tiny",
+      "small": "small",
+      "medium": "medium",
+      "large": "large",
+      "huge": "gigantic"
+    },
+    "health": {
+      "ok": "<green>OK</green>",
+      "forward": "<aqua>forward-compatibility</aqua>",
+      "load": "<yellow>high load</yellow>",
+      "degraded": "<yellow>degraded, behind by <span></yellow>",
+      "low_disk": "<yellow>low disk space</yellow>",
+      "critical_disk": "<red>critically low disk space</red>"
+    },
+    "hover": {
+      "purge_interval": "<gray>Looks for old history every</gray> <white><interval></white>",
+      "purge_keep": "<gray><category>:</gray> <white><keep></white>",
+      "ok": "<white>Everything is working excellent</white>",
+      "forward": "<white>This server is newer than the newest Minecraft version Tracel was tested on</white>",
+      "load": "<white>The server tick takes <mspt> ms on average</white>",
+      "degraded": "<white>Captured history is written <span> late, so lookup may miss the latest changes</white>",
+      "low_disk": "<white>Only <free> (<percent>%) is left where the database lives</white>",
+      "critical_disk": "<white>Only <free> (<percent>%) is left where the database lives. If it gets any lower, Tracel will forcibly shut the server down, because there will be nowhere to write history</white>"
+    }
+  },
   "purge": {
     "start": "Purging... this can take a while on a big database",
     "waiting": "Waiting for a rollback to finish...",
@@ -574,6 +626,7 @@
   },
   "command": {
     "lookup": "Browse world history",
+    "status": "Show how the plugin is doing",
     "inspect": "Toggle the inspector",
     "rollback": "Roll back world and container changes",
     "undo": "Undo the last rollback",

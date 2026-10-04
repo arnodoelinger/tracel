@@ -9,6 +9,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.spi.MutationBatch
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -19,6 +20,9 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     private val lock = ReentrantLock()
     private val reserved = HashMap<Int, Reservation>()
 
+    /** How many sequence numbers were handed out since start: one per record written to a log. */
+    val seqIssued = AtomicLong()
+
     init {
         storage.afterReplace(::forget)
     }
@@ -27,13 +31,13 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     suspend fun nextTxnId(): TxnId = TxnId(next(TXN))
 
     /** @return a new sequence number. */
-    suspend fun nextSeq(): Seq = Seq(next(SEQ))
+    suspend fun nextSeq(): Seq = Seq(next(SEQ)).also { seqIssued.incrementAndGet() }
 
     /** @return a new range of sequence numbers. */
     suspend fun nextSeqRange(count: Int): Seq {
         require(count > 0) { "a range of $count sequences is not a range" }
         if (count == 1) return nextSeq()
-        return Seq(nextRange(SEQ, count))
+        return Seq(nextRange(SEQ, count)).also { seqIssued.addAndGet(count.toLong()) }
     }
 
     /** @return a new lot ID. */

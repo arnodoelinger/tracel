@@ -49,6 +49,7 @@ import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.ops.Counters
+import com.tracel.plugin.status.WriteRate
 import com.tracel.storage.ports.log.RolledBack
 import com.tracel.storage.ports.ops.ForeignHistory
 import com.tracel.storage.ports.world.GroundPositions
@@ -128,9 +129,16 @@ class TracelServices(
     var worldEdit: AutoCloseable? = null
 ) : UnitOfWork by storage {
     val purging: AtomicBoolean = AtomicBoolean(false)
+
+    @Volatile
+    var purgeSettings: AutoPurgeSettings = AutoPurgeSettings()
+
+    @Volatile
+    var lastPurgeMillis: Long? = null
     val governor: TickGovernor = TickGovernor(plugin, governorSettings)
     val events: EventLog = EventLog(storage)
     val rolledBack: RolledBack = RolledBack(storage)
+    val writeRate: WriteRate = WriteRate(total = { counters.seqIssued.get() })
     val foreign: ForeignHistory = ForeignHistory(storage, worldLog, log, events, counters)
     val purgeGate: PurgeGate = PurgeGate { composite.isRunning }
     val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }

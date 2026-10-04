@@ -42,8 +42,10 @@ object TracelCommand {
         "tracel.lookup" to "near",
         "tracel.lookup" to "player",
         "tracel.preset" to "preset",
+        "tracel.status" to "status",
         "tracel.export" to "data",
         "tracel.purge" to "purge",
+        "tracel.help" to "help",
     )
 
     /** Registers all `Tracel` commands. */
@@ -55,6 +57,7 @@ object TracelCommand {
         val lookup = services.lookup
         val inspect = InspectAction(services)
         val purge = PurgeAction(services)
+        val status = StatusAction(services)
         val export = ExportAction(services)
         val import = ImportAction(services)
         val coreProtect = CoreProtectImportAction(services)
@@ -235,6 +238,11 @@ object TracelCommand {
                         }
                     }
                 }
+            }
+
+            literal("status", tr("command.status")) {
+                requiresPermission("tracel.status")
+                executesCommand { ctx -> status.execute(ctx.source.sender) }
             }
 
             literal("inspect", tr("command.inspect")) {

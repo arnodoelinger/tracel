@@ -149,6 +149,7 @@
     "preset": "<gray>/tracel preset</gray>: сохранить параметры поиска и отката как пресет",
     "data": "<gray>/tracel data</gray>: экспорт, импорт и миграция базы данных",
     "purge": "<gray>/tracel purge</gray>: удалить историю целиком или по фильтрам",
+    "status": "<gray>/tracel status</gray>: состояние плагина",
     "help": "<gray>/tracel help</gray>: эти подсказки"
   },
   "lookup": {
@@ -501,6 +502,57 @@
       }
     }
   },
+  "status": {
+    "title": "<red>♦ Tracel статус</red>",
+    "records": "<gray>Записи:</gray> ~<blocks> блоков, <items> предметов, <events> событий",
+    "period": "<gray>Период:</gray> <from> → сейчас <gray>(<span>)</gray>",
+    "period_empty": "<gray>Период:</gray> истории пока нет",
+    "size": "<gray>Размер:</gray> <size>",
+    "disk": "<gray>Диск:</gray> свободно <free> <gray>(<percent>%)</gray>",
+    "purge_off": "<gray>Автопурдж:</gray> выключен",
+    "purge_on": "<gray>Автопурдж:</gray> включён<star>, последний <last>",
+    "purge_star": "<white>*</white>",
+    "purge_never": "никогда не запускался",
+    "queue": "<gray>Очередь:</gray> <n> в ожидании",
+    "load": "<gray>Нагрузка:</gray> <rate> записей/с",
+    "load_unknown": "<gray>Нагрузка:</gray> измеряется...",
+    "rollbacks_none": "<gray>Откаты:</gray> нет",
+    "rollbacks": "<gray>Откаты:</gray> <n> <n:активный:активных:активных> (<sizes>)",
+    "state": "<gray>Состояние:</gray> <state>",
+    "forever": "навсегда",
+    "failed": "<red>✘ Не удалось прочитать состояние!</red>",
+    "category": {
+      "blocks": "Блоки",
+      "items": "Предметы",
+      "containers": "Контейнеры",
+      "events": "События"
+    },
+    "size_word": {
+      "tiny": "мелкий",
+      "small": "небольшой",
+      "medium": "средний",
+      "large": "большой",
+      "huge": "гигантский"
+    },
+    "health": {
+      "ok": "<green>в норме</green>",
+      "forward": "<aqua>режим обратной совместимости</aqua>",
+      "load": "<yellow>в условиях высокой нагрузки</yellow>",
+      "degraded": "<yellow>деградированное, запись отстаёт на <span></yellow>",
+      "low_disk": "<yellow>мало места на диске</yellow>",
+      "critical_disk": "<red>критически мало места на диске</red>"
+    },
+    "hover": {
+      "purge_interval": "<gray>Ищет старую историю каждые</gray> <white><interval></white>",
+      "purge_keep": "<gray><category>:</gray> <white><keep></white>",
+      "ok": "<white>Всё отлично</white>",
+      "forward": "<white>Сервер новее, чем последняя версия Minecraft, на которой тестировался Tracel</white>",
+      "load": "<white>Тик сервера в среднем занимает <mspt> мс</white>",
+      "degraded": "<white>Записанная история отстаёт на <span>, поэтому некоторые операции могут не видеть последние изменения</white>",
+      "low_disk": "<white>Там, где лежит база данных, осталось только <free> (<percent>%)</white>",
+      "critical_disk": "<white>Там, где лежит база данных, осталось только <free> (<percent>%). Если места станет ещё меньше, Tracel принудительно завершит работу сервера, потому что записывать историю будет некуда</white>"
+    }
+  },
   "purge": {
     "start": "Удаляю... На большой базе данных это может занять некоторое время",
     "waiting": "Жду, пока закончится откат...",
@@ -574,6 +626,7 @@
   },
   "command": {
     "lookup": "Просмотр истории мира",
+    "status": "Показать состояние плагина",
     "inspect": "Включить или выключить инспектор",
     "rollback": "Откатить изменения мира и контейнеров",
     "undo": "Отменить последний откат",

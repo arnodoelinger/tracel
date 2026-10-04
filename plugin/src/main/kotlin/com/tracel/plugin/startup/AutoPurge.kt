@@ -49,6 +49,7 @@ private suspend fun sweep(plugin: TracelPlugin, services: TracelServices, keep: 
             records += report.matched
             bytes += report.bytes
         }
+        services.lastPurgeMillis = System.currentTimeMillis()
         if (records > 0) plugin.logger.info("Automatic purge: took $records record(s), %.1f MiB.".format(bytes / (1024.0 * 1024.0)))
     } catch (cancelled: CancellationException) {
         throw cancelled

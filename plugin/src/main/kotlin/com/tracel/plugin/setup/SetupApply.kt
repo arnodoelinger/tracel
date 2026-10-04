@@ -40,16 +40,14 @@ internal fun applyChoices(services: TracelServices, choices: SetupChoices): Bool
     services.entityRestoreLimit = choices.entityLimit ?: Int.MAX_VALUE
     ScopeLimits.rollbackMaxBlocks = choices.radius
 
-    services.autoPurge?.cancel()
-    services.autoPurge = startAutoPurge(
-        services.plugin as TracelPlugin,
-        services,
-        AutoPurgeSettings(
-            enabled = purging,
-            intervalMillis = PURGE_EVERY_MILLIS,
-            keep = keep.mapValues { (_, days) -> days?.let { it * PURGE_EVERY_MILLIS } },
-        ),
+    val purge = AutoPurgeSettings(
+        enabled = purging,
+        intervalMillis = PURGE_EVERY_MILLIS,
+        keep = keep.mapValues { (_, days) -> days?.let { it * PURGE_EVERY_MILLIS } },
     )
+    services.purgeSettings = purge
+    services.autoPurge?.cancel()
+    services.autoPurge = startAutoPurge(services.plugin as TracelPlugin, services, purge)
 
     val logging = LoggingSettings(
         choices.blocks, choices.items, choices.entities, choices.events,

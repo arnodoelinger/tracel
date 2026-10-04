@@ -10,7 +10,11 @@ import com.tracel.storage.codec.CaptureSlot
 import com.tracel.storage.ffm.OffHeapRing
 import com.tracel.storage.intern.Interning
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
+
+private const val APPLIED_POLL_MILLIS = 10L
 
 /**
  * 
@@ -51,6 +55,20 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
     private val parkTokens = AtomicInteger()
 
     val dropped: Long get() = ring.dropped + interning.droppedForCapacity
+
+    val backlog: Long get() = ring.claimCursor() - ring.consumerCursor()
+
+    /**
+     * Waits, without draining anything itself, until every slot claimed so far has been applied.
+     *
+     * @return whether that happened within [timeoutMs]
+     */
+    suspend fun awaitApplied(timeoutMs: Long): Boolean {
+        val upTo = ring.claimCursor()
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (ring.consumerCursor() < upTo && System.currentTimeMillis() < deadline) delay(APPLIED_POLL_MILLIS.milliseconds)
+        return ring.consumerCursor() >= upTo
+    }
 
     fun holderId(holder: HolderId): Int = interning.holderIdForCapture(holder)
 

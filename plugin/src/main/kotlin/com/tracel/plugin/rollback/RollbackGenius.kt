@@ -29,6 +29,9 @@ interface RollbackGenius {
 
     val isRunning: Boolean
 
+    /** How many records each rollback applying right now takes back. An undo has no entry. */
+    val activeRollbacks: List<Long> get() = emptyList()
+
     /** Plan only. */
     suspend fun plan(
         filter: LookupFilter,
