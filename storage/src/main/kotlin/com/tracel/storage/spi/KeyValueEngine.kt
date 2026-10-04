@@ -40,7 +40,10 @@ interface KeyValueEngine : AutoCloseable {
     fun compactEverything()
 
     /** Throws the whole store away and leaves an empty one behind. */
-    fun wipe()
+    fun wipe() = wipe(null)
+
+    /** Throws everything away, and leaves [keep] in its place. */
+    fun wipe(keep: MutationBatch?)
 
     /** The segments of history of one [category], newest window last. */
     fun history(category: Int): List<HistorySegment>

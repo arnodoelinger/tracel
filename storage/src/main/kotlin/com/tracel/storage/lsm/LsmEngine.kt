@@ -270,24 +270,43 @@ class LsmEngine(
     override fun rewriteSegment(id: Long, keep: (ByteArray, MemorySegment?) -> Boolean): Rewritten =
         compactor.submit<Rewritten> { rewriteNow(id, keep) }.get()
 
-    override fun wipe() {
+    /** Set by tests to stop a wipe after its log is on disk and before the manifest that makes it count. */
+    internal var wipeHook: (() -> Unit)? = null
+
+    override fun wipe(keep: MutationBatch?) {
         quiesce()
         lock.withLock {
-            val kept = version.lastSequence
-            val fresh = MemTable(config.memtableBytes)
+            val previous = version.lastSequence
+            val fresh = MemTable(maxOf(config.memtableBytes, keep?.let { needs(it) * 2 } ?: 0L))
             fresh.walId = nextFileId++
-            logs.restartAt(fresh.walId)
+            try {
+                logs.restartAt(fresh.walId)
+                var last = previous
+                if (keep != null && !keep.isEmpty()) {
+                    val seq = sequence.incrementAndGet()
+                    logs.append(seq, keep)
+                    keep.forEach { key, value ->
+                        check(fresh.put(key, value, seq)) { "the memtable made for a wipe cannot hold what the wipe keeps" }
+                    }
+                    logs.sync()
+                    last = seq
+                }
+                wipeHook?.invoke()
 
-            val at = generation.incrementAndGet()
-            val discardedSegments = version.segments
-            val discardedTables = buildList {
-                add(version.active)
-                addAll(version.frozen)
+                val at = generation.incrementAndGet()
+                val discardedSegments = version.segments
+                val discardedTables = buildList {
+                    add(version.active)
+                    addAll(version.frozen)
+                }
+                version = Version(fresh, emptyList(), emptyList(), last, previous, at)
+                for (segment in discardedSegments) retirement.retire(segment, at)
+                for (table in discardedTables) retirement.retire(table, at)
+                publish()
+            } catch (e: Throwable) {
+                failure = e
+                throw e
             }
-            version = Version(fresh, emptyList(), emptyList(), kept, kept, at)
-            for (segment in discardedSegments) retirement.retire(segment, at)
-            for (table in discardedTables) retirement.retire(table, at)
-            publish()
         }
         quiesce()
     }

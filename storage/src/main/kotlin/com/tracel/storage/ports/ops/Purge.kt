@@ -47,13 +47,7 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
                 kept += importKey to Records.long(maxOf(imported, used))
             }
         }
-        storage.engine.wipe()
-        if (kept.isNotEmpty()) storage.engine.write(MutationBatch().apply {
-            for ((key, value) in kept) put(
-                key,
-                value
-            )
-        }, durable = true)
+        storage.engine.wipe(MutationBatch().apply { for ((key, value) in kept) put(key, value) })
         storage.reloadInterning()
         PurgeSummary(
             total - kept.size,
