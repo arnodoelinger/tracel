@@ -1,6 +1,7 @@
 package com.tracel.plugin.rollback.structure
 
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.engine.rollback.structure.groupByChunk
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.BlockDataCache
@@ -9,7 +10,6 @@ import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.block.UNSUPPORTED
 import com.tracel.plugin.util.ownsChunkAt
-import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -44,7 +44,7 @@ internal suspend fun StructureRestorer.restoreSteps(
     }
 
     suspend fun dispatch(steps: List<StructureStep>, round: Int = 0): List<StructureReport> {
-        val groups = steps.groupBy { dispatchAt(it).regionKey() }.values.toList()
+        val groups = groupByChunk(steps) { dispatchAt(it) }
 
         // Not a lock
         val claimed = AtomicIntegerArray(groups.size)

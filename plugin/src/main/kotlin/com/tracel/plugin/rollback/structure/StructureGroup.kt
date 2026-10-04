@@ -284,6 +284,14 @@ private suspend fun StructureRestorer.applySliced(
                 paste?.resume()
             }
         }
+
+        paste?.let { open ->
+            while (!open.closeSome(throttle.remainingNanos())) {
+                open.pause()
+                hop()
+                open.resume()
+            }
+        }
     } finally {
         paste?.close()
     }

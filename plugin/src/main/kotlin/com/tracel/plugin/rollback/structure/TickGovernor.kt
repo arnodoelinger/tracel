@@ -21,6 +21,9 @@ private const val BLIND_MILLIS = 5.0
 
 private const val NANOS_PER_MILLI = 1_000_000.0
 
+/** A slice of work asked for with less than this left of the turn is given this much, so it always gets something done. */
+private const val MIN_SLICE_NANOS = 1_000_000L
+
 /**
  * How long a rollback may hold a region in one tick: never less than [minNanos], so it always makes progress, and
  * never more than [maxNanos]. A tick that stays under 50 ms costs no TPS, so these are limits on how long a tick may
@@ -116,6 +119,9 @@ internal class Throttle(
     fun spent(): Boolean {
         return ++asked and (CLOCK_EVERY - 1) == 0 && System.nanoTime() >= deadline
     }
+
+    /** What is left of this turn's allowance, for work that sizes its own slice. Never less than [MIN_SLICE_NANOS]. */
+    fun remainingNanos(): Long = (deadline - System.nanoTime()).coerceAtLeast(MIN_SLICE_NANOS)
 
     /** Hands the tick back when the turn is spent; [afterHop] drops whatever the gap made stale. */
     suspend fun yieldIfSpent(afterHop: () -> Unit = {}) {

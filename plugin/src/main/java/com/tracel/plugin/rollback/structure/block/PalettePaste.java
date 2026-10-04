@@ -68,6 +68,8 @@ public final class PalettePaste {
     private PasteChunk lastChunk;
     private boolean dead;
     private byte capture; // 0 unknown, 1 capturing, -1 not. Read once per paste
+    private int finishPhase;
+    private int finishIndex;
 
     /**
      * Result of {@link #placeFast}.
@@ -174,6 +176,50 @@ public final class PalettePaste {
         } finally {
             if (CURRENT.get() == this) CURRENT.remove();
         }
+    }
+
+    /**
+     * {@link #close()} in slices: does what fits in {@code budgetNanos} of the heightmap and relight work and says
+     * whether any is left. The caller {@link #pause() pauses}, waits for its next tick and {@link #resume() resumes}
+     * between calls, and still {@link #close() closes} at the end, which is then nothing to do.
+     *
+     * <p>Closing all at once held one tick for as long as it took to settle every column of every chunk a big
+     * rollback touched. Heightmaps are settled a chunk at a time, so a call always does at least one chunk, however
+     * small the budget. The relight is one call into the light engine, which runs the work on its own threads, and
+     * goes last, as it did in {@link #close()}.
+     *
+     * @return {@code true} when everything is done
+     */
+    public boolean closeSome(long budgetNanos) {
+        long deadline = System.nanoTime() + budgetNanos;
+        if (finishPhase == 0) {
+            try {
+                flushNotifications();
+                for (PasteChunk chunk : dirty) chunk.changeCount = 0;
+                queueRelight();
+            } catch (Throwable failure) {
+                LOG.log(Level.WARNING, "client updates after a rollback paste failed", failure);
+            }
+            finishPhase = 1;
+        }
+        if (finishPhase == 1) {
+            try {
+                while (finishIndex < dirty.size()) {
+                    settleChunk(dirty.get(finishIndex++));
+                    if (finishIndex < dirty.size() && System.nanoTime() >= deadline) return false;
+                }
+            } catch (Throwable failure) {
+                LOG.log(Level.WARNING, "heightmaps after a rollback paste failed", failure);
+            }
+            dirty.clear();
+            finishIndex = 0;
+            finishPhase = 2;
+        }
+        if (finishPhase == 2) {
+            relightQueued();
+            finishPhase = 3;
+        }
+        return true;
     }
 
     /**
@@ -507,11 +553,13 @@ public final class PalettePaste {
     }
 
     private void applyHeightmaps() throws Throwable {
-        for (PasteChunk chunk : dirty) {
-            for (int column = 0; column < 256; column++) {
-                if ((chunk.columns[column >> 6] & (1L << (column & 63))) == 0) continue;
-                settleColumn(chunk, column & 15, column >> 4, chunk.columnTop[column]);
-            }
+        for (PasteChunk chunk : dirty) settleChunk(chunk);
+    }
+
+    private void settleChunk(PasteChunk chunk) throws Throwable {
+        for (int column = 0; column < 256; column++) {
+            if ((chunk.columns[column >> 6] & (1L << (column & 63))) == 0) continue;
+            settleColumn(chunk, column & 15, column >> 4, chunk.columnTop[column]);
         }
     }
 
@@ -623,7 +671,13 @@ public final class PalettePaste {
             LOG.log(Level.WARNING, "heightmaps after a rollback paste failed", failure);
         } finally {
             dirty.clear();
+            finishIndex = 0;
         }
+        relightQueued();
+        finishPhase = 3;
+    }
+
+    private void relightQueued() {
         if (relightChunks.isEmpty() || nms.relight == null) return;
         try {
             nms.relight.invokeExact(light, relightChunks, (Consumer<Object>) null, (IntConsumer) null);
