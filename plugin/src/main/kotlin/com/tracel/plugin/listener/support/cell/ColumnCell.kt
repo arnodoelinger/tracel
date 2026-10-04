@@ -6,8 +6,6 @@ import org.bukkit.block.Block
 import org.bukkit.entity.Entity
 import java.util.*
 
-// TODO: rewrite
-
 @Unstable
 internal object ColumnCell {
     // Water needs longer than gravel; 5s left streams still spreading unattributed

@@ -141,9 +141,6 @@ class TracelStorage private constructor(
         StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(block)
     }
 
-    // TODO: rewrite
-    //  unstable and unsafe
-    @Unstable
     private suspend fun <T> unit(block: StorageUnit.() -> T): T = lock.withLock {
         withContext(dispatcher) {
             val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
@@ -163,9 +160,6 @@ class TracelStorage private constructor(
         }
     }
 
-    // TODO: rewrite
-    //  unstable and unsafe
-    @Unstable
     private suspend fun <T> suspendingUnit(block: suspend () -> T): T = lock.withLock {
         withContext(dispatcher) {
             val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())

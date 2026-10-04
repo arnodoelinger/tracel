@@ -19,8 +19,6 @@ import org.bukkit.entity.LeashHitch
 import org.bukkit.entity.Snowman
 import java.util.*
 
-// TODO: rewrite, should be improved
-
 @Unstable
 internal fun StructureRestorer.despawn(
     world: World,

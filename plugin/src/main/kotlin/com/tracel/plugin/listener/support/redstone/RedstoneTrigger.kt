@@ -12,8 +12,6 @@ import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 
-// TODO: rewrite
-
 @Unstable
 class RedstoneTrigger {
     private data class Detonation(val origin: ExplosionOrigin, val causedBy: HolderId, val atMillis: Long)

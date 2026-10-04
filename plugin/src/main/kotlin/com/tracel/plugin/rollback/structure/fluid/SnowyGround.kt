@@ -10,15 +10,11 @@ import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.data.Snowable
 
-// TODO: rewrite
-
 /** Whether [material] is a snow material. */
-@Unstable
 internal fun isSnowMaterial(material: Material): Boolean =
     material == Material.SNOW || material == Material.SNOW_BLOCK || material == Material.POWDER_SNOW
 
 /** Whether [shape] is a snow shape, using the cache. */
-@Unstable
 internal fun isSnowShape(shape: BlockShape): Boolean = ShapeTraits.of(shape) and ShapeTraits.SNOW != 0
 
 /** Whether [shape] is a snow shape, without using the cache. */
@@ -30,7 +26,6 @@ internal fun snowShapeUncached(shape: BlockShape): Boolean {
 }
 
 /** Fix the snowy ground property of blocks after a rollback. */
-@Unstable
 internal suspend fun fixSnowyGround(
     world: World,
     steps: List<StructureStep.SetBlock>,
