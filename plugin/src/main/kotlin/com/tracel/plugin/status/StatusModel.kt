@@ -9,6 +9,9 @@ const val LAG_PROBE_MILLIS = 15_000L
 /** Average tick time, in milliseconds, from which the server counts as heavily loaded. */
 const val HIGH_MSPT = 45.0
 
+/** Below this share of the disk free, the server will not start, and one that is running is stopped. */
+const val FATAL_DISK_PERCENT = 1
+
 /** How big a rollback is, by how many records it takes back. */
 enum class RollbackSize(val key: String, private val below: Long) {
     TINY("tiny", 1_024),
@@ -30,6 +33,9 @@ enum class DiskLevel {
     CRITICAL;
 
     companion object {
+        /** Whether so little is left that there is nowhere to write history: below [FATAL_DISK_PERCENT]. */
+        fun fatal(free: Long, total: Long): Boolean = total > 0L && free * 100 < total * FATAL_DISK_PERCENT
+
         /** Critical below 2% free, low below 5%. */
         fun of(free: Long, total: Long): DiskLevel = when {
             total <= 0L -> OK

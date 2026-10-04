@@ -28,6 +28,15 @@ class StatusModelTest {
     }
 
     @Test
+    fun `below one percent free the server may not run`() {
+        val total = 1000 * gib
+        assertEquals(false, DiskLevel.fatal(10 * gib, total))
+        assertEquals(true, DiskLevel.fatal(10 * gib - 1, total))
+        assertEquals(true, DiskLevel.fatal(0, total))
+        assertEquals(false, DiskLevel.fatal(0, 0))
+    }
+
+    @Test
     fun `the worst state wins`() {
         assertEquals(Health.OK, Health.of(false, 12.0, null, DiskLevel.OK))
         assertEquals(Health.FORWARD_COMPATIBLE, Health.of(true, 12.0, 100, DiskLevel.OK))

@@ -4,6 +4,7 @@ import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.startup.TracelRuntime
 import com.tracel.plugin.startup.enableTracel
+import com.tracel.plugin.status.CriticalDiskSpace
 import com.tracel.plugin.util.killServer
 import com.tracel.plugin.util.serverIsStopping
 import com.tracel.plugin.util.stopping
@@ -22,7 +23,8 @@ class TracelPlugin : JavaPlugin() {
         try {
             runtime = enableTracel(this)
         } catch (failure: Throwable) {
-            logger.log(Level.SEVERE, "Tracel failed to enable. The server cannot run without a ledger.", failure)
+            if (failure is CriticalDiskSpace) logger.severe(failure.message)
+            else logger.log(Level.SEVERE, "Tracel failed to enable. The server cannot run without a ledger.", failure)
             killServer(this)
             throw failure
         }

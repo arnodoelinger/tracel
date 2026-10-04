@@ -45,6 +45,7 @@ import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.wear.WearLog
+import com.tracel.plugin.status.DiskGuard
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import kotlinx.coroutines.*
 import kotlin.time.Duration.Companion.milliseconds
@@ -72,6 +73,9 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
 
     // Config
     plugin.dataFolder.mkdirs()
+
+    // No room to write history: the server does not start. Nothing is opened before this
+    DiskGuard.requireRoom(plugin.dataFolder.resolve("database"))
     val configFile = plugin.dataFolder.resolve("config.toml")
     val firstRun = !configFile.exists()
     if (firstRun) plugin.saveResource("config.toml", false)
@@ -259,6 +263,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         TracelCommand.register(event.registrar(), services)
     }
 
+    DiskGuard.start(plugin, services, plugin.dataFolder.resolve("database"))
     services.purgeSettings = settings.autoPurge
     services.autoPurge = startAutoPurge(plugin, services, settings.autoPurge)
     services.scope.launch {
