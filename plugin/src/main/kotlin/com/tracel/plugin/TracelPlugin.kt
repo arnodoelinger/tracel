@@ -6,6 +6,7 @@ import com.tracel.plugin.startup.TracelRuntime
 import com.tracel.plugin.startup.enableTracel
 import com.tracel.plugin.status.CriticalDiskSpace
 import com.tracel.storage.format.StoreFormatException
+import com.tracel.storage.ports.ops.ImportInterrupted
 import com.tracel.plugin.util.killServer
 import com.tracel.plugin.util.serverIsStopping
 import com.tracel.plugin.util.stopping
@@ -24,7 +25,7 @@ class TracelPlugin : JavaPlugin() {
         try {
             runtime = enableTracel(this)
         } catch (failure: Throwable) {
-            if (failure is CriticalDiskSpace || failure is StoreFormatException) logger.severe(failure.message)
+            if (failure is CriticalDiskSpace || failure is StoreFormatException || failure is ImportInterrupted) logger.severe(failure.message)
             else logger.log(Level.SEVERE, "Tracel failed to enable. The server cannot run without a ledger.", failure)
             killServer(this)
             throw failure

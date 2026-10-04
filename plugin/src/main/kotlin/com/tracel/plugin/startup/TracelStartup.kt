@@ -44,6 +44,7 @@ import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.format.StoreFormat
+import com.tracel.storage.ports.ops.InterruptedImport
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.wear.WearLog
@@ -107,6 +108,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         ringSlots = settings.ringSlots,
         lsm = settings.lsm,
     )
+    resumeImport(plugin, storage)
     migrateStore(plugin, storage)
     val entityKinds = EntityKinds()
     storage.interning.entityKinds = entityKinds
@@ -298,4 +300,11 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
 private fun migrateStore(plugin: TracelPlugin, storage: TracelStorage) {
     val outcome = StoreFormat.ensure(storage)
     if (outcome.migrated) plugin.logger.info("Migrated the database from format ${outcome.from} to ${outcome.to}.")
+}
+
+private fun resumeImport(plugin: TracelPlugin, storage: TracelStorage) {
+    val pending = InterruptedImport.pending(storage) ?: return
+    plugin.logger.info("Finishing the import of ${pending.file}, which was cut short.")
+    InterruptedImport.resume(storage)
+    plugin.logger.info("Import finished.")
 }
