@@ -13,6 +13,10 @@ import com.tracel.plugin.listener.support.drop.BlockDrop
 val WORLDGEN_SOURCE: HolderId.Source = HolderId.Source(SourceKind.WORLDGEN)
 val DESTROYED_SINK: HolderId.Sink = HolderId.Sink(SinkKind.UNATTRIBUTED)
 
+/**
+ * Generates a list of transaction flows (mints, moves, and burns) based on the provided believed state,
+ * claimed items, and their respective resulting destinations or sources.
+ */
 internal fun flowsFor(
     holder: HolderId,
     believed: Map<ItemKey, Long>,
@@ -38,6 +42,10 @@ internal fun flowsFor(
     return mints + moves + burns
 }
 
+/**
+ * Releases items from a holder, generating flows for mints, moves, and burns based on the believed
+ * state and the actual release.
+ */
 internal fun releaseFlows(
     holder: HolderId,
     believed: Map<ItemKey, Long>,
@@ -56,17 +64,7 @@ internal fun releaseFlows(
     return mints + moves + burns
 }
 
-internal fun harvestFlows(
-    totals: Map<ItemKey, Long>,
-    from: HolderId,
-    to: HolderId,
-): List<Flow> = totals.flatMap { (itemKey, amount) ->
-    listOf(
-        Flow(itemKey, Quantity(amount), WORLDGEN_SOURCE, from, FlowKind.MINT),
-        Flow(itemKey, Quantity(amount), from, to, FlowKind.MOVE),
-    )
-}
-
+/** Generates flows for minting items during world generation, based on the provided totals and destination holder. */
 internal fun worldgenMintFlows(
     totals: Map<ItemKey, Long>,
     into: HolderId,
@@ -74,4 +72,22 @@ internal fun worldgenMintFlows(
     Flow(itemKey, Quantity(amount), WORLDGEN_SOURCE, into, FlowKind.MINT)
 }
 
+/** @return `true` if the holder is a player, indicating that ignorance of its contents is permanent. */
 internal fun ignoranceIsPermanent(holder: HolderId): Boolean = holder is HolderId.Player
+
+/** A holder's contents destroyed in place, with nothing dropped. */
+internal fun destroyedFlows(
+    holder: HolderId,
+    believed: Map<ItemKey, Long>,
+    present: Map<ItemKey, Long>,
+): List<Flow> {
+    val mints = present.mapNotNull { (itemKey, qty) ->
+        val have = believed[itemKey] ?: 0L
+        if (qty <= have) null else Flow(itemKey, Quantity(qty - have), WORLDGEN_SOURCE, holder, FlowKind.MINT)
+    }
+    val burns = (believed.keys + present.keys).mapNotNull { itemKey ->
+        val gone = maxOf(believed[itemKey] ?: 0L, present[itemKey] ?: 0L)
+        if (gone <= 0L) null else Flow(itemKey, Quantity(gone), holder, DESTROYED_SINK, FlowKind.BURN)
+    }
+    return mints + burns
+}

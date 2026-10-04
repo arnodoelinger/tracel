@@ -51,6 +51,9 @@ internal fun applyChoices(services: TracelServices, choices: SetupChoices): Bool
         ),
     )
 
-    val logging = LoggingSettings(choices.blocks, choices.items, choices.entities, choices.events)
+    val logging = LoggingSettings(
+        choices.blocks, choices.items, choices.entities, choices.events,
+        worldEdit = services.logging.worldEdit,
+    )
     return logging != services.logging || choices.entityDamage != services.logEntityDamage
 }

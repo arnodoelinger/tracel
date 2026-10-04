@@ -34,6 +34,7 @@ data class LoggingSettings(
     val items: Boolean = true,
     val entities: Boolean = true,
     val events: Boolean = true,
+    val worldEdit: Boolean = true,
 )
 
 /** Where a lookup export goes. */
@@ -116,6 +117,7 @@ internal fun readSettings(
     val logItems = logging.setting("logging", "items", true, complain) { it as? Boolean }
     val logEntities = logging.setting("logging", "entities", true, complain) { it as? Boolean }
     val logEvents = logging.setting("logging", "events", true, complain) { it as? Boolean }
+    val logWorldEdit = logging.setting("logging", "worldedit", true, complain) { it as? Boolean }
 
     val governorDefaults = GovernorSettings()
     val minTickTime = rollback.setting(
@@ -159,7 +161,7 @@ internal fun readSettings(
         entityRestoreLimit = entityRestoreLimit,
         logEntityDamage = logEntityDamage,
         rollbackMaxRadius = maxRadius,
-        logging = LoggingSettings(logBlocks, logItems, logEntities, logEvents),
+        logging = LoggingSettings(logBlocks, logItems, logEntities, logEvents, logWorldEdit),
         governor = GovernorSettings(minNanos = minTickTime * NANOS_PER_MILLI, maxNanos = maxTickTime * NANOS_PER_MILLI),
         paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
         autoPurge = AutoPurgeSettings(autoPurge, purgeInterval, keep),

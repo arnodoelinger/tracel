@@ -25,6 +25,7 @@ import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.drop.CraftDrop
 import com.tracel.plugin.listener.support.drop.recordAt
 import com.tracel.plugin.listener.support.drop.releaseAsTrackedDrops
+import com.tracel.plugin.listener.support.flow.destroyedFlows
 import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.listener.support.flow.worldgenMintFlows
@@ -520,6 +521,27 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         committing("$cause at ${at ?: causedBy}") {
             services.capture.recordDirect(flows, epochMillis, cause, causedBy, at)
         }
+    }
+
+    /**
+     * [holder]'s contents were destroyed where they sat and nothing was dropped, e.g., a chest a
+     * `WorldEdit` edit overwrote.
+     */
+    fun destroyed(
+        holder: HolderId,
+        present: Map<ItemKey, Long>,
+        at: BlockPos,
+        cause: CauseKind,
+        causedBy: HolderId?,
+        epochMillis: Long = System.currentTimeMillis(),
+    ) {
+        if (present.isEmpty()) return
+        committing("$cause destroyed $holder") {
+            val believed = services.ledger.totalsAt(holder).mapValues { it.value.raw }
+            val flows = destroyedFlows(holder, believed, present)
+            if (flows.isNotEmpty()) services.capture.recordDirect(flows, epochMillis, cause, causedBy, at)
+        }
+        forget(holder)
     }
 
     /** A tool lost or regained durability. */
