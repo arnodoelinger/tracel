@@ -23,7 +23,7 @@ max-radius = 256
 # How long a rollback or undo may run in one tick, e.g., 4ms, 10ms, 20ms
 # It uses less time when the server is busy and more time when it is idle
 min-tick-time = "5ms"
-max-tick-time = "25ms"
+max-tick-time = "35ms"
 
 [purge]
 # Automatically delete old history

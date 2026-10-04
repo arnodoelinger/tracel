@@ -1,5 +1,6 @@
 package com.tracel.plugin.startup
 
+import com.tracel.platform.Versions
 import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
@@ -42,9 +43,12 @@ import com.tracel.storage.ports.ledger.LotLeaseRegistry
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.log.TransactionLog
+import com.tracel.storage.format.StoreFormat
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.wear.WearLog
+import com.tracel.plugin.migrate.FileVersions
+import com.tracel.plugin.migrate.TomlMigrator
 import com.tracel.plugin.status.DiskGuard
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import kotlinx.coroutines.*
@@ -79,6 +83,9 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val configFile = plugin.dataFolder.resolve("config.toml")
     val firstRun = !configFile.exists()
     if (firstRun) plugin.saveResource("config.toml", false)
+    TomlMigrator.migrateFile(
+        configFile.toPath(), Versions.Format.CONFIG, FileVersions.CONFIG_STEPS, plugin.logger, announce = !firstRun,
+    )
     val setup = SetupState(plugin.dataFolder.toPath())
     if (firstRun) setup.begin()
     val config = Toml.parse(configFile.toPath())
@@ -100,6 +107,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         ringSlots = settings.ringSlots,
         lsm = settings.lsm,
     )
+    migrateStore(plugin, storage)
     val entityKinds = EntityKinds()
     storage.interning.entityKinds = entityKinds
     val schedulers = TracelSchedulers(plugin, storage.dispatcher)
@@ -285,4 +293,9 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     plugin.logger.info("Tracel ${plugin.pluginMeta.version} enabled.")
 
     return TracelRuntime(storage, services, drain, entityDrain, formDrain, releaseDrain, lastCaptures)
+}
+
+private fun migrateStore(plugin: TracelPlugin, storage: TracelStorage) {
+    val outcome = StoreFormat.ensure(storage)
+    if (outcome.migrated) plugin.logger.info("Migrated the database from format ${outcome.from} to ${outcome.to}.")
 }

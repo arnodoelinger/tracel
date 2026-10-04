@@ -89,17 +89,17 @@
     "invalid": "<token> is not a valid argument — see suggestions to see what is allowed",
     "nothing": "there's nothing we can do",
     "label": {
-      "info": "<gray>Info:</gray> <info>",
-      "reason": "<gray>Reason:</gray> <reason>",
-      "hint": "<gray>Try:</gray> <hint>",
-      "time": "<gray>Time taken:</gray> <time>",
-      "database": "<gray>Database:</gray> <file>",
-      "size": "<gray>Size:</gray> <size> MiB",
-      "records": "<gray>Records:</gray> <from> → <to>",
-      "rows": "<gray>Rows:</gray> <rows>"
+      "info": "<gray>Info</gray>: <info>",
+      "reason": "<gray>Reason</gray>: <reason>",
+      "hint": "<gray>Try</gray>: <hint>",
+      "time": "<gray>Time taken</gray>: <time>",
+      "database": "<gray>Database</gray>: <file>",
+      "size": "<gray>Size</gray>: <size> MiB",
+      "records": "<gray>Records</gray>: <from> → <to>",
+      "rows": "<gray>Rows</gray>: <rows>"
     },
     "next": {
-      "confirm": "<gray>Next:</gray> to confirm the operation, run it again with #confirm"
+      "confirm": "<gray>Next</gray>: to confirm the operation, run it again with #confirm"
     },
     "needed": {
       "title": "<gold>⚠ Action needed!</gold>",
@@ -154,8 +154,8 @@
   },
   "lookup": {
     "headline": "<aqua>☰ Lookup results, page <page>/<total></aqua>",
-    "title": "<gray><verb> <n> <n:time:times>:</gray> <white>first <first>, last <last></white>",
-    "net": "<gray><plus> <gained>, <minus> <lost>:</gray> <white>first <first>, last <last></white>",
+    "title": "<gray><verb> <n> <n:time:times></gray>: <white>first <first>, last <last></white>",
+    "net": "<gray><plus> <gained>, <minus> <lost></gray>: <white>first <first>, last <last></white>",
     "times": "<gray> ⋆<n></gray>",
     "no_matches": "No matches",
     "no_search": "No search to turn pages in",
@@ -168,10 +168,10 @@
     },
     "hover": {
       "turned": "<white><from> → <to></white>",
-      "time": "<gray>Time:</gray> <white><time></white>",
-      "rolled_back": "<gray>Rolled back:</gray> <white><time></white> <gray>(<ago>)</gray>",
-      "coords": "<gray>Coordinates:</gray> <white><at></white>",
-      "mode": "<gray>Gamemode:</gray> <mode>",
+      "time": "<gray>Time</gray>: <white><time></white>",
+      "rolled_back": "<gray>Rolled back</gray>: <white><time></white> <gray>(<ago>)</gray>",
+      "coords": "<gray>Coordinates</gray>: <white><at></white>",
+      "mode": "<gray>Gamemode</gray>: <mode>",
       "teleport": "<white>Click here to teleport</white>",
       "page": "<white>Page <page></white>",
       "refresh": "<white>Run this search again</white>",
@@ -257,7 +257,7 @@
     },
     "export": {
       "start": "Exporting the results...",
-      "lines": "<gray>Lines:</gray> <lines>",
+      "lines": "<gray>Lines</gray>: <lines>",
       "button": {
         "open": "<aqua>[→ Open]</aqua>",
         "open_hover": "<white>Read it in the browser</white>",
@@ -284,11 +284,11 @@
     "preview": {
       "title": "<aqua>☰ Rollback preview</aqua>",
       "ghost": "<count> blocks blinking for <seconds>s — only you see them",
-      "would": "<gray>Would:</gray> <summary>"
+      "would": "<gray>Would</gray>: <summary>"
     },
     "done": {
       "title": "<green>✔ Rolled back!</green>",
-      "result": "<gray>Result:</gray> <parts>",
+      "result": "<gray>Result</gray>: <parts>",
       "nothing": "<gray>Nothing changed — the world already matches</gray>"
     },
     "button": {
@@ -343,7 +343,7 @@
   "undo": {
     "done": {
       "title": "<green>✔ Undone!</green>",
-      "result": "<gray>Result:</gray> <green><changes> change(s) taken back</green>"
+      "result": "<gray>Result</gray>: <green><changes> change(s) taken back</green>"
     },
     "failed": "<red>✘ Undo failed!</red>",
     "reason": {
@@ -360,12 +360,12 @@
   },
   "player": {
     "title": "<red>♦ <name></red>",
-    "window": "<gray>Window:</gray> last <span>",
-    "scope": "<gray>Scope:</gray> <scope>",
-    "records": "<gray>Records:</gray> <records>",
-    "active": "<gray>Active:</gray> from <first> ago to <last> ago",
-    "busiest": "<gray>Busiest:</gray> around <x>, <y>, <z>",
-    "blocks": "<gray>Blocks:</gray> <plus><green><placed></green> <minus><red><broken></red> <both><gold><changed></gold>",
+    "window": "<gray>Window</gray>: last <span>",
+    "scope": "<gray>Scope</gray>: <scope>",
+    "records": "<gray>Records</gray>: <records>",
+    "active": "<gray>Active</gray>: from <first> ago to <last> ago",
+    "busiest": "<gray>Busiest</gray>: around <x>, <y>, <z>",
+    "blocks": "<gray>Blocks</gray>: <plus><green><placed></green> <minus><red><broken></red> <both><gold><changed></gold>",
     "empty": "nothing recorded",
     "button": {
       "tp": "<aqua>[→ Teleport]</aqua>",
@@ -384,8 +384,8 @@
     "list": {
       "title": "<yellow>⚡ Presets</yellow>",
       "hover": "<white>Click to start \"/tracel rollback @<name>\"</white>",
-      "entry": "<gray>@<name>:</gray> <flags>",
-      "entry_server": "<gray>@<name> (server):</gray> <flags>",
+      "entry": "<gray>@<name></gray>: <flags>",
+      "entry_server": "<gray>@<name> (server)</gray>: <flags>",
       "empty": {
         "info": "there's no presets yet",
         "hint": "create one"
@@ -407,9 +407,9 @@
       "delete_hover": "<white>Delete @<name></white>"
     },
     "label": {
-      "flags": "<gray>Flags:</gray> <flags>",
-      "for": "<gray>For:</gray> <who>",
-      "name": "<gray>Name:</gray> @<name>"
+      "flags": "<gray>Flags</gray>: <flags>",
+      "for": "<gray>For</gray>: <who>",
+      "name": "<gray>Name</gray>: @<name>"
     },
     "for": {
       "you": "you",
@@ -487,8 +487,8 @@
       "paused": "Import stopped",
       "stop": "Stopping the import after the batch it is on...",
       "not_running": "No CoreProtect migration is running",
-      "taken": "<gray>Imported:</gray> <count> records",
-      "skipped": "<gray>Skipped:</gray> <count> rows",
+      "taken": "<gray>Imported</gray>: <count> records",
+      "skipped": "<gray>Skipped</gray>: <count> rows",
       "reason": {
         "not_found": "no CoreProtect database in \"plugins/CoreProtect\"",
         "no_room": "this database was started by a Tracel build that left no room for older history",
@@ -504,21 +504,22 @@
   },
   "status": {
     "title": "<red>♦ Tracel status</red>",
-    "records": "<gray>Records:</gray> ~<blocks> blocks, <items> items, <events> events",
-    "period": "<gray>Period:</gray> <from> → now <gray>(<span>)</gray>",
-    "period_empty": "<gray>Period:</gray> no history yet",
-    "size": "<gray>Size:</gray> <size>",
-    "disk": "<gray>Disk:</gray> <free> free <gray>(<percent>%)</gray>",
-    "purge_off": "<gray>Auto-purge:</gray> off",
-    "purge_on": "<gray>Auto-purge:</gray> on<star>, last <last>",
+    "records": "<gray>Records</gray>: ~<blocks> blocks, <items> items, <events> events",
+    "period": "<gray>Period</gray>: <from> → now <gray>(<span>)</gray>",
+    "period_empty": "<gray>Period</gray>: no history yet",
+    "format": "<gray>Format</gray>: <version>",
+    "size": "<gray>Size</gray>: <size>",
+    "disk": "<gray>Disk</gray>: <free> free <gray>(<percent>%)</gray>",
+    "purge_off": "<gray>Auto-purge</gray>: off",
+    "purge_on": "<gray>Auto-purge</gray>: on<star>, last <last>",
     "purge_star": "<white>*</white>",
     "purge_never": "never ran",
-    "queue": "<gray>Queue:</gray> <n> waiting",
-    "load": "<gray>Load:</gray> <rate> records/s",
-    "load_unknown": "<gray>Load:</gray> measuring...",
-    "rollbacks_none": "<gray>Rollbacks:</gray> none",
-    "rollbacks": "<gray>Rollbacks:</gray> <n> active (<sizes>)",
-    "state": "<gray>State:</gray> <state>",
+    "queue": "<gray>Queue</gray>: <n> waiting",
+    "load": "<gray>Load</gray>: <rate> records/s",
+    "load_unknown": "<gray>Load</gray>: measuring...",
+    "rollbacks_none": "<gray>Rollbacks</gray>: none",
+    "rollbacks": "<gray>Rollbacks</gray>: <n> active (<sizes>)",
+    "state": "<gray>State</gray>: <state>",
     "forever": "forever",
     "failed": "<red>✘ Could not read the status!</red>",
     "category": {
@@ -544,7 +545,7 @@
     },
     "hover": {
       "purge_interval": "<gray>Looks for old history every</gray> <white><interval></white>",
-      "purge_keep": "<gray><category>:</gray> <white><keep></white>",
+      "purge_keep": "<gray><category></gray>: <white><keep></white>",
       "ok": "<white>Everything is working excellent</white>",
       "forward": "<white>This server is newer than the newest Minecraft version Tracel was tested on</white>",
       "load": "<white>The server tick takes <mspt> ms on average</white>",
@@ -578,17 +579,17 @@
     },
     "preview": {
       "title": "<light_purple>≢ Purge preview</light_purple>",
-      "categories": "<gray>Categories:</gray> <list>",
-      "older": "<gray>Older than:</gray> <span>",
-      "world": "<gray>World:</gray> <name>",
-      "player": "<gray>Player:</gray> <name>",
-      "line": "<gray><category>:</gray> <matched> of <total> records",
+      "categories": "<gray>Categories</gray>: <list>",
+      "older": "<gray>Older than</gray>: <span>",
+      "world": "<gray>World</gray>: <name>",
+      "player": "<gray>Player</gray>: <name>",
+      "line": "<gray><category></gray>: <matched> of <total> records",
       "nothing": "Nothing matches these filters, so nothing would go",
-      "all": "<gray>Scope:</gray> everything, the whole database"
+      "all": "<gray>Scope</gray>: everything, the whole database"
     },
     "report": {
-      "line": "<gray><category>:</gray> <matched> records",
-      "freed": "<gray>Freed:</gray> <size> MiB"
+      "line": "<gray><category></gray>: <matched> records",
+      "freed": "<gray>Freed</gray>: <size> MiB"
     },
     "suggest": {
       "category": "What to purge: blocks, items, containers, or events",

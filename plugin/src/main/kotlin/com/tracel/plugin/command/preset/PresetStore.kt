@@ -1,5 +1,7 @@
 package com.tracel.plugin.command.preset
 
+import com.tracel.plugin.migrate.FileVersions
+import com.tracel.platform.Versions
 import org.tomlj.Toml
 import org.tomlj.TomlTable
 import java.nio.file.Files
@@ -14,7 +16,10 @@ internal data class Preset(val name: String, val owner: UUID?, val tokens: List<
 }
 
 /** Presets on disk as TOML, like the config. */
-internal class PresetStore(private val file: Path) {
+internal class PresetStore(
+    private val file: Path,
+    private val onUpdated: (version: Int) -> Unit = {},
+) {
     private val presets = ConcurrentHashMap<String, Preset>()
 
     init {
@@ -75,12 +80,21 @@ internal class PresetStore(private val file: Path) {
             )
             return
         }
+        val version = parsed.getLong("version.version")?.toInt() ?: 0
+        if (version > Versions.Format.PRESETS) {
+            val backup = file.resolveSibling(file.fileName.toString() + ".v$version")
+            if (!Files.exists(backup)) Files.copy(file, backup)
+        }
         parsed.getTable("server")?.let { read(null, it) }
         parsed.getTable("players")?.let { players ->
             for (id in players.keySet()) {
                 val owner = runCatching { UUID.fromString(id) }.getOrNull() ?: continue
                 players.getTable(listOf(id))?.let { read(owner, it) }
             }
+        }
+        if (version < Versions.Format.PRESETS) {
+            persist()
+            onUpdated(Versions.Format.PRESETS)
         }
     }
 
@@ -107,13 +121,16 @@ internal class PresetStore(private val file: Path) {
         val personal = presets.values.filter { it.owner != null }.groupBy { it.owner!! }
             .toSortedMap(compareBy { it.toString() })
             .flatMap { (owner, own) -> own.sortedBy { it.name }.map { entry("players.$owner", it) } }
-        return (listOf(HEADER.trimEnd()) + shared + personal).joinToString("\n\n", postfix = "\n")
+        return (listOf(HEADER.trimEnd()) + shared + personal + versionBlock()).joinToString("\n\n", postfix = "\n")
     }
 
     private fun entry(path: String, preset: Preset): String {
         val flags = preset.text.replace("\\", "\\\\").replace("\"", "\\\"")
         return "[$path.${preset.name}]\nflags = \"$flags\""
     }
+
+    private fun versionBlock(): String =
+        "[version]\n${FileVersions.PRESETS_NOTE}\nversion = ${Versions.Format.PRESETS}"
 
     private fun key(owner: UUID?, name: String) = "${owner ?: "*"}/$name"
 

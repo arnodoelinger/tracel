@@ -61,7 +61,9 @@ object TracelCommand {
         val export = ExportAction(services)
         val import = ImportAction(services)
         val coreProtect = CoreProtectImportAction(services)
-        val store = PresetStore(services.plugin.dataFolder.toPath().resolve("presets.toml"))
+        val store = PresetStore(services.plugin.dataFolder.toPath().resolve("presets.toml")) { version ->
+            services.plugin.logger.info("Updated presets.toml to version $version.")
+        }
         Presets.store = store
         val presets = PresetAction(store, nothing)
         val player = PlayerAction(services)

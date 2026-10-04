@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm.segment
 
+import com.tracel.platform.Versions
 import com.github.luben.zstd.Zstd
 import com.tracel.storage.ffm.Bytes
 import com.tracel.storage.ffm.Bytes.i32
@@ -35,7 +36,7 @@ import java.nio.file.Path
 object SegmentFile {
     val MAGIC = "TSEG".toByteArray(Charsets.US_ASCII)
 
-    const val VERSION = 1
+    const val VERSION = Versions.Format.SEGMENT
     const val FOOTER_BYTES = 40
     const val BLOCK_TARGET = 4096
     const val FLAG_ZSTD = 1 shl 31

@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm.state
 
+import com.tracel.platform.Versions
 import com.tracel.storage.ffm.Bytes
 import com.tracel.storage.ffm.fsyncDirectory
 import com.tracel.storage.lsm.segment.SegmentMeta
@@ -82,7 +83,7 @@ data class Manifest(
         const val LOG_SUFFIX = ".log"
 
         private val MAGIC = "TMAN".toByteArray(Charsets.US_ASCII)
-        private const val VERSION = 1
+        private const val VERSION = Versions.Format.MANIFEST
 
         val EMPTY = Manifest(lastSequence = 0, nextFileId = 1, walIds = listOf(1), segments = emptyList())
 
