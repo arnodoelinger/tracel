@@ -1,9 +1,11 @@
 package com.tracel.plugin.command.presenter
 
 import com.tracel.annotations.CauseKind
+import com.tracel.annotations.Unstable
 import com.tracel.annotations.isBookkeeping
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
+import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.namesMaterial
 import com.tracel.model.transaction.Transaction
@@ -90,14 +92,15 @@ internal object ChangeLinePresenter {
         val mode: GameMode? = null,
         val net: Net? = null,
         val visit: Long? = null,
-        /** When a rollback took this record back, if one did: the line is struck out. */
         val rolledAt: Long? = null,
+        val counted: Boolean = true,
     )
 
     /** [delta] is what this line did to the side [family] counts for: positive for [ItemPresenter.Family.plus]. */
     class Net(val family: ItemPresenter.Family, val delta: Long, val item: Component, val material: String)
 
     /** The line of the log for [change]: what happened, who did it, when and where. */
+    @Unstable
     fun logged(change: WorldChange, actors: Actors, rolled: Map<Long, Long> = emptyMap()): Logged {
         val rolledAt = rolled[change.seq.raw]
         val phrase = phrase(change)
@@ -120,6 +123,7 @@ internal object ChangeLinePresenter {
             at = change.at,
             mode = modeOf(change.causedBy, change.epochMillis, actors),
             rolledAt = rolledAt,
+            counted = !isSecondHalf(change),
         )
     }
 
@@ -162,8 +166,15 @@ internal object ChangeLinePresenter {
     ): List<Logged> {
         val rolledAt = rolled[transaction.seq.raw]
         if (transaction.cause.isBookkeeping || (transaction.cause == CauseKind.WEAR && !everything)) return emptyList()
+        val unseen = transaction.flows.filter { mint ->
+            mint.kind == FlowKind.MINT && mint.destination is HolderId.Player && transaction.flows.any { out ->
+                out !== mint && out.source == mint.destination && out.itemKey == mint.itemKey &&
+                        out.quantity.raw >= mint.quantity.raw
+            }
+        }
         return transaction.flows.mapNotNull { flow ->
             if (item != null && !flow.itemKey.material.namesMaterial(item)) return@mapNotNull null
+            if (unseen.any { it === flow }) return@mapNotNull null
             val act = (if (transaction.cause == CauseKind.WEAR) ItemPresenter.Act(
                 "damaged",
                 ItemPresenter.BOTH
@@ -207,7 +218,7 @@ internal object ChangeLinePresenter {
     /** [first] and every record that repeats it, folded: newest shown, the count and the total quantity kept. */
     class Stack(val first: Logged) {
         var group: Long = first.millis
-        var count: Int = 1; private set
+        var count: Int = if (first.counted) 1 else 0; private set
         var quantity: Long = first.quantity; private set
         var oldest: Long = first.millis; private set
 
@@ -217,7 +228,7 @@ internal object ChangeLinePresenter {
 
         /** Adds a logged entry to the stack. */
         fun add(line: Logged) {
-            count++
+            if (line.counted) count++
             quantity += line.quantity
             oldest = minOf(oldest, line.millis)
             val delta = line.net?.delta ?: return
@@ -426,6 +437,12 @@ internal object ChangeLinePresenter {
                 else -> Phrase(lower("lookup.verb.became"), "changed", to, NamePresenter.pretty(after), from, to)
             }
         }
+    }
+
+    private fun isSecondHalf(change: WorldChange): Boolean {
+        if (change.action != ActionKind.BLOCK_PLACE) return false
+        val after = (change.subject as? ChangeSubject.Block)?.after?.data?.value ?: return false
+        return "part=head" in after || "half=upper" in after
     }
 
     private fun id(shape: BlockShape): String = shape.data.value.substringBefore('[')
