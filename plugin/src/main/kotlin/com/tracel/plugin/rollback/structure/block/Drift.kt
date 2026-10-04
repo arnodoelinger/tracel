@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.structure.block
 
+import com.tracel.plugin.util.materialsNamed
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
@@ -55,7 +56,7 @@ private val NATURAL = setOf(
     Material.COCOA,
     Material.SWEET_BERRY_BUSH,
     Material.NETHER_WART,
-)
+) + materialsNamed("sulfur_spike")
 
 @Unstable
 private val SOIL = setOf(

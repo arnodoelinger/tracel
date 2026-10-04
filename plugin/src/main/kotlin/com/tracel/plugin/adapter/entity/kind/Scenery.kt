@@ -17,6 +17,7 @@ internal object Scenery {
         HullMatch { it is Interaction },
         HullMatch { it is TNTPrimed },
         HullMatch { it is AbstractArrow && it.isReclaimable() },
+        HullMatch { it.type.key.key.contains("cushion") },
     )
 
     /** True if [entity] is player-placed scenery the world log should keep. */

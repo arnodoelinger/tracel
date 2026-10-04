@@ -35,6 +35,7 @@ import org.bukkit.entity.*
 import org.bukkit.entity.minecart.ExplosiveMinecart
 import org.bukkit.event.block.Action
 import org.bukkit.event.block.TNTPrimeEvent
+import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.entity.*
 import org.bukkit.event.hanging.HangingBreakByEntityEvent
 import org.bukkit.event.hanging.HangingBreakEvent
@@ -46,11 +47,15 @@ import org.bukkit.event.vehicle.VehicleDestroyEvent
 import org.bukkit.event.vehicle.VehicleMoveEvent
 import org.bukkit.inventory.InventoryHolder
 import org.bukkit.persistence.PersistentDataType
+import java.util.concurrent.ConcurrentHashMap
 import java.util.*
 import kotlin.math.floor
 
 private const val RECENT_MS = 5_000L
 private const val SUMMON_WINDOW_MS = 1_000L
+private const val USE_MS = 1_500L
+private const val USES_KEPT = 256
+private const val USE_RADIUS_SQUARED = 9.0
 private const val MILLIS_PER_TICK = 50L
 private const val DYING_KEPT = 4_096
 private const val SUMMON_FRESH_TICKS = 5
@@ -76,6 +81,48 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     private val transformedBy = ExpiringMap<UUID, Blame>(RECENT_MS)
 
     private val madeByKey = NamespacedKey(services.plugin, "made_by")
+
+    private class Use(val world: UUID, val x: Double, val y: Double, val z: Double, val at: Long)
+
+    private val uses = ConcurrentHashMap<UUID, Use>()
+
+    @Observes
+    fun onUse(event: PlayerInteractEvent) {
+        if (event.action != Action.RIGHT_CLICK_BLOCK || !event.hasItem()) return
+        val block = event.clickedBlock?.getRelative(event.blockFace) ?: return
+        val now = System.currentTimeMillis()
+        if (uses.size > USES_KEPT) uses.values.removeIf { now - it.at > USE_MS }
+        uses[event.player.uniqueId] = Use(block.world.uid, block.x + 0.5, block.y + 0.5, block.z + 0.5, now)
+    }
+
+    private val unlogged = ConcurrentHashMap.newKeySet<String>()
+
+    private fun noteUnlogged(entity: Entity) {
+        val by = usedNear(entity.location) ?: return
+        val type = entity.type.key.toString()
+        if (!unlogged.add(type)) return
+        val who = (by as? HolderId.Player)?.uuid
+        services.plugin.logger.info(
+            "$type (${entity.javaClass.interfaces.firstOrNull()?.simpleName ?: entity.javaClass.simpleName}) appeared " +
+                    "beside $who using an item, and is not a kind the world log keeps."
+        )
+    }
+
+    private fun usedNear(at: org.bukkit.Location): HolderId? {
+        val world = at.world?.uid ?: return null
+        val now = System.currentTimeMillis()
+        return uses.entries
+            .filter { (_, use) -> use.world == world && now - use.at <= USE_MS }
+            .map { (player, use) ->
+                val dx = use.x - at.x
+                val dy = use.y - at.y
+                val dz = use.z - at.z
+                player to dx * dx + dy * dy + dz * dz
+            }
+            .filter { (_, distance) -> distance <= USE_RADIUS_SQUARED }
+            .minByOrNull { (_, distance) -> distance }
+            ?.let { (player, _) -> HolderId.Player(player) }
+    }
 
     private fun markMadeBy(entity: Entity, by: HolderId?) {
         val player = by as? HolderId.Player ?: return
@@ -126,6 +173,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     @Observes
     fun onSpawn(event: EntitySpawnEvent) {
         val entity = event.entity
+        if (entity !is Item && entity !is Player && !entity.logsWorldShape()) noteUnlogged(entity)
         if (runCatching { entity.entitySpawnReason }.getOrNull() == CreatureSpawnEvent.SpawnReason.COMMAND ||
             (event as? CreatureSpawnEvent)?.spawnReason == CreatureSpawnEvent.SpawnReason.COMMAND
         ) {
@@ -162,6 +210,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
                 ?: placedBy.remove(uuid)?.who
                 ?: summoner[entity.world.uid]?.takeIf { reason == CreatureSpawnEvent.SpawnReason.COMMAND }
                 ?: ColumnCell.playerAt(loc.block)?.let(HolderId::Player)
+                ?: usedNear(loc)
             markMadeBy(entity, by)
             record(ActionKind.ENTITY_SPAWN, uuid, spawned, at, by, after = true)
             return
@@ -173,6 +222,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
                 ?: summoner[loc.world.uid]?.takeIf { falling == null }
                 ?: falling?.let { ColumnCell.playerWhoDisturbed(it)?.let(HolderId::Player) }
                 ?: ColumnCell.playerAt(loc.block)?.let(HolderId::Player)
+                ?: usedNear(loc)
             record(ActionKind.ENTITY_SPAWN, uuid, spawned, at, by, after = true)
         }
     }
@@ -547,7 +597,7 @@ internal fun String.isCommand(name: String): Boolean {
 }
 
 private fun Material.spawnsAnEntity(): Boolean = when {
-    name.endsWith("_SPAWN_EGG") -> true
+    name.endsWith("_SPAWN_EGG") || name.endsWith("_CUSHION") -> true
     !name.endsWith("_BUCKET") -> false
     else -> this !in NOT_LIVE_BUCKETS
 }

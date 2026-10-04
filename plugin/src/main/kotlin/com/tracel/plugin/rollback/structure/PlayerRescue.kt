@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.structure
 
+import com.tracel.plugin.util.materialsNamed
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
@@ -42,7 +43,7 @@ private val HAZARDS = setOf(
     Material.CAMPFIRE,
     Material.SOUL_CAMPFIRE,
     Material.POINTED_DRIPSTONE,
-)
+) + materialsNamed("sulfur_spike")
 
 /**
  * Get players out of the way of what [applied] just wrote.
