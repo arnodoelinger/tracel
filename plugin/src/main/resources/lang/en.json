@@ -507,6 +507,7 @@
     "records": "<gray>Records:</gray> ~<blocks> blocks, <items> items, <events> events",
     "period": "<gray>Period:</gray> <from> → now <gray>(<span>)</gray>",
     "period_empty": "<gray>Period:</gray> no history yet",
+    "format": "<gray>Format:</gray> <version>",
     "size": "<gray>Size:</gray> <size>",
     "disk": "<gray>Disk:</gray> <free> free <gray>(<percent>%)</gray>",
     "purge_off": "<gray>Auto-purge:</gray> off",

@@ -507,6 +507,7 @@
     "records": "<gray>Записи:</gray> ~<blocks> блоков, <items> предметов, <events> событий",
     "period": "<gray>Период:</gray> <from> → сейчас <gray>(<span>)</gray>",
     "period_empty": "<gray>Период:</gray> истории пока нет",
+    "format": "<gray>Формат базы:</gray> <version>",
     "size": "<gray>Размер:</gray> <size>",
     "disk": "<gray>Диск:</gray> свободно <free> <gray>(<percent>%)</gray>",
     "purge_off": "<gray>Автопурдж:</gray> выключен",
