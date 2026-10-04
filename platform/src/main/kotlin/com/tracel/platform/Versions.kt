@@ -66,6 +66,7 @@ public object Versions {
         public val SUPPORTED: List<Pair<Int, Int>> = listOf(
             26 to 1,
             26 to 2,
+            26 to 3,
         )
     }
 }
