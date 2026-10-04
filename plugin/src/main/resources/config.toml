@@ -54,7 +54,3 @@ max-pending-flushes = 3
 
 # Number of events that can be buffered during bursts of activity
 capture-ring-slots = 65536
-
-[version]
-# Config version. Don't change this
-version = 1

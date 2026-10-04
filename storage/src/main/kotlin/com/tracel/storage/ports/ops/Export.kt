@@ -1,5 +1,6 @@
 package com.tracel.storage.ports.ops
 
+import com.tracel.platform.Versions
 import com.github.luben.zstd.ZstdInputStream
 import com.github.luben.zstd.ZstdOutputStream
 import com.tracel.storage.TracelStorage
@@ -16,7 +17,7 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
 private val MAGIC = "TEXP".toByteArray(Charsets.US_ASCII)
-private const val VERSION = 1
+private const val VERSION = Versions.Format.EXPORT
 private const val BATCH_ROWS = 20_000
 internal const val TIME_KEY_SIZE = 17
 

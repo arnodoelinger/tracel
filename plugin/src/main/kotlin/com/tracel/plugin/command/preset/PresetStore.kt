@@ -1,6 +1,7 @@
 package com.tracel.plugin.command.preset
 
 import com.tracel.plugin.migrate.FileVersions
+import com.tracel.platform.Versions
 import org.tomlj.Toml
 import org.tomlj.TomlTable
 import java.nio.file.Files
@@ -80,7 +81,7 @@ internal class PresetStore(
             return
         }
         val version = parsed.getLong("version.version")?.toInt() ?: 0
-        if (version > FileVersions.PRESETS) {
+        if (version > Versions.Format.PRESETS) {
             val backup = file.resolveSibling(file.fileName.toString() + ".v$version")
             if (!Files.exists(backup)) Files.copy(file, backup)
         }
@@ -91,9 +92,9 @@ internal class PresetStore(
                 players.getTable(listOf(id))?.let { read(owner, it) }
             }
         }
-        if (version < FileVersions.PRESETS) {
+        if (version < Versions.Format.PRESETS) {
             persist()
-            onUpdated(FileVersions.PRESETS)
+            onUpdated(Versions.Format.PRESETS)
         }
     }
 
@@ -129,7 +130,7 @@ internal class PresetStore(
     }
 
     private fun versionBlock(): String =
-        "[version]\n${FileVersions.NOTE}\nversion = ${FileVersions.PRESETS}"
+        "[version]\n${FileVersions.PRESETS_NOTE}\nversion = ${Versions.Format.PRESETS}"
 
     private fun key(owner: UUID?, name: String) = "${owner ?: "*"}/$name"
 

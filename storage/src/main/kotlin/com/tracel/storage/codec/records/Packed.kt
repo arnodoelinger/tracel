@@ -1,5 +1,6 @@
 package com.tracel.storage.codec.records
 
+import com.tracel.platform.Versions
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8
@@ -9,7 +10,7 @@ import com.tracel.storage.ffm.Bytes.putI8
 import com.tracel.storage.ffm.Bytes.writeBytes
 import java.lang.foreign.MemorySegment
 
-internal const val CODEC_VERSION: Byte = 1
+internal const val CODEC_VERSION: Byte = Versions.Format.RECORD
 
 @PublishedApi
 internal val EMPTY_BYTES: ByteArray = ByteArray(0)

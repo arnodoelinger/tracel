@@ -1,5 +1,6 @@
 package com.tracel.plugin.startup
 
+import com.tracel.platform.Versions
 import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
@@ -83,7 +84,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val firstRun = !configFile.exists()
     if (firstRun) plugin.saveResource("config.toml", false)
     TomlMigrator.migrateFile(
-        configFile.toPath(), FileVersions.CONFIG, FileVersions.CONFIG_STEPS, plugin.logger, announce = !firstRun,
+        configFile.toPath(), Versions.Format.CONFIG, FileVersions.CONFIG_STEPS, plugin.logger, announce = !firstRun,
     )
     val setup = SetupState(plugin.dataFolder.toPath())
     if (firstRun) setup.begin()

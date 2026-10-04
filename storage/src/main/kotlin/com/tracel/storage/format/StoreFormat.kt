@@ -1,5 +1,6 @@
 package com.tracel.storage.format
 
+import com.tracel.platform.Versions
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
@@ -53,9 +54,13 @@ class FormatOutcome(val from: FormatVersion, val to: FormatVersion) {
  */
 object StoreFormat {
     /** The format this build reads and writes. */
-    val CURRENT = FormatVersion(1, 0)
+    val CURRENT = FormatVersion(Versions.Format.DB_MAJOR, Versions.Format.DB_MINOR)
 
-    /** What a database that has no version recorded was written in: everything before versions were kept. */
+    /**
+     * What a database that has no version recorded was written in: everything before versions were kept.
+     *
+     * Never changes.
+     */
     val LEGACY = FormatVersion(1, 0)
 
     /** Every step there is, in no particular order. Add one for each bump of [CURRENT]'s minor. */
