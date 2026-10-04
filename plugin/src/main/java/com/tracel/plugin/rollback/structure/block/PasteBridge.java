@@ -66,6 +66,7 @@ final class PasteBridge {
     final MethodHandle captureBlocks;
     final MethodHandle captureTree;
     final MethodHandle relight;
+    final MethodHandle maybeHas;
     final Object motion;
     final Object motionNoLeaves;
     final Object ocean;
@@ -180,6 +181,12 @@ final class PasteBridge {
             LOG.warning("section paste has no bulk relight; edited chunks keep their old light until a reload");
         }
         relight = relightHandle;
+        MethodHandle maybeHasHandle = null;
+        try {
+            maybeHasHandle = virtual(lookup, section, "maybeHas", MethodType.methodType(boolean.class, Predicate.class))
+                    .asType(MethodType.methodType(boolean.class, Object.class, Predicate.class));
+        } catch (NoSuchMethodException | IllegalAccessException ignored) {}
+        maybeHas = maybeHasHandle;
 
         motion = enumConst(types, "MOTION_BLOCKING");
         motionNoLeaves = enumConst(types, "MOTION_BLOCKING_NO_LEAVES");

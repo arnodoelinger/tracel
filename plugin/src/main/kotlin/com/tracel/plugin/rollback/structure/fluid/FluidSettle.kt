@@ -6,6 +6,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.isFluidShape
 import com.tracel.plugin.rollback.structure.block.isAir
+import com.tracel.plugin.util.LongHashSet
 import com.tracel.plugin.util.packed
 import org.bukkit.Material
 import org.bukkit.World
@@ -25,14 +26,16 @@ internal suspend fun settleFluids(
     pace: suspend () -> Unit = {},
 ) {
     if (steps.isEmpty()) return
-    val ticked = HashSet<Long>(steps.size * 2)
+    val stirring = steps.filter { touchesOrFeeds(it.target) || touchesOrFeeds(it.expected) }
+    if (stirring.isEmpty()) return
+    val ticked = LongHashSet(stirring.size * 7)
 
-    val emptied = HashSet<Long>(steps.size)
+    val emptied = LongHashSet(steps.size)
     for ((at, target) in steps) {
         if (target.isAir()) emptied += packed(at.x, at.y, at.z)
     }
 
-    for ((at, target, expected) in steps) {
+    for ((at, target, expected) in stirring) {
         pace()
         val flags = flagsOf(target) or flagsOf(expected)
         if (flags and FEEDS != 0) {
@@ -53,8 +56,8 @@ internal fun tickFluidAt(
     y: Int,
     z: Int,
     owns: (Int, Int) -> Boolean,
-    ticked: MutableSet<Long>,
-    emptied: Set<Long> = emptySet(),
+    ticked: LongHashSet,
+    emptied: LongHashSet,
 ) {
     if (!owns(x, z)) return
     for (face in CARDINAL) {
@@ -67,6 +70,10 @@ internal fun tickFluidAt(
 }
 
 private val flagCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+internal fun touchesOrFeeds(shape: BlockShape): Boolean = flagsOf(shape) != 0
+
+internal fun touchesFluidCached(shape: BlockShape): Boolean = flagsOf(shape) and TOUCHES != 0
 
 private fun flagsOf(shape: BlockShape): Int = flagCache.getOrPut(shape.data.value) {
     (if (shape.feedsBubbles()) FEEDS else 0) or (if (shape.touchesFluid()) TOUCHES else 0)

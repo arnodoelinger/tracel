@@ -33,6 +33,7 @@ class Drainer(
     private val releaseSink: suspend (HolderId, HolderId, Long, CauseKind, HolderId?) -> Unit,
     private val worldSink: suspend (BlockEdits) -> Unit,
     private val placedSink: suspend (PlacedDeltas) -> Unit = { sink(it.deltas, it.epochMillis, it.cause, it.causedBy) },
+    private val rawWorldSink: (suspend (RawBlockEdits) -> Unit)? = null,
 ) {
     private val logger = Logger.getLogger(Drainer::class.java.name)
     private val drainedEvents = AtomicLong(0)
@@ -156,6 +157,11 @@ class Drainer(
         val cause = CauseKind.entries[event.cause]
         when (event) {
             is RingEvent.World -> {
+                if (rawWorldSink != null) {
+                    val raw = storage.read { resolveRaw(this, event) }
+                    if (raw != null) rawWorldSink(raw)
+                    return
+                }
                 val edits = storage.read { resolve(this, event) }
                 if (edits.isNotEmpty()) {
                     worldSink(
@@ -199,6 +205,33 @@ class Drainer(
             )
         }
         return edits
+    }
+
+    private fun resolveRaw(unit: StorageUnit, event: RingEvent.World): RawBlockEdits? {
+        val worldId = interning.canonical(unit, event.worldId)
+        if (worldId == 0) return null
+        val n = event.befores.size
+        val coordinates = IntArray(n * 3)
+        val befores = IntArray(n)
+        val afters = IntArray(n)
+        var count = 0
+        for (i in 0 until n) {
+            val before = interning.canonical(unit, event.befores[i])
+            val after = interning.canonical(unit, event.afters[i])
+            if (before == 0 || after == 0 || before == after) continue
+            coordinates[count * 3] = event.coordinates[i * 3]
+            coordinates[count * 3 + 1] = event.coordinates[i * 3 + 1]
+            coordinates[count * 3 + 2] = event.coordinates[i * 3 + 2]
+            befores[count] = before
+            afters[count] = after
+            count++
+        }
+        if (count == 0) return null
+        val causedById = if (event.causedBy == 0) 0 else interning.canonical(unit, event.causedBy)
+        return RawBlockEdits(
+            ActionKind.entries[event.action], CauseKind.entries[event.cause], causedById, event.epochMillis,
+            worldId, coordinates, befores, afters, count,
+        )
     }
 
     private fun resolve(unit: StorageUnit, event: RingEvent.Items): List<InventoryDelta> {

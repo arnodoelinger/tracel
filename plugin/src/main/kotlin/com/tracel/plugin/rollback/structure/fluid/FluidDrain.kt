@@ -2,10 +2,12 @@ package com.tracel.plugin.rollback.structure.fluid
 
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.plugin.adapter.block.isFluidShape
+import com.tracel.model.world.block.BlockShape
+import com.tracel.plugin.rollback.structure.block.ShapeTraits
 import com.tracel.plugin.rollback.structure.block.PalettePaste
 import com.tracel.plugin.rollback.structure.block.airBlockData
 import com.tracel.plugin.rollback.structure.block.paint
+import com.tracel.plugin.util.LongHashSet
 import com.tracel.plugin.util.packed
 import com.tracel.plugin.util.unpackX
 import com.tracel.plugin.util.unpackY
@@ -23,16 +25,17 @@ private val NO_FLOW = Flow(Material.AIR, 0)
 
 // TODO: rewrite this stupid shit
 
+private fun isFluid(shape: BlockShape): Boolean = ShapeTraits.of(shape) and ShapeTraits.FLUID != 0
+
 @Unstable
 internal fun drainFlowing(world: World, steps: List<StructureStep.SetBlock>, owns: (Int, Int) -> Boolean): Boolean {
-    val written = HashSet<Long>(steps.size * 2)
     val seeds = ArrayList<Long>()
     for (step in steps) {
-        val at = packed(step.at.x, step.at.y, step.at.z)
-        written += at
-        if (isFluidShape(step.expected) && !isFluidShape(step.target)) seeds += at
+        if (isFluid(step.expected) && !isFluid(step.target)) seeds += packed(step.at.x, step.at.y, step.at.z)
     }
     if (seeds.isEmpty()) return true
+    val written = LongHashSet(steps.size)
+    for (step in steps) written += packed(step.at.x, step.at.y, step.at.z)
 
     val reach = HashMap<Long, Int>()
     val queue = ArrayDeque<Long>()

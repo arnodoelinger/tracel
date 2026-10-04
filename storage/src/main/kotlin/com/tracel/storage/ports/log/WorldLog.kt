@@ -20,6 +20,7 @@ import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
+import com.tracel.storage.capture.RawBlockEdits
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
@@ -213,6 +214,138 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 ),
             )
         }
+    }
+
+    /**
+     * [appendAll] for edits that never left their interned IDs: no shape is resolved only to be interned again,
+     * the whole event takes one range of sequences and lands in one write.
+     */
+    // TODO: awesome, but should be rewritten
+    suspend fun appendRaw(raw: RawBlockEdits, nextSeqRange: suspend (Int) -> Seq): Int {
+        val n = raw.count
+        if (n == 0) return 0
+        if (n >= RAW_MAX_EDITS) return appendAll(raw.resolved(), nextSeqRange)
+        val coordinates = raw.coordinates
+
+        val sectionIds = HashMap<Long, Int>()
+        val keys = LongArray(n)
+        for (i in 0 until n) {
+            val x = coordinates[i * 3]
+            val y = coordinates[i * 3 + 1]
+            val z = coordinates[i * 3 + 2]
+            val section = sectionIds.getOrPut(sectionOf(x, y, z)) { sectionIds.size }
+            keys[i] = (section.toLong() shl 32) or (Records.packSectionPosition(x, y, z).toLong() shl 20) or i.toLong()
+        }
+        keys.sort()
+
+        val base = nextSeqRange(n).raw
+        val bookkeeping = raw.cause.isBookkeeping
+        storage.write {
+            check(get(Keys.wchg(base)) == null) {
+                "world change at ${Seq(base)} already appended — the log is append-only"
+            }
+            val worldId = raw.worldId
+            val causedById = raw.causedById
+            val millis = raw.epochMillis
+            val noExtras = Records.blockExtras(null)
+            var seq = base
+            var from = 0
+            while (from < n) {
+                val section = (keys[from] ushr 32).toInt()
+                var until = from + 1
+                while (until < n && (keys[until] ushr 32).toInt() == section) until++
+                val count = until - from
+                val first = (keys[from] and 0xFFFFF).toInt()
+                val x0 = coordinates[first * 3]
+                val y0 = coordinates[first * 3 + 1]
+                val z0 = coordinates[first * 3 + 2]
+
+                if (count >= SECTION_DELTA_FROM) {
+                    val positions = IntArray(count)
+                    val before = IntArray(count)
+                    val after = IntArray(count)
+                    for (k in 0 until count) {
+                        val key = keys[from + k]
+                        val i = (key and 0xFFFFF).toInt()
+                        positions[k] = ((key ushr 20) and 0xFFF).toInt()
+                        before[k] = raw.befores[i]
+                        after[k] = raw.afters[i]
+                    }
+                    val sectionX = x0 shr 4
+                    val sectionY = y0 shr 4
+                    val sectionZ = z0 shr 4
+                    put(
+                        Keys.wchg(seq),
+                        Records.sectionDelta(
+                            raw.action, raw.cause, causedById, worldId,
+                            sectionX, sectionY, sectionZ, millis, seq,
+                            positions, count, before, after, emptyList(),
+                        ),
+                    )
+                    put(Keys.wchgAtSection(worldId, sectionX, sectionY, sectionZ, seq), NONE)
+                    if (!bookkeeping) {
+                        if (causedById != 0) put(
+                            Keys.actor(causedById, seq),
+                            Records.logKindTimed(LogKind.WORLD, millis, raw.cause)
+                        )
+                        put(Keys.time(millis, seq), OWN_LOG)
+                        put(
+                            Keys.spatial(worldId, sectionX, sectionZ, y0, seq, millis),
+                            Records.logKindSection(
+                                LogKind.WORLD, raw.cause, raw.action,
+                                sectionX shl 4, sectionY shl 4, sectionZ shl 4, count, causedById,
+                            ),
+                        )
+                    }
+                    seq += count
+                } else {
+                    for (k in from until until) { // TODO: parallelize?
+                        val i = (keys[k] and 0xFFFFF).toInt()
+                        val x = coordinates[i * 3]
+                        val y = coordinates[i * 3 + 1]
+                        val z = coordinates[i * 3 + 2]
+                        put(
+                            Keys.wchg(seq),
+                            Records.blockChange(
+                                raw.action, raw.cause, causedById, worldId, x, y, z, millis,
+                                raw.befores[i], raw.afters[i], noExtras, noExtras,
+                            ),
+                        )
+                        put(Keys.wchgAt(worldId, x, y, z, seq), NONE)
+                        if (!bookkeeping) {
+                            if (causedById != 0) put(
+                                Keys.actor(causedById, seq),
+                                Records.logKindTimed(LogKind.WORLD, millis, raw.cause)
+                            )
+                            put(Keys.time(millis, seq), OWN_LOG)
+                            put(
+                                Keys.spatial(worldId, x shr 4, z shr 4, y, seq, millis),
+                                Records.logKindInline(
+                                    LogKind.WORLD, raw.cause, x, y, z,
+                                    raw.action, raw.befores[i], raw.afters[i], causedById, 0,
+                                ),
+                            )
+                        }
+                        seq++
+                    }
+                }
+                from = until
+            }
+        }
+        return n
+    }
+
+    private suspend fun RawBlockEdits.resolved(): BlockEdits = storage.read {
+        val world = interning.resolveWorld(this, worldId)
+        val edits = ArrayList<BlockEdit>(count)
+        for (i in 0 until count) {
+            edits += BlockEdit(
+                BlockPos(world, coordinates[i * 3], coordinates[i * 3 + 1], coordinates[i * 3 + 2]),
+                BlockShape(interning.resolveBlockData(this, befores[i])),
+                BlockShape(interning.resolveBlockData(this, afters[i])),
+            )
+        }
+        BlockEdits(action, cause, if (causedById == 0) null else interning.resolveHolder(this, causedById), epochMillis, edits)
     }
 
     private fun sectionOf(x: Int, y: Int, z: Int): Long =
@@ -552,6 +685,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
     private fun structureEndsOf(ordered: List<WorldChange>): List<WorldChange> {
         val n = ordered.size
+        packedEndsOf(ordered)?.let { return it }
         // Both ends in one entry. Two maps meant hashing every coordinate twice on the way in and
         // walking two sets of values on the way out, for an answer one map already held.
         val ends = HashMap<Any, IntArray>(n.coerceAtMost(65_536))
@@ -569,6 +703,53 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         return out
     }
 
+    private fun packedEndsOf(ordered: List<WorldChange>): List<WorldChange>? {
+        val n = ordered.size
+        if (n < PACKED_ENDS_FROM) return null
+        val world = ordered[0].at.world
+        val capacity = Integer.highestOneBit((n * 2).coerceAtLeast(16)) shl 1
+        val shift = 64 - Integer.numberOfTrailingZeros(capacity)
+        val mask = capacity - 1
+        val keys = LongArray(capacity)
+        val used = BooleanArray(capacity)
+        val firsts = IntArray(capacity)
+        val lasts = IntArray(capacity)
+        val entities = HashMap<Any, IntArray>()
+        for (i in n - 1 downTo 0) {
+            val change = ordered[i]
+            val subject = change.subject
+            if (subject is ChangeSubject.Entity) {
+                val slot = entities.getOrPut(subject.entity) { intArrayOf(i, i) }
+                slot[1] = i
+                continue
+            }
+            val at = change.at
+            if (at.world != world) return null
+            val key = ((at.x.toLong() and 0x3FFFFFF) shl 38) or ((at.z.toLong() and 0x3FFFFFF) shl 12) or
+                    (at.y.toLong() and 0xFFF)
+            var h = ((key * -0x61c8864680b583ebL) ushr shift).toInt()
+            while (used[h] && keys[h] != key) h = (h + 1) and mask
+            if (!used[h]) {
+                used[h] = true
+                keys[h] = key
+                firsts[h] = i
+            }
+            lasts[h] = i
+        }
+        val pick = BooleanArray(n)
+        var count = 0
+        for (h in 0 until capacity) if (used[h]) {
+            if (!pick[firsts[h]]) { pick[firsts[h]] = true; count++ }
+            if (!pick[lasts[h]]) { pick[lasts[h]] = true; count++ }
+        }
+        for (slot in entities.values) {
+            if (!pick[slot[0]]) { pick[slot[0]] = true; count++ }
+            if (!pick[slot[1]]) { pick[slot[1]] = true; count++ }
+        }
+        val out = ArrayList<WorldChange>(count)
+        for (i in n - 1 downTo 0) if (pick[i]) out += ordered[i]
+        return out
+    }
 
     private fun WorldChange.structureKey(): Any = when (val subject = subject) {
         is ChangeSubject.Block -> at
@@ -840,24 +1021,29 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val region = filter?.region
         val material = filter?.material
 
+        // Palette resolved once per delta, slots read in one go: per block only the position is left to decode
+        val palette = Records.sectionPalette(record)
+        val shapes = Array(palette.size) { sectionShape(unit, palette[it], null, resolved) }
+        val wanted = if (material == null) null else {
+            val aliases = filter.blockMaterials
+            BooleanArray(palette.size) { shapes[it].data.value.matchesAny(material, aliases) }
+        }
+        val slots = Records.sectionSlots(record)
+        val count = slots.size / 2
+        val extrasAll = Records.sectionExtrasAll(record)
+        if (out is ArrayList<WorldChange>) out.ensureCapacity(out.size + count)
+
         Records.forEachSectionPosition(record) { index, packed ->
             val x = cornerX + Records.sectionPositionX(packed)
             val y = cornerY + Records.sectionPositionY(packed)
             val z = cornerZ + Records.sectionPositionZ(packed)
             if (region != null && !region.containsBlock(x, y, z)) return@forEachSectionPosition
 
-            val beforeId = Records.sectionBefore(record, index)
-            val afterId = Records.sectionAfter(record, index)
-            if (material != null) {
-                val before = interning.resolveBlockData(unit, beforeId).value
-                val after = interning.resolveBlockData(unit, afterId).value
-                val aliases = filter.blockMaterials.orEmpty()
-                if (!before.matchesAny(material, aliases) && !after.matchesAny(material, aliases)) {
-                    return@forEachSectionPosition
-                }
-            }
+            val beforeSlot = slots[index]
+            val afterSlot = slots[count + index]
+            if (wanted != null && !wanted[beforeSlot] && !wanted[afterSlot]) return@forEachSectionPosition
 
-            val extras = Records.sectionExtras(record, index)
+            val extras = extrasAll?.get(index)
             out += WorldChange(
                 Seq(baseSeq + index),
                 action,
@@ -866,8 +1052,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 millis,
                 BlockPos(world, x, y, z),
                 ChangeSubject.Block(
-                    sectionShape(unit, beforeId, extras?.before, resolved),
-                    sectionShape(unit, afterId, extras?.after, resolved),
+                    if (extras == null) shapes[beforeSlot] else sectionShape(unit, palette[beforeSlot], extras.before, resolved),
+                    if (extras == null) shapes[afterSlot] else sectionShape(unit, palette[afterSlot], extras.after, resolved),
                 ),
             )
         }
@@ -992,6 +1178,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
         const val INITIAL_CAPACITY = 32
         const val SECTION_DELTA_FROM = 2
+        const val RAW_MAX_EDITS = 1 shl 20
+        const val PACKED_ENDS_FROM = 1024
 
         fun String.matchesAny(material: String, aliases: Set<String>): Boolean =
             materialEquals(material) || aliases.any { materialEquals(it) }

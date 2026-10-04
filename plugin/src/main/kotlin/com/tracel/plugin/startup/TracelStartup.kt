@@ -172,6 +172,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             if (flows.isNotEmpty()) services.capture.recordDirect(flows, epochMillis, cause, causedBy)
         },
         worldSink = { edits -> services.worldCapture.record(edits) },
+        rawWorldSink = { raw -> worldLog.appendRaw(raw, counters::nextSeqRange) },
         placedSink = { placed ->
             services.capture.record(
                 placed.deltas,
@@ -194,14 +195,17 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     plugin.haltIfCaptureDies(drain, "capture drain")
 
     services.flushCapture = {
-        val first = services.pendingCaptures.await()
-        services.blockReleases.flush()
-        val drained = drainer.drainThrough()
-        val second = services.pendingCaptures.await()
-        val entities = services.entityCapture.flush()
-        plugin.writeItemForms(services)
-        services.groundWhereabouts.flush()
-        first && second && entities && drained
+        coroutineScope {
+            val entities = async { services.entityCapture.flush() }
+            val first = services.pendingCaptures.await()
+            services.blockReleases.flush()
+            val drained = drainer.drainThrough()
+            val second = services.pendingCaptures.await()
+            val settled = entities.await() && services.entityCapture.flush()
+            plugin.writeItemForms(services)
+            services.groundWhereabouts.flush()
+            first && second && settled && drained
+        }
     }
 
     val lastCaptures: suspend () -> Unit = {

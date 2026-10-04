@@ -115,4 +115,19 @@ class StructurePlannerScaleTest {
         assertTrue(targets.all { it === targets.first() }, "fifty cells, one stone")
         assertSame(targets.first(), targets.last())
     }
+
+    @Test
+    fun `a plan comes out in the order its cells sit in the world, whatever order the log gave`() {
+        val random = Random(11)
+        val stone = states[1]
+        val cells = (0 until 2_000).map {
+            BlockPos(overworld, random.nextInt(-100, 100), random.nextInt(-64, 320), random.nextInt(-100, 100))
+        }.distinct()
+        val changes = cells.mapIndexed { i, at -> change(i + 1L, at, stone, BlockShape.AIR) }.shuffled(random)
+
+        val (create, _) = StructurePlanner().plan(changes)
+
+        val order = compareBy<BlockPos>({ it.x shr 4 }, { it.z shr 4 }, { it.y }, { it.z and 15 }, { it.x and 15 })
+        assertEquals(cells.sortedWith(order), create.map { it.at })
+    }
 }

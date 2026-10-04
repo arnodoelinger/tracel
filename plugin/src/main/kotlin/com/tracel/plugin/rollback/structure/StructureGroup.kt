@@ -76,8 +76,18 @@ private suspend fun StructureRestorer.applySliced(
     var overwritten = 0
     var blockEntities = 0
 
-    // Folia already owns this region
-    val chunks = steps.mapTo(HashSet()) { dispatchAt(it).let { at -> chunkKey(at.x, at.z) } }
+    // Folia already owns this region.
+    // Steps come chunk by chunk, so a key is only boxed when the chunk changes.
+    val chunks = HashSet<Long>()
+    var lastChunk = Long.MIN_VALUE
+    for (step in steps) {
+        val at = dispatchAt(step)
+        val key = chunkKey(at.x, at.z)
+        if (key != lastChunk) {
+            chunks += key
+            lastChunk = key
+        }
+    }
     loadChunks(world, chunks)
 
     val owned = HashMap<Long, Boolean>()
@@ -118,11 +128,39 @@ private suspend fun StructureRestorer.applySliced(
         paste?.resume()
     }
 
-    val blocks = steps.filterIsInstance<StructureStep.SetBlock>()
-    val removals = steps.filterIsInstance<StructureStep.RemoveEntity>()
+    val blocks = ArrayList<StructureStep.SetBlock>(steps.size)
+    val standalone = ArrayList<StructureStep.SetBlock>(steps.size)
+    val gravity = ArrayList<StructureStep.SetBlock>()
+    val attached = ArrayList<StructureStep.SetBlock>()
+    val removals = ArrayList<StructureStep.RemoveEntity>()
+    val unordered = ArrayList<StructureStep.SpawnEntity>()
+    val wetted = ArrayList<BlockPos>()
+    var anyGravity = false
+    var anySolid = false
+    var anySnow = false
+    for (step in steps) {
+        when (step) {
+            is StructureStep.SetBlock -> {
+                blocks += step
+                val target = ShapeTraits.of(step.target)
+                val either = target or ShapeTraits.of(step.expected)
+                if (either and ShapeTraits.FLUID != 0) wetted += step.at
+                if (either and ShapeTraits.GRAVITY != 0) anyGravity = true
+                if (target and ShapeTraits.SOLID != 0) anySolid = true
+                if (either and ShapeTraits.SNOW != 0) anySnow = true
+                when {
+                    target and ShapeTraits.STANDS_ALONE != 0 -> standalone += step
+                    target and ShapeTraits.GRAVITY != 0 -> gravity += step
+                    else -> attached += step
+                }
+            }
+
+            is StructureStep.RemoveEntity -> removals += step
+            is StructureStep.SpawnEntity -> unordered += step
+        }
+    }
 
     // Spawn leash / vehicle anchors before hangers
-    val unordered = steps.filterIsInstance<StructureStep.SpawnEntity>()
     val anchors = HashSet<UUID>()
     for (step in unordered) {
         step.shape.extras.leashHolder?.let(anchors::add)
@@ -132,10 +170,7 @@ private suspend fun StructureRestorer.applySliced(
 
     // Seed fluid disturbance before any write. Drain also touches fluids; a few hundred blocks
     // later water is already moving. Follow the water.
-    val wetted = blocks.filter {
-        ShapeTraits.of(it.target) and ShapeTraits.FLUID != 0 || ShapeTraits.of(it.expected) and ShapeTraits.FLUID != 0
-    }
-    if (wetted.isNotEmpty()) FluidCell.disturb(wetted.map { it.at })
+    if (wetted.isNotEmpty()) FluidCell.disturb(wetted)
 
     // Despawn first
     val gone = HashSet<UUID>(removals.size)
@@ -155,7 +190,7 @@ private suspend fun StructureRestorer.applySliced(
             is Despawn.Refused -> skipped += SkippedStep(step.at, outcome.reason)
         }
     }
-    if (blocks.any { it.target.hasGravity() || it.expected.hasGravity() }) {
+    if (anyGravity) {
         for (falling in overlappingFalling(world, blocks)) {
             if (!gone.add(falling.uniqueId)) continue
             falling.dropItem = false
@@ -167,12 +202,16 @@ private suspend fun StructureRestorer.applySliced(
         }
     }
 
-    // Order: standalone, then attached, then gravity
-    val hangings = if (blocks.none { it.target.isSolid() }) emptySet() else hangingCells(world, chunks, gone)
-    val (blocked, placeable) = blocks.partition { it.at in hangings && it.target.isSolid() }
-    for ((at) in blocked) skipped += SkippedStep(at, "a painting or item frame hangs in this cell")
-    val (standalone, rest) = placeable.partition { it.target.standsAlone() }
-    val (gravity, attached) = rest.partition { it.target.hasGravity() }
+    val hangings: Set<BlockPos> = if (!anySolid) emptySet() else hangingCells(world, chunks, gone)
+    if (hangings.isNotEmpty()) {
+        for (list in arrayOf(standalone, gravity, attached)) {
+            list.removeAll { step ->
+                val blocked = ShapeTraits.of(step.target) and ShapeTraits.SOLID != 0 && step.at in hangings
+                if (blocked) skipped += SkippedStep(step.at, "a painting or item frame hangs in this cell")
+                blocked
+            }
+        }
+    }
 
     paste = PalettePaste.tryOpen(world)
     paste?.bind()
@@ -202,10 +241,12 @@ private suspend fun StructureRestorer.applySliced(
             }
         }
 
-        val (hanging, held) = attached.partition { !it.target.unsupportedAt(world.blockAt(it.at)) }
-        for (step in standalone + hanging + gravity) {
-            write(step)
-            blockCheckpoint()
+        val (hanging, held) = attached.partition { !it.target.unsupportedAt(world, it.at) }
+        for (list in arrayOf(standalone, hanging, gravity)) {
+            for (step in list) {
+                write(step)
+                blockCheckpoint()
+            }
         }
 
         suspend fun sweep(steps: List<StructureStep.SetBlock>): List<StructureStep.SetBlock> {
@@ -215,7 +256,7 @@ private suspend fun StructureRestorer.applySliced(
                     deferred += step
                     continue
                 }
-                if (step.target.unsupportedAt(world.blockAt(step.at))) left += step else write(step)
+                if (step.target.unsupportedAt(world, step.at)) left += step else write(step)
                 blockCheckpoint()
             }
             return left
@@ -224,7 +265,7 @@ private suspend fun StructureRestorer.applySliced(
         var waiting = sweep(held.sortedBy { it.at.y })
         if (waiting.isNotEmpty()) waiting = sweep(waiting.sortedByDescending { it.at.y })
         while (waiting.isNotEmpty()) {
-            val (ready, still) = waiting.partition { owns(it.at) && !it.target.unsupportedAt(world.blockAt(it.at)) }
+            val (ready, still) = waiting.partition { owns(it.at) && !it.target.unsupportedAt(world, it.at) }
             if (ready.isEmpty()) break
             for (step in ready) {
                 write(step)
@@ -236,11 +277,12 @@ private suspend fun StructureRestorer.applySliced(
         val unwritten = waiting.mapTo(HashSet()) { it.at }
 
         val planned = lazy { blocks.associateBy { it.at } }
-        for ((at, target) in standalone + attached + gravity) {
+        for (list in arrayOf(standalone, attached, gravity)) for ((at, target) in list) {
             blockCheckpoint()
-            if (at in unwritten || target.isAir() || !owns(at)) continue
+            if (target.isAir() || (unwritten.isNotEmpty() && at in unwritten) || !owns(at)) continue
             val open = paste
             if (open != null) {
+                if (open.fireFreeAround(at.x, at.y, at.z)) continue
                 extinguish(open, world, at, target, planned, unwritten, applied)
             } else {
                 val block = world.blockAt(at)
@@ -266,8 +308,8 @@ private suspend fun StructureRestorer.applySliced(
 
         // Second falling sweep: first ran before writes; a gravel wall takes long enough that the
         // world outside (physics is off (!) here) can drop more onto it.
-        val mineNow = blocks.filter { owns(it.at) }
-        if (mineNow.any { it.target.hasGravity() || it.expected.hasGravity() }) {
+        val mineNow = if (anyGravity || anySnow) blocks.filter { owns(it.at) } else emptyList()
+        if (anyGravity && mineNow.any { it.target.hasGravity() || it.expected.hasGravity() }) {
             for (falling in overlappingFalling(world, mineNow)) {
                 if (!gone.add(falling.uniqueId)) continue
                 falling.dropItem = false
@@ -277,7 +319,7 @@ private suspend fun StructureRestorer.applySliced(
             }
         }
 
-        fixSnowyGround(world, mineNow, { x, z -> chunkKey(x, z).let { it in chunks && ownsKey(it) } }) {
+        if (anySnow) fixSnowyGround(world, mineNow, { x, z -> chunkKey(x, z).let { it in chunks && ownsKey(it) } }) {
             if (throttle.spent()) {
                 paste?.pause()
                 hop()

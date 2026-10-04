@@ -1,6 +1,7 @@
 package com.tracel.plugin.rollback.structure.fluid
 
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.engine.rollback.structure.groupByChunk
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.result.report.SkippedStep
@@ -10,7 +11,6 @@ import com.tracel.plugin.rollback.structure.claim
 import com.tracel.plugin.rollback.structure.throttled
 import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.ownsChunkAt
-import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -21,7 +21,8 @@ import java.util.concurrent.atomic.AtomicIntegerArray
 internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep>, drain: Boolean): StructureReport {
     val blocks = written.filterIsInstance<StructureStep.SetBlock>()
     if (blocks.isEmpty()) return StructureReport.EMPTY
-    val groups: List<List<StructureStep>> = blocks.groupBy { it.at.regionKey() }.values.toList()
+    if (blocks.none { touchesOrFeeds(it.target) || touchesOrFeeds(it.expected) }) return StructureReport.EMPTY
+    val groups: List<List<StructureStep>> = groupByChunk(blocks) { it.at }
     val claimed = AtomicIntegerArray(groups.size)
 
     val reports = coroutineScope {
@@ -46,8 +47,9 @@ internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep
                     }
 
                     // The settle may stir fluids around what was written; the writing itself was marked as it went
-                    services.selfManagedWorld.wrote(mine.filter { it.target.touchesFluid() || it.expected.touchesFluid() }
-                        .map { it.at })
+                    services.selfManagedWorld.wrote(
+                        mine.filter { touchesFluidCached(it.target) || touchesFluidCached(it.expected) }.map { it.at }
+                    )
 
                     // Every written block is walked once more here, so it takes turns like the writing did
                     services.governor.throttled(

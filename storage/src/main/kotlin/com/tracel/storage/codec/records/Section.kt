@@ -188,6 +188,46 @@ object Section {
         }
     }
 
+    fun sectionSlots(v: MemorySegment, tailAt: Int = WORLD_SECTION_TAIL): IntArray {
+        val count = sectionCount(v, tailAt)
+        val at = sectionIndicesAt(v, tailAt)
+        val out = IntArray(count * 2)
+        if (sectionFlags(v, tailAt) and SECTION_FLAG_WIDE_INDEX != 0) {
+            for (i in out.indices) out[i] = v.i16(at + i * 2L).toInt() and 0xFFFF
+        } else {
+            for (i in out.indices) out[i] = v.i8(at + i).toInt() and 0xFF
+        }
+        return out
+    }
+
+    fun sectionPalette(v: MemorySegment, tailAt: Int = WORLD_SECTION_TAIL): IntArray {
+        val size = sectionPaletteSize(v, tailAt)
+        val at = paletteOffset(v, tailAt)
+        return IntArray(size) { v.i32(at + it * 4L) }
+    }
+
+    fun sectionExtrasAll(v: MemorySegment, tailAt: Int = WORLD_SECTION_TAIL): Array<SectionExtras?>? {
+        var at = sectionExtrasAt(v, tailAt)
+        val entries = v.i32(at)
+        if (entries == 0) return null
+        at += 4
+        val out = arrayOfNulls<SectionExtras>(sectionCount(v, tailAt))
+        repeat(entries) {
+            val which = v.i32(at)
+            val beforeLength = v.i16(at + 4).toInt() and 0xFFFF
+            val afterLength = v.i16(at + 6).toInt() and 0xFFFF
+            if (which in out.indices && out[which] == null) {
+                out[which] = SectionExtras(
+                    which,
+                    v.readBytes(at + 8, beforeLength),
+                    v.readBytes(at + 8 + beforeLength, afterLength),
+                )
+            }
+            at += 8 + beforeLength + afterLength
+        }
+        return out
+    }
+
     inline fun forEachSectionPosition(
         v: MemorySegment,
         tailAt: Int = worldSectionTail(),
@@ -240,7 +280,7 @@ object Section {
         var at = sectionExtrasAt(v, tailAt)
         val entries = v.i32(at)
         at += 4
-        for (unused in 0 until entries) {
+        repeat(entries) {
             val which = v.i32(at)
             val beforeLength = v.i16(at + 4).toInt() and 0xFFFF
             val afterLength = v.i16(at + 6).toInt() and 0xFFFF

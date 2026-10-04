@@ -4,17 +4,22 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.groupByChunk
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
+import com.tracel.plugin.rollback.structure.block.PasteShapes
+import com.tracel.plugin.rollback.structure.block.ShapeTraits
 import com.tracel.plugin.rollback.structure.block.UNSUPPORTED
+import com.tracel.plugin.util.chunkKey
+import com.tracel.plugin.util.chunkKeyX
+import com.tracel.plugin.util.chunkKeyZ
 import com.tracel.plugin.util.ownsChunkAt
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
+import org.bukkit.World
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicIntegerArray
@@ -38,8 +43,10 @@ internal suspend fun StructureRestorer.restoreSteps(
 
     for (step in steps) {
         if (step is StructureStep.SetBlock) {
-            BlockDataCache.of(step.target.data)
-            BlockDataCache.of(step.expected.data)
+            PasteShapes.of(step.target)
+            PasteShapes.of(step.expected)
+            ShapeTraits.of(step.target)
+            ShapeTraits.of(step.expected)
         }
     }
 
@@ -49,65 +56,80 @@ internal suspend fun StructureRestorer.restoreSteps(
         // Not a lock
         val claimed = AtomicIntegerArray(groups.size)
 
+        // A group is only taken once its chunk is loaded: a region thread that claimed a group whose load was still
+        // on its way loaded it itself, synchronously, and the tick waited for it
+        val ready = AtomicIntegerArray(groups.size)
+
+        // Tickets keep a loaded chunk from unloading again before its group is written
+        val ticketed = ConcurrentLinkedQueue<Pair<World, Long>>()
+
         // Steps whose chunk changed regions while a slow group waited for its next tick
         val deferred = ConcurrentLinkedQueue<StructureStep>()
 
-        val reports = coroutineScope {
-            groups.indices.map { index ->
-                async {
-                    val anchor = dispatchAt(groups[index].first())
-                    // Loaded off the region thread, all at once, before the hop: synchronously on the region
-                    // thread each unloaded chunk stalled its tick, one after another
-                    worldOf(anchor.world)?.let { world ->
-                        val chunks =
-                            groups[index].mapTo(HashSet()) { dispatchAt(it).let { at -> (at.x shr 4) to (at.z shr 4) } }
-                        chunks.map { (cx, cz) -> async { runCatching { world.getChunkAtAsync(cx, cz).await() } } }
-                            .awaitAll()
-                    }
-                    withContext(
-                        services.schedulers.region(
-                            HolderId.Block(
-                                anchor.world,
-                                anchor.x,
-                                anchor.y,
-                                anchor.z
+        val reports = try {
+            coroutineScope {
+                groups.indices.map { index ->
+                    async {
+                        val anchor = dispatchAt(groups[index].first())
+                        // A group is one chunk. Loaded off the region thread, all of them at once, before the hop
+                        worldOf(anchor.world)?.let { world ->
+                            val cx = anchor.x shr 4
+                            val cz = anchor.z shr 4
+                            runCatching { world.getChunkAtAsync(cx, cz).await() }
+                            if (runCatching { world.addPluginChunkTicket(cx, cz, services.plugin) }.getOrDefault(false)) {
+                                ticketed += world to chunkKey(anchor.x, anchor.z)
+                            }
+                        }
+                        ready.set(index, 1)
+                        withContext(
+                            services.schedulers.region(
+                                HolderId.Block(
+                                    anchor.world,
+                                    anchor.x,
+                                    anchor.y,
+                                    anchor.z
+                                )
                             )
-                        )
-                    ) {
-                        val world = worldOf(anchor.world)
-                        if (world == null) {
-                            StructureReport(
-                                emptyList(),
-                                groups[index].map { SkippedStep(it.at, "world is not loaded") })
-                        } else {
-                            val mine = claim(index, groups, claimed)
-                            try {
-                                applyGroup(
-                                    world,
-                                    mine,
-                                    force,
-                                    keepCargoFor,
-                                    ledgerCargoFor,
-                                    ledgerHeldBy,
-                                    dumpHeldCargo,
-                                    driftOnly,
-                                    deferred,
-                                )
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (failure: Throwable) {
-                                logger.log(
-                                    Level.WARNING,
-                                    "a structure group failed; its steps are reported as skipped",
-                                    failure
-                                )
-                                val why = "restore failed here: ${failure.message ?: failure::class.java.simpleName}"
-                                StructureReport(emptyList(), mine.map { SkippedStep(it.at, why) })
+                        ) {
+                            val world = worldOf(anchor.world)
+                            if (world == null) {
+                                StructureReport(
+                                    emptyList(),
+                                    groups[index].map { SkippedStep(it.at, "world is not loaded") })
+                            } else {
+                                val mine = claim(index, groups, claimed, ready)
+                                try {
+                                    applyGroup(
+                                        world,
+                                        mine,
+                                        force,
+                                        keepCargoFor,
+                                        ledgerCargoFor,
+                                        ledgerHeldBy,
+                                        dumpHeldCargo,
+                                        driftOnly,
+                                        deferred,
+                                    )
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (failure: Throwable) {
+                                    logger.log(
+                                        Level.WARNING,
+                                        "a structure group failed; its steps are reported as skipped",
+                                        failure
+                                    )
+                                    val why = "restore failed here: ${failure.message ?: failure::class.java.simpleName}"
+                                    StructureReport(emptyList(), mine.map { SkippedStep(it.at, why) })
+                                }
                             }
                         }
                     }
-                }
-            }.awaitAll()
+                }.awaitAll()
+            }
+        } finally {
+            for ((world, key) in ticketed) {
+                runCatching { world.removePluginChunkTicket(chunkKeyX(key), chunkKeyZ(key), services.plugin) }
+            }
         }
 
         val again = deferred.toList()
@@ -159,18 +181,23 @@ internal fun StructureRestorer.claim(
     index: Int,
     groups: List<List<StructureStep>>,
     claimed: AtomicIntegerArray,
-): List<StructureStep> = claimOwned(index, groups, claimed) { ownsChunkAt(dispatchAt(it)) }
+    ready: AtomicIntegerArray? = null,
+): List<StructureStep> = claimOwned(index, groups, claimed, ready) { ownsChunkAt(dispatchAt(it)) }
 
 /** Claim owned groups without touching the world. */
 private fun claimOwned(
     index: Int,
     groups: List<List<StructureStep>>,
     claimed: AtomicIntegerArray,
+    ready: AtomicIntegerArray?,
     owns: (StructureStep) -> Boolean,
 ): List<StructureStep> {
+    if (claimed.get(index) != 0) return emptyList()
     val mine = ArrayList<StructureStep>()
     for (other in groups.indices) {
-        if (other != index && (claimed.get(other) != 0 || !owns(groups[other].first()))) continue
+        if (other != index && (claimed.get(other) != 0 || (ready != null && ready.get(other) == 0) ||
+                    !owns(groups[other].first()))
+        ) continue
         if (!claimed.compareAndSet(other, 0, 1)) continue
         mine += groups[other]
     }

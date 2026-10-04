@@ -12,6 +12,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -60,6 +61,11 @@ public final class PalettePaste {
     private final IdentityHashMap<Object, Integer> traits = new IdentityHashMap<>();
     private final IdentityHashMap<BlockData, Object> nmsOf = new IdentityHashMap<>();
     private final IdentityHashMap<Object, Material> materials = new IdentityHashMap<>();
+    private final IdentityHashMap<Object, Boolean> fireFree = new IdentityHashMap<>();
+    private final Predicate<Object> fire = state -> {
+        Material material = material(state);
+        return material == Material.FIRE || material == Material.SOUL_FIRE;
+    };
     public int written;
     public Object lastRead;
     private LongMap<PasteChunk> chunks = new LongMap<>();
@@ -68,6 +74,11 @@ public final class PalettePaste {
     private PasteChunk lastChunk;
     private boolean dead;
     private byte capture; // 0 unknown, 1 capturing, -1 not. Read once per paste
+    private int fireCx = Integer.MIN_VALUE;
+    private int fireCz;
+    private int fireSection;
+    private boolean fireTop;
+    private boolean fireAnswer;
     private int finishPhase;
     private int finishIndex;
 
@@ -154,6 +165,8 @@ public final class PalettePaste {
             LOG.log(Level.WARNING, "client updates during a rollback paste failed", failure);
         }
         for (PasteChunk chunk : dirty) chunk.changeCount = 0;
+        fireFree.clear();
+        fireCx = Integer.MIN_VALUE;
         chunks = new LongMap<>();
         lastChunk = null;
         lastCx = Integer.MIN_VALUE;
@@ -258,6 +271,46 @@ public final class PalettePaste {
             die(failure);
             return null;
         }
+    }
+
+    /**
+     * Whether the section holding the block certainly has no fire in it.
+     */
+    @SuppressWarnings("rawtypes")
+    public boolean fireFreeAt(int x, int y, int z) {
+        if (dead || nms.maybeHas == null) return false;
+        try {
+            PasteChunk chunk = chunk(x >> 4, z >> 4);
+            if (chunk == null) return false;
+            Object section = chunk.section(y);
+            if (section == null) return false;
+            Boolean known = fireFree.get(section);
+            if (known != null) return known;
+            boolean free = !(boolean) nms.maybeHas.invokeExact(section, (Predicate) fire);
+            fireFree.put(section, free);
+            return free;
+        } catch (Throwable failure) {
+            return false;
+        }
+    }
+
+    /**
+     * {@link #fireFreeAt} for the block and the one above it, answered once per section: blocks come in the order they
+     * sit in, so a run of them shares the answer of the first.
+     */
+    public boolean fireFreeAround(int x, int y, int z) {
+        int cx = x >> 4;
+        int cz = z >> 4;
+        int section = y >> 4;
+        boolean top = (y & 15) == 15;
+        if (cx == fireCx && cz == fireCz && section == fireSection && top == fireTop) return fireAnswer;
+        boolean answer = fireFreeAt(x, y, z) && fireFreeAt(x, y + 1, z);
+        fireCx = cx;
+        fireCz = cz;
+        fireSection = section;
+        fireTop = top;
+        fireAnswer = answer;
+        return answer;
     }
 
     /**

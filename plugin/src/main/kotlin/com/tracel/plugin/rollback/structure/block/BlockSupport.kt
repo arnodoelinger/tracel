@@ -1,8 +1,10 @@
 package com.tracel.plugin.rollback.structure.block
 
+import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
 import org.bukkit.Material
+import org.bukkit.World
 import org.bukkit.block.Block
 
 /** Why a block is held back when nothing it hangs on exists. */
@@ -21,8 +23,10 @@ internal fun BlockShape.unsupportedAt(block: Block): Boolean {
     return runCatching { !data.isSupported(block) }.getOrDefault(false)
 }
 
-/** Whether a block like this has a body a hanging entity would collide with. */
-internal fun BlockShape.isSolid(): Boolean = ShapeTraits.of(this) and ShapeTraits.SOLID != 0
+/** [unsupportedAt] for the block at [at], opened only when the answer depends on it. */
+internal fun BlockShape.unsupportedAt(world: World, at: BlockPos): Boolean {
+    return !(standsAlone() || hasGravity() || isAir()) && unsupportedAt(world.blockAt(at))
+}
 
 /** Whether it's a fire. */
 internal fun BlockShape.isFire(): Boolean = ShapeTraits.of(this) and ShapeTraits.FIRE != 0

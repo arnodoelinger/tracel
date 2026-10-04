@@ -11,13 +11,31 @@ private const val MIN_CAPACITY = 16
 
 private const val MAX_PRESIZE = 1 shl 16
 
+private const val CHUNK_OFFSET = XZ_LIMIT shr 4
+private const val CHUNK_MASK = (1L shl 22) - 1
+
 private const val FREE = -1
 
 private fun fits(at: BlockPos): Boolean =
     at.x >= -XZ_LIMIT && at.x < XZ_LIMIT && at.z >= -XZ_LIMIT && at.z < XZ_LIMIT && at.y >= -Y_LIMIT && at.y < Y_LIMIT
 
-private fun pack(at: BlockPos): Long =
-    ((at.x.toLong() and 0x3FFFFFF) shl 38) or ((at.z.toLong() and 0x3FFFFFF) shl 12) or (at.y.toLong() and 0xFFF)
+private fun pack(at: BlockPos): Long = packXyz(at.x, at.y, at.z)
+
+private fun spatial(x: Int, y: Int, z: Int): Long =
+    (((x shr 4) + CHUNK_OFFSET).toLong() shl 42) or (((z shr 4) + CHUNK_OFFSET).toLong() shl 20) or
+            ((y + Y_LIMIT).toLong() shl 8) or ((z and 15).toLong() shl 4) or (x and 15).toLong()
+
+private fun spatialX(key: Long): Int = (((key ushr 42).toInt() - CHUNK_OFFSET) shl 4) or (key and 15).toInt()
+private fun spatialZ(key: Long): Int =
+    ((((key ushr 20) and CHUNK_MASK).toInt() - CHUNK_OFFSET) shl 4) or ((key ushr 4) and 15).toInt()
+private fun spatialY(key: Long): Int = ((key ushr 8) and 0xFFF).toInt() - Y_LIMIT
+
+private fun packXyz(x: Int, y: Int, z: Int): Long =
+    ((x.toLong() and 0x3FFFFFF) shl 38) or ((z.toLong() and 0x3FFFFFF) shl 12) or (y.toLong() and 0xFFF)
+
+private fun unpackX(key: Long): Int = (key shr 38).toInt()
+private fun unpackZ(key: Long): Int = ((key shl 26) shr 38).toInt()
+private fun unpackY(key: Long): Int = ((key shl 52) shr 52).toInt()
 
 private fun hash(key: Long): Int {
     var h = key * -7046029254386353131L
@@ -103,7 +121,23 @@ internal class CellEnds(changes: List<WorldChange>) {
         }
 
         fun forEach(visit: (oldest: Int, newest: Int) -> Unit) {
-            for (i in 0 until size) visit(oldest[order[i]], newest[order[i]])
+            val keys = LongArray(size)
+            for (i in 0 until size) {
+                val key = this.keys[order[i]]
+                keys[i] = spatial(unpackX(key), unpackY(key), unpackZ(key)) xor Long.MIN_VALUE
+            }
+            keys.sort()
+            for (i in keys.indices) {
+                val at = keys[i] xor Long.MIN_VALUE
+                val slot = slotOf(packXyz(spatialX(at), spatialY(at), spatialZ(at)))
+                visit(oldest[slot], newest[slot])
+            }
+        }
+
+        private fun slotOf(key: Long): Int {
+            var slot = hash(key) and mask
+            while (keys[slot] != key || oldest[slot] == FREE) slot = (slot + 1) and mask
+            return slot
         }
 
         private fun grow() {

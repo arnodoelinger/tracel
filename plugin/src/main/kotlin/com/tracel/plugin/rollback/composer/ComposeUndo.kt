@@ -81,8 +81,10 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
     val noise = record.plan.noiseMints()
     val undoDeltas = materialHalf.deltasForUndo(materialSteps, noise)
 
-    // Taking a hull or container away that still holds items would destroy them, or leave both it and its item
-    val stuck = services.leftHolding(takeAway, undoDeltas).firstOrNull()
+    // Taking a hull or container away that still holds items would destroy them, or leave both it and its item.
+    // Counted as the ledger will: folded noise mints leave the books too, not only the world.
+    val bookDeltas = if (noise.isEmpty()) undoDeltas else materialHalf.deltasForUndo(materialSteps, emptySet())
+    val stuck = services.leftHolding(takeAway, bookDeltas).firstOrNull()
     if (stuck != null) {
         return Unreachable(
             stuck,

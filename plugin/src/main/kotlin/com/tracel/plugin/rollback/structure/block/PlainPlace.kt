@@ -23,16 +23,13 @@ import org.bukkit.block.data.type.Leaves
 internal fun PalettePaste.place(step: StructureStep.SetBlock, force: Boolean, driftOnly: Boolean): Outcome? {
     if (capturing()) return null
     if (step.target.extras != null || step.expected.extras != null) return null
-    if (step.target.data.value.startsWith("minecraft:moving_piston")) {
-        return Refused("was caught mid-push by a piston; nothing to put back")
-    }
-    val targetData = BlockDataCache.of(step.target.data) ?: return null
-    val targetState = stateOf(targetData) ?: return null
-    val expectedData = BlockDataCache.of(step.expected.data)
-    val expectedAir = expectedData?.material?.isAir == true ||
-            (expectedData == null && step.expected == BlockShape.AIR)
-    val expectedState = if (expectedData != null && !expectedData.material.isAir) stateOf(expectedData) else null
-    if (expectedData != null && !expectedData.material.isAir && expectedState == null) return null
+    val target = PasteShapes.of(step.target)
+    if (target.movingPiston) return Refused("was caught mid-push by a piston; nothing to put back")
+    if (target.data == null) return null
+    val targetState = target.stateIn(this) ?: return null
+    val expected = PasteShapes.of(step.expected)
+    val expectedAir = expected.air || (expected.data == null && step.expected == BlockShape.AIR)
+    val expectedState = if (expected.data != null && !expected.air) (expected.stateIn(this) ?: return null) else null
     when (
         placeFast(
             step.at.x,
@@ -40,13 +37,13 @@ internal fun PalettePaste.place(step: StructureStep.SetBlock, force: Boolean, dr
             step.at.z,
             targetState,
             expectedState,
-            targetData.material.isAir,
+            target.air,
             expectedAir,
         )
     ) {
         PalettePaste.Fast.UNCHANGED -> return Unchanged
         PalettePaste.Fast.WRITTEN -> {
-            wakeIfNeeded(step.at.x, step.at.y, step.at.z, targetData)
+            wakeIfNeeded(step.at.x, step.at.y, step.at.z, target)
             return Applied(step)
         }
 
@@ -69,14 +66,13 @@ internal fun PalettePaste.place(step: StructureStep.SetBlock, force: Boolean, dr
     }
 }
 
-private fun PalettePaste.wakeIfNeeded(x: Int, y: Int, z: Int, targetData: org.bukkit.block.data.BlockData) {
-    val leafy = Tag.LOGS.isTagged(targetData.material) || targetData is Leaves
-    val bubbly = wakesBubbles(targetData.material)
+private fun PalettePaste.wakeIfNeeded(x: Int, y: Int, z: Int, target: PasteShape) {
     val live = lastRead
-    if (!leafy && !bubbly && (live == null || !wakesBubbles(material(live)))) return
+    val bubblesWere = live != null && wakesBubbles(material(live))
+    if (!target.leafy && !target.bubbly && !bubblesWere) return
     val block = world.getBlockAt(x, y, z)
-    if (bubbly || (live != null && wakesBubbles(material(live)))) block.wakeBubbles()
-    if (leafy) runCatching { block.settleLeaves() }
+    if (target.bubbly || bubblesWere) block.wakeBubbles()
+    if (target.leafy) runCatching { block.settleLeaves() }
 }
 
 private fun PalettePaste.plan(step: StructureStep.SetBlock, force: Boolean, driftOnly: Boolean): Plan? {
@@ -150,11 +146,6 @@ private fun PalettePaste.drifted(live: Any, expected: BlockShape): Boolean = dri
     waterlogged(live),
     expected,
 )
-
-private fun wakesBubbles(material: Material): Boolean = when (material) {
-    Material.SOUL_SAND, Material.MAGMA_BLOCK, Material.BUBBLE_COLUMN -> true
-    else -> false
-}
 
 private sealed interface Plan
 

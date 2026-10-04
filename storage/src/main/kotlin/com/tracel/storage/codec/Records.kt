@@ -185,6 +185,13 @@ object Records {
     fun sectionAfter(v: MemorySegment, index: Int, tailAt: Int = Section.worldSectionTail()) =
         Section.sectionAfter(v, index, tailAt)
 
+    fun sectionSlots(v: MemorySegment, tailAt: Int = Section.worldSectionTail()) = Section.sectionSlots(v, tailAt)
+
+    fun sectionPalette(v: MemorySegment, tailAt: Int = Section.worldSectionTail()) = Section.sectionPalette(v, tailAt)
+
+    fun sectionExtrasAll(v: MemorySegment, tailAt: Int = Section.worldSectionTail()) =
+        Section.sectionExtrasAll(v, tailAt)
+
     inline fun forEachSectionPosition(
         v: MemorySegment,
         tailAt: Int = Section.worldSectionTail(),
