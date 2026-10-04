@@ -37,6 +37,8 @@ import java.util.*
 internal object ChangeLinePresenter {
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
 
+    private enum class Half { FIRST, SECOND }
+
     /** Creates a component representing the change. */
     fun of(change: WorldChange, actors: Actors = Actors.NONE): Component {
         val who = change.causedBy?.let { holder(it, actors) } ?: Component.text(change.cause.name.lowercase())
@@ -94,6 +96,7 @@ internal object ChangeLinePresenter {
         val visit: Long? = null,
         val rolledAt: Long? = null,
         val counted: Boolean = true,
+        val pairs: Boolean = false,
     )
 
     /** [delta] is what this line did to the side [family] counts for: positive for [ItemPresenter.Family.plus]. */
@@ -123,7 +126,8 @@ internal object ChangeLinePresenter {
             at = change.at,
             mode = modeOf(change.causedBy, change.epochMillis, actors),
             rolledAt = rolledAt,
-            counted = !isSecondHalf(change),
+            counted = halfOf(change) != Half.SECOND,
+            pairs = halfOf(change) != null,
         )
     }
 
@@ -439,10 +443,14 @@ internal object ChangeLinePresenter {
         }
     }
 
-    private fun isSecondHalf(change: WorldChange): Boolean {
-        if (change.action != ActionKind.BLOCK_PLACE) return false
-        val after = (change.subject as? ChangeSubject.Block)?.after?.data?.value ?: return false
-        return "part=head" in after || "half=upper" in after
+    private fun halfOf(change: WorldChange): Half? {
+        if (change.action != ActionKind.BLOCK_PLACE) return null
+        val after = (change.subject as? ChangeSubject.Block)?.after?.data?.value ?: return null
+        return when {
+            "part=head" in after || "half=upper" in after -> Half.SECOND
+            "part=foot" in after || "half=lower" in after -> Half.FIRST
+            else -> null
+        }
     }
 
     private fun id(shape: BlockShape): String = shape.data.value.substringBefore('[')

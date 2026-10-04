@@ -32,6 +32,7 @@ internal class LookupSearch(
     private val lock = Mutex()
     private val stacks = ArrayList<ChangeLinePresenter.Stack>()
     private val byKey = HashMap<Any, ChangeLinePresenter.Stack>()
+    private val halves = HashMap<Pair<Any, Long>, ChangeLinePresenter.Stack>()
     private val visitNewest = HashMap<Long, Long>()
     private val actors = Actors(services.actors)
     private val rolled = HashMap<Long, Long>()
@@ -118,7 +119,14 @@ internal class LookupSearch(
 
     private fun stack(line: ChangeLinePresenter.Logged) {
         if (parsed.each) {
-            stacks += ChangeLinePresenter.Stack(line)
+            val waiting = if (line.pairs) halves.remove(line.key to line.millis) else null
+            if (waiting != null && waiting.first.counted != line.counted) {
+                waiting.add(line)
+                return
+            }
+            val own = ChangeLinePresenter.Stack(line)
+            if (line.pairs) halves[line.key to line.millis] = own
+            stacks += own
             return
         }
         val existing = byKey[line.key]
