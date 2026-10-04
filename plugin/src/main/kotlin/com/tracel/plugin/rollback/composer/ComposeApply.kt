@@ -134,6 +134,8 @@ private suspend fun RollbackComposer.applyReserved(
     val waking = (first.created.applied + destroyed.applied).redstoneCells().toList()
     if (waking.isNotEmpty()) services.scope.launch { structureHalf.wakeRedstone(waking.asSequence()) }
 
+    services.rolledBack.mark(job.raw, planned.taken, System.currentTimeMillis())
+
     return RollbackResult.Done(job, planned, first.created + destroyed, later.material)
 }
 

@@ -168,6 +168,7 @@
     "hover": {
       "turned": "<white><from> → <to></white>",
       "time": "<gray>Время:</gray> <white><time></white>",
+      "rolled_back": "<gray>Откачено:</gray> <white><time></white> <gray>(<ago>)</gray>",
       "coords": "<gray>Координаты:</gray> <white><at></white>",
       "mode": "<gray>Режим игры:</gray> <mode>",
       "teleport": "<white>Нажмите, чтобы телепортироваться</white>",

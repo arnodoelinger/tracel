@@ -187,10 +187,13 @@ class RollbackAction internal constructor(
             when (outcome) {
                 is RollbackResult.Done -> {
                     val took = (System.nanoTime() - started) / 1_000_000
-                    if (RollbackPresenter.appliedNothing(outcome)) services.atomically {
-                        services.jobs.markUndone(
-                            outcome.job
-                        )
+                    if (RollbackPresenter.appliedNothing(outcome)) {
+                        services.atomically {
+                            services.jobs.markUndone(
+                                outcome.job
+                            )
+                        }
+                        services.rolledBack.restore(outcome.job.raw)
                     }
                     RollbackPresenter.report(sender, outcome, took)
                     return

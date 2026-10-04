@@ -82,6 +82,12 @@ internal suspend fun RollbackComposer.planRollback(
     val vanishedCells = outcome?.airToAir ?: emptySet()
     val bornAndGone = outcome?.bornAndGone ?: emptySet()
     val target = materials.target.awayFromAirToAir(vanishedCells).awayFromEntitiesGone(bornAndGone)
+    val everyChange = if (!structure || changes.isEmpty()) emptyList() else services.worldLog.query(wide)
+    val taken = HashSet<Long>(paired.size + txns.size).also { seqs ->
+        for ((seq) in paired) seqs += seq.raw
+        for (txn in txns) seqs += txn.seq.raw
+        for (change in everyChange) if (change.seq.raw >= importedBelow && change.action != ActionKind.BLOCK_CLICK) seqs += change.seq.raw
+    }.toLongArray()
     return Planned(
         CompositeRollbackPlan(create, materials.plan, destroy),
         target,
@@ -94,6 +100,7 @@ internal suspend fun RollbackComposer.planRollback(
         structure,
         covered,
         imported = imported,
+        taken = taken,
         asItStood = filter.region?.takeIf { structure && imported == 0 && filter.leavesNothingOut() },
     )
 }

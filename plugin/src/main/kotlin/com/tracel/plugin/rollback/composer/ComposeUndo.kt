@@ -188,6 +188,7 @@ private suspend fun RollbackComposer.undoFrozen(
             }
             val respawned = materialHalf.respawnReturnedDrops(outcome.steps, job, hullAt, material.shortfall)
             services.jobs.markUndone(job)
+            services.rolledBack.restore(job.raw)
 
             // Physics was off; wake redstone after both halves. Nothing in the report waits on it
             val waking = (restored.applied + removed.applied).redstoneCells().toList()
@@ -209,6 +210,7 @@ private suspend fun RollbackComposer.undoFrozen(
             val removed = structureHalf.restore(takeAway, takingAway)
             written += restored.applied + removed.applied
             services.jobs.markUndone(job)
+            services.rolledBack.restore(job.raw)
             UndoResult.AlreadyUndone
         } else {
             putBackAgain()

@@ -21,6 +21,7 @@ import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator
 import org.bukkit.Bukkit
@@ -88,13 +89,16 @@ internal object ChangeLinePresenter {
         val mode: GameMode? = null,
         val net: Net? = null,
         val visit: Long? = null,
+        /** When a rollback took this record back, if one did: the line is struck out. */
+        val rolledAt: Long? = null,
     )
 
     /** [delta] is what this line did to the side [family] counts for: positive for [ItemPresenter.Family.plus]. */
     class Net(val family: ItemPresenter.Family, val delta: Long, val item: Component, val material: String)
 
     /** The line of the log for [change]: what happened, who did it, when and where. */
-    fun logged(change: WorldChange, actors: Actors): Logged {
+    fun logged(change: WorldChange, actors: Actors, rolled: Map<Long, Long> = emptyMap()): Logged {
+        val rolledAt = rolled[change.seq.raw]
         val phrase = phrase(change)
         val (from, to) = when (val subject = change.subject) {
             is ChangeSubject.Block -> id(subject.before) to id(subject.after)
@@ -102,7 +106,7 @@ internal object ChangeLinePresenter {
         }
         return Logged(
             millis = change.epochMillis,
-            key = listOf(change.causedBy ?: change.cause, change.cause, change.action, from, to),
+            key = listOf(change.causedBy ?: change.cause, change.cause, change.action, from, to, rolledAt != null),
             mark = mark(change.action),
             who = who(change.causedBy, change.cause, actors),
             verb = phrase.verb,
@@ -114,6 +118,7 @@ internal object ChangeLinePresenter {
             to = phrase.to,
             at = change.at,
             mode = modeOf(change.causedBy, change.epochMillis, actors),
+            rolledAt = rolledAt,
         )
     }
 
@@ -147,7 +152,14 @@ internal object ChangeLinePresenter {
     }
 
     /** The item lines of [transaction]: what was put, taken, dropped, crafted. */
-    fun logged(transaction: Transaction, item: String?, everything: Boolean, actors: Actors): List<Logged> {
+    fun logged(
+        transaction: Transaction,
+        item: String?,
+        everything: Boolean,
+        actors: Actors,
+        rolled: Map<Long, Long> = emptyMap(),
+    ): List<Logged> {
+        val rolledAt = rolled[transaction.seq.raw]
         if (transaction.cause.isBookkeeping || (transaction.cause == CauseKind.WEAR && !everything)) return emptyList()
         return transaction.flows.mapNotNull { flow ->
             if (item != null && !flow.itemKey.material.namesMaterial(item)) return@mapNotNull null
@@ -171,8 +183,8 @@ internal object ChangeLinePresenter {
                 if (family == null) 0 else if (act.name == family.plus) flow.quantity.raw else -flow.quantity.raw
             Logged(
                 millis = transaction.epochMillis,
-                key = if (visit != null) listOf(doer, "visit", visit, flow.itemKey.material) else listOf(
-                    doer ?: transaction.cause, family?.name ?: act.name, flow.itemKey.material, place
+                key = if (visit != null) listOf(doer, "visit", visit, flow.itemKey.material, rolledAt != null) else listOf(
+                    doer ?: transaction.cause, family?.name ?: act.name, flow.itemKey.material, place, rolledAt != null
                 ),
                 mark = act.mark,
                 who = who(doer, transaction.cause, actors),
@@ -186,6 +198,7 @@ internal object ChangeLinePresenter {
                 mode = modeOf(doer, transaction.epochMillis, actors),
                 net = family?.let { Net(it, delta, name, flow.itemKey.material) },
                 visit = visit,
+                rolledAt = rolledAt,
             )
         }
     }
@@ -267,6 +280,9 @@ internal object ChangeLinePresenter {
                 )
             }
             add(tr("lookup.hover.time", "time" to STAMP.format(Instant.ofEpochMilli(entry.millis))))
+            entry.rolledAt?.let {
+                add(tr("lookup.hover.rolled_back", "time" to STAMP.format(Instant.ofEpochMilli(it)), "ago" to ago(nowMillis - it)))
+            }
             if (at != null) add(tr("lookup.hover.coords", "at" to "${at.x}, ${at.y}, ${at.z}"))
             entry.mode?.let { add(tr("lookup.hover.mode", "mode" to tr("lookup.mode.${it.name.lowercase()}"))) }
             if (at != null) {
@@ -288,9 +304,14 @@ internal object ChangeLinePresenter {
         val row = Component.text()
             .append(ago.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
             .append(mark).append(Component.space())
-            .append(entry.who).append(Component.space())
-            .append(verb.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
-            .append(what).append(times)
+            .append(
+                Component.text()
+                    .append(entry.who).append(Component.space())
+                    .append(verb.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
+                    .append(what).append(times)
+                    .build()
+                    .decoration(TextDecoration.STRIKETHROUGH, entry.rolledAt != null)
+            )
             .build()
             .hoverEvent(HoverEvent.showText(Component.join(JoinConfiguration.newlines(), shown)))
         return if (at == null) row else row.clickEvent(ClickEvent.runCommand("/tracel tp ${at.world.uuid} ${at.x} ${at.y} ${at.z}"))

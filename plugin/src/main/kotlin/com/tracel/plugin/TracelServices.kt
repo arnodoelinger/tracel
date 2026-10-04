@@ -49,6 +49,7 @@ import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.ops.Counters
+import com.tracel.storage.ports.log.RolledBack
 import com.tracel.storage.ports.ops.ForeignHistory
 import com.tracel.storage.ports.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
@@ -129,6 +130,7 @@ class TracelServices(
     val purging: AtomicBoolean = AtomicBoolean(false)
     val governor: TickGovernor = TickGovernor(plugin, governorSettings)
     val events: EventLog = EventLog(storage)
+    val rolledBack: RolledBack = RolledBack(storage)
     val foreign: ForeignHistory = ForeignHistory(storage, worldLog, log, events, counters)
     val purgeGate: PurgeGate = PurgeGate { composite.isRunning }
     val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }

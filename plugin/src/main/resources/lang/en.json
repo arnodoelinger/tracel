@@ -168,6 +168,7 @@
     "hover": {
       "turned": "<white><from> → <to></white>",
       "time": "<gray>Time:</gray> <white><time></white>",
+      "rolled_back": "<gray>Rolled back:</gray> <white><time></white> <gray>(<ago>)</gray>",
       "coords": "<gray>Coordinates:</gray> <white><at></white>",
       "mode": "<gray>Gamemode:</gray> <mode>",
       "teleport": "<white>Click here to teleport</white>",

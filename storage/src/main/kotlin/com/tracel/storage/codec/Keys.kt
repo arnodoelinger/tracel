@@ -57,6 +57,8 @@ import com.tracel.storage.spi.EngineCursor
  * | 2D   | `evt / seq`                                                        | packed event         | retention            |
  * | 2E   | `evtActor / holderId / ~epochMillis / ~seq`                        | —                    | range, newest first  |
  * | 2F   | `evtTime / ~epochMillis / ~seq`                                    | —                    | range, newest first  |
+ * | 30   | `rolled / seq`                                                     | jobId, epochMillis   | point                |
+ * | 31   | `rolledJob / jobId / seq`                                          | —                    | prefix               |
  */
 object Keys {
     fun tagName(tag: Byte): String = when (tag) {
@@ -105,6 +107,8 @@ object Keys {
         EVENT -> "evt"
         EVENT_ACTOR -> "evtActor"
         EVENT_TIME -> "evtTime"
+        ROLLED -> "rolled"
+        ROLLED_JOB -> "rolledJob"
         else -> "tag%02x".format(tag.toInt() and 0xff)
     }
 
@@ -155,6 +159,8 @@ object Keys {
     const val EVENT: Byte = 0x2D
     const val EVENT_ACTOR: Byte = 0x2E
     const val EVENT_TIME: Byte = 0x2F
+    const val ROLLED: Byte = 0x30
+    const val ROLLED_JOB: Byte = 0x31
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -356,6 +362,12 @@ object Keys {
 
     fun importMark(sourceId: Long): ByteArray = KeyWriter(9).tag(IMPORT_MARK).u64(sourceId).done()
 
+    fun rolled(seq: Long): ByteArray = KeyWriter(9).tag(ROLLED).u64(seq).done()
+
+    fun rolledJob(jobId: Long, seq: Long): ByteArray = KeyWriter(17).tag(ROLLED_JOB).u64(jobId).u64(seq).done()
+
+    fun rolledJobPrefix(jobId: Long): ByteArray = KeyWriter(9).tag(ROLLED_JOB).u64(jobId).done()
+
     fun event(seq: Long): ByteArray = KeyWriter(9).tag(EVENT).u64(seq).done()
 
     fun eventActor(holderId: Int, epochMillis: Long, seq: Long): ByteArray =
@@ -433,6 +445,8 @@ object Keys {
         EVENT,
         EVENT_ACTOR,
         EVENT_TIME,
+        ROLLED,
+        ROLLED_JOB,
     )
 }
 

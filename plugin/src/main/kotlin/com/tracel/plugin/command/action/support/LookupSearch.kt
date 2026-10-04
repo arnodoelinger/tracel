@@ -34,15 +34,22 @@ internal class LookupSearch(
     private val byKey = HashMap<Any, ChangeLinePresenter.Stack>()
     private val visitNewest = HashMap<Long, Long>()
     private val actors = Actors(services.actors)
+    private val rolled = HashMap<Long, Long>()
 
     private val world = if (blocks) Cursor({ until, limit ->
         services.reading { services.worldLog.query(filter.copy(until = until, limit = limit)) }
-            .also { changes -> actors.learn(changes.map { it.causedBy }) }
+            .also { changes ->
+                actors.learn(changes.map { it.causedBy })
+                learnRolled(changes.map { it.seq.raw })
+            }
     }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
 
     private val txns = if (items) Cursor({ until, limit ->
         services.reading { services.log.query(filter.copy(until = until, limit = limit)) }
-            .also { found -> actors.learn(found.flatMap(::holdersOf)) }
+            .also { found ->
+                actors.learn(found.flatMap(::holdersOf))
+                learnRolled(found.map { it.seq.raw })
+            }
     }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
 
     private val said = if (events.isNotEmpty()) Cursor({ until, limit ->
@@ -69,6 +76,10 @@ internal class LookupSearch(
             if (a.first.visit != null && a.first.visit == b.first.visit) a.oldest.compareTo(b.oldest) else 0
         },
     )
+
+    private suspend fun learnRolled(seqs: List<Long>) {
+        rolled += services.rolledBack.of(seqs)
+    }
 
     private fun holdersOf(transaction: Transaction): List<HolderId?> =
         listOf(transaction.causedBy) + transaction.flows.flatMap { listOf(it.source, it.destination) }
@@ -98,11 +109,11 @@ internal class LookupSearch(
 
     private fun add(change: WorldChange) {
         if (parsed.actions.isEmpty() && !parsed.natural && ChangeLinePresenter.isUnnamedChange(change)) return
-        stack(ChangeLinePresenter.logged(change, actors))
+        stack(ChangeLinePresenter.logged(change, actors, rolled))
     }
 
     private fun add(transaction: Transaction) {
-        ChangeLinePresenter.logged(transaction, parsed.item, parsed.natural, actors).forEach(::stack)
+        ChangeLinePresenter.logged(transaction, parsed.item, parsed.natural, actors, rolled).forEach(::stack)
     }
 
     private fun stack(line: ChangeLinePresenter.Logged) {

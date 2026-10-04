@@ -21,4 +21,5 @@ data class Planned(
     val by: HolderId? = null,
     val imported: Int = 0,
     val asItStood: LookupRegion? = null,
+    val taken: LongArray = LongArray(0),
 )
