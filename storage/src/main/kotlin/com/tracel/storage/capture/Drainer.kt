@@ -92,17 +92,26 @@ class Drainer(
     suspend fun drainThrough(timeoutMs: Long = DEFAULT_FLUSH_MILLIS): Boolean {
         val upTo = ring.claimCursor()
         val deadline = System.currentTimeMillis() + timeoutMs
-        while (ring.consumerCursor() < upTo && System.currentTimeMillis() < deadline) {
+        val queued = ring.overflowQueuedTotal()
+        while ((ring.consumerCursor() < upTo || ring.overflowAppliedTotal() < queued) &&
+            System.currentTimeMillis() < deadline
+        ) {
             // Nothing published yet means a producer is between claim and publish: give it a moment
             if (drainOnce() == 0) delay(1.milliseconds)
         }
-        return ring.consumerCursor() >= upTo
+        return ring.consumerCursor() >= upTo && ring.overflowAppliedTotal() >= queued
     }
 
     private suspend fun drainLocked(): Int {
-        if (ring.consumerCursor() >= retireFence && interning.retireProvisional()) retireFence = ring.claimCursor()
+        // Events waiting outside the ring still hold the ids of this generation: retiring them would lose the events
+        if (ring.consumerCursor() >= retireFence && !ring.hasOverflow() && interning.retireProvisional()) {
+            retireFence = ring.claimCursor()
+        }
         val collected = ring.collectPublished(maxBatch)
-        val events = collected.events
+
+        // The ring first: whatever waits outside it came after everything in it
+        val overflowed = if (collected.events.isEmpty()) ring.takeOverflow(maxBatch) else null
+        val events = overflowed?.events ?: collected.events
         if (events.isEmpty()) return 0
 
         val unparked = ArrayList<Int>()
@@ -147,7 +156,7 @@ class Drainer(
             }
         }
         // Released only now
-        ring.releaseSlots(collected.end)
+        if (overflowed != null) ring.releaseOverflow(overflowed) else ring.releaseSlots(collected.end)
         ring.forgetParked(unparked)
         drainedBatches.incrementAndGet()
         return events.size

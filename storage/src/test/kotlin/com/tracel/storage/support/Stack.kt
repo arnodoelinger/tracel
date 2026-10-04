@@ -6,6 +6,7 @@ import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.world.WorldCaptureCoordinator
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
+import com.tracel.storage.capture.CaptureRing
 import com.tracel.storage.capture.Drainer
 import com.tracel.storage.codec.History
 import com.tracel.storage.lsm.LsmConfig
@@ -21,8 +22,14 @@ import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import java.nio.file.Path
 
-class Stack(path: Path, config: LsmConfig = LsmConfig()) : AutoCloseable {
-    val storage: TracelStorage = TracelStorage.open(path) { LsmEngine(it, History.configured(config)) }
+class Stack(
+    path: Path,
+    config: LsmConfig = LsmConfig(),
+    ringSlots: Int = TracelStorage.DEFAULT_RING_SLOTS,
+    overflowSlots: Int = ringSlots * CaptureRing.OVERFLOW_FACTOR,
+) : AutoCloseable {
+    val storage: TracelStorage =
+        TracelStorage.open(path, ringSlots = ringSlots, overflowSlots = overflowSlots) { LsmEngine(it, History.configured(config)) }
     val counters: Counters = Counters(storage)
     val repo: LotRepository = LotRepository(storage, counters)
     val ledger: LotLedger = LotLedger(repo)

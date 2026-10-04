@@ -1,6 +1,7 @@
 package com.tracel.storage.capture
 
 import com.tracel.annotations.CauseKind
+import com.tracel.engine.world.BlockEdits
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
@@ -9,9 +10,11 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.storage.codec.CaptureSlot
 import com.tracel.storage.ffm.OffHeapRing
 import com.tracel.storage.intern.Interning
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.delay
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val APPLIED_POLL_MILLIS = 10L
@@ -48,15 +51,31 @@ private const val APPLIED_POLL_MILLIS = 10L
  * ring.commit(claim, 2)
  * ```
  */
-class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable {
+class CaptureRing(
+    slots: Int,
+    private val interning: Interning,
+    overflowSlots: Int = slots * OVERFLOW_FACTOR,
+) : AutoCloseable {
     private val ring = OffHeapRing(slots)
+
+    private val overflowCapacity = overflowSlots.toLong()
+    private val waiting = ConcurrentLinkedQueue<Queued>()
+    private val overflowHeld = AtomicLong()
+    private val overflowQueued = AtomicLong()
+    private val overflowApplied = AtomicLong()
+    private val lost = AtomicLong()
 
     private val parked = ConcurrentHashMap<Int, Any>()
     private val parkTokens = AtomicInteger()
 
-    val dropped: Long get() = ring.dropped + interning.droppedForCapacity
+    /** Events that found neither a free slot nor room to wait, and were lost. */
+    val dropped: Long get() = lost.get() + interning.droppedForCapacity
 
-    val backlog: Long get() = ring.claimCursor() - ring.consumerCursor()
+    /** How many times an event found the ring full, whether or not it then found room to wait. */
+    val ringFull: Long get() = ring.dropped
+
+    /** Slots capture has claimed that the drain has not applied yet, and the slots' worth of events waiting outside. */
+    val backlog: Long get() = ring.claimCursor() - ring.consumerCursor() + overflowHeld.get()
 
     /**
      * Waits, without draining anything itself, until every slot claimed so far has been applied.
@@ -65,9 +84,12 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
      */
     suspend fun awaitApplied(timeoutMs: Long): Boolean {
         val upTo = ring.claimCursor()
+        val queued = overflowQueued.get()
         val deadline = System.currentTimeMillis() + timeoutMs
-        while (ring.consumerCursor() < upTo && System.currentTimeMillis() < deadline) delay(APPLIED_POLL_MILLIS.milliseconds)
-        return ring.consumerCursor() >= upTo
+        while ((ring.consumerCursor() < upTo || overflowApplied.get() < queued) && System.currentTimeMillis() < deadline) {
+            delay(APPLIED_POLL_MILLIS.milliseconds)
+        }
+        return ring.consumerCursor() >= upTo && overflowApplied.get() >= queued
     }
 
     fun holderId(holder: HolderId): Int = interning.holderIdForCapture(holder)
@@ -81,6 +103,7 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
     /** Claims `1 + deltaCount` contiguous slots, or [REJECTED] if the ring is full. Never waits. */
     fun begin(cause: CauseKind, causedByHolderId: Int, epochMillis: Long, deltaCount: Int): Long {
         require(deltaCount in 1..MAX_DELTAS) { "an event with $deltaCount deltas does not belong in a ring slot" }
+        if (overflowHeld.get() > 0) return REJECTED
         val claim = ring.claim(1 + deltaCount)
         if (claim == OffHeapRing.CLAIM_FAILED) return REJECTED
         CaptureSlot.writeHeader(
@@ -114,6 +137,7 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
         count: Int,
     ): Long {
         require(count in 1..MAX_DELTAS) { "a world change touching $count blocks does not belong in a ring slot" }
+        if (overflowHeld.get() > 0) return REJECTED
         val claim = ring.claim(1 + count)
         if (claim == OffHeapRing.CLAIM_FAILED) return REJECTED
         CaptureSlot.writeWorldHeader(
@@ -150,6 +174,7 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
         fromHolderId: Int,
         toHolderId: Int,
     ): Boolean {
+        if (overflowHeld.get() > 0) return false
         val claim = ring.claim(1)
         if (claim == OffHeapRing.CLAIM_FAILED) return false
         CaptureSlot.writeRelease(
@@ -170,10 +195,17 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
         var token = parkTokens.incrementAndGet() and Int.MAX_VALUE
         if (token == 0) token = parkTokens.incrementAndGet() and Int.MAX_VALUE
         parked[token] = payload
-        val claim = ring.claim(1)
+        val claim = if (overflowHeld.get() > 0) OffHeapRing.CLAIM_FAILED else ring.claim(1)
         if (claim == OffHeapRing.CLAIM_FAILED) {
-            parked.remove(token)
-            return false
+            val weight = when (payload) {
+                is BlockEdits -> payload.edits.size
+                is PlacedDeltas -> payload.deltas.size
+                else -> 0
+            } + 1L
+            val marker = RingEvent.Release(cause.ordinal, 0, epochMillis, PARKED, token)
+            val queued = overflow(marker, weight)
+            if (!queued) parked.remove(token)
+            return queued
         }
         CaptureSlot.writeRelease(ring.payload, ring.payloadOffset(claim), cause.ordinal, 0, epochMillis, PARKED, token)
         ring.publish(claim)
@@ -191,7 +223,56 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
         ring.publish(claim)
     }
 
+    /**
+     * Holds [event] outside the ring, to be applied after everything in it. Never waits.
+     *
+     * @return `false` if what already waits is as much as may, and the event was lost and counted
+     */
+    internal fun overflow(event: RingEvent, weight: Long = weightOf(event)): Boolean {
+        var held = overflowHeld.get()
+        while (true) {
+            if (held + weight > overflowCapacity) {
+                lost.incrementAndGet()
+                return false
+            }
+            if (overflowHeld.compareAndSet(held, held + weight)) break
+            held = overflowHeld.get()
+        }
+        overflowQueued.incrementAndGet()
+        waiting.add(Queued(event, weight))
+        return true
+    }
+
     // Storage thread only
+
+    /** Whether events wait outside the ring, which new events then join, so that order holds. */
+    internal fun hasOverflow(): Boolean = overflowHeld.get() > 0
+
+    /**
+     * The oldest events waiting outside the ring, if the ring itself is empty: they came after everything in it.
+     * They stay where they are until [releaseOverflow], so a batch that never lands is read again.
+     */
+    internal fun takeOverflow(max: Int): TakenOverflow? {
+        if (waiting.isEmpty() || ring.claimCursor() > ring.consumerCursor()) return null
+        val events = ArrayList<RingEvent>()
+        var weight = 0L
+        for (queued in waiting) {
+            if (events.size >= max) break
+            events += queued.event
+            weight += queued.weight
+        }
+        return if (events.isEmpty()) null else TakenOverflow(events, weight)
+    }
+
+    internal fun releaseOverflow(taken: TakenOverflow) {
+        repeat(taken.events.size) { waiting.poll() }
+        overflowHeld.addAndGet(-taken.weight)
+        overflowApplied.addAndGet(taken.events.size.toLong())
+    }
+
+    internal fun overflowQueuedTotal(): Long = overflowQueued.get()
+
+    internal fun overflowAppliedTotal(): Long = overflowApplied.get()
 
     internal fun consumerCursor(): Long = ring.consumerCursor()
 
@@ -215,9 +296,21 @@ class CaptureRing(slots: Int, private val interning: Interning) : AutoCloseable 
         ring.close()
     }
 
+    internal class TakenOverflow(val events: List<RingEvent>, val weight: Long)
+
+    private class Queued(val event: RingEvent, val weight: Long)
+
     companion object {
         const val REJECTED = -1L // It must not wait, ever
         const val MAX_DELTAS = 4095
+
+        const val OVERFLOW_FACTOR = 16
+
+        private fun weightOf(event: RingEvent): Long = 1L + when (event) {
+            is RingEvent.Items -> event.holders.size
+            is RingEvent.World -> event.befores.size
+            is RingEvent.Release -> 0
+        }
 
         internal const val PARKED = 0
     }

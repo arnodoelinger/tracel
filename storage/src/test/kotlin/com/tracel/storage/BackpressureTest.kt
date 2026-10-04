@@ -28,7 +28,7 @@ class BackpressureTest {
 
     @Test
     fun `a full ring never blocks a producer`(@TempDir dir: Path) = runTest {
-        TracelStorage.open(dir, ringSlots = 64).use { storage ->
+        TracelStorage.open(dir, ringSlots = 64, overflowSlots = 0).use { storage ->
             val gate = CaptureGate(storage.ring)
             val elapsed = kotlin.system.measureNanoTime {
                 repeat(10_000) { gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1) }
@@ -43,7 +43,7 @@ class BackpressureTest {
 
     @Test
     fun `what the ring accepted is exactly what the ledger applied`(@TempDir dir: Path) = runTest {
-        Stack(dir).use { stack ->
+        Stack(dir, overflowSlots = 0).use { stack ->
             stack.ledger.mint(chest, diamond, Quantity(100_000), stack.counters.nextTxnId())
 
             // Pushed faster than it is drained, so the ring genuinely fills and genuinely refuses
@@ -69,8 +69,43 @@ class BackpressureTest {
     }
 
     @Test
+    fun `a full ring keeps what it cannot hold, and the drain applies it after the ring`(@TempDir dir: Path) = runTest {
+        Stack(dir, ringSlots = 64).use { stack ->
+            stack.ledger.mint(chest, diamond, Quantity(100_000), stack.counters.nextTxnId())
+
+            var accepted = 0L
+            repeat(300) {
+                if (stack.gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1)) accepted++
+            }
+            assertEquals(300L, accepted, "nothing was refused: what the ring could not hold waited outside it")
+            assertEquals(0L, stack.gate.dropped, "and nothing was lost")
+
+            assertEquals(300, stack.drain(), "the drain applied the ring, then what waited")
+            assertEquals(300L, stack.ledger.totalAt(steve, diamond)?.raw)
+            assertEquals(100_000L, stack.ledger.census(diamond))
+        }
+    }
+
+    @Test
+    fun `past the waiting room events are lost and counted`(@TempDir dir: Path) = runTest {
+        Stack(dir, ringSlots = 64, overflowSlots = 90).use { stack ->
+            stack.ledger.mint(chest, diamond, Quantity(100_000), stack.counters.nextTxnId())
+
+            var accepted = 0L
+            repeat(100) {
+                if (stack.gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1)) accepted++
+            }
+            assertTrue(stack.gate.dropped > 0, "the ring and the waiting room together cannot hold 100 events")
+            assertEquals(100L, accepted + stack.gate.dropped, "every event was either kept or counted as lost")
+
+            stack.drain()
+            assertEquals(accepted, stack.ledger.totalAt(steve, diamond)?.raw, "what was kept landed, what was lost did not")
+        }
+    }
+
+    @Test
     fun `drops are counted rather than swallowed`(@TempDir dir: Path) = runTest {
-        TracelStorage.open(dir, ringSlots = 64).use { storage ->
+        TracelStorage.open(dir, ringSlots = 64, overflowSlots = 0).use { storage ->
             val gate = CaptureGate(storage.ring)
             repeat(1_000) { gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1) }
             val dropped = gate.dropped

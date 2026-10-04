@@ -13,8 +13,9 @@ import com.tracel.model.world.ActionKind
  * What a listener actually calls. Wraps [CaptureRing] in the five shapes real capture code has,
  * so no listener has to think about claims, slots, or publication order.
  *
- * Every one of these returns `false` when the event was dropped, which happens when the ring is
- * full or interning is saturated. A caller that wants to know can look; a caller that does not
+ * A full ring does not lose an event: it waits outside the ring, in memory, until the drain has caught up.
+ * Every one of these returns `false` when the event was dropped, which happens when that waiting room is
+ * full too, or interning is saturated. A caller that wants to know can look; a caller that does not
  * is correct to ignore it, because [CaptureRing.dropped] is counting either way.
  */
 class CaptureGate(private val ring: CaptureRing) {
@@ -38,7 +39,14 @@ class CaptureGate(private val ring: CaptureRing) {
         if (itemKeyId == 0 || fromId == 0 || toId == 0) return false
 
         val claim = ring.begin(cause, causedById, epochMillis, 2)
-        if (claim == CaptureRing.REJECTED) return false
+        if (claim == CaptureRing.REJECTED) {
+            return ring.overflow(
+                RingEvent.Items(
+                    cause.ordinal, causedById, epochMillis,
+                    intArrayOf(fromId, toId), intArrayOf(itemKeyId, itemKeyId), longArrayOf(-quantity, quantity),
+                )
+            )
+        }
         ring.delta(claim, 0, fromId, itemKeyId, -quantity)
         ring.delta(claim, 1, toId, itemKeyId, quantity)
         ring.commit(claim, 2)
@@ -61,7 +69,14 @@ class CaptureGate(private val ring: CaptureRing) {
         if (itemKeyId == 0 || holderId == 0) return false
 
         val claim = ring.begin(cause, causedById, epochMillis, 1)
-        if (claim == CaptureRing.REJECTED) return false
+        if (claim == CaptureRing.REJECTED) {
+            return ring.overflow(
+                RingEvent.Items(
+                    cause.ordinal, causedById, epochMillis,
+                    intArrayOf(holderId), intArrayOf(itemKeyId), longArrayOf(delta),
+                )
+            )
+        }
         ring.delta(claim, 0, holderId, itemKeyId, delta)
         ring.commit(claim, 1)
         return true
@@ -75,7 +90,7 @@ class CaptureGate(private val ring: CaptureRing) {
         val causedById = causedBy?.let(ring::holderId) ?: 0
         if (causedBy != null && causedById == 0) return false
         val claim = ring.begin(cause, causedById, epochMillis, deltas.size)
-        if (claim == CaptureRing.REJECTED) return false
+        if (claim == CaptureRing.REJECTED) return ring.overflow(overflowedItems(cause, causedById, epochMillis, deltas))
         for (i in deltas.indices) {
             val delta = deltas[i]
             val holderId = runCatching { ring.holderId(delta.holder) }.getOrDefault(0)
@@ -125,7 +140,17 @@ class CaptureGate(private val ring: CaptureRing) {
             if (befores[i] == 0 || afters[i] == 0) return false
         }
         val claim = ring.beginWorld(cause, action, causedById, epochMillis, worldId, edits.size)
-        if (claim == CaptureRing.REJECTED) return false
+        if (claim == CaptureRing.REJECTED) {
+            val coordinates = IntArray(edits.size * 3)
+            for (i in edits.indices) {
+                coordinates[i * 3] = edits[i].at.x
+                coordinates[i * 3 + 1] = edits[i].at.y
+                coordinates[i * 3 + 2] = edits[i].at.z
+            }
+            return ring.overflow(
+                RingEvent.World(cause.ordinal, causedById, epochMillis, action.ordinal, worldId, coordinates, befores, afters)
+            )
+        }
         for (i in edits.indices) {
             val edit = edits[i]
             ring.block(claim, i, edit.at.x, edit.at.y, edit.at.z, befores[i], afters[i])
@@ -147,6 +172,27 @@ class CaptureGate(private val ring: CaptureRing) {
         val causedById = causedBy?.let(ring::holderId) ?: 0
         if (causedBy != null && causedById == 0) return false
         if (fromId == 0 || toId == 0) return false
-        return ring.release(cause, causedById, epochMillis, fromId, toId)
+        if (ring.release(cause, causedById, epochMillis, fromId, toId)) return true
+        return ring.overflow(RingEvent.Release(cause.ordinal, causedById, epochMillis, fromId, toId))
+    }
+
+    private fun overflowedItems(
+        cause: CauseKind,
+        causedById: Int,
+        epochMillis: Long,
+        deltas: List<InventoryDelta>,
+    ): RingEvent.Items {
+        val holders = IntArray(deltas.size)
+        val itemKeys = IntArray(deltas.size)
+        val amounts = LongArray(deltas.size)
+        for (i in deltas.indices) {
+            val holderId = runCatching { ring.holderId(deltas[i].holder) }.getOrDefault(0)
+            val itemKeyId = runCatching { ring.itemKeyId(deltas[i].itemKey) }.getOrDefault(0)
+            if (holderId == 0 || itemKeyId == 0) continue
+            holders[i] = holderId
+            itemKeys[i] = itemKeyId
+            amounts[i] = deltas[i].delta
+        }
+        return RingEvent.Items(cause.ordinal, causedById, epochMillis, holders, itemKeys, amounts)
     }
 }

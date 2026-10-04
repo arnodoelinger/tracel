@@ -211,6 +211,7 @@ class TracelStorage private constructor(
             path: Path,
             ringSlots: Int = DEFAULT_RING_SLOTS,
             lsm: LsmConfig = LsmConfig(),
+            overflowSlots: Int = ringSlots * CaptureRing.OVERFLOW_FACTOR,
             engineFactory: (Path) -> KeyValueEngine = { LsmEngine(it, History.configured(lsm)) },
         ): TracelStorage {
             val engine = engineFactory(path)
@@ -228,7 +229,7 @@ class TracelStorage private constructor(
             return TracelStorage(
                 engine,
                 interning,
-                CaptureRing(ringSlots, interning),
+                CaptureRing(ringSlots, interning, overflowSlots),
                 executor,
                 executor.asCoroutineDispatcher(),
                 readerPool,

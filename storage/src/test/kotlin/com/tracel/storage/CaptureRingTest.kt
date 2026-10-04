@@ -52,7 +52,7 @@ class CaptureRingTest {
 
     @Test
     fun `a full ring drops rather than waits, and counts what it dropped`(@TempDir dir: Path) = runTest {
-        TracelStorage.open(dir, ringSlots = 16).use { storage ->
+        TracelStorage.open(dir, ringSlots = 16, overflowSlots = 0).use { storage ->
             val gate = com.tracel.storage.capture.CaptureGate(storage.ring)
             var accepted = 0
             repeat(100) { if (gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1)) accepted++ }
