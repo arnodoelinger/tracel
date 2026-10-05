@@ -3,8 +3,6 @@ package com.tracel.plugin.adapter.block
 import com.tracel.annotations.Unstable
 import java.util.concurrent.ConcurrentHashMap
 
-// TODO: rewrite
-
 /**
  * Decides whether a block changed by vanilla ticking can still be treated as the expected block.
  *
@@ -70,7 +68,8 @@ internal object BlockLikeness {
         for (prefix in COPPER_WEATHER) {
             if (s.startsWith(prefix)) s = s.removePrefix(prefix)
         }
-        return s.takeIf { "copper" in it && "ore" !in it && s != "raw_copper_block" }
+        if (s == "copper_block") s = "copper"
+        return s.takeIf { ("copper" in it || it == "lightning_rod") && "ore" !in it && it != "raw_copper_block" }
     }
 
     private fun parse(raw: String): Parsed {

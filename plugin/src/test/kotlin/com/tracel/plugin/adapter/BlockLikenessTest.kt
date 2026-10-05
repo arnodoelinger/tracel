@@ -43,6 +43,14 @@ class BlockLikenessTest {
     }
 
     @Test
+    fun `a plain copper block that weathered is still that copper block`() {
+        assertTrue(BlockLikeness.sameEnough("minecraft:exposed_copper", "minecraft:copper_block"))
+        assertTrue(BlockLikeness.sameEnough("minecraft:waxed_oxidized_copper", "minecraft:waxed_copper_block"))
+        assertFalse(BlockLikeness.sameEnough("minecraft:raw_copper_block", "minecraft:copper_block"))
+        assertFalse(BlockLikeness.sameEnough("minecraft:copper_ore", "minecraft:copper_block"))
+    }
+
+    @Test
     fun `a chest is not dirt`() {
         assertFalse(BlockLikeness.sameEnough("minecraft:chest[facing=north]", "minecraft:dirt"))
     }
