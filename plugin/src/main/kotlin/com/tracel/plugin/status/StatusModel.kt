@@ -22,7 +22,7 @@ enum class RollbackSize(val key: String, private val below: Long) {
 
     companion object {
         /** The size of a rollback that takes back [records] records. */
-        fun of(records: Long): RollbackSize = entries.first { records < it.below }
+        fun of(records: Long): RollbackSize = entries.firstOrNull { records < it.below } ?: HUGE
     }
 }
 

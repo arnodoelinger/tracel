@@ -9,11 +9,12 @@ class StatusModelTest {
 
     @Test
     fun `a rollback is sized by the records it takes back`() {
-        assertEquals(RollbackSize.TINY, RollbackSize.of(999))
-        assertEquals(RollbackSize.SMALL, RollbackSize.of(1_000))
-        assertEquals(RollbackSize.MEDIUM, RollbackSize.of(10_000))
-        assertEquals(RollbackSize.LARGE, RollbackSize.of(100_000))
-        assertEquals(RollbackSize.HUGE, RollbackSize.of(1_000_000))
+        assertEquals(RollbackSize.TINY, RollbackSize.of(1_023))
+        assertEquals(RollbackSize.SMALL, RollbackSize.of(1_024))
+        assertEquals(RollbackSize.MEDIUM, RollbackSize.of(10_240))
+        assertEquals(RollbackSize.LARGE, RollbackSize.of(102_400))
+        assertEquals(RollbackSize.HUGE, RollbackSize.of(1_024_000))
+        assertEquals(RollbackSize.HUGE, RollbackSize.of(Long.MAX_VALUE))
     }
 
     @Test
@@ -40,7 +41,7 @@ class StatusModelTest {
     fun `the worst state wins`() {
         assertEquals(Health.OK, Health.of(false, 12.0, null, DiskLevel.OK))
         assertEquals(Health.FORWARD_COMPATIBLE, Health.of(true, 12.0, 100, DiskLevel.OK))
-        assertEquals(Health.HIGH_LOAD, Health.of(true, 40.0, 100, DiskLevel.OK))
+        assertEquals(Health.HIGH_LOAD, Health.of(true, HIGH_MSPT, 100, DiskLevel.OK))
         assertEquals(Health.DEGRADED, Health.of(true, 45.0, LAG_MILLIS, DiskLevel.OK))
         assertEquals(Health.LOW_DISK, Health.of(false, 45.0, null, DiskLevel.LOW))
         assertEquals(Health.DEGRADED, Health.of(false, null, LAG_MILLIS, DiskLevel.LOW))
