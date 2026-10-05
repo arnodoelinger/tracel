@@ -10,7 +10,6 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import java.util.*
 
-// TODO: rewrite, this must not exist here
 @RunsOn(ThreadContext.ASYNC)
 @Unstable
 public class StructurePlanner {
@@ -27,8 +26,8 @@ public class StructurePlanner {
         planAll(changes).let { it.create to it.destroy }
 
     /**
-     * [plan], [cellsAirToAir] and [entitiesBornAndGone] in one pass: all three group the changes by the same key and
-     * look at the same oldest and newest end, so asking for them one at a time built that map three times over.
+     * The steps, [cellsAirToAir] and [entitiesBornAndGone] in one pass: all three group the changes by the same key
+     * and look at the same oldest and newest end, so asking for them one at a time built that map three times over.
      */
     public fun planAll(changes: List<WorldChange>): Outcome {
         val create = mutableListOf<StructureStep>()
@@ -51,9 +50,9 @@ public class StructurePlanner {
 
         val shapes = HashMap<BlockShape, BlockShape>()
 
-        cells.forEach { last, first ->
-            val subject = last.subject as ChangeSubject.Block
-            val expected = (first.subject as ChangeSubject.Block).after
+        cells.forEach { oldest, newest ->
+            val subject = oldest.subject as ChangeSubject.Block
+            val expected = (newest.subject as ChangeSubject.Block).after
             // The result of a productive discussion with Apehum about how "t:"
             // should behave around explosions.
             //
@@ -90,10 +89,10 @@ public class StructurePlanner {
             // time and can make rollbacks recreate objects that never existed at the beginning of the
             // selected window.
             val target = subject.before
-            if (target.isAirLike && expected.isAirLike) airToAir += last.at
+            if (target.isAirLike && expected.isAirLike) airToAir += oldest.at
             if (target == expected) return@forEach
             val step = StructureStep.SetBlock(
-                last.at,
+                oldest.at,
                 shapes.getOrPut(target) { target },
                 shapes.getOrPut(expected) { expected },
             )
@@ -104,11 +103,10 @@ public class StructurePlanner {
         }
 
         for (slot in entities.values) {
-            val last = slot[OLDEST]
-            val first = slot[NEWEST]
-            val subject = last.subject as ChangeSubject.Entity
-            val newest = first.subject as ChangeSubject.Entity
-            val now = newest.after
+            val oldest = slot[OLDEST]
+            val newest = slot[NEWEST]
+            val subject = oldest.subject as ChangeSubject.Entity
+            val now = (newest.subject as ChangeSubject.Entity).after
             val before = subject.before
             if (before == null && now == null) bornAndGone += subject.entity
             when {
@@ -117,12 +115,12 @@ public class StructurePlanner {
                     // it went: leave it gone, same as a block placed and blown up. Respawning it
                     // handed the placer the item back and hung the frame too, and re-armed crystals.
                     if (before != null && !before.isFallingBlock()) {
-                        create += StructureStep.SpawnEntity(last.at, subject.entity, before)
+                        create += StructureStep.SpawnEntity(oldest.at, subject.entity, before)
                     }
                 }
 
                 before == null -> {
-                    val remove = StructureStep.RemoveEntity(last.at, subject.entity, now)
+                    val remove = StructureStep.RemoveEntity(oldest.at, subject.entity, now)
                     // Falling sand still here when the block returns drops as an item.
                     // Remove it in create so undo spawns it after the block is gone again.
                     //
@@ -136,7 +134,7 @@ public class StructurePlanner {
 
                 before != now ->
                     // Still standing: change-in-place; undo puts the newer shape back.
-                    create += StructureStep.SpawnEntity(last.at, subject.entity, before, now)
+                    create += StructureStep.SpawnEntity(oldest.at, subject.entity, before, now)
             }
         }
 
@@ -152,41 +150,11 @@ public class StructurePlanner {
 
     /** Cells that were air at both window ends — do not dump restored items into a chest that never comes back. */
     @Unstable
-    public fun cellsAirToAir(changes: List<WorldChange>): Set<BlockPos> {
-        val ends = HashMap<BlockPos, Array<WorldChange>>()
-        for (change in changes) {
-            if (change.subject !is ChangeSubject.Block) continue
-            val slot = ends.getOrPut(change.at) { arrayOf(change, change) }
-            if (change.seq.raw > slot[NEWEST].seq.raw) slot[NEWEST] = change
-            if (change.seq.raw < slot[OLDEST].seq.raw) slot[OLDEST] = change
-        }
-        val out = HashSet<BlockPos>()
-        for ((at, slot) in ends) {
-            val oldest = (slot[OLDEST].subject as ChangeSubject.Block).before
-            val newest = (slot[NEWEST].subject as ChangeSubject.Block).after
-            if (oldest.isAirLike && newest.isAirLike) out += at
-        }
-        return out
-    }
+    public fun cellsAirToAir(changes: List<WorldChange>): Set<BlockPos> = planAll(changes).airToAir
 
     /** Entities born and gone inside the window: the rollback leaves them gone, so nothing may be handed to them. */
     @Unstable
-    public fun entitiesBornAndGone(changes: List<WorldChange>): Set<UUID> {
-        val ends = HashMap<UUID, Array<WorldChange>>()
-        for (change in changes) {
-            val subject = change.subject as? ChangeSubject.Entity ?: continue
-            val slot = ends.getOrPut(subject.entity) { arrayOf(change, change) }
-            if (change.seq.raw > slot[NEWEST].seq.raw) slot[NEWEST] = change
-            if (change.seq.raw < slot[OLDEST].seq.raw) slot[OLDEST] = change
-        }
-        val out = HashSet<UUID>()
-        for ((uuid, slot) in ends) {
-            val born = (slot[OLDEST].subject as ChangeSubject.Entity).before == null
-            val gone = (slot[NEWEST].subject as ChangeSubject.Entity).after == null
-            if (born && gone) out += uuid
-        }
-        return out
-    }
+    public fun entitiesBornAndGone(changes: List<WorldChange>): Set<UUID> = planAll(changes).bornAndGone
 
     private companion object {
         const val NEWEST = 0
