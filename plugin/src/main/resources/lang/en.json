@@ -582,7 +582,7 @@
       "events": "Events"
     },
     "preview": {
-      "title": "<light_purple>≢ Purge preview</light_purple>",
+      "title": "<dark_aqua>⇵ Purge preview</dark_aqua>",
       "categories": "<gray>Categories</gray>: <list>",
       "older": "<gray>Older than</gray>: <span>",
       "world": "<gray>World</gray>: <name>",

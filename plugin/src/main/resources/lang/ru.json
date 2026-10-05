@@ -447,7 +447,7 @@
     "stopped": "Экспорт остановлен, файл не записан",
     "not_running": "Экспорт не запущен",
     "preview": {
-      "title": "<dark_aqua>↑ Предпросмотр экспорта</dark_aqua>"
+      "title": "<dark_aqua>⇵ Предпросмотр экспорта</dark_aqua>"
     },
     "confirm": {
       "info": "это запишет базу данных на диск: до <size> МиБ, свободно <free> МиБ",
@@ -469,7 +469,7 @@
     "not_running": "Импорт не запущен",
     "too_late": "Останавливать поздно. Надо было думать раньше",
     "preview": {
-      "title": "<dark_aqua>↓ Предпросмотр импорта</dark_aqua>",
+      "title": "<dark_aqua>⇵ Предпросмотр импорта</dark_aqua>",
       "scope": "вся записанная история будет заменена данными из этого файла; это нельзя отменить"
     },
     "done": "<green>✔ Импорт завершён!</green>",
@@ -582,7 +582,7 @@
       "events": "События"
     },
     "preview": {
-      "title": "<light_purple>≢ Предпросмотр удаления</light_purple>",
+      "title": "<dark_aqua>⇵ Предпросмотр удаления данных</dark_aqua>",
       "categories": "<gray>Категории</gray>: <list>",
       "older": "<gray>Старше</gray>: <span>",
       "world": "<gray>Мир</gray>: <name>",
