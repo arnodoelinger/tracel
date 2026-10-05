@@ -21,6 +21,7 @@ data class ParsedLookupArgs(
     val strict: Boolean = false,
     val confirmed: Boolean = false,
     val natural: Boolean = false,
+    val all: Boolean = false,
     val each: Boolean = false,
     val page: Int = 1,
     val anchor: Location? = null,
@@ -104,6 +105,7 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Flag("#confirm") { it.copy(confirmed = true) },
     LookupArgument.Flag("#each") { it.copy(each = true) },
     LookupArgument.Flag("#world") { it.copy(natural = true) },
+    LookupArgument.Flag("#all") { it.copy(natural = true, all = true) },
     LookupArgument.Flag("#wide") { it.copy(horizontalOnly = true) },
 
     LookupArgument.Multi("user:", { it.users }, { r, v -> r.copy(users = v) }, { it.onlinePlayerNames }),
@@ -233,6 +235,7 @@ internal fun ParsedLookupArgs.filledFrom(preset: ParsedLookupArgs): ParsedLookup
     world = world ?: preset.world,
     horizontalOnly = horizontalOnly || preset.horizontalOnly,
     natural = natural || preset.natural,
+    all = all || preset.all,
     each = each || preset.each,
     preview = preview || preset.preview,
     structureOnly = structureOnly || preset.structureOnly,

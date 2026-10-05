@@ -1,6 +1,7 @@
 package com.tracel.plugin.command.action
 
 import com.tracel.annotations.CauseKind
+import com.tracel.model.event.EventKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
 import com.tracel.model.holder.HolderId
@@ -171,7 +172,7 @@ class LookupAction(private val services: TracelServices) {
                 blocks = actions.structural && !parsed.materialOnly,
                 items = actions.material && !parsed.structureOnly,
                 flushed = flushed,
-                events = actions.events,
+                events = if (parsed.all && parsed.actions.isEmpty()) EventKind.entries.toSet() else actions.events,
             )
             searches[key(sender)] = search
             show(sender, search, parsed.page)

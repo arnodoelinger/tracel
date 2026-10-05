@@ -104,6 +104,13 @@ private val FLAGS: List<FlagToken> = listOf(
         profiles = setOf(FlagProfile.LOOKUP)
     ),
     FlagToken(
+        aliases = listOf("#all"),
+        tooltip = "all",
+        kind = FlagKind.SWITCH,
+        group = FlagGroup.NATURAL,
+        profiles = setOf(FlagProfile.LOOKUP)
+    ),
+    FlagToken(
         aliases = listOf("#wide"),
         tooltip = "wide",
         kind = FlagKind.SWITCH,

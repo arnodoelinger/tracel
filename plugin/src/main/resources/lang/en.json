@@ -720,6 +720,7 @@
       "confirm": "Allow entity restores beyond the safety limit",
       "each": "Every record on its own line, nothing folded together",
       "natural": "Include everything that has happened naturally",
+      "all": "Everything: all actions, natural changes, etc.",
       "wide": "Scan horizontally; ignore vertical distance",
       "user": "Player name, comma-separated",
       "time": "When it happened",
