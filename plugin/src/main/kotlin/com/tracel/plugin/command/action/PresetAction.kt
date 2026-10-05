@@ -4,7 +4,6 @@ import com.tracel.plugin.command.action.support.NothingWeCanDo
 import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.preset.Preset
 import com.tracel.plugin.command.preset.PresetStore
-import com.tracel.plugin.command.suggest.liveLists
 import com.tracel.plugin.i18n.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -80,7 +79,7 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
             return
         }
         val owner = (sender as? Player)?.uniqueId
-        val errors = parseLookupArgs(tokens, System.currentTimeMillis(), liveLists(sender)).errors
+        val errors = parseLookupArgs(tokens, System.currentTimeMillis()).errors
         if (errors.isNotEmpty()) {
             refuse(sender, errors.asReason(), tr("common.hint.fix_flags", "command" to "lookup"))
             return

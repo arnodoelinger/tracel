@@ -66,41 +66,24 @@ class LookupFlagsTest {
         assertEquals(0, missing("time:1h", "scope:2c", "u:Alice").size)
     }
 
-    private val known = com.tracel.plugin.command.suggest.SuggestLists(
-        onlinePlayers = listOf("Steve", "Alex"),
-        worldNames = listOf("world", "world_nether"),
-        itemNames = listOf("diamond", "stone"),
-        blockNames = listOf("stone", "dirt"),
-    )
-
     @Test
-    fun `bare tokens are read for what they look like`() {
-        val parsed = parseLookupArgs(listOf("10m", "20b", "Steve", "kill"), NOW, known)
+    fun `a bare token is an error, every value has its flag`() {
+        for (bare in listOf("10m", "20b", "2c", "block", "Steve", "kill", "10")) {
+            assertTrue(parseLookupArgs(listOf(bare), NOW).errors.isNotEmpty(), "$bare should not parse on its own")
+        }
+        val parsed = parseLookupArgs(listOf("t:10m", "s:20b", "u:Steve", "a:kill"), NOW)
         assertEquals(NOW - 600_000, parsed.since)
         assertEquals(LookupScope.Blocks(20), parsed.scope)
         assertEquals(setOf("Steve"), parsed.users)
         assertEquals(setOf("kill"), parsed.actions)
         assertTrue(parsed.errors.isEmpty())
-
-        assertEquals(LookupScope.CurrentBlock, parseLookupArgs(listOf("block"), NOW, known).scope)
-        assertEquals(LookupScope.Chunks(2), parseLookupArgs(listOf("2c"), NOW, known).scope)
-        assertEquals("world_nether", parseLookupArgs(listOf("WORLD_NETHER"), NOW, known).world)
-        assertEquals("diamond", parseLookupArgs(listOf("minecraft:diamond"), NOW, known).item)
-        assertTrue(parseLookupArgs(listOf("-Alex"), NOW, known).errors.isNotEmpty(), "no exclusion by name")
-    }
-
-    @Test
-    fun `a bare name nobody knows is taken for a player, and a bare number asks for a unit`() {
-        assertEquals(setOf("Herobrine"), parseLookupArgs(listOf("Herobrine"), NOW, known).users)
-        val number = parseLookupArgs(listOf("10"), NOW, known).errors.single().plain()
-        assertTrue("10m" in number && "10b" in number)
     }
 
     @Test
     fun `a misspelled flag says which one was meant`() {
-        val hint = parseLookupArgs(listOf("scop:20b"), NOW, known).errors.single().plain()
+        val hint = parseLookupArgs(listOf("scop:20b"), NOW).errors.single().plain()
         assertTrue("scope:" in hint, hint)
-        assertTrue("did you mean" !in parseLookupArgs(listOf("zzzzz:1"), NOW, known).errors.single().plain())
+        assertTrue("did you mean" !in parseLookupArgs(listOf("zzzzz:1"), NOW).errors.single().plain())
     }
 
     @Test

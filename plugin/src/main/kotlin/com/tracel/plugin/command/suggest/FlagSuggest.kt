@@ -287,68 +287,17 @@ internal object FlagSuggest {
                     }
                     .map { Suggestion(it, tr("suggest.flag.${flag.tooltip}")) }
             }
-        return flags + bare(
-            typed,
-            used,
-            if (profile == FlagProfile.PRESET) lists.copy(presets = emptyList()) else lists
-        )
+        return flags + presets(typed, if (profile == FlagProfile.PRESET) lists.copy(presets = emptyList()) else lists)
     }
 
-    private fun bare(typed: String, used: Set<FlagGroup>, lists: SuggestLists): List<Suggestion> {
+    private fun presets(typed: String, lists: SuggestLists): List<Suggestion> {
         if (typed.isEmpty()) return lists.presets.take(5).map { Suggestion("@${it.first}", Component.text(it.second)) }
         if (typed.startsWith("@")) {
             val needle = typed.substring(1).lowercase()
             return lists.presets.filter { it.first.startsWith(needle) }
                 .map { Suggestion("@${it.first}", Component.text(it.second)) }
         }
-        if (typed.startsWith("#")) return emptyList()
-        val out = ArrayList<Suggestion>()
-        if (typed.first().isDigit()) {
-            if (FlagGroup.TIME !in used) {
-                out += suggestQuantity(
-                    prefix = "",
-                    raw = typed,
-                    units = WINDOW_UNITS,
-                    presets = presetsOf(TIME_PRESETS, WINDOW_UNITS),
-                    compound = true,
-                )
-            }
-            if (FlagGroup.SCOPE !in used) {
-                out += suggestQuantity(
-                    prefix = "",
-                    raw = typed,
-                    units = SCOPE_UNITS,
-                    presets = presetsOf(SCOPE_PRESETS, SCOPE_UNITS),
-                    allowed = { unit, amount ->
-                        amount <= if (unit.suffix == "b") ScopeLimits.MAX_BLOCK_RADIUS else ScopeLimits.MAX_CHUNK_RADIUS
-                    },
-                )
-            }
-            return out
-        }
-        val needle = typed
-        for (name in rank(lists.onlinePlayers, needle, limit = 10)) out += Suggestion(
-            name,
-            tr("suggest.player", "name" to name)
-        )
-        if (FlagGroup.SCOPE !in used) {
-            for ((word, tip) in WHERE_WORDS) {
-                if (word.startsWith(needle.lowercase())) out += Suggestion(word, tip)
-            }
-        }
-        if (FlagGroup.TIME !in used) {
-            for ((word, tip) in NAMED_DAYS) if (word.startsWith(needle.lowercase())) out += Suggestion(word, tip)
-        }
-        if (FlagGroup.WORLD !in used) {
-            for (name in rank(lists.worldNames, needle, limit = 5)) out += Suggestion(
-                name,
-                tr("suggest.world", "name" to name)
-            )
-        }
-        if (FlagGroup.ACTION !in used) {
-            for (name in rank(lists.actionNames, needle, limit = 8)) out += Suggestion(name, actionTip(name))
-        }
-        return out
+        return emptyList()
     }
 
     private fun available(flag: FlagToken, used: Set<FlagGroup>, typed: String): Boolean {

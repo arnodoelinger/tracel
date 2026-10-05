@@ -377,7 +377,6 @@ object TracelCommand {
         (sender as? Player)?.uniqueId,
         store,
         System.currentTimeMillis(),
-        liveLists(sender),
     )
 
     private fun ParsedLookupArgs.rerunnable(name: String, tokens: List<String>) =

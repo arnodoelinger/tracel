@@ -158,46 +158,12 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
         { TimeArgument.timeSuggestions() }),
 )
 
-/**
- * Parses flag tokens. A token that is no flag is read for what it looks like ([SmartInput]): `10m` is a time,
- * `20b` a scope, a name is a player, a world, an action or an item — [known] says which names exist.
- */
-internal fun parseLookupArgs(
-    args: List<String>,
-    nowMillis: Long,
-    known: SuggestLists = SuggestLists()
-): ParsedLookupArgs =
+/** Parses flag tokens. Every value has its flag: `t:10m`, `s:20b`, `u:Name`; a bare word is an error. */
+internal fun parseLookupArgs(args: List<String>, nowMillis: Long): ParsedLookupArgs =
     args.fold(ParsedLookupArgs()) { result, token ->
-        val argument = LOOKUP_ARGUMENTS.firstOrNull { it.matches(token) }
-        argument?.apply(result, token, nowMillis) ?: SmartInput.read(result, token, nowMillis, known)
+        LOOKUP_ARGUMENTS.firstOrNull { it.matches(token) }?.apply(result, token, nowMillis)
+            ?: result.copy(errors = result.errors + tr("common.invalid", "token" to token))
     }
-
-private object SmartInput {
-    private val SCOPE = Regex("""\d+[bc]""")
-    private val NUMBER = Regex("""\d+""")
-    private val NAME = Regex("""[A-Za-z0-9_.]{3,16}""")
-
-    fun read(args: ParsedLookupArgs, token: String, now: Long, known: SuggestLists): ParsedLookupArgs {
-        val lower = token.lowercase()
-        TimeArgument.parseExpr(lower, now)?.let { return args.within(it) }
-        if (SCOPE.matches(lower) || lower == "block" || lower == "chunk") {
-            ScopeArgument.parse(lower)?.let { return args.withScope(it) }
-        }
-        if (lower in ActionArgument.NAMES) return args.copy(actions = args.actions + lower)
-        known.onlinePlayers.firstOrNull { it.equals(token, ignoreCase = true) }
-            ?.let { return args.copy(users = args.users + it) }
-        known.worldNames.firstOrNull { it.equals(token, ignoreCase = true) }
-            ?.let { return args.copy(world = it) }
-        val material = lower.removePrefix("minecraft:")
-        if (material in known.itemNames || material in known.blockNames) return args.copy(item = material)
-
-        if (NUMBER.matches(token)) {
-            return args.copy(errors = args.errors + tr("common.invalid", "token" to token))
-        }
-        if (NAME.matches(token)) return args.copy(users = args.users + token)
-        return args.copy(errors = args.errors + tr("common.invalid", "token" to token))
-    }
-}
 
 fun suggestLookupToken(
     partial: String,

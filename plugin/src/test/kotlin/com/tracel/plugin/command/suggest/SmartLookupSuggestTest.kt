@@ -237,23 +237,12 @@ class SmartLookupSuggestTest {
     }
 
     @Test
-    fun `a bare number offers a time and a scope, a bare name offers players and words`() {
-        val digits = LookupSuggest.suggest("10", lists).map { it.text }
-        assertTrue("10m" in digits && "10h" in digits, "10 as a time")
-        assertTrue("10b" in digits && "10c" in digits, "10 as a scope")
-
-        val timeTaken = LookupSuggest.suggest("t:1h 10", lists).map { it.text }
-        assertTrue("10m" !in timeTaken && "10b" in timeTaken)
-
-        val names = LookupSuggest.suggest("Al", lists).map { it.text }
-        assertEquals("Alice", names.first { it.startsWith("Al") })
-        assertTrue(LookupSuggest.suggest("-al", lists).isEmpty(), "there is no exclusion by name")
-        assertTrue("world_nether" in LookupSuggest.suggest("nether", lists).map { it.text })
-        assertTrue("chunk" in LookupSuggest.suggest("ch", lists).map { it.text })
-        assertTrue(
-            LookupSuggest.suggest("", lists).none { it.text == "Alice" },
-            "nothing bare until something is typed"
-        )
+    fun `a bare word offers no guesses, only flags`() {
+        assertTrue(LookupSuggest.suggest("10", lists).isEmpty(), "no bare time or scope")
+        assertTrue(LookupSuggest.suggest("Al", lists).isEmpty(), "no bare player")
+        assertTrue(LookupSuggest.suggest("nether", lists).isEmpty(), "no bare world")
+        assertTrue(LookupSuggest.suggest("ch", lists).isEmpty(), "no bare scope word")
+        assertTrue(LookupSuggest.suggest("", lists).none { it.text == "Alice" })
     }
 
     @Test

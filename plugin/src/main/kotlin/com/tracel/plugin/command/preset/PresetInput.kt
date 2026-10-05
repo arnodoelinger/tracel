@@ -3,7 +3,6 @@ package com.tracel.plugin.command.preset
 import com.tracel.plugin.command.args.ParsedLookupArgs
 import com.tracel.plugin.command.args.filledFrom
 import com.tracel.plugin.command.args.parseLookupArgs
-import com.tracel.plugin.command.suggest.SuggestLists
 import com.tracel.plugin.i18n.tr
 import java.util.*
 
@@ -18,16 +17,15 @@ internal fun parseWithPresets(
     owner: UUID?,
     store: PresetStore?,
     now: Long,
-    known: SuggestLists,
 ): ParsedLookupArgs {
     val (refs, typed) = tokens.partition { it.startsWith("@") && it.length > 1 }
-    var result = parseLookupArgs(typed, now, known)
+    var result = parseLookupArgs(typed, now)
     for (ref in refs) {
         val preset = store?.find(ref.substring(1), owner)
         result = if (preset == null) {
             result.copy(errors = result.errors + tr("preset.reason.missing", "name" to ref.substring(1).lowercase()))
         } else {
-            result.filledFrom(parseLookupArgs(preset.tokens, now, known))
+            result.filledFrom(parseLookupArgs(preset.tokens, now))
         }
     }
     return result
