@@ -9,29 +9,27 @@ import java.util.concurrent.ConcurrentHashMap
  * @return the other half of the two-block object [shape] is part of, or `null`
  * if it stands alone.
  */
-// TODO: rewrite; this must not exist
 @Unstable
 public fun structuralPartnerOf(at: BlockPos, shape: BlockShape): BlockPos? {
     val value = shape.data.value
 
-    if (!pairing.computeIfAbsent(value) { materialOf(it).let(::pairs) }) return null
-    val material = materialOf(value)
+    val pair = pairing.computeIfAbsent(value) { pairOf(materialOf(it)) }
+    if (pair == Pair.NONE) return null
     val props = value.blockProperties()
 
-    return when {
-        material == "chest" || material == "trapped_chest" -> chestPartner(at, props)
-        material.endsWith("_bed") -> bedPartner(at, props)
-        material.endsWith("_door") -> verticalPartner(at, props)
-        material in DOUBLE_PLANTS -> verticalPartner(at, props)
-        material == "piston_head" -> props["facing"]?.let { at.towards(it.opposite()) }
-        material == "piston" || material == "sticky_piston" ->
-            if (props["extended"] == "true") props["facing"]?.let { at.towards(it) } else null
-
-        else -> null
+    return when (pair) {
+        Pair.NONE -> null
+        Pair.CHEST -> chestPartner(at, props)
+        Pair.BED -> bedPartner(at, props)
+        Pair.VERTICAL -> verticalPartner(at, props)
+        Pair.PISTON_HEAD -> props["facing"]?.let { at.towards(it.opposite()) }
+        Pair.PISTON -> if (props["extended"] == "true") props["facing"]?.let { at.towards(it) } else null
     }
 }
 
-private val pairing = ConcurrentHashMap<String, Boolean>()
+private enum class Pair { NONE, CHEST, BED, VERTICAL, PISTON_HEAD, PISTON }
+
+private val pairing = ConcurrentHashMap<String, Pair>()
 
 private fun materialOf(value: String): String {
     val end = value.indexOf('[').let { if (it < 0) value.length else it }
@@ -39,10 +37,15 @@ private fun materialOf(value: String): String {
     return value.substring(start, end)
 }
 
-private fun pairs(material: String): Boolean =
-    material == "chest" || material == "trapped_chest" || material.endsWith("_bed") || material.endsWith("_door") ||
-            material in DOUBLE_PLANTS || material == "piston_head" || material == "piston" ||
-            material == "sticky_piston"
+private fun pairOf(material: String): Pair = when {
+    material.endsWith("chest") -> Pair.CHEST
+    material.endsWith("_bed") -> Pair.BED
+    material.endsWith("_door") -> Pair.VERTICAL
+    material in DOUBLE_PLANTS -> Pair.VERTICAL
+    material == "piston_head" -> Pair.PISTON_HEAD
+    material == "piston" || material == "sticky_piston" -> Pair.PISTON
+    else -> Pair.NONE
+}
 
 private val DOUBLE_PLANTS = setOf(
     "sunflower", "lilac", "tall_grass", "large_fern", "rose_bush", "peony",
