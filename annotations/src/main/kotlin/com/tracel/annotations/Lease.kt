@@ -1,7 +1,0 @@
-package com.tracel.annotations
-
-/** Marker for the lot-lease protocol. */
-@Target(AnnotationTarget.CLASS)
-@Retention(AnnotationRetention.BINARY)
-@MustBeDocumented
-public annotation class Lease

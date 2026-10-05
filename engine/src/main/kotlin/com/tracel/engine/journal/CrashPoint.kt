@@ -12,6 +12,7 @@ public class SimulatedCrash(stepIndex: Int) : Exception("simulated crash before 
  * asserts it resumes correctly.
  */
 public class CrashPoint private constructor(private val crashBeforeStep: Int?) {
+    /** Checks if the crash point is reached. */
     public fun checkBefore(stepIndex: Int) {
         if (stepIndex == crashBeforeStep) throw SimulatedCrash(stepIndex)
     }

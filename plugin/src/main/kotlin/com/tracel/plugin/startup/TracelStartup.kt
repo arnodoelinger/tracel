@@ -21,7 +21,7 @@ import com.tracel.plugin.command.suggest.support.CommandOrderListener
 import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.integration.worldedit.WorldEditAttachListener
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
-import com.tracel.plugin.listener.api.registerObserved
+import com.tracel.plugin.listener.registerObserved
 import com.tracel.plugin.listener.listenersOf
 import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
 import com.tracel.plugin.mode.ActorWrites
