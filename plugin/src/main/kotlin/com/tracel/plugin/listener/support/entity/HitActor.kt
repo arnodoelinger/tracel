@@ -22,7 +22,9 @@ internal object HitActor {
         byEntity.put(entity.uniqueId, by)
     }
 
-    fun of(entity: Entity): HolderId? = byEntity[entity.uniqueId]
+    fun of(entity: Entity): HolderId? = of(entity.uniqueId)
+
+    fun of(entity: UUID): HolderId? = byEntity[entity]
 
     /** The player a built wither or its skull goes back to, from the mark its builder left on it. */
     fun builderOf(entity: Entity): HolderId? = runCatching {

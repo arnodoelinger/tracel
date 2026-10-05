@@ -1,14 +1,17 @@
 package com.tracel.plugin.adapter.entity.kind
 
+import com.tracel.annotations.Unstable
 import org.bukkit.entity.*
 
-/** Hangings, stands, boats, minecarts drop themselves as items. */
+/** Hangings, stands, boats, minecarts, etc. that drops themselves as items. */
+@Unstable
 internal object SelfDrop {
     private val all: List<HullMatch> = listOf(
         HullMatch { it is Hanging },
         HullMatch { it is ArmorStand },
         HullMatch { it is Boat },
         HullMatch { it is Minecart },
+        HullMatch { it.type.key.key.contains("cushion") },
     )
 
     /** True if breaking [entity] drops the hull as an item, not just its cargo. */

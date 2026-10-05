@@ -22,3 +22,4 @@ Install Tracel on your server and start playing. Tracel handles logging automati
 Command: `/tracel <args...>`
 
 - - -
+

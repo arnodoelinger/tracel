@@ -29,6 +29,7 @@ import com.tracel.plugin.listener.support.entity.isBlastSource
 import com.tracel.plugin.util.ExpiringMap
 import com.tracel.plugin.util.ExpiringSet
 import io.papermc.paper.event.player.PlayerNameEntityEvent
+import io.papermc.paper.event.player.PrePlayerAttackEntityEvent
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.*
@@ -286,6 +287,10 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
             }
             if (entity !is ArmorStand) return
         }
+        if (entity.isScenery() && entity !is LivingEntity) {
+            services.damageBlame(event).who?.let { HitActor.hit(entity, it) }
+            return
+        }
         if (entity !is LivingEntity || entity is Player) return
         if (!entity.logsWorldShape()) return
         if (entity.uniqueId in recordedRemove) return
@@ -297,6 +302,13 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         dying.put(entity.uniqueId, entity.toShape())
         if (blame.who == null || removedBy[entity.uniqueId]?.who != null) return
         removedBy.put(entity.uniqueId, Blame(blame.who, blame.cause.takeIf { it == CauseKind.EXPLOSION }))
+    }
+
+    @Observes(ignoreCancelled = false)
+    fun onPlayerAttack(event: PrePlayerAttackEntityEvent) {
+        if (restoring) return
+        val entity = event.attacked
+        if (entity.isScenery()) HitActor.hit(entity, HolderId.Player(event.player.uniqueId))
     }
 
     @Observes
@@ -311,6 +323,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         placedBy.put(event.entity.uniqueId, Blame(HolderId.Player(breeder.uniqueId)))
     }
 
+    @Unstable
     @Observes
     fun onSpawnItemUsed(event: PlayerInteractEvent) {
         if (event.action != Action.RIGHT_CLICK_BLOCK) return
@@ -354,6 +367,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         for (result in event.transformedEntities) transformedBy.put(result.uniqueId, blame)
     }
 
+    @Unstable
     @Observes
     fun onDeath(event: EntityDeathEvent) {
         val entity = event.entity
@@ -403,6 +417,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         reshaped(event.rightClicked, HolderId.Player(event.player.uniqueId))
     }
 
+    @Unstable
     @Observes(ignoreCancelled = false)
     fun onRemove(event: EntityRemoveEvent) {
         val entity = event.entity
@@ -412,6 +427,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         }
         val blame = removedBy.remove(entity.uniqueId)
             ?: killer[entity.world.uid]?.takeIf { event.cause in KILLED_BY_COMMAND }?.let { Blame(it) }
+            ?: HitActor.of(entity)?.takeIf { entity.isScenery() }?.let { Blame(it) }
         if (!event.cause.kind().records(entity.isScenery(), blame?.who != null)) return
         if (entity is AbstractArrow && event.cause == EntityRemoveEvent.Cause.DESPAWN) return
 
@@ -423,10 +439,25 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
             ?: if (exploded) services.redstoneTriggers.recentExplosionNear(entity.location) else null
 
         bornUnlogged(entity)
+        if (who == null && !exploded && entity.isScenery() && event.cause == EntityRemoveEvent.Cause.DEATH) {
+            removedByLateHit(entity)
+            return
+        }
         record(
             ActionKind.ENTITY_REMOVE, entity, who, after = false,
             cause = if (exploded) CauseKind.EXPLOSION else null,
         )
+    }
+
+    private fun removedByLateHit(entity: Entity) {
+        if (restoring || entity.uniqueId in recordedRemove) return
+        val uuid = entity.uniqueId
+        val living = dying.remove(uuid)
+        val looks = living ?: entity.toShape()
+        val at = living?.blockPos(entity.world.uid) ?: entity.toBlockPos()
+        later(entity.location) {
+            record(ActionKind.ENTITY_REMOVE, uuid, looks, at, HitActor.of(uuid), after = false)
+        }
     }
 
     @Observes
