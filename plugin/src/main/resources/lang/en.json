@@ -80,7 +80,7 @@
     "done": {
       "config": "You can always change this in the config file.",
       "thanks": "Thank you!",
-      "restart": "Restart the server to save your choices"
+      "restart": "Restart the server to save your choices."
     }
   },
   "common": {

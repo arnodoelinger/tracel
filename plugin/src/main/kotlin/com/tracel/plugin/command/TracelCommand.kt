@@ -45,7 +45,7 @@ object TracelCommand {
         "tracel.status" to "status",
         "tracel.export" to "data",
         "tracel.purge" to "purge",
-        "tracel.help" to "help",
+        // "tracel.help" to "help",
     )
 
     /** Registers all `Tracel` commands. */
