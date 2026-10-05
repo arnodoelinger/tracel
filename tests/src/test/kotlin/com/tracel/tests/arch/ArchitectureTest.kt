@@ -170,7 +170,7 @@ class ArchitectureTest {
 
     @Test
     fun `takeFifo and drainFifo are Consume`() {
-        Konsist.scopeFromProject()
+        (Konsist.scopeFromModule("engine") + Konsist.scopeFromModule("storage"))
             .functions()
             .filter { it.name == "takeFifo" || it.name == "drainFifo" }
             .assertTrue(testName = "FIFO consume is @Consume") { it.hasAnnotationOf(Consume::class) }

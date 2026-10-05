@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.structure
 
+import com.tracel.plugin.governor.Throttle
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos

@@ -1,11 +1,10 @@
 package com.tracel.plugin.mode
 
+import com.tracel.annotations.Observes
 import com.tracel.storage.ports.actor.ActorFacts
 import org.bukkit.Bukkit
 import org.bukkit.GameMode
 import org.bukkit.entity.Player
-import org.bukkit.event.EventHandler
-import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerGameModeChangeEvent
 import org.bukkit.event.player.PlayerJoinEvent
@@ -15,10 +14,10 @@ internal class PlayerModes(private val writes: ActorWrites, private val facts: A
     /** Marks the players online right now, for a server that was reloaded under them. */
     fun noteOnline() = Bukkit.getOnlinePlayers().forEach(::note)
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @Observes(ignoreCancelled = false)
     fun onJoin(event: PlayerJoinEvent) = note(event.player)
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @Observes
     fun onChange(event: PlayerGameModeChangeEvent) = note(event.player, event.newGameMode)
 
     private fun note(player: Player, mode: GameMode = player.gameMode) {

@@ -1,4 +1,4 @@
-package com.tracel.plugin.rollback.structure
+package com.tracel.plugin.governor
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue

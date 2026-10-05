@@ -3,12 +3,11 @@ package com.tracel.plugin.mode
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent
 import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.tracel.annotations.Observes
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.intern.EntityKindSource
 import org.bukkit.entity.Item
 import org.bukkit.entity.Player
-import org.bukkit.event.EventHandler
-import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import java.time.Duration
 import java.util.*
@@ -26,14 +25,14 @@ internal class EntityKinds : EntityKindSource, Listener {
 
     override fun kindOf(uuid: UUID): EntityTypeKey? = living[uuid] ?: gone.getIfPresent(uuid)
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @Observes(ignoreCancelled = false)
     fun onAdd(event: EntityAddToWorldEvent) {
         val entity = event.entity
         if (entity is Player || entity is Item) return
         living[entity.uniqueId] = EntityTypeKey(entity.type.key().asString())
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @Observes(ignoreCancelled = false)
     fun onRemove(event: EntityRemoveFromWorldEvent) {
         living.remove(event.entity.uniqueId)?.let { gone.put(event.entity.uniqueId, it) }
     }

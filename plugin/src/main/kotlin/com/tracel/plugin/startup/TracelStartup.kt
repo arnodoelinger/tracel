@@ -264,13 +264,13 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             "${listener.javaClass.simpleName} is in Listeners.kt with no @Observes handler on it"
         }
     }
-    plugin.server.pluginManager.registerEvents(CommandOrderListener(), plugin)
-    plugin.server.pluginManager.registerEvents(entityKinds, plugin)
+    registerObserved(CommandOrderListener(), plugin)
+    registerObserved(entityKinds, plugin)
     val actorWrites = ActorWrites(services.scope)
     val modes = PlayerModes(actorWrites, actors)
-    plugin.server.pluginManager.registerEvents(modes, plugin)
+    registerObserved(modes, plugin)
     modes.noteOnline()
-    plugin.server.pluginManager.registerEvents(PlayerSessions(actorWrites, actors), plugin)
+    registerObserved(PlayerSessions(actorWrites, actors), plugin)
     plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
         TracelCommand.register(event.registrar(), services)
     }

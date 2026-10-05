@@ -2,7 +2,8 @@ package com.tracel.plugin.command.suggest.support
 
 import com.destroystokyo.paper.event.brigadier.AsyncPlayerSendSuggestionsEvent
 import com.mojang.brigadier.suggestion.Suggestions
-import org.bukkit.event.EventHandler
+import com.tracel.annotations.Observes
+import com.tracel.annotations.Priority
 import org.bukkit.event.Listener
 
 /** The order the subcommands are listed in, most used first. */
@@ -46,7 +47,7 @@ internal object CommandOrder {
 
 /** Puts the subcommand lists in [CommandOrder] just before they are sent. */
 internal class CommandOrderListener : Listener {
-    @EventHandler
+    @Observes(priority = Priority.NORMAL, ignoreCancelled = false)
     fun onSuggestions(event: AsyncPlayerSendSuggestionsEvent) {
         event.suggestions = CommandOrder.order(event.buffer, event.suggestions)
     }

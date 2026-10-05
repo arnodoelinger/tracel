@@ -13,7 +13,7 @@ import com.tracel.plugin.rollback.material.item.formsFor
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.result.report.RestorationReport
-import com.tracel.plugin.rollback.structure.throttled
+import com.tracel.plugin.governor.throttled
 import com.tracel.plugin.util.entityUuid
 import com.tracel.plugin.util.namedByEntity
 import com.tracel.plugin.util.ownsChunkAt

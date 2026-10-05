@@ -1,4 +1,4 @@
-package com.tracel.plugin.rollback.structure
+package com.tracel.plugin.governor
 
 import com.tracel.plugin.listener.support.guard.SelfManagedWorldGuard
 import kotlinx.coroutines.suspendCancellableCoroutine

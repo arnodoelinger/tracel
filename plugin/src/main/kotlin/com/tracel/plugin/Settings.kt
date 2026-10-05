@@ -2,7 +2,7 @@ package com.tracel.plugin
 
 import com.tracel.plugin.command.args.ScopeLimits
 import com.tracel.plugin.command.args.TimeArgument
-import com.tracel.plugin.rollback.structure.GovernorSettings
+import com.tracel.plugin.governor.GovernorSettings
 import com.tracel.plugin.util.PrivateBin
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.lsm.LsmConfig

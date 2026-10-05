@@ -7,7 +7,7 @@ import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.structure.StructureRestorer
-import com.tracel.plugin.rollback.structure.throttled
+import com.tracel.plugin.governor.throttled
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.async

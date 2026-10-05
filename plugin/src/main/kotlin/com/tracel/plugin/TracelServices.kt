@@ -20,6 +20,8 @@ import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.command.action.CoreProtectImportAction
 import com.tracel.plugin.command.action.LookupAction
 import com.tracel.plugin.command.action.support.PurgeGate
+import com.tracel.plugin.governor.GovernorSettings
+import com.tracel.plugin.governor.TickGovernor
 import com.tracel.plugin.listener.MaterialCapture
 import com.tracel.plugin.listener.ShapeCapture
 import com.tracel.plugin.listener.session.InspectorState
@@ -33,11 +35,11 @@ import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
 import com.tracel.plugin.rollback.RollbackGenius
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.material.MaterialRestorer
-import com.tracel.plugin.rollback.structure.GovernorSettings
 import com.tracel.plugin.rollback.structure.StructureRestorer
-import com.tracel.plugin.rollback.structure.TickGovernor
 import com.tracel.plugin.rollback.structure.fluid.FluidFreeze
 import com.tracel.plugin.rollback.structure.fluid.warmFluidShapes
+import com.tracel.plugin.rollback.structure.rescueJoined
+import com.tracel.plugin.status.WriteRate
 import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.plugin.util.GroundWhereabouts
 import com.tracel.storage.TracelStorage
@@ -48,13 +50,13 @@ import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
-import com.tracel.storage.ports.ops.Counters
-import com.tracel.plugin.status.WriteRate
 import com.tracel.storage.ports.log.RolledBack
+import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.ops.ForeignHistory
 import com.tracel.storage.ports.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
@@ -171,4 +173,7 @@ class TracelServices(
 
     /** Tables the rollback path would otherwise build on a region thread the first time it needs them. */
     fun warmRollback() = warmFluidShapes()
+
+    /** Checks a player who logged out inside what a rollback has since written. */
+    suspend fun rescueJoined(player: Player) = structureRestorer.rescueJoined(player)
 }

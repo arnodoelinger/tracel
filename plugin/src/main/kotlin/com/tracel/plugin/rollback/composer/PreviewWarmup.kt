@@ -8,7 +8,7 @@ import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.structure.block.PalettePaste
-import com.tracel.plugin.rollback.structure.throttled
+import com.tracel.plugin.governor.throttled
 import com.tracel.plugin.util.ownsChunkAt
 import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.*
