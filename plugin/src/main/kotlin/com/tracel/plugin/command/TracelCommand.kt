@@ -38,7 +38,6 @@ object TracelCommand {
         "tracel.lookup" to "lookup",
         "tracel.inspect" to "inspect",
         "tracel.rollback" to "rollback",
-        "tracel.rollback" to "undo",
         "tracel.lookup" to "near",
         "tracel.lookup" to "player",
         "tracel.preset" to "preset",
@@ -84,11 +83,10 @@ object TracelCommand {
                         rollback.execute(ctx.source.sender, parsePresetted(ctx.source.sender, tokens, store))
                     }
                 }
-            }
 
-            literal("undo", tr("command.undo")) {
-                requiresPermission("tracel.rollback")
-                takeBack(undo)
+                literal("undo", tr("command.undo")) {
+                    takeBack(undo)
+                }
             }
 
             literal("lookup", tr("command.lookup")) {

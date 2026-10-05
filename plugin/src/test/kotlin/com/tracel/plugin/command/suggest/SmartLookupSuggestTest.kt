@@ -24,7 +24,7 @@ class SmartLookupSuggestTest {
         val suggestions = RollbackSuggest.suggest("", lists)
         val flags = suggestions.map { it.text }
 
-        assertFalse("undo" in flags, "taking a rollback back is /tracel undo")
+        assertFalse("undo" in flags, "taking a rollback back is /tracel rollback undo")
         assertTrue("u:" in flags)
         assertTrue("t:" in flags)
         assertTrue("#preview" in flags)

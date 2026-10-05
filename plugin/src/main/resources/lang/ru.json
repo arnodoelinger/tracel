@@ -145,8 +145,7 @@
     "about": "<gray>Быстрая и современная система логирования и откатов</gray>",
     "lookup": "<gray>/tracel lookup</gray>: просмотр истории мира",
     "inspect": "<gray>/tracel inspect</gray>: включить или выключить инспектор",
-    "rollback": "<gray>/tracel rollback</gray>: откатить изменения мира и контейнеров",
-    "undo": "<gray>/tracel undo</gray>: отменить последний откат",
+    "rollback": "<gray>/tracel rollback</gray>: откатить историю мира или отменить откат",
     "near": "<gray>/tracel near</gray>: что происходило вокруг вас в последние минуты",
     "player": "<gray>/tracel player</gray>: что делал игрок, одним списком",
     "preset": "<gray>/tracel preset</gray>: сохранить параметры поиска и отката как пресет",
@@ -358,7 +357,7 @@
       "nothing": "у вас нет отката, который можно было бы отменить"
     },
     "hint": {
-      "again": "запустить <gold>\"/tracel undo\"</gold> ещё раз",
+      "again": "запустить <gold>\"/tracel rollback undo\"</gold> ещё раз",
       "out_of_order": "попросить игрока отменить свой откат",
       "nothing": "сначала выполнить откат"
     }

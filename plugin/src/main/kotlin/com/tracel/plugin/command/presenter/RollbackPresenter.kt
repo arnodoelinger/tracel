@@ -45,7 +45,7 @@ object RollbackPresenter {
     fun report(sender: CommandSender, done: RollbackResult.Done, tookMillis: Long) {
         val counts = counts(done)
         val undo = tr("rollback.button.undo")
-            .clickEvent(ClickEvent.runCommand("/tracel undo ${done.job.raw}"))
+            .clickEvent(ClickEvent.runCommand("/tracel rollback undo ${done.job.raw}"))
             .hoverEvent(HoverEvent.showText(tr("rollback.button.undo_hover")))
         val lines = buildList {
             add(tr("rollback.done.title"))

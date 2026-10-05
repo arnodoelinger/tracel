@@ -145,8 +145,7 @@
     "about": "<gray>A fast, modern block logging and rollback system</gray>",
     "lookup": "<gray>/tracel lookup</gray>: browse world history",
     "inspect": "<gray>/tracel inspect</gray>: toggle the inspector",
-    "rollback": "<gray>/tracel rollback</gray>: roll back world and container changes",
-    "undo": "<gray>/tracel undo</gray>: undo the last rollback",
+    "rollback": "<gray>/tracel rollback</gray>: roll back / undo world history",
     "near": "<gray>/tracel near</gray>: what happened around you in the last minutes",
     "player": "<gray>/tracel player</gray>: what a player did, on one screen",
     "preset": "<gray>/tracel preset</gray>: save lookup / rollback options as a preset",
@@ -358,7 +357,7 @@
       "nothing": "you have no rollback to take back"
     },
     "hint": {
-      "again": "running <gold>\"/tracel undo\"</gold> again",
+      "again": "running <gold>\"/tracel rollback undo\"</gold> again",
       "out_of_order": "having them undo theirs first",
       "nothing": "running a rollback first"
     }

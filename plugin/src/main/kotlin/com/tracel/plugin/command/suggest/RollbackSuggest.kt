@@ -7,7 +7,7 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import java.util.concurrent.CompletableFuture
 
-/** Suggestions for the flags of `/tracel rollback`. Taking one back is `/tracel undo`. */
+/** Suggestions for the flags of `/tracel rollback`. Taking one back is `/tracel rollback undo`. */
 internal object RollbackSuggest : SuggestionProvider<CommandSourceStack> {
     /** Suggests a list of completions. */
     fun suggest(line: String, lists: SuggestLists): List<Suggestion> {

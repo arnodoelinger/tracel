@@ -12,7 +12,6 @@ internal object CommandOrder {
             "lookup",
             "inspect",
             "rollback",
-            "undo",
             "near",
             "player",
             "preset",
