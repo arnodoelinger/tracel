@@ -21,16 +21,16 @@ import java.util.*
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * `/tracel purge`: takes history out of the database, all of it or only what the filters name.
+ * `/tracel data purge`: takes history out of the database, all of it or only what the filters name.
  * Without `#confirm` it takes nothing: it previews, and `#confirm` is typed by hand.
  */
 class PurgeAction(private val services: TracelServices) {
-    /** Runs `/tracel purge` with the words after it. */
+    /** Runs `/tracel data purge` with the words after it. */
     fun execute(sender: CommandSender, tokens: List<String>) {
         val args = PurgeArgument.parse(tokens)
         if (args.errors.isNotEmpty()) return refuse(sender, args.errors.asReason())
-        if (args.isEmpty) return sender.usage("purge")
-        val command = "/tracel purge " + tokens.filterNot { it.isStep() }.joinToString(" ")
+        if (args.isEmpty) return sender.usage("data purge")
+        val command = "/tracel data purge " + tokens.filterNot { it.isStep() }.joinToString(" ")
         if (args.everything) return everything(sender, args, command)
 
         val spec = specOf(sender, args) ?: return
@@ -41,7 +41,7 @@ class PurgeAction(private val services: TracelServices) {
     }
 
     private fun refuse(sender: CommandSender, reason: Component) =
-        sender.failed("purge.failed", reason, tr("common.hint.fix_flags", "command" to "purge"))
+        sender.failed("purge.failed", reason, tr("common.hint.fix_flags", "command" to "data purge"))
 
     private fun specOf(sender: CommandSender, args: PurgeArgs): PurgeSpec? {
         val problems = ArrayList<Component>()

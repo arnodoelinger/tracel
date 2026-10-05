@@ -16,8 +16,8 @@ internal object CommandOrder {
             "near",
             "player",
             "preset",
+            "status",
             "data",
-            "purge",
             "help",
         ),
         listOf("preset") to listOf(

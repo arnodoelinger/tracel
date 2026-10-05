@@ -44,7 +44,6 @@ object TracelCommand {
         "tracel.preset" to "preset",
         "tracel.status" to "status",
         "tracel.export" to "data",
-        "tracel.purge" to "purge",
         // "tracel.help" to "help",
     )
 
@@ -253,10 +252,11 @@ object TracelCommand {
             }
 
             literal("data", tr("command.data")) {
-                requiresPermission("tracel.export")
+                requires { it.sender.hasPermission("tracel.export") || it.sender.hasPermission("tracel.purge") }
                 executesCommand { ctx -> ctx.source.sender.usage("data") }
 
                 literal("export", tr("command.export")) {
+                    requiresPermission("tracel.export")
                     executesCommand { ctx -> export.confirmExport(ctx.source.sender) }
                     literal("#confirm", tr("command.export_confirm")) {
                         executesCommand { ctx -> export.executeExport(ctx.source.sender) }
@@ -267,6 +267,7 @@ object TracelCommand {
                 }
 
                 literal("import", tr("command.import")) {
+                    requiresPermission("tracel.export")
                     executesCommand { ctx -> ctx.source.sender.usage("data import") }
                     literal("#stop", tr("command.import_stop")) {
                         executesCommand { ctx -> import.stop(ctx.source.sender) }
@@ -289,6 +290,7 @@ object TracelCommand {
                 }
 
                 literal("migrate", tr("command.migrate")) {
+                    requiresPermission("tracel.export")
                     executesCommand { ctx -> ctx.source.sender.usage("data migrate") }
                     literal("coreprotect", tr("command.migrate_coreprotect")) {
                         executesCommand { ctx -> coreProtect.preview(ctx.source.sender) }
@@ -300,15 +302,15 @@ object TracelCommand {
                         }
                     }
                 }
-            }
 
-            literal("purge", tr("command.purge")) {
-                requiresPermission("tracel.purge")
-                executesCommand { ctx -> purge.execute(ctx.source.sender, emptyList()) }
-                argument("filters", StringArgumentType.greedyString()) {
-                    suggests(PurgeSuggest)
-                    executesCommand { ctx ->
-                        purge.execute(ctx.source.sender, tokens(StringArgumentType.getString(ctx, "filters")))
+                literal("purge", tr("command.purge")) {
+                    requiresPermission("tracel.purge")
+                    executesCommand { ctx -> purge.execute(ctx.source.sender, emptyList()) }
+                    argument("filters", StringArgumentType.greedyString()) {
+                        suggests(PurgeSuggest)
+                        executesCommand { ctx ->
+                            purge.execute(ctx.source.sender, tokens(StringArgumentType.getString(ctx, "filters")))
+                        }
                     }
                 }
             }

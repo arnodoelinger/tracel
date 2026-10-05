@@ -150,8 +150,7 @@
     "near": "<gray>/tracel near</gray>: what happened around you in the last minutes",
     "player": "<gray>/tracel player</gray>: what a player did, on one screen",
     "preset": "<gray>/tracel preset</gray>: save lookup / rollback options as a preset",
-    "data": "<gray>/tracel data</gray>: export, import or migrate the database",
-    "purge": "<gray>/tracel purge</gray>: delete history, all of it or by filter",
+    "data": "<gray>/tracel data</gray>: export, import, migrate or purge the database",
     "status": "<gray>/tracel status</gray>: how the plugin is doing",
     "help": "<gray>/tracel help</gray>: this screen"
   },
@@ -502,7 +501,7 @@
       },
       "hint": {
         "not_found": "put CoreProtect's folder, with its config and database, into plugins",
-        "no_room": "\"/tracel purge all\" first, then import again",
+        "no_room": "\"/tracel data purge all\" first, then import again",
         "unreadable": "check CoreProtect's config and the server log",
         "paused": "running the command again to carry on where it stopped"
       }
@@ -647,7 +646,7 @@
     "preset_share": "Make one of your presets the server's own",
     "preset_unshare": "Take a server preset back as your own",
     "preset_delete": "Delete a preset",
-    "data": "Export, import or migrate the history database",
+    "data": "Export, import, migrate or purge the history database",
     "export": "Export database",
     "export_confirm": "Yes, write the snapshot to disk",
     "export_stop": "Stop the running export",

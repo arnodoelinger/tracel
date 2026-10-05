@@ -11,7 +11,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 import org.bukkit.Bukkit
 import java.util.concurrent.CompletableFuture
 
-/** Suggestions for the words of `/tracel purge`: what is left to say, then the values the last word takes. */
+/** Suggestions for the words of `/tracel data purge`: what is left to say, then the values the last word takes. */
 internal object PurgeSuggest : SuggestionProvider<CommandSourceStack> {
     private val SPANS = listOf(1L to "day", 7L to "day", 14L to "day", 30L to "day", 90L to "day")
     private val UNITS = listOf("h" to "hour", "d" to "day", "w" to "week")
