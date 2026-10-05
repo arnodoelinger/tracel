@@ -56,6 +56,8 @@ import kotlinx.coroutines.*
 import kotlin.time.Duration.Companion.milliseconds
 import org.bukkit.Bukkit
 import org.tomlj.Toml
+import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.metrics.TracelMetrics
 
 private const val LAST_CAPTURE_WAIT_MILLIS = 500L
 private const val WRITE_RATE_SAMPLE_MILLIS = 5_000L
@@ -279,6 +281,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     services.scope.launch {
         while (isActive) {
             services.writeRate.sample()
+            Telemetry.backlog(storage.ring.backlog)
             delay(WRITE_RATE_SAMPLE_MILLIS.milliseconds)
         }
     }
@@ -291,6 +294,8 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     if (setup.pending) {
         registerObserved(SetupListener(services, setup), plugin)
     }
+
+    TracelMetrics.start(plugin, services, settings)
 
     plugin.logger.info("Tracel ${plugin.pluginMeta.version} enabled.")
 

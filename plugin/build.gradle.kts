@@ -14,6 +14,7 @@ dependencies {
     implementation(libs.caffeine)
     implementation(libs.semver)
     implementation(libs.tomlj)
+    implementation(libs.bstats)
     ksp(project(":codegen"))
 
     compileOnly(libs.paper.api)
@@ -31,6 +32,7 @@ tasks {
         relocate("com.github.benmanes.caffeine", "com.tracel.shaded.caffeine")
         relocate("io.github.z4kn4fein.semver", "com.tracel.shaded.semver")
         relocate("org.tomlj", "com.tracel.shaded.tomlj")
+        relocate("org.bstats", "com.tracel.shaded.bstats")
         mergeServiceFiles()
     }
 

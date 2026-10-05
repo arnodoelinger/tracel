@@ -17,6 +17,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator
 import java.util.*
 import kotlin.math.abs
+import com.tracel.plugin.metrics.Telemetry
 
 private val MESSAGES: MessageComponentSerializer? = runCatching { MessageComponentSerializer.message() }.getOrNull()
 
@@ -109,6 +110,7 @@ fun List<Component>.commas(): Component = Component.join(JoinConfiguration.separ
 
 /** What an exception said when nothing better is known: no trailing period, and no capital unless it is a name (`IOException`). */
 fun unexpected(failure: Throwable): String {
+    Telemetry.error(failure)
     val said = (failure.message ?: failure::class.java.simpleName).trimEnd('.', ' ')
     return if (said.length > 1 && said[1].isUpperCase()) said else said.replaceFirstChar(Char::lowercase)
 }

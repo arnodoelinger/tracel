@@ -25,6 +25,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import kotlin.time.Duration.Companion.milliseconds
+import com.tracel.plugin.metrics.Telemetry
 
 /** How long planning may run before the player is told it has started. */
 private const val PLANNING_NOTICE_MILLIS = 2_000L
@@ -85,6 +86,8 @@ class RollbackAction internal constructor(
             is FilterResult.Ok -> if (!services.composite.claimGate()) {
                 sender.send("common.busy")
             } else services.scope.launch {
+                Telemetry.flags(Telemetry.ROLLBACK_FLAGS, parsed)
+                if (!parsed.preview) Telemetry.rollbackReach(parsed)
                 try {
                     services.purgeGate.awaitSlice()
                     services.composite.holdingStill(filter.filter.region) { rollbackFiltered(sender, parsed, filter) }
@@ -106,6 +109,7 @@ class RollbackAction internal constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
+                Telemetry.rollback("plan failed")
                 RollbackPresenter.refused(
                     sender,
                     tr("rollback.reason.plan_failed", "reason" to unexpected(failure)),
@@ -173,6 +177,7 @@ class RollbackAction internal constructor(
         var attempt = planned
         repeat(STALE_ATTEMPTS) {
             if (attempt.composite.isEmpty) {
+                Telemetry.rollback("nothing to do")
                 sender.send("rollback.nothing", "halves" to halves)
                 return
             }
@@ -181,12 +186,14 @@ class RollbackAction internal constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
+                Telemetry.rollback("failed")
                 RollbackPresenter.refused(sender, Component.text(unexpected(failure)), tr("rollback.hint.again"))
                 return
             }
             when (outcome) {
                 is RollbackResult.Done -> {
                     val took = (System.nanoTime() - started) / 1_000_000
+                    Telemetry.rollbackDone(outcome, took)
                     if (RollbackPresenter.appliedNothing(outcome)) {
                         services.atomically {
                             services.jobs.markUndone(
@@ -200,6 +207,7 @@ class RollbackAction internal constructor(
                 }
 
                 is Unreachable -> {
+                    Telemetry.rollback("unreachable")
                     RollbackPresenter.refused(
                         sender,
                         tr(
@@ -213,6 +221,7 @@ class RollbackAction internal constructor(
                 }
 
                 is Blocked -> {
+                    Telemetry.rollback("blocked")
                     RollbackPresenter.refused(sender, tr("rollback.reason.blocked"), tr("rollback.hint.blocked"))
                     return
                 }
@@ -220,6 +229,7 @@ class RollbackAction internal constructor(
                 RollbackResult.Stale -> attempt = replan() ?: return
             }
         }
+        Telemetry.rollback("stale")
         RollbackPresenter.refused(
             sender,
             tr("rollback.reason.stale", "attempts" to STALE_ATTEMPTS),

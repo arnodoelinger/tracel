@@ -27,6 +27,7 @@ import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
+import com.tracel.plugin.metrics.Telemetry
 
 /** Action responsible for executing transaction and world log lookups. */
 class LookupAction(private val services: TracelServices) {
@@ -93,6 +94,7 @@ class LookupAction(private val services: TracelServices) {
             refuse(sender, parsed.errors)
             return
         }
+        Telemetry.flags(Telemetry.LOOKUP_FLAGS, parsed)
 
         val unresolved = parsed.users.filter { resolvePlayerUuid(it) == null }
         if (unresolved.isNotEmpty()) {

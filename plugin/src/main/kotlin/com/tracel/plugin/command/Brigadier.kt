@@ -17,6 +17,7 @@ import io.papermc.paper.command.brigadier.Commands
 import net.kyori.adventure.text.Component
 import java.util.concurrent.CompletableFuture
 import java.util.function.Predicate
+import com.tracel.plugin.metrics.Telemetry
 
 /** Creates a root or child literal command node builder. [tooltip] is the text shown beside the name. */
 fun literal(
@@ -100,6 +101,7 @@ fun LiteralArgumentBuilder<CommandSourceStack>.executesCommand(
     handler: (CommandContext<CommandSourceStack>) -> Unit,
 ) {
     executes { ctx ->
+        Telemetry.command(pathOf(ctx))
         handler(ctx)
         Command.SINGLE_SUCCESS
     }
@@ -110,10 +112,14 @@ fun <T> RequiredArgumentBuilder<CommandSourceStack, T>.executesCommand(
     handler: (CommandContext<CommandSourceStack>) -> Unit,
 ) {
     executes { ctx ->
+        Telemetry.command(pathOf(ctx))
         handler(ctx)
         Command.SINGLE_SUCCESS
     }
 }
+
+private fun pathOf(ctx: CommandContext<CommandSourceStack>): String =
+    ctx.nodes.mapNotNull { (it.node as? LiteralCommandNode<*>)?.literal }.drop(1).joinToString(" ").ifEmpty { "help" }
 
 private fun described(name: String, tooltip: Component?): LiteralArgumentBuilder<CommandSourceStack> =
     if (tooltip == null) Commands.literal(name) else TooltipLiteralBuilder(name, tooltip)

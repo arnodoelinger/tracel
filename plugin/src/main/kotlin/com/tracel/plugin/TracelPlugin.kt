@@ -14,6 +14,8 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
 import org.bukkit.plugin.java.JavaPlugin
 import java.util.logging.Level
+import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.metrics.TracelMetrics
 
 /**
  * Entry point of `Tracel`.
@@ -34,6 +36,7 @@ class TracelPlugin : JavaPlugin() {
 
     override fun onDisable() {
         Messages.unload()
+        stopping(logger, "metrics") { TracelMetrics.stop() }
         val run = runtime
         stopping(logger, "storage") {
             val live = run ?: return@stopping
@@ -60,6 +63,7 @@ class TracelPlugin : JavaPlugin() {
 
     /** Capture failure. */
     internal fun captureFailures() = CoroutineExceptionHandler { _, failure ->
+        Telemetry.error(failure)
         logger.log(Level.WARNING, "Tracel background task failed: ${failure.message}", failure)
     }
 

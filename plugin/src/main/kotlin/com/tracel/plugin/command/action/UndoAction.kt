@@ -16,6 +16,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import org.bukkit.command.CommandSender
+import com.tracel.plugin.metrics.Telemetry
 
 /** Action responsible for taking back the most recent rollback. */
 class UndoAction internal constructor(private val services: TracelServices, private val nothing: NothingWeCanDo) {
@@ -54,10 +55,24 @@ class UndoAction internal constructor(private val services: TracelServices, priv
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
+            Telemetry.undo("failed")
             RollbackPresenter.refusedUndo(sender, Component.text(unexpected(failure)), tr("rollback.hint.again"))
             return
         }
         val took = (System.nanoTime() - started) / 1_000_000
+        Telemetry.undo(
+            when (outcome) {
+                is UndoResult.Done ->
+                    if (outcome.structure.fullyRestored && outcome.material.fullyRestored) "clean" else "partial"
+
+                UndoResult.NotFound -> "not found"
+                is UndoResult.OutOfOrder -> "out of order"
+                UndoResult.AlreadyUndone -> "already undone"
+                is Unreachable -> "unreachable"
+                is Blocked -> "blocked"
+                is UndoResult.Failed -> "failed"
+            },
+        )
 
         when (outcome) {
             is UndoResult.Done -> RollbackPresenter.reportUndo(sender, outcome, took)
