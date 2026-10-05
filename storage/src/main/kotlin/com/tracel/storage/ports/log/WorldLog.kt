@@ -220,7 +220,6 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
      * [appendAll] for edits that never left their interned IDs: no shape is resolved only to be interned again,
      * the whole event takes one range of sequences and lands in one write.
      */
-    // TODO: awesome, but should be rewritten
     suspend fun appendRaw(raw: RawBlockEdits, nextSeqRange: suspend (Int) -> Seq): Int {
         val n = raw.count
         if (n == 0) return 0
@@ -349,9 +348,9 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     }
 
     private fun sectionOf(x: Int, y: Int, z: Int): Long =
-        ((x shr 4).toLong() and 0x1FFFFF shl 42) or
-                ((z shr 4).toLong() and 0x1FFFFF shl 21) or
-                ((y shr 4).toLong() and 0x1FFFFF)
+        ((x shr 4).toLong() and 0x3FFFFF shl 42) or
+                ((z shr 4).toLong() and 0x3FFFFF shl 20) or
+                ((y shr 4).toLong() and 0xFFFFF)
 
     /**
      * Two families answer this: the per-coordinate one, and the per-section one that the deltas
