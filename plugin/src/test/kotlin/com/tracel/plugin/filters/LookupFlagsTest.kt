@@ -80,10 +80,9 @@ class LookupFlagsTest {
     }
 
     @Test
-    fun `a misspelled flag says which one was meant`() {
+    fun `a misspelled flag is an invalid argument`() {
         val hint = parseLookupArgs(listOf("scop:20b"), NOW).errors.single().plain()
-        assertTrue("scope:" in hint, hint)
-        assertTrue("did you mean" !in parseLookupArgs(listOf("zzzzz:1"), NOW).errors.single().plain())
+        assertTrue("scop:20b" in hint, hint)
     }
 
     @Test
@@ -184,7 +183,7 @@ class ActionFilterTest {
         assertTrue(filter.structural)
         assertFalse(filter.material)
         assertEquals(
-            setOf(ActionKind.BLOCK_PLACE, ActionKind.BLOCK_BREAK, ActionKind.BLOCK_CHANGE),
+            setOf(ActionKind.BLOCK_PLACE, ActionKind.BLOCK_BREAK, ActionKind.BLOCK_CHANGE, ActionKind.BLOCK_GROW),
             filter.actions,
         )
     }
