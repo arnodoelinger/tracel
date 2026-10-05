@@ -30,8 +30,8 @@ private const val MIN_SLICE_NANOS = 1_000_000L
  * get, not a share of the server.
  */
 data class GovernorSettings(
-    val minNanos: Long = 4_000_000L,
-    val maxNanos: Long = 20_000_000L,
+    val minNanos: Long = 5_000_000L,
+    val maxNanos: Long = 35_000_000L,
 )
 
 /**

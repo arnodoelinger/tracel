@@ -33,8 +33,8 @@ class SettingsTest {
         assertEquals(10_000_000L, readRollback("max-tick-time" to "10ms").governor.maxNanos)
         assertTrue(complaints.isEmpty())
 
-        assertEquals(20_000_000L, readRollback("max-tick-time" to "1ms").governor.maxNanos)
-        assertEquals(20_000_000L, readRollback("max-tick-time" to "80ms").governor.maxNanos)
+        assertEquals(35_000_000L, readRollback("max-tick-time" to "1ms").governor.maxNanos)
+        assertEquals(35_000_000L, readRollback("max-tick-time" to "80ms").governor.maxNanos)
         assertEquals(2, complaints.size)
     }
 
@@ -45,7 +45,7 @@ class SettingsTest {
 
         val both = readRollback("min-tick-time" to "12ms", "max-tick-time" to "6ms")
         assertEquals(12_000_000L, both.governor.minNanos)
-        assertEquals(20_000_000L, both.governor.maxNanos)
+        assertEquals(35_000_000L, both.governor.maxNanos)
         assertEquals(1, complaints.size)
     }
 

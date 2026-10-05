@@ -1,6 +1,5 @@
 package com.tracel.plugin
 
-import com.tracel.plugin.command.args.ScopeLimits
 import com.tracel.plugin.command.args.TimeArgument
 import com.tracel.plugin.governor.GovernorSettings
 import com.tracel.plugin.util.PrivateBin
@@ -21,7 +20,7 @@ internal data class Settings(
     val ringSlots: Int = TracelStorage.DEFAULT_RING_SLOTS,
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
-    val rollbackMaxRadius: Int? = ScopeLimits.MAX_BLOCK_RADIUS,
+    val rollbackMaxRadius: Int? = DEFAULT_ROLLBACK_MAX_RADIUS,
     val logging: LoggingSettings = LoggingSettings(),
     val governor: GovernorSettings = GovernorSettings(),
     val paste: PasteSettings = PasteSettings(),
@@ -60,7 +59,8 @@ private val UNLIMITED = setOf("unlimited", "none", "off")
 private const val NEVER = -1L
 
 const val MIN_RING_SLOTS = 1024
-const val DEFAULT_ENTITY_RESTORE_LIMIT = 128
+const val DEFAULT_ENTITY_RESTORE_LIMIT = 256
+const val DEFAULT_ROLLBACK_MAX_RADIUS = 256
 const val DEFAULT_LOG_ENTITY_DAMAGE = true
 const val DEFAULT_PASTE_URL = "https://privatebin.net"
 const val DEFAULT_PASTE_EXPIRE = "3day"
@@ -101,7 +101,7 @@ internal fun readSettings(
     }
 
     val maxRadius = rollback.setting(
-        "rollback", "max-radius", ScopeLimits.MAX_BLOCK_RADIUS, complain,
+        "rollback", "max-radius", DEFAULT_ROLLBACK_MAX_RADIUS, complain,
     ) {
         if (it.toString().trim().lowercase() in UNLIMITED) Int.MAX_VALUE
         else (it as? Number)?.toInt()?.takeIf { radius -> radius > 0 }
