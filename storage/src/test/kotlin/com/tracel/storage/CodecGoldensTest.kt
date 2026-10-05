@@ -1,6 +1,6 @@
 package com.tracel.storage
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind

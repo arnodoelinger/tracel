@@ -1,7 +1,7 @@
 package com.tracel.annotations
 
-/** FIFO consume: the oldest entry first, split only the last lot touched. */
+/** First parameter must be a `LotLease`. `Konsist` enforces it. */
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.BINARY)
 @MustBeDocumented
-public annotation class Consume
+public annotation class RequiresLease

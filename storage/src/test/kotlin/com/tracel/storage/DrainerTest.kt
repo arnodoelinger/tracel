@@ -1,6 +1,6 @@
 package com.tracel.storage
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.model.id.Quantity
 import com.tracel.storage.support.Stack

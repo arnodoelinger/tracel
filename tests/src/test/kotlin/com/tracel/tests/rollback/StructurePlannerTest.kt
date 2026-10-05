@@ -2,7 +2,7 @@
 
 package com.tracel.tests.rollback
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.rollback.structure.StructurePlanner
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse

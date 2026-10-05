@@ -1,6 +1,6 @@
 package com.tracel.storage.ports.ops
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.world.BlockEdits
 import com.tracel.engine.world.WorldLog

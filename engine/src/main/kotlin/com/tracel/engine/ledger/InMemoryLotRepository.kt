@@ -1,6 +1,10 @@
 package com.tracel.engine.ledger
 
-import com.tracel.annotations.*
+import com.tracel.annotations.Consume
+import com.tracel.annotations.Reads
+import com.tracel.annotations.RunsOn
+import com.tracel.annotations.SingleWriter
+import com.tracel.annotations.ThreadContext
 import com.tracel.engine.ownership.SingleWriterGuard
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.*
@@ -372,21 +376,20 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         return map.values.toList()
     }
 
-    @Snapshot
     private data class State(
         val lots: PersistentMap<LotId, Lot> = persistentHashMapOf(),
         val edgesByParent: PersistentMap<LotId, PersistentMap<LotId, LotEdge>> = persistentHashMapOf(),
         val edgesByChild: PersistentMap<LotId, PersistentMap<LotId, LotEdge>> = persistentHashMapOf(),
-        @Intern val internedHolders: PersistentMap<HolderId, Int> = persistentHashMapOf(),
-        @Intern val internedItems: PersistentMap<ItemKey, Int> = persistentHashMapOf(),
+        val internedHolders: PersistentMap<HolderId, Int> = persistentHashMapOf(),
+        val internedItems: PersistentMap<ItemKey, Int> = persistentHashMapOf(),
         val nextHolderNo: Int = 1,
         val nextItemNo: Int = 1,
-        @Fifo(orderBy = "fifoSeq") val queues: PersistentMap<AccountKey, PersistentList<AccountLot>> = persistentHashMapOf(),
+        val queues: PersistentMap<AccountKey, PersistentList<AccountLot>> = persistentHashMapOf(),
         val byLot: PersistentMap<LotId, AccountLot> = persistentHashMapOf(),
         val holderOf: PersistentMap<LotId, HolderId> = persistentHashMapOf(),
         val remainingAt: PersistentMap<AccountKey, Long> = persistentHashMapOf(),
-        @Index val itemsAt: PersistentMap<HolderId, PersistentSet<ItemKey>> = persistentHashMapOf(),
-        @Index val holdersOf: PersistentMap<ItemKey, PersistentSet<HolderId>> = persistentHashMapOf(),
+        val itemsAt: PersistentMap<HolderId, PersistentSet<ItemKey>> = persistentHashMapOf(),
+        val holdersOf: PersistentMap<ItemKey, PersistentSet<HolderId>> = persistentHashMapOf(),
     ) {
         fun keyOrNull(holder: HolderId, itemKey: ItemKey): AccountKey? {
             val h = internedHolders[holder] ?: return null

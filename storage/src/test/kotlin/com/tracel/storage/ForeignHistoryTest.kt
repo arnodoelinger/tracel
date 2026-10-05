@@ -1,6 +1,6 @@
 package com.tracel.storage
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.world.BlockEdit
 import com.tracel.engine.world.BlockEdits

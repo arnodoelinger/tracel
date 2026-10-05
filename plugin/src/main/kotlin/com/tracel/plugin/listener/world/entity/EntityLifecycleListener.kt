@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.world.entity
 
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.annotations.Unstable

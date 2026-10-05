@@ -1,5 +1,6 @@
 package com.tracel.storage.crash
 
+import com.tracel.model.transaction.CauseKind
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
@@ -59,7 +60,7 @@ class KillNineRecoveryTest {
 
             val before = stack.ledger.totalAt(player(1), diamond)?.raw ?: 0L
             stack.gate.move(
-                com.tracel.annotations.CauseKind.HOPPER,
+                CauseKind.HOPPER,
                 null,
                 System.currentTimeMillis(),
                 diamond,

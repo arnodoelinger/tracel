@@ -1,6 +1,6 @@
 package com.tracel.tests.capture
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.capture.CaptureCoordinator
 import com.tracel.engine.ledger.Ingredient

@@ -1,6 +1,6 @@
 package com.tracel.engine.rollback.involution
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.RequiresLease
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger

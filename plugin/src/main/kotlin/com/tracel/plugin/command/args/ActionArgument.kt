@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.args
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.model.event.EventKind
 import com.tracel.model.world.ActionKind
 

@@ -1,6 +1,6 @@
 package com.tracel.engine.capture
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.ledger.LotRepository
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.wear.WearLog

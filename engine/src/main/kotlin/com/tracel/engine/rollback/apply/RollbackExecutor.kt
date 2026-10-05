@@ -1,6 +1,6 @@
 package com.tracel.engine.rollback.apply
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.rollback.plan.RollbackPlan

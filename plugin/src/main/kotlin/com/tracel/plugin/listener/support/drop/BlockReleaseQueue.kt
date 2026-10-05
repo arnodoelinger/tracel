@@ -1,6 +1,6 @@
 package com.tracel.plugin.listener.support.drop
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Unstable
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind

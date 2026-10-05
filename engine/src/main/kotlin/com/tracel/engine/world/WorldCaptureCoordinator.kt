@@ -1,6 +1,6 @@
 package com.tracel.engine.world
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.capture.CaptureCoordinator
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Seq

@@ -1,6 +1,6 @@
 package com.tracel.storage.crash
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.model.id.Quantity
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block

@@ -1,7 +1,6 @@
 package com.tracel.storage.ports.log
 
-import com.tracel.annotations.CauseKind
-import com.tracel.annotations.isBookkeeping
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
 import com.tracel.model.flow.Flow

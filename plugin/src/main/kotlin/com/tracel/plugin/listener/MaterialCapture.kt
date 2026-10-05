@@ -1,6 +1,6 @@
 package com.tracel.plugin.listener
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.capture.releaseFlows
 import com.tracel.engine.container.ContainerSlotEntry

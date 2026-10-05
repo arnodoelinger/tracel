@@ -1,6 +1,6 @@
 package com.tracel.plugin.importer.coreprotect
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Unstable
 import com.tracel.engine.world.BlockEdit
 import com.tracel.engine.world.BlockEdits

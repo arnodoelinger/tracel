@@ -7,7 +7,7 @@ import com.fastasyncworldedit.core.queue.IChunkGet
 import com.fastasyncworldedit.core.queue.IChunkSet
 import com.sk89q.worldedit.extent.Extent
 import com.sk89q.worldedit.world.block.BlockTypesCache
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.block.BlockShape

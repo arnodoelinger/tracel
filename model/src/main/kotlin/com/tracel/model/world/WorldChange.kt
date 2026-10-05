@@ -1,6 +1,6 @@
 package com.tracel.model.world
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Seq
 import com.tracel.model.world.block.BlockShape

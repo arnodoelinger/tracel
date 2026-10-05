@@ -1,6 +1,6 @@
 package com.tracel.tests.wear
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.capture.WearCapture
 import com.tracel.engine.wear.InMemoryWearLog
 import com.tracel.engine.wear.WearMark

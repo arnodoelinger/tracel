@@ -1,8 +1,7 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Unstable
-import com.tracel.annotations.isBookkeeping
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
 import com.tracel.model.flow.FlowKind

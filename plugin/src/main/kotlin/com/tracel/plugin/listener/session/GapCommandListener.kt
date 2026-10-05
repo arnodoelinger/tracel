@@ -1,6 +1,6 @@
 package com.tracel.plugin.listener.session
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.TracelListener

@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.world.cell
 
 import com.destroystokyo.paper.event.block.BlockDestroyEvent
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
 import com.tracel.engine.world.BlockEdit

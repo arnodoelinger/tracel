@@ -1,6 +1,6 @@
 package com.tracel.storage
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.*

@@ -1,6 +1,6 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
 import com.tracel.engine.rollback.structure.StructurePlanner

@@ -1,6 +1,6 @@
 package com.tracel.tests.log
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.InMemoryTransactionLog
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion

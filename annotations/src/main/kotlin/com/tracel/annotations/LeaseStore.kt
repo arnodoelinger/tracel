@@ -1,7 +1,7 @@
 package com.tracel.annotations
 
-/** Marker for the lot-lease protocol. */
+/** In-memory exclusive map for [Lease]. */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.BINARY)
 @MustBeDocumented
-public annotation class Lease
+public annotation class LeaseStore

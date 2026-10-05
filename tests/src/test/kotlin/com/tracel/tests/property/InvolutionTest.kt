@@ -1,6 +1,6 @@
 package com.tracel.tests.property
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.journal.InMemoryJournal
 import com.tracel.engine.journal.JournalExecutor
 import com.tracel.engine.ledger.Ingredient

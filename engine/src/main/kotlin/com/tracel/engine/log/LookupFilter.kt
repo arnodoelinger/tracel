@@ -1,6 +1,6 @@
 package com.tracel.engine.log
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.world.WorldLog
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId

@@ -5,7 +5,13 @@ import com.lemonappdev.konsist.api.ext.list.modifierprovider.withPublicOrDefault
 import com.lemonappdev.konsist.api.ext.list.withAnnotationOf
 import com.lemonappdev.konsist.api.verify.assertFalse
 import com.lemonappdev.konsist.api.verify.assertTrue
-import com.tracel.annotations.*
+import com.tracel.annotations.Observes
+import com.tracel.annotations.Journaled
+import com.tracel.annotations.RequiresLease
+import com.tracel.annotations.Consume
+import com.tracel.annotations.Reads
+import com.tracel.annotations.RunsOn
+import com.tracel.annotations.SingleWriter
 import org.junit.jupiter.api.Test
 
 class ArchitectureTest {
@@ -168,16 +174,6 @@ class ArchitectureTest {
             .functions()
             .filter { it.name == "takeFifo" || it.name == "drainFifo" }
             .assertTrue(testName = "FIFO consume is @Consume") { it.hasAnnotationOf(Consume::class) }
-    }
-
-    @Test
-    fun `InMemoryLotRepository publishes a Snapshot`() {
-        Konsist.scopeFromModule("engine")
-            .classes()
-            .filter { it.name == "InMemoryLotRepository" }
-            .assertTrue(testName = "has @Snapshot nested state") { klass ->
-                klass.classes().any { it.hasAnnotationOf(Snapshot::class) }
-            }
     }
 
     @Test

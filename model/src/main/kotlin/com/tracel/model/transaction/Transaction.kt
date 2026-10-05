@@ -1,6 +1,5 @@
 package com.tracel.model.transaction
 
-import com.tracel.annotations.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId

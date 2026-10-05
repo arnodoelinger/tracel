@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.model.event.EventKind
 import com.tracel.engine.log.LookupFilter
 import com.tracel.engine.log.LookupRegion
