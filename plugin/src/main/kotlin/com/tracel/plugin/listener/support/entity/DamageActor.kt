@@ -24,6 +24,7 @@ internal fun TracelServices.damageBlame(event: EntityDamageEvent): DamageBlame {
         val who = attackerOf(event.damager)
         val cause = when {
             blast -> CauseKind.EXPLOSION
+            event.damager is Projectile && who != null -> CauseKind.PROJECTILE
             who is HolderId.Player -> CauseKind.PLAYER_ACTION
             else -> CauseKind.ENTITY_ACTION
         }

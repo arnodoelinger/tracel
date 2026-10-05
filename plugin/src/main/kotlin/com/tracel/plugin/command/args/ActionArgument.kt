@@ -82,6 +82,9 @@ private val ALIASES: List<ActionAlias> = listOf(
     ActionAlias(names = setOf("+session", "join"), events = setOf(EventKind.JOIN), half = Half.EVENT),
     ActionAlias(names = setOf("-session", "quit"), events = setOf(EventKind.QUIT), half = Half.EVENT),
     ActionAlias(names = setOf("death"), events = setOf(EventKind.DEATH), half = Half.EVENT),
+    ActionAlias(names = setOf("shoot", "launch"), events = setOf(EventKind.SHOOT), half = Half.EVENT),
+    ActionAlias(names = setOf("hit", "damage"), events = setOf(EventKind.HIT), half = Half.EVENT),
+    ActionAlias(names = setOf("projectile"), causes = setOf(CauseKind.PROJECTILE), half = Half.BOTH),
     ActionAlias(
         names = setOf("explosion"),
         causes = setOf(CauseKind.EXPLOSION),

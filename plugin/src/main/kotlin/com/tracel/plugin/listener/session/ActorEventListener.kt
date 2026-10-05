@@ -12,14 +12,20 @@ import io.papermc.paper.event.player.AsyncChatEvent
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.entity.FallingBlock
+import org.bukkit.entity.FishHook
 import org.bukkit.entity.Player
+import org.bukkit.entity.Projectile
+import org.bukkit.event.entity.EntityDamageByEntityEvent
+import java.util.Locale
+import com.tracel.model.world.BlockPos
 import org.bukkit.event.entity.PlayerDeathEvent
+import org.bukkit.event.entity.ProjectileLaunchEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
 
 /**
- * The event log: what players say and type, when they come and go, and how they die.
+ * The event log: what players say and type, when they come and go, how they die, and what they shoot.
  *
  * Nothing here is ever rolled back.
  */
@@ -52,6 +58,26 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         record(EventKind.DEATH, event.player, killer.replace('_', ' '))
     }
 
+    @Observes
+    fun onLaunch(event: ProjectileLaunchEvent) {
+        val projectile = event.entity
+        if (projectile is FishHook) return
+        val player = projectile.shooter as? Player ?: return
+        record(EventKind.SHOOT, player, projectile.type.key.key)
+    }
+
+    @Observes
+    fun onDamage(event: EntityDamageByEntityEvent) {
+        val damager = event.damager
+        val victim = event.entity
+        val shooter = (damager as? Projectile)?.shooter as? Player
+        val attacker = shooter ?: (damager as? Player)?.takeIf { victim is Player } ?: return
+        val victimName = (victim as? Player)?.let { "@${it.name}" } ?: victim.type.key.key
+        val how = if (shooter != null) " with ${damager.type.key.key}" else ""
+        val hp = "%.1f".format(Locale.ROOT, event.finalDamage)
+        record(EventKind.HIT, attacker, "$victimName$how ($hp hp)", victim.toBlockPos())
+    }
+
     private fun redacted(line: String): String {
         val label = line.removePrefix("/").substringBefore(' ')
         val command = Bukkit.getCommandMap().getCommand(label.lowercase()) ?: return line
@@ -59,8 +85,8 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         return "/$label ***"
     }
 
-    private fun record(kind: EventKind, player: Player, text: String?) {
-        val at = runCatching { player.toBlockPos() }.getOrNull()
+    private fun record(kind: EventKind, player: Player, text: String?, where: BlockPos? = null) {
+        val at = where ?: runCatching { player.toBlockPos() }.getOrNull()
         val millis = System.currentTimeMillis()
         owing {
             services.events.append(

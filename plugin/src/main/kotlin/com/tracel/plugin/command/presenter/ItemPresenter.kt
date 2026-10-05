@@ -3,6 +3,7 @@ package com.tracel.plugin.command.presenter
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.SourceKind
 import com.tracel.plugin.i18n.tr
 import net.kyori.adventure.text.Component
 
@@ -44,7 +45,10 @@ internal object ItemPresenter {
         return when (flow.kind) {
             FlowKind.TRANSFORM_IN -> if (everything) Act("used", MINUS) else null
             FlowKind.TRANSFORM_OUT -> Act("crafted", PLUS)
-            FlowKind.MINT -> if (to is HolderId.Player) Act("received", PLUS) else if (everything) Act(
+            FlowKind.MINT -> if (to is HolderId.Player && from is HolderId.Source && from.kind == SourceKind.CREATIVE) Act(
+                "conjured",
+                PLUS
+            ) else if (to is HolderId.Player) Act("received", PLUS) else if (everything) Act(
                 "created",
                 PLUS
             ) else null

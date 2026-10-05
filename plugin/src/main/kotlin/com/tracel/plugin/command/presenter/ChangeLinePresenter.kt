@@ -36,6 +36,7 @@ import java.util.*
 /** One line per recorded change: lookup, the inspector and rollback previews all read the same. */
 internal object ChangeLinePresenter {
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
+    private val HIT = Regex("""^(.+?)(?: with (\S+))? \(([\d.]+) hp\)$""")
 
     private enum class Half { FIRST, SECOND }
 
@@ -97,6 +98,7 @@ internal object ChangeLinePresenter {
         val rolledAt: Long? = null,
         val counted: Boolean = true,
         val pairs: Boolean = false,
+        val tip: Component? = null,
     )
 
     /** [delta] is what this line did to the side [family] counts for: positive for [ItemPresenter.Family.plus]. */
@@ -139,8 +141,20 @@ internal object ChangeLinePresenter {
             EventKind.JOIN -> "joined"
             EventKind.QUIT -> "left"
             EventKind.DEATH -> "died"
+            EventKind.SHOOT -> "shot"
+            EventKind.HIT -> "hit"
         }
-        val text = event.text.orEmpty()
+        val raw = event.text.orEmpty()
+        val text = when (event.kind) {
+            EventKind.SHOOT -> NamePresenter.pretty(raw)
+            EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).text } ?: raw
+            else -> raw
+        }
+        val shown: Component = when (event.kind) {
+            EventKind.SHOOT -> NamePresenter.entity(raw)
+            EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).row } ?: Component.text(raw)
+            else -> Component.text(raw)
+        }
         return Logged(
             millis = event.epochMillis,
             key = listOf(event.by, event.kind, text),
@@ -154,7 +168,8 @@ internal object ChangeLinePresenter {
             whoText = whoText(event.by, CauseKind.PLAYER_ACTION, actors),
             whatText = { text },
             title = verb,
-            what = { Component.text(text) },
+            what = { shown },
+            tip = if (event.kind == EventKind.HIT) HIT.matchEntire(raw)?.let { hit(it).tip } else null,
             at = event.at,
             mode = modeOf(event.by, event.epochMillis, actors),
         )
@@ -316,7 +331,7 @@ internal object ChangeLinePresenter {
         val clipped = Glyphs.width(label) > Glyphs.LINE - fixed
         val what = if (!clipped) full else Component.text(Glyphs.clip(label, Glyphs.LINE - fixed))
         val shown =
-            if (!clipped) hover else listOf(Component.text(label, NamedTextColor.WHITE), Component.empty()) + hover
+            if (!clipped) hover else listOf(entry.tip ?: Component.text(label, NamedTextColor.WHITE), Component.empty()) + hover
         val row = Component.text()
             .append(ago.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
             .append(mark).append(Component.space())
@@ -346,11 +361,32 @@ internal object ChangeLinePresenter {
     /** @return the position string for the given coordinates. */
     fun at(x: Int, y: Int, z: Int): String = "$x, $y, $z"
 
+    private class Blow(val text: String, val row: Component, val tip: Component)
+
+    private fun hit(found: MatchResult): Blow {
+        val (victim, projectile, hp) = found.destructured
+        val player = victim.startsWith("@")
+        val name: Component = if (player) Component.text(victim.drop(1)) else NamePresenter.entity(victim)
+        val detail = listOfNotNull(projectile.takeIf(String::isNotEmpty)?.let(NamePresenter::pretty), "$hp hp")
+        val tail = if (projectile.isEmpty()) Component.text("$hp hp)")
+        else Component.textOfChildren(NamePresenter.entity(projectile), Component.text(", $hp hp)"))
+        val plain = (if (player) victim.drop(1) else NamePresenter.pretty(victim)) + " (${detail.joinToString(", ")})"
+        return Blow(
+            plain,
+            Component.textOfChildren(name, Component.text(" ("), tail),
+            Component.textOfChildren(
+                name.colorIfAbsent(NamedTextColor.WHITE),
+                Component.text(" (", NamedTextColor.GRAY),
+                tail.color(NamedTextColor.GRAY),
+            ),
+        )
+    }
+
     private fun modeOf(by: HolderId?, millis: Long, actors: Actors): GameMode? =
         (by as? HolderId.Player)?.let { actors.mode(it.uuid, millis) }
 
     private fun whoText(by: HolderId?, cause: CauseKind, actors: Actors): String = when (by) {
-        is HolderId.Player -> playerName(by.uuid)
+        is HolderId.Player -> playerName(by.uuid) + if (cause == CauseKind.PROJECTILE) " (projectile)" else ""
         is HolderId.Entity -> actors.kind(by.uuid)?.let(NamePresenter::pretty) ?: english(who(by, cause, actors))
         else -> english(who(by, cause, actors))
     }
@@ -359,7 +395,10 @@ internal object ChangeLinePresenter {
         PlainTextComponentSerializer.plainText().serialize(GlobalTranslator.render(component, Locale.ENGLISH))
 
     private fun who(by: HolderId?, cause: CauseKind, actors: Actors): Component =
-        (by as? HolderId.Player)?.let { Component.text(playerName(it.uuid)) }
+        (by as? HolderId.Player)?.let { player ->
+            val name = Component.text(playerName(player.uuid))
+            if (cause == CauseKind.PROJECTILE) Component.textOfChildren(name, lower("common.via.projectile")) else name
+        }
             ?: by?.let { holder(it, actors) } ?: Component.text(cause.name.lowercase())
 
     private fun quantity(total: Long, item: Component): Component =

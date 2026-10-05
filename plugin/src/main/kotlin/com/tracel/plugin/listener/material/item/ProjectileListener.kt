@@ -16,6 +16,7 @@ import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.listener.support.flow.CREATIVE_SINK
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
+import org.bukkit.GameMode
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile
 import org.bukkit.event.entity.EntityRemoveEvent
@@ -52,6 +53,9 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
     private fun fromPlayer(shooter: Player, projectile: Projectile, itemKey: ItemKey, holder: HolderId.PlacedEntity) {
         val playerHolder = HolderId.Player(shooter.uniqueId)
         if (!shooter.isLedgeredHolder()) return
+
+        // Creative throws cost nothing
+        if (shooter.gameMode == GameMode.CREATIVE) return
 
         // Event-booked; differ must be told or the next inventory read reports the item leaving twice
         material.adjust(

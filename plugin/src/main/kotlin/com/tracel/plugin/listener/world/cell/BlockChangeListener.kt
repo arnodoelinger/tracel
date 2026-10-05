@@ -30,8 +30,10 @@ import org.bukkit.block.data.type.*
 import org.bukkit.block.data.type.Tripwire
 import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.Player
+import org.bukkit.entity.Projectile
 import org.bukkit.event.block.*
 import org.bukkit.event.entity.EntityChangeBlockEvent
+import org.bukkit.event.entity.ProjectileHitEvent
 import org.bukkit.event.entity.EntityEnterBlockEvent
 import org.bukkit.event.player.PlayerBucketEmptyEvent
 import org.bukkit.event.player.PlayerBucketFillEvent
@@ -187,8 +189,9 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onIgnite(event: BlockIgniteEvent) {
-        val player = event.player?.uniqueId
         val igniter = event.ignitingEntity
+        val shooter = ((igniter as? Projectile)?.shooter as? Player)?.uniqueId
+        val player = event.player?.uniqueId ?: shooter
         val explosion = when (event.cause) {
             BlockIgniteEvent.IgniteCause.FIREBALL,
             BlockIgniteEvent.IgniteCause.EXPLOSION,
@@ -199,6 +202,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         }
         val cause = when {
             explosion -> CauseKind.EXPLOSION
+            shooter != null -> CauseKind.PROJECTILE
             player != null -> CauseKind.PLAYER_ACTION
             event.cause == BlockIgniteEvent.IgniteCause.SPREAD || event.cause == BlockIgniteEvent.IgniteCause.LAVA ->
                 if (FireCell.at(event.ignitingBlock) != null || event.ignitingBlock?.let { ColumnCell.fluidPlayerAt(it) } != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
@@ -238,6 +242,12 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             causedBy = by,
             blocks = around
         )
+    }
+
+    @Observes
+    fun onProjectileHit(event: ProjectileHitEvent) {
+        val player = (event.entity.shooter as? Player) ?: return
+        event.hitBlock?.let { ColumnCell.remember(player.uniqueId, it) }
     }
 
     @Observes

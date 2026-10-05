@@ -22,6 +22,7 @@ import com.tracel.plugin.adapter.entity.toShape
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DispenseCell
+import com.tracel.plugin.listener.support.entity.DamageBlame
 import com.tracel.plugin.listener.support.entity.HitActor
 import com.tracel.plugin.listener.support.entity.damageBlame
 import com.tracel.plugin.listener.support.entity.explosionActor
@@ -258,14 +259,18 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         removedBy.put(victim.uniqueId, Blame(who, CauseKind.EXPLOSION))
     }
 
+    private fun hitBy(entity: Entity, blame: DamageBlame) {
+        val who = blame.who ?: return
+        HitActor.hit(entity, who, projectile = blame.cause == CauseKind.PROJECTILE)
+    }
+
     @Observes
     fun onVehicleDamaged(event: VehicleDamageEvent) {
         if (restoring) return
         val attacker = event.attacker ?: return
-        val who = (attacker as? Player)?.let { HolderId.Player(it.uniqueId) }
-            ?: ((attacker as? Projectile)?.shooter as? Player)?.let { HolderId.Player(it.uniqueId) }
-            ?: return
-        HitActor.hit(event.vehicle, who)
+        val shooter = ((attacker as? Projectile)?.shooter as? Player)?.let { HolderId.Player(it.uniqueId) }
+        val who = (attacker as? Player)?.let { HolderId.Player(it.uniqueId) } ?: shooter ?: return
+        HitActor.hit(event.vehicle, who, projectile = shooter != null)
     }
 
     @Observes
@@ -273,22 +278,23 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (restoring) return
         val entity = event.entity
         if (entity is ItemFrame) {
-            services.damageBlame(event).who?.let { HitActor.hit(entity, it) }
+            hitBy(entity, services.damageBlame(event))
             return
         }
         if (entity is ArmorStand || entity is EnderCrystal || entity is ExplosiveMinecart) {
-            val who = services.damageBlame(event).who
+            val hit = services.damageBlame(event)
+            val who = hit.who
             if (who != null) {
-                HitActor.hit(entity, who)
+                hitBy(entity, hit)
                 if (entity.logsWorldShape() && removedBy[entity.uniqueId]?.who == null) removedBy.put(
                     entity.uniqueId,
-                    Blame(who)
+                    Blame(who, hit.cause.takeIf { it == CauseKind.PROJECTILE })
                 )
             }
             if (entity !is ArmorStand) return
         }
         if (entity.isScenery() && entity !is LivingEntity) {
-            services.damageBlame(event).who?.let { HitActor.hit(entity, it) }
+            hitBy(entity, services.damageBlame(event))
             return
         }
         if (entity !is LivingEntity || entity is Player) return
@@ -301,7 +307,10 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         }
         dying.put(entity.uniqueId, entity.toShape())
         if (blame.who == null || removedBy[entity.uniqueId]?.who != null) return
-        removedBy.put(entity.uniqueId, Blame(blame.who, blame.cause.takeIf { it == CauseKind.EXPLOSION }))
+        removedBy.put(
+            entity.uniqueId,
+            Blame(blame.who, blame.cause.takeIf { it == CauseKind.EXPLOSION || it == CauseKind.PROJECTILE }),
+        )
     }
 
     @Observes(ignoreCancelled = false)
@@ -374,7 +383,11 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (!entity.logsWorldShape()) return
         val killer = entity.killer
         if (killer != null) {
-            removedBy.put(entity.uniqueId, Blame(HolderId.Player(killer.uniqueId)))
+            val shot = (entity.lastDamageCause as? EntityDamageByEntityEvent)?.damager is Projectile
+            removedBy.put(
+                entity.uniqueId,
+                Blame(HolderId.Player(killer.uniqueId), CauseKind.PROJECTILE.takeIf { shot }),
+            )
             return
         }
         if (!entity.diedInAnExplosion()) return
@@ -391,10 +404,12 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val attacker = event.attacker
         val near = services.redstoneTriggers.recentExplosionNear(event.vehicle.location)
         val explosion = attacker.isBlastSource() || (attacker == null && near != null)
+        val shooter = (attacker as? Projectile)?.shooter as? Player
         val who = (attacker as? Player)?.let { HolderId.Player(it.uniqueId) }
+            ?: shooter?.let { HolderId.Player(it.uniqueId) }
             ?: attacker?.let { services.explosionActor(it) }
             ?: near
-        val cause = if (explosion) CauseKind.EXPLOSION else null
+        val cause = if (explosion) CauseKind.EXPLOSION else if (shooter != null) CauseKind.PROJECTILE else null
         if (who != null || cause != null) removedBy.put(event.vehicle.uniqueId, Blame(who, cause))
         record(ActionKind.ENTITY_REMOVE, event.vehicle, who, after = false, cause = cause)
     }
@@ -404,10 +419,12 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val byEntity = (event as? HangingBreakByEntityEvent)?.remover
         val explosion = event.cause == HangingBreakEvent.RemoveCause.EXPLOSION ||
                 byEntity.isBlastSource()
+        val shooter = (byEntity as? Projectile)?.shooter as? Player
         val who: HolderId? = (byEntity as? Player)?.let { HolderId.Player(it.uniqueId) }
+            ?: shooter?.let { HolderId.Player(it.uniqueId) }
             ?: byEntity?.let { services.explosionActor(it) }
             ?: if (explosion) services.redstoneTriggers.recentExplosionNear(event.entity.location) else null
-        val cause = if (explosion) CauseKind.EXPLOSION else null
+        val cause = if (explosion) CauseKind.EXPLOSION else if (shooter != null) CauseKind.PROJECTILE else null
         if (who != null || cause != null) removedBy.put(event.entity.uniqueId, Blame(who, cause))
         record(ActionKind.ENTITY_REMOVE, event.entity, who, after = false, cause = cause)
     }
@@ -427,7 +444,8 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         }
         val blame = removedBy.remove(entity.uniqueId)
             ?: killer[entity.world.uid]?.takeIf { event.cause in KILLED_BY_COMMAND }?.let { Blame(it) }
-            ?: HitActor.of(entity)?.takeIf { entity.isScenery() }?.let { Blame(it) }
+            ?: HitActor.of(entity)?.takeIf { entity.isScenery() }
+                ?.let { Blame(it, CauseKind.PROJECTILE.takeIf { HitActor.wasShot(entity.uniqueId) }) }
         if (!event.cause.kind().records(entity.isScenery(), blame?.who != null)) return
         if (entity is AbstractArrow && event.cause == EntityRemoveEvent.Cause.DESPAWN) return
 
@@ -437,6 +455,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
                 event.cause == EntityRemoveEvent.Cause.EXPLODE
         val who = blame?.who
             ?: if (exploded) services.redstoneTriggers.recentExplosionNear(entity.location) else null
+        val shot = !exploded && who != null && blame?.cause == CauseKind.PROJECTILE
 
         bornUnlogged(entity)
         if (who == null && !exploded && entity.isScenery() && event.cause == EntityRemoveEvent.Cause.DEATH) {
@@ -445,7 +464,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         }
         record(
             ActionKind.ENTITY_REMOVE, entity, who, after = false,
-            cause = if (exploded) CauseKind.EXPLOSION else null,
+            cause = if (exploded) CauseKind.EXPLOSION else if (shot) CauseKind.PROJECTILE else null,
         )
     }
 
@@ -456,7 +475,10 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val looks = living ?: entity.toShape()
         val at = living?.blockPos(entity.world.uid) ?: entity.toBlockPos()
         later(entity.location) {
-            record(ActionKind.ENTITY_REMOVE, uuid, looks, at, HitActor.of(uuid), after = false)
+            record(
+                ActionKind.ENTITY_REMOVE, uuid, looks, at, HitActor.of(uuid), after = false,
+                cause = CauseKind.PROJECTILE.takeIf { HitActor.wasShot(uuid) },
+            )
         }
     }
 

@@ -17,6 +17,7 @@ public enum class CauseKind {
     PLUGIN,
     UNKNOWN,
     WEAR,
+    PROJECTILE,
 }
 
 /**

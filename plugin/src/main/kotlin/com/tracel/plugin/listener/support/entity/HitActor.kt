@@ -18,9 +18,14 @@ internal object HitActor {
 
     private val byEntity = ExpiringMap<UUID, HolderId>(TTL_MS, 16_384)
 
-    fun hit(entity: Entity, by: HolderId) {
+    private val shot = ExpiringMap<UUID, Boolean>(TTL_MS, 16_384)
+
+    fun hit(entity: Entity, by: HolderId, projectile: Boolean = false) {
         byEntity.put(entity.uniqueId, by)
+        if (projectile) shot.put(entity.uniqueId, true) else shot.remove(entity.uniqueId)
     }
+
+    fun wasShot(entity: UUID): Boolean = shot[entity] == true
 
     fun of(entity: Entity): HolderId? = of(entity.uniqueId)
 

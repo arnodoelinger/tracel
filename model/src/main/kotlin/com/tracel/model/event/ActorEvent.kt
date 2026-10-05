@@ -11,6 +11,8 @@ public enum class EventKind {
     JOIN,
     QUIT,
     DEATH,
+    SHOOT,
+    HIT,
 }
 
 /**

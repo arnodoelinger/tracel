@@ -111,6 +111,9 @@
       "backup": "<aqua>[☂ Back up first]</aqua>",
       "backup_hover": "<white>Put \"/tracel data export\" in the chat box</white>"
     },
+    "via": {
+      "projectile": " (projectile)"
+    },
     "mark": {
       "plus": "<green>+</green>",
       "minus": "<red>-</red>",
@@ -223,6 +226,7 @@
       "received": "Received",
       "lost": "Lost",
       "used": "Used",
+      "conjured": "Took from creative",
       "created": "Created",
       "destroyed": "Destroyed",
       "damaged": "Damaged",
@@ -240,6 +244,8 @@
       "ran": "Ran",
       "joined": "Joined",
       "left": "Left",
+      "shot": "Launched",
+      "hit": "Hit",
       "died": "Was killed by"
     },
     "mode": {
@@ -700,6 +706,9 @@
       "session": "Joins and quits",
       "join": "Players joining",
       "quit": "Players leaving",
+      "hit": "Hits and damage dealt",
+      "shoot": "Projectiles launched",
+      "projectile": "Damage done by projectiles",
       "death": "Player deaths"
     },
     "flag": {
