@@ -2,6 +2,7 @@ package com.tracel.plugin.adapter.entity.capability.cargo
 
 import org.bukkit.entity.AbstractHorse
 import org.bukkit.entity.ArmorStand
+import org.bukkit.entity.CopperGolem
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Mob
 import org.bukkit.inventory.EquipmentSlot
@@ -14,7 +15,10 @@ internal object MobEquipmentCargo : CargoSurface {
     fun owned(mob: Mob): List<EquipmentSlot> {
         val equipment = mob.equipment
         return EquipmentSlot.entries.filter { slot ->
-            runCatching { mob.canUseEquipmentSlot(slot) && equipment.getDropChance(slot) >= 1f }.getOrDefault(false)
+            runCatching {
+                mob.canUseEquipmentSlot(slot) &&
+                        (equipment.getDropChance(slot) >= 1f || mob is CopperGolem && slot == EquipmentSlot.HAND)
+            }.getOrDefault(false)
         }
     }
 

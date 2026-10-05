@@ -6,6 +6,7 @@ import com.tracel.plugin.listener.material.inventory.HandMutationListener
 import com.tracel.plugin.listener.material.inventory.InventoryClickListener
 import com.tracel.plugin.listener.material.inventory.WearListener
 import com.tracel.plugin.listener.material.item.*
+import com.tracel.plugin.listener.material.machine.CopperGolemListener
 import com.tracel.plugin.listener.material.machine.DispenseListener
 import com.tracel.plugin.listener.material.machine.HopperListener
 import com.tracel.plugin.listener.material.machine.SmeltListener
@@ -64,6 +65,7 @@ private fun itemListeners(services: TracelServices): List<TracelListener> = list
     // Machines
     HopperListener(services),
     DispenseListener(services),
+    CopperGolemListener(services),
     SmeltListener(services),
 
     // Items
