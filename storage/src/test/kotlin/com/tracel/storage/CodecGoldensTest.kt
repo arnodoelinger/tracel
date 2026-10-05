@@ -1,6 +1,5 @@
 package com.tracel.storage
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
@@ -10,6 +9,7 @@ import com.tracel.model.id.WorldId
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.log.LogKind
+import com.tracel.model.transaction.CauseKind
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.EntityTypeKey
@@ -28,7 +28,7 @@ class CodecGoldensTest {
         assertEquals(
             listOf(
                 "PLAYER_ACTION", "EXPLOSION", "HOPPER", "CRAFT", "BLOCK_BREAK", "ROLLBACK",
-                "INVOLUTION", "ENTITY_ACTION", "WORLD", "PLUGIN", "UNKNOWN", "WEAR",
+                "INVOLUTION", "ENTITY_ACTION", "WORLD", "PLUGIN", "UNKNOWN", "WEAR", "PROJECTILE",
             ),
             CauseKind.entries.map { it.name },
         )
