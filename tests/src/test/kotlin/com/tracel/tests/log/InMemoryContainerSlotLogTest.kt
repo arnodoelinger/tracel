@@ -1,4 +1,4 @@
-package com.tracel.tests.container
+package com.tracel.tests.log
 
 import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.engine.container.memory.InMemoryContainerSlotLog

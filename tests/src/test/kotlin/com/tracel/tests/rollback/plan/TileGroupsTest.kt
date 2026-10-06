@@ -1,4 +1,4 @@
-package com.tracel.tests.rollback
+package com.tracel.tests.rollback.plan
 
 import com.tracel.engine.rollback.structure.space.groupByTile
 import com.tracel.model.world.BlockPos
@@ -7,21 +7,21 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.*
 
-class ChunkGroupsTest {
+class TileGroupsTest {
     private val overworld = WorldId(UUID(0L, 1L))
     private val nether = WorldId(UUID(0L, 2L))
 
     private fun at(world: WorldId, x: Int, z: Int) = BlockPos(world, x, 64, z)
 
     @Test
-    fun `items of one chunk are one group, in the order they came`() {
+    fun `items of one tile are one group, in the order they came`() {
         val items = listOf(at(overworld, 1, 1), at(overworld, 15, 0), at(overworld, 0, 15))
 
         assertEquals(listOf(items), groupByTile(items) { it })
     }
 
     @Test
-    fun `a chunk met again later joins its first group, and groups keep the order their chunk was first met`() {
+    fun `a tile met again later joins its first group, and groups keep the order their tile was first met`() {
         val a1 = at(overworld, 0, 0)
         val b = at(overworld, 16, 0)
         val a2 = at(overworld, 5, 5)
@@ -31,7 +31,7 @@ class ChunkGroupsTest {
     }
 
     @Test
-    fun `the same chunk coordinates in two worlds are two groups`() {
+    fun `the same tile coordinates in two worlds are two groups`() {
         val over = at(overworld, 3, 3)
         val under = at(nether, 3, 3)
 
@@ -39,7 +39,7 @@ class ChunkGroupsTest {
     }
 
     @Test
-    fun `negative coordinates fall in the chunk below zero, not in chunk zero`() {
+    fun `negative coordinates fall in the tile below zero, not in tile zero`() {
         val below = at(overworld, -1, 0)
         val zero = at(overworld, 0, 0)
 

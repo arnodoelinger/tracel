@@ -18,7 +18,7 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.NamespacedNames
-import com.tracel.tests.support.assertFails
+import org.junit.jupiter.api.assertThrows
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -56,7 +56,7 @@ class InMemoryTransactionLogTest {
         val txn = Transaction(TxnId(1), Seq(1), 0L, CauseKind.UNKNOWN, null, emptyList())
         log.append(txn)
 
-        assertFails<IllegalStateException> { log.append(txn) }
+        assertThrows<IllegalStateException> { log.append(txn) }
     }
 
     @Test
@@ -117,6 +117,7 @@ class InMemoryTransactionLogTest {
         assertEquals(listOf(theft), log.query(LookupFilter(holders = setOf(steve))))
         assertEquals(emptyList<Transaction>(), log.query(LookupFilter(causes = setOf(CauseKind.ROLLBACK))))
         assertEquals(emptyList<Transaction>(), log.query(LookupFilter(causes = setOf(CauseKind.INVOLUTION))))
+        assertEquals(2L, log.find(TxnId(2))?.seq?.raw, "but a rollback's own row is still findable by id")
     }
 
     @Test
@@ -178,40 +179,5 @@ class InMemoryTransactionLogTest {
         assertEquals(listOf(txns[4], txns[3]), page1)
         assertEquals(listOf(txns[2], txns[1]), page2)
         assertEquals(listOf(txns[0]), page3)
-    }
-
-    @Test
-    fun `bookkeeping is findable by id but invisible to lookup`() = runTest {
-        val log = InMemoryTransactionLog(NamespacedNames)
-        val chest = block(0, 64, 0)
-        val steve = player(1)
-        val original = Transaction(
-            TxnId(1),
-            Seq(1),
-            100,
-            CauseKind.PLAYER_ACTION,
-            steve,
-            listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE))
-        )
-        val rollback = Transaction(
-            TxnId(2),
-            Seq(2),
-            200,
-            CauseKind.ROLLBACK,
-            null,
-            listOf(Flow(diamond, Quantity(1), steve, chest, FlowKind.MOVE))
-        )
-        val undo = Transaction(
-            TxnId(3),
-            Seq(3),
-            300,
-            CauseKind.INVOLUTION,
-            null,
-            listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE))
-        )
-        listOf(original, rollback, undo).forEach { log.append(it) }
-
-        assertEquals(rollback, log.find(TxnId(2)))
-        assertEquals(listOf(original), log.query(LookupFilter(limit = Int.MAX_VALUE)))
     }
 }

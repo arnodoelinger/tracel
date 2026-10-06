@@ -1,4 +1,4 @@
-package com.tracel.tests.rollback
+package com.tracel.tests.rollback.plan
 
 import com.tracel.engine.ledger.craft.Ingredient
 import com.tracel.engine.ledger.craft.Product
@@ -11,6 +11,7 @@ import com.tracel.model.item.Quantity
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
+import com.tracel.tests.support.Fixtures.itemEntity
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest
@@ -84,7 +85,7 @@ class PhysicalDeltasTest {
     fun `a Mint of a key a Take already delivers is not a second physical stack`() = runTest {
         val world = LedgerHarness()
         val chest = block(0, 64, 0)
-        val ground = com.tracel.tests.support.Fixtures.itemEntity(9)
+        val ground = itemEntity(9)
         val live = world.ledger.mint(chest, diamond, Quantity(64), world.nextTxn())
         world.ledger.move(chest, ground, diamond, Quantity(64), world.nextTxn())
         val burned = world.ledger.mint(chest, diamond, Quantity(64), world.nextTxn())

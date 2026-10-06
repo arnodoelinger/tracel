@@ -22,7 +22,7 @@ import com.tracel.tests.support.Fixtures.itemEntity
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import com.tracel.tests.support.NamespacedNames
-import com.tracel.tests.support.assertFails
+import org.junit.jupiter.api.assertThrows
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -37,8 +37,6 @@ class CaptureCoordinatorTest {
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
-        // A chest already has 10 diamonds from ordinary bootstrapping (mint), then a click
-        // moves 4 of them to Steve — captured purely as "chest lost 4, Steve gained 4".
         world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
         val deltas = listOf(InventoryDelta(chest, diamond, -4L), InventoryDelta(steve, diamond, 4L))
 
@@ -188,12 +186,10 @@ class CaptureCoordinatorTest {
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
-        // Steve gains stone out of nowhere (a satisfiable "MINT") in the very same capture that
-        // says a chest lost diamonds the ledger never knew it had (an unsatisfiable "BURN").
         val stone = ItemKey("minecraft:stone")
         val deltas = listOf(InventoryDelta(steve, stone, 3L), InventoryDelta(chest, diamond, -5L))
 
-        assertFails<IllegalStateException> {
+        assertThrows<IllegalStateException> {
             coordinator.record(deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
         }
 
@@ -213,13 +209,12 @@ class CaptureCoordinatorTest {
 
         world.ledger.mint(ground, diamond, Quantity(2), world.nextTxn())
 
-        // Two flows draining the same ground item: the first is fine, the second overdraws it
         val flows = listOf(
             Flow(diamond, Quantity(2), ground, steve, FlowKind.MOVE),
             Flow(diamond, Quantity(1), ground, HolderId.Sink(SinkKind.DESPAWN), FlowKind.BURN),
         )
 
-        assertFails<IllegalStateException> {
+        assertThrows<IllegalStateException> {
             coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
         }
 
@@ -230,8 +225,6 @@ class CaptureCoordinatorTest {
 
     @Test
     fun `a flow drawing on what an earlier flow in the same capture deposited is allowed`() = runTest {
-        // The check simulates the flows in order rather than only summing per source, so a
-        // legitimate hand-off inside one transaction is not mistaken for an overdraw.
         val world = LedgerHarness()
         val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
@@ -294,7 +287,7 @@ class CaptureCoordinatorTest {
 
         val deltas = listOf(InventoryDelta(ground, diamond, -2L), InventoryDelta(steve, diamond, 2L))
 
-        assertFails<IllegalStateException> {
+        assertThrows<IllegalStateException> {
             coordinator.record(
                 deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve,
                 mintShortfall = { it is HolderId.Player },
@@ -314,7 +307,7 @@ class CaptureCoordinatorTest {
 
         val deltas = listOf(InventoryDelta(steve, diamond, -2L), InventoryDelta(ground, diamond, 2L))
 
-        assertFails<IllegalStateException> {
+        assertThrows<IllegalStateException> {
             coordinator.record(deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
         }
     }

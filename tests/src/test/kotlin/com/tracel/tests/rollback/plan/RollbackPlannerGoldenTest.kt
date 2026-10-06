@@ -1,10 +1,5 @@
-package com.tracel.tests.rollback
+package com.tracel.tests.rollback.plan
 
-import com.tracel.engine.ledger.craft.Ingredient
-import com.tracel.engine.ledger.craft.Product
-import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.journal.JournalExecutor
-import com.tracel.engine.rollback.journal.memory.InMemoryJournal
 import com.tracel.engine.rollback.plan.*
 import com.tracel.engine.rollback.plan.step.LotContribution
 import com.tracel.engine.rollback.plan.step.RollbackStep
@@ -14,7 +9,6 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.lot.LotId
-import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
@@ -60,7 +54,7 @@ class RollbackPlannerGoldenTest {
         val root = world.ledger.mint(steve, diamond, Quantity(10), world.nextTxn())
         world.ledger.move(steve, alex, diamond, Quantity(4), world.nextTxn())
 
-        val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        val plan = world.planner().plan(listOf(root.id))
 
         golden(
             plan,
@@ -82,11 +76,11 @@ class RollbackPlannerGoldenTest {
         val ironBlock = ItemKey("minecraft:iron_block")
         val nugget = ItemKey("minecraft:iron_nugget")
         val root = world.ledger.mint(steve, ingot, Quantity(9), world.nextTxn())
-        craft(world, ingot, 9, ironBlock, 1)
-        craft(world, ironBlock, 1, ingot, 9)
-        if (levels == 3) craft(world, ingot, 9, nugget, 81)
+        world.craft(steve, ingot, 9, ironBlock, 1)
+        world.craft(steve, ironBlock, 1, ingot, 9)
+        if (levels == 3) world.craft(steve, ingot, 9, nugget, 81)
 
-        val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        val plan = world.planner().plan(listOf(root.id))
 
         val expected = buildList {
             if (levels == 3) add(unmake(4, 3, 9, 4))
@@ -111,10 +105,10 @@ class RollbackPlannerGoldenTest {
     fun `partly lost craft returns planks and compensates the lost half without unmaking`() = runTest {
         val world = LedgerHarness()
         val root = world.ledger.mint(steve, log, Quantity(16), world.nextTxn())
-        craft(world, log, 16, planks, 64)
+        world.craft(steve, log, 16, planks, 64)
         world.ledger.burn(steve, planks, Quantity(32), SinkKind.HAZARD, world.nextTxn())
 
-        val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        val plan = world.planner().plan(listOf(root.id))
 
         golden(
             plan,
@@ -132,10 +126,10 @@ class RollbackPlannerGoldenTest {
     fun `scattered craft returns its pieces instead of the ingredient`() = runTest {
         val world = LedgerHarness()
         val root = world.ledger.mint(steve, log, Quantity(16), world.nextTxn())
-        craft(world, log, 16, planks, 64)
+        world.craft(steve, log, 16, planks, 64)
         world.ledger.move(steve, alex, planks, Quantity(32), world.nextTxn())
 
-        val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        val plan = world.planner().plan(listOf(root.id))
 
         golden(plan, listOf(take(4, 32, steve), take(3, 32, alex)), mapOf(LotId(4) to root.id, LotId(3) to root.id))
         apply(world, plan)
@@ -150,10 +144,10 @@ class RollbackPlannerGoldenTest {
     fun `depth limit keeps the existing gap compensation without unmaking the craft`() = runTest {
         val world = LedgerHarness()
         val root = world.ledger.mint(steve, log, Quantity(1), world.nextTxn())
-        craft(world, log, 1, planks, 4)
-        craft(world, planks, 4, table, 1)
+        world.craft(steve, log, 1, planks, 4)
+        world.craft(steve, planks, 4, table, 1)
 
-        val plan = RollbackPlanner(world.repo, { true }, maxTransformDepth = 1).plan(listOf(root.id))
+        val plan = world.planner(maxTransformDepth = 1).plan(listOf(root.id))
 
         golden(
             plan,
@@ -169,10 +163,10 @@ class RollbackPlannerGoldenTest {
     fun `a transform whose output was retired has no steps`() = runTest {
         val world = LedgerHarness()
         val root = world.ledger.mint(steve, log, Quantity(1), world.nextTxn())
-        craft(world, log, 1, planks, 4)
+        world.craft(steve, log, 1, planks, 4)
         world.ledger.destroy(steve, LotId(2))
 
-        val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
+        val plan = world.planner().plan(listOf(root.id))
 
         golden(plan, emptyList(), emptyMap())
         apply(world, plan)
@@ -196,23 +190,9 @@ class RollbackPlannerGoldenTest {
         steve,
     )
 
-    private suspend fun craft(world: LedgerHarness, input: ItemKey, amount: Long, output: ItemKey, produced: Long) {
-        world.ledger.craft(
-            listOf(Ingredient(steve, input, Quantity(amount))),
-            Product(steve, output, Quantity(produced)),
-            world.nextTxn()
-        )
-    }
-
     private suspend fun apply(world: LedgerHarness, plan: RollbackPlan) {
-        val job = RollbackJobId(1)
-        JournalExecutor(
-            RollbackExecutor(world.ledger, world.log, world::nextSeq),
-            InMemoryJournal(),
-            world.leases,
-            world::nextTxn
-        )
-            .execute(world.acquireLease(job, plan), plan, RollbackTarget.Uniform(chest))
+        val job = world.nextJob()
+        world.journalExecutor().execute(world.acquireLease(job, plan), plan, RollbackTarget.Uniform(chest))
         assertEquals(emptyMap<ItemKey, Quantity>(), world.ledger.totalsAt(HolderId.Escrow(job)))
     }
 }

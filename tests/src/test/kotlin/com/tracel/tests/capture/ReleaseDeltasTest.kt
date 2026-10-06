@@ -11,7 +11,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
-class ReleaseTest {
+class ReleaseDeltasTest {
     @Test
     fun `releaseDeltas is one negative delta per item key currently believed at the holder`() = runTest {
         val harness = LedgerHarness()

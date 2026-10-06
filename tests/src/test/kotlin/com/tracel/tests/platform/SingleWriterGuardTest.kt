@@ -1,4 +1,4 @@
-package com.tracel.tests.concurrency
+package com.tracel.tests.platform
 
 import com.tracel.platform.concurrency.SingleWriterGuard
 import org.junit.jupiter.api.Assertions.assertInstanceOf

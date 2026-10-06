@@ -39,8 +39,6 @@ class LeasesTest {
         registry.acquire(jobA, setOf(LotId(1)))
         registry.acquire(jobB, setOf(LotId(1), LotId(99))) // Denied because of lot 1
 
-        // Lot 99 was never actually granted to B, since the whole request was all-or-nothing —
-        // a third job must be able to take it
         val jobC = RollbackJobId(3)
         assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(jobC, setOf(LotId(99))))
     }
@@ -70,13 +68,6 @@ class LeasesTest {
     }
 
     @Test
-    fun `disjoint lot sets never conflict`() = runTest {
-        val registry = InMemoryLeases()
-        registry.acquire(RollbackJobId(1), setOf(LotId(1)))
-        assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(RollbackJobId(2), setOf(LotId(2))))
-    }
-
-    @Test
     fun `extend grows a lease to cover a lot discovered mid-flight`() = runTest {
         val registry = InMemoryLeases()
         val job = RollbackJobId(1)
@@ -99,7 +90,6 @@ class LeasesTest {
         val extended = registry.extend(lease, setOf(LotId(2)))
         assertInstanceOf(LeaseAcquisition.Denied::class.java, extended)
 
-        // A still holds lot 1 — the failed extension did not touch what A already had
         assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(jobA, setOf(LotId(1))))
     }
 
@@ -113,25 +103,20 @@ class LeasesTest {
         val transferred = registry.transfer(from, to)
 
         assertEquals(setOf(LotId(1), LotId(2)), transferred)
-        // "to" now holds them, and re-acquiring its own lots is a no-op success, not a conflict
         assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(to, setOf(LotId(1), LotId(2))))
-
-        // "from" holds nothing anymore — trying to re-acquire what it used to hold now conflicts with "to"
         assertInstanceOf(LeaseAcquisition.Denied::class.java, registry.acquire(from, setOf(LotId(1))))
     }
 
     @Test
-    fun `reapAbandoned frees leases older than the given age, and nothing else`() = runTest {
+    fun `reapAbandoned frees every lease older than the given age`() = runTest {
         val registry = InMemoryLeases()
         val stale = RollbackJobId(1)
-        val fresh = RollbackJobId(2)
         registry.acquire(stale, setOf(LotId(1)))
-        registry.acquire(fresh, setOf(LotId(2)))
 
-        val now = System.currentTimeMillis()
-        val reaped = registry.reapAbandoned(nowMillis = now + 10_000, maxAgeMillis = 5_000)
+        val reaped = registry.reapAbandoned(nowMillis = System.currentTimeMillis() + 10_000, maxAgeMillis = 5_000)
 
-        assertEquals(setOf(stale, fresh), reaped, "both were acquired before the cutoff, so both are reaped")
+        assertEquals(setOf(stale), reaped)
+        assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(RollbackJobId(2), setOf(LotId(1))))
     }
 
     @Test
@@ -140,7 +125,6 @@ class LeasesTest {
         val job = RollbackJobId(1)
         registry.acquire(job, setOf(LotId(1)))
 
-        // Simulate the job still being alive and periodically re-confirming its lease
         registry.acquire(job, setOf(LotId(1)))
 
         val now = System.currentTimeMillis()

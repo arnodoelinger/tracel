@@ -1,4 +1,4 @@
-package com.tracel.tests.wear
+package com.tracel.tests.capture
 
 import com.tracel.engine.capture.material.WearCapture
 import com.tracel.engine.wear.WearMark
