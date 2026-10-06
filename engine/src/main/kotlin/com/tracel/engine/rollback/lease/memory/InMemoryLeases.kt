@@ -3,10 +3,10 @@ package com.tracel.engine.rollback.lease.memory
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
-import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.engine.rollback.lease.Leases
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.platform.concurrency.SingleWriterGuard
 
 /** In-memory [Leases]. */
 @SingleWriter

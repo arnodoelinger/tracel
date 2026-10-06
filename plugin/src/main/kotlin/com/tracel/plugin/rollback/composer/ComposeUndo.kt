@@ -1,6 +1,5 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.plugin.util.isAirLike
 import com.tracel.engine.rollback.involution.InvolutionOutcome
 import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
 import com.tracel.engine.rollback.involution.plan.InvolutionStep
@@ -11,8 +10,8 @@ import com.tracel.engine.rollback.plan.noiseMints
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
@@ -23,6 +22,7 @@ import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
 import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import com.tracel.plugin.util.blockPos
+import com.tracel.plugin.util.isAirLike
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch

@@ -2,16 +2,16 @@ package com.tracel.engine.rollback.involution.plan
 
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
-import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.engine.ledger.craft.Product
+import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.engine.rollback.job.record.RollbackJobRecord
-import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.plan.destinationFor
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
 import com.tracel.model.lot.LotEdge
+import com.tracel.model.lot.LotId
 
 /**
  * Builds the [InvolutionStep]s that reverse an already-applied [RollbackJobRecord], in the
@@ -43,7 +43,7 @@ public class InvolutionPlanner(private val repo: LotRepository) {
 
     /**
      * Only reverse what is still sitting at [restoreTo]. A dest that has since been emptied
-     * (hopper, vanished drop credited to a `PlacedBlock`, entity gone) is not a reason to abort
+     * (drained by a machine, vanished drop credited to a `PlacedBlock`, entity gone) is not a reason to abort
      * the whole undo — take what is there, skip the rest.
      */
     private suspend fun stepFor(

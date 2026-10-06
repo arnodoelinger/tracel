@@ -1,7 +1,7 @@
 package com.tracel.plugin.util
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.storage.ports.world.GroundPositions
 import org.bukkit.entity.Entity
 import java.util.*

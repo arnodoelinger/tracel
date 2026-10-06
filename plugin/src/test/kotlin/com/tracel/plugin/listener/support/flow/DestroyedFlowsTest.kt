@@ -2,9 +2,9 @@ package com.tracel.plugin.listener.support.flow
 
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.world.WorldId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

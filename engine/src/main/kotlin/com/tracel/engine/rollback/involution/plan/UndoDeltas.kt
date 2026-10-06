@@ -1,8 +1,8 @@
 package com.tracel.engine.rollback.involution.plan
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.lot.LotId
 
 /** Net physical change per real holder undoing [steps] implies. */
 public fun physicalDeltasForUndo(

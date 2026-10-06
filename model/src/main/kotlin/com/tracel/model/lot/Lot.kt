@@ -1,9 +1,8 @@
 package com.tracel.model.lot
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.TxnId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.transaction.TxnId
 
 /**
  * An immutable batch of units, created once by [createdBy] and never edited

@@ -3,7 +3,7 @@ package com.tracel.storage.ports.event
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
-import com.tracel.model.id.Seq
+import com.tracel.model.log.Seq
 import com.tracel.model.world.BlockPos
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage

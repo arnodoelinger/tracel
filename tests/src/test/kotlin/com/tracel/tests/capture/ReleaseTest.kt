@@ -2,7 +2,7 @@ package com.tracel.tests.capture
 
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.capture.material.flow.releaseDeltas
-import com.tracel.model.id.Quantity
+import com.tracel.model.item.Quantity
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock

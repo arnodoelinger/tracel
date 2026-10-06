@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.command.action.ExportAction.Companion.records

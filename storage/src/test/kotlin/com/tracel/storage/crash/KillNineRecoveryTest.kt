@@ -1,6 +1,6 @@
 package com.tracel.storage.crash
 
-import com.tracel.model.transaction.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player

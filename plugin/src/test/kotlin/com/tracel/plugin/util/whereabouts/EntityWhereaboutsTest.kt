@@ -1,7 +1,7 @@
 package com.tracel.plugin.util.whereabouts
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.util.EntityWhereabouts
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test

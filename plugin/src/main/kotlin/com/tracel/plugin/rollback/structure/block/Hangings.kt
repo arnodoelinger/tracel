@@ -1,7 +1,7 @@
 package com.tracel.plugin.rollback.structure.block
 
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.chunkKeyX
 import com.tracel.plugin.util.chunkKeyZ

@@ -1,6 +1,6 @@
 package com.tracel.tests.ledger
 
-import com.tracel.model.id.Quantity
+import com.tracel.model.item.Quantity
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock

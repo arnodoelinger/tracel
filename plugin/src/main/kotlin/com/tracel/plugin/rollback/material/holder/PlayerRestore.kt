@@ -2,8 +2,8 @@ package com.tracel.plugin.rollback.material.holder
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.adapter.item.*
 import com.tracel.plugin.adapter.world.playerOf
 import com.tracel.plugin.rollback.material.ApplyResult

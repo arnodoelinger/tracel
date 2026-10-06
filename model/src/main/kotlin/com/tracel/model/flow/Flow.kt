@@ -1,8 +1,8 @@
 package com.tracel.model.flow
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Quantity
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
 
 /** One line of a transaction. */
 public data class Flow(

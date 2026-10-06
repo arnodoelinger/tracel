@@ -1,11 +1,11 @@
 package com.tracel.engine.log.lookup
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.world.WorldLog
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
+import com.tracel.model.world.WorldId
 
 /**
  * One question for the [TransactionLog] and the [WorldLog] alike. Every field that is set narrows the answer; a filter

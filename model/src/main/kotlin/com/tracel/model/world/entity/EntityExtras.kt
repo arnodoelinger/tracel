@@ -1,8 +1,9 @@
 package com.tracel.model.world.entity
 
+import com.tracel.model.world.OpaqueBytes
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
-import java.util.*
+import java.util.UUID
 
 /**
  * An entity's structural detail like rotation, pose, artwork, for example.
@@ -10,11 +11,8 @@ import java.util.*
  * @see [BlockExtras].
  */
 public sealed interface EntityExtras {
-    public class Opaque(public val bytes: ByteArray) : EntityExtras {
-        override fun equals(other: Any?): Boolean = other is Opaque && bytes.contentEquals(other.bytes)
-        override fun hashCode(): Int = bytes.contentHashCode()
-        override fun toString(): String = "Opaque(${bytes.size} bytes)"
-    }
+    /** Opaque. */
+    public class Opaque(bytes: ByteArray) : OpaqueBytes(bytes), EntityExtras
 
     /**
      * What this entity is falling through, wrapped around whatever else its snapshot carries.
@@ -43,7 +41,7 @@ public sealed interface EntityExtras {
     public data class Riding(public val vehicle: UUID, public val rest: EntityExtras?) : EntityExtras
 }
 
-/** @return the opaque snapshot in here, however, many links are wrapped around it. */
+/** @return the opaque snapshot in here, however many links are wrapped around it. */
 public val EntityExtras?.opaque: EntityExtras.Opaque?
     get() = when (this) {
         is EntityExtras.Opaque -> this

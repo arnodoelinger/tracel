@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.session
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
+import com.tracel.model.cause.CauseKind
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.TracelListener
 import org.bukkit.Bukkit

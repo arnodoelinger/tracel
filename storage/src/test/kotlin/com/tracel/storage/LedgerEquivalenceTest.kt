@@ -1,12 +1,16 @@
 package com.tracel.storage
 
 import com.tracel.engine.ledger.*
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
+import com.tracel.engine.ledger.repository.LotRepository
+import com.tracel.engine.ledger.repository.memory.InMemoryLotRepository
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.TxnId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
+import com.tracel.model.transaction.TxnId
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.player
@@ -17,10 +21,6 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.nio.file.Path
 import kotlin.random.Random
-import com.tracel.engine.ledger.craft.Ingredient
-import com.tracel.engine.ledger.craft.Product
-import com.tracel.engine.ledger.repository.LotRepository
-import com.tracel.engine.ledger.repository.memory.InMemoryLotRepository
 
 /**
  * The store against the in-memory reference, one random ledger history at a time: after every

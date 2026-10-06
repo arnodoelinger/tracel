@@ -1,10 +1,10 @@
 package com.tracel.model.transaction
 
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Seq
-import com.tracel.model.id.TxnId
+import com.tracel.model.log.Seq
 import com.tracel.model.world.BlockPos
 
 /**

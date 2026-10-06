@@ -4,7 +4,7 @@ import com.tracel.engine.ledger.LotLedger
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Quantity
+import com.tracel.model.item.Quantity
 
 /**
  * Prepends mint flows for every withdrawal in [flows] that the ledger cannot satisfy.

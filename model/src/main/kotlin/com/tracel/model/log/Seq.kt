@@ -1,4 +1,4 @@
-package com.tracel.model.id
+package com.tracel.model.log
 
 /**
  * Position of a transaction in the append-only log.

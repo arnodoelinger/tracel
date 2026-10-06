@@ -2,7 +2,7 @@ package com.tracel.plugin.rollback.structure.entity
 
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.entity.*
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.util.Warnings

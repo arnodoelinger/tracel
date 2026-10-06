@@ -1,13 +1,13 @@
 package com.tracel.engine.world
 
-import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.TransactionLog
-import com.tracel.model.id.Seq
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.model.log.Seq
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
-import com.tracel.engine.world.edit.BlockEdits
 
 /**
  * The append-only record of the world's shape changing: every block and entity change ever made, with who made it and

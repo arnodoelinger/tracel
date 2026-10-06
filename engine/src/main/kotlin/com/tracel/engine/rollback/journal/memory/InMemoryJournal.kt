@@ -4,9 +4,9 @@ import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
-import com.tracel.platform.concurrency.SingleWriterGuard
-import com.tracel.model.id.RollbackJobId
 import com.tracel.engine.rollback.journal.Journal
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.platform.concurrency.SingleWriterGuard
 
 /** In-memory [Journal], the reference the stored one is checked against. */
 @SingleWriter

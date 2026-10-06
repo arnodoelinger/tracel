@@ -3,8 +3,11 @@ package com.tracel.tests.rollback
 import com.tracel.engine.ledger.craft.Ingredient
 import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.rollback.plan.*
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.Quantity
+import com.tracel.model.item.Quantity
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
@@ -13,9 +16,6 @@ import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import com.tracel.engine.rollback.plan.step.LotContribution
-import com.tracel.engine.rollback.plan.step.RollbackStep
-import com.tracel.engine.rollback.plan.step.UnmadeOutput
 
 class PhysicalDeltasTest {
     @Test

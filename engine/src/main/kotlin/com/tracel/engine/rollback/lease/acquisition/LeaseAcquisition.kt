@@ -1,8 +1,8 @@
 package com.tracel.engine.rollback.lease.acquisition
 
 import com.tracel.engine.rollback.lease.Lease
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 
 /** What asking for a lease answered. */
 public sealed interface LeaseAcquisition {

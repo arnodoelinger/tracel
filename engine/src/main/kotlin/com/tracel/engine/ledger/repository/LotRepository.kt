@@ -1,6 +1,6 @@
 package com.tracel.engine.ledger.repository
 
-import com.tracel.model.id.LotId
+import com.tracel.model.lot.LotId
 import com.tracel.platform.storage.UnitOfWork
 
 /** Storage port for lots, their edges, and where they currently sit. */

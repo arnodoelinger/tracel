@@ -1,6 +1,6 @@
 package com.tracel.plugin.adapter.world
 
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.entity.Player

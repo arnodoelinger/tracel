@@ -1,8 +1,8 @@
 package com.tracel.engine.provenance
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.TxnId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.lot.LotId
+import com.tracel.model.transaction.TxnId
 
 /**
  * One step in "where did this item come from" — a lot and the transactions

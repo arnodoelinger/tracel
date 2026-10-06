@@ -1,13 +1,12 @@
 package com.tracel.storage
 
-import com.tracel.tests.support.TestShapes
-import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.world.edit.BlockEdit
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.WorldId
+import com.tracel.model.cause.CauseKind
+import com.tracel.model.item.Quantity
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape
@@ -15,6 +14,7 @@ import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
+import com.tracel.tests.support.TestShapes
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test

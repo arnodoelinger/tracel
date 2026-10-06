@@ -2,16 +2,16 @@ package com.tracel.plugin.rollback.material
 
 import com.tracel.engine.rollback.involution.plan.InvolutionStep
 import com.tracel.engine.rollback.plan.RollbackPlan
-import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.destinationFor
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.wear.WearMark
 import com.tracel.engine.wear.damageAt
 import com.tracel.engine.wear.damageNow
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.adapter.world.playerOf
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.material.item.WornStacks

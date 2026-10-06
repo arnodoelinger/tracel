@@ -3,8 +3,8 @@ package com.tracel.plugin.util.holder
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.util.blockPos
 import com.tracel.plugin.util.carriesCoordinates
 import com.tracel.plugin.util.entityUuid

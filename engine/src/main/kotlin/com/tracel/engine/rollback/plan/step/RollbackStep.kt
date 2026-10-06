@@ -2,9 +2,9 @@ package com.tracel.engine.rollback.plan.step
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.TxnId
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
+import com.tracel.model.transaction.TxnId
 import java.util.*
 
 /** One action the causal closure found necessary to reclaim traced material. */

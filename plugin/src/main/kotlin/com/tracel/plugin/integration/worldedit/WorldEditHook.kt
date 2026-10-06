@@ -11,16 +11,17 @@ import com.sk89q.worldedit.function.pattern.Pattern
 import com.sk89q.worldedit.math.BlockVector3
 import com.sk89q.worldedit.regions.Region
 import com.sk89q.worldedit.util.eventbus.Subscribe
+import com.sk89q.worldedit.world.World as WeWorld
 import com.sk89q.worldedit.world.block.BaseBlock
 import com.sk89q.worldedit.world.block.BlockStateHolder
 import com.sk89q.worldedit.world.block.BlockType
-import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.*
@@ -34,7 +35,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.logging.Level
 import java.util.logging.Logger
-import com.sk89q.worldedit.world.World as WeWorld
 
 private val logger = Logger.getLogger("WorldEditHook")
 

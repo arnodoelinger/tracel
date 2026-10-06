@@ -1,8 +1,8 @@
 package com.tracel.engine.rollback.plan
 
-import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
 import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.model.holder.HolderId
+import com.tracel.model.lot.LotId
 
 /**
  * The ordered steps a rollback needs to run. [RollbackStep.Unmake] steps

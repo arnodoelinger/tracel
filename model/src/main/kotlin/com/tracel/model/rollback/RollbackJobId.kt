@@ -1,4 +1,4 @@
-package com.tracel.model.id
+package com.tracel.model.rollback
 
 /** Identifies one rollback job. Also, the key for its escrow holder. */
 @JvmInline

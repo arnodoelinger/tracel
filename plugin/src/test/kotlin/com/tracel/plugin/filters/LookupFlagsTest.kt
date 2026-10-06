@@ -1,6 +1,6 @@
 package com.tracel.plugin.filters
 
-import com.tracel.model.transaction.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.world.ActionKind
 import com.tracel.plugin.command.args.ActionArgument
 import com.tracel.plugin.command.args.LookupScope

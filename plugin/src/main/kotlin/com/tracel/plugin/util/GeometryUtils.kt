@@ -2,8 +2,8 @@ package com.tracel.plugin.util
 
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.command.args.LookupScope
 import org.bukkit.Location
 import org.bukkit.World

@@ -3,9 +3,9 @@ package com.tracel.plugin.rollback.material
 import com.tracel.engine.rollback.involution.plan.InvolutionStep
 import com.tracel.engine.rollback.involution.plan.physicalDeltasForUndo
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.rollback.material.holder.spawnReturnedDrops
 import com.tracel.plugin.rollback.material.item.formsFor
 import com.tracel.plugin.rollback.material.spill.Spill

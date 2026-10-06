@@ -1,10 +1,10 @@
 package com.tracel.plugin.integration.worldedit
 
-import com.tracel.plugin.util.AIR
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
+import com.tracel.plugin.util.AIR
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue

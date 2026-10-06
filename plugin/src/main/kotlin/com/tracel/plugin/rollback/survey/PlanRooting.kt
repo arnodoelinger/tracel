@@ -6,8 +6,8 @@ import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.lot.LotId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.util.blockPos

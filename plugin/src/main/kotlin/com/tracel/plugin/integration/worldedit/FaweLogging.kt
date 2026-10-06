@@ -1,6 +1,5 @@
 package com.tracel.plugin.integration.worldedit
 
-import com.tracel.plugin.util.AIR
 import com.fastasyncworldedit.core.extent.processor.ProcessorScope
 import com.fastasyncworldedit.core.queue.IBatchProcessor
 import com.fastasyncworldedit.core.queue.IChunk
@@ -8,11 +7,12 @@ import com.fastasyncworldedit.core.queue.IChunkGet
 import com.fastasyncworldedit.core.queue.IChunkSet
 import com.sk89q.worldedit.extent.Extent
 import com.sk89q.worldedit.world.block.BlockTypesCache
-import com.tracel.model.transaction.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.TracelServices
+import com.tracel.plugin.util.AIR
 import com.tracel.plugin.util.Warnings
 import java.util.UUID
 import java.util.logging.Level

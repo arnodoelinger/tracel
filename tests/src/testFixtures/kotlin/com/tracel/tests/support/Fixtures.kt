@@ -1,8 +1,8 @@
 package com.tracel.tests.support
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.WorldId
 import java.util.*
 
 object Fixtures {

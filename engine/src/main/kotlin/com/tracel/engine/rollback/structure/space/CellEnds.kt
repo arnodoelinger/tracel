@@ -1,8 +1,8 @@
 package com.tracel.engine.rollback.structure.space
 
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldChange
+import com.tracel.model.world.WorldId
 
 private const val XZ_LIMIT = 1 shl 25
 private const val Y_LIMIT = 1 shl 11

@@ -1,8 +1,8 @@
 package com.tracel.plugin.listener.material.machine
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.cargoTotals

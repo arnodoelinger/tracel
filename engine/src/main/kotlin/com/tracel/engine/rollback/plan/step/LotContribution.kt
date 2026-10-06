@@ -1,7 +1,7 @@
 package com.tracel.engine.rollback.plan.step
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
 
 /** [quantity] of lot [lotId] that went into a craft. */
 public data class LotContribution(

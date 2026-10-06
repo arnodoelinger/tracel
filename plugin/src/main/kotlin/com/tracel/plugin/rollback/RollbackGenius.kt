@@ -3,7 +3,7 @@ package com.tracel.plugin.rollback
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult

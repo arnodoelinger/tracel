@@ -1,13 +1,12 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.plugin.util.isAirLike
 import com.tracel.engine.rollback.job.Reservation
-import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.job.RollbackOutcome
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -15,6 +14,7 @@ import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
+import com.tracel.plugin.util.isAirLike
 import kotlinx.coroutines.*
 import kotlin.coroutines.cancellation.CancellationException
 

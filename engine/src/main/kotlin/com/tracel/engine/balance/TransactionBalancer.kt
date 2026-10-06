@@ -3,11 +3,11 @@ package com.tracel.engine.balance
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.HolderOrder
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.holder.stableSortKey
-import com.tracel.model.id.Quantity
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
 
 /**
  * Turns raw "this holder gained / lost N units" observations into a balanced
@@ -21,9 +21,9 @@ public class TransactionBalancer {
             .flatMap { (itemKey, sameItem) -> balanceOneItem(itemKey, sameItem) }
 
     private fun balanceOneItem(itemKey: ItemKey, deltas: List<InventoryDelta>): List<Flow> {
-        val gainList = deltas.filter { it.delta > 0 }.sortedBy { it.holder.stableSortKey() }
+        val gainList = deltas.filter { it.delta > 0 }.sortedWith(compareBy(HolderOrder) { it.holder })
             .mapTo(ArrayList()) { Unpaired(it.holder, it.delta, it.fromGap) }
-        val lossList = deltas.filter { it.delta < 0 }.sortedBy { it.holder.stableSortKey() }
+        val lossList = deltas.filter { it.delta < 0 }.sortedWith(compareBy(HolderOrder) { it.holder })
             .mapTo(ArrayList()) { Unpaired(it.holder, -it.delta, it.fromGap) }
         val flows = mutableListOf<Flow>()
 

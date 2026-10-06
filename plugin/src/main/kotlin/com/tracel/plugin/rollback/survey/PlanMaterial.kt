@@ -8,9 +8,9 @@ import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Seq
+import com.tracel.model.log.Seq
 import com.tracel.model.lot.LotEdge
+import com.tracel.model.lot.LotId
 import com.tracel.model.transaction.Transaction
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.util.namedByEntity

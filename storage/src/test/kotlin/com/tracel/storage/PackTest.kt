@@ -1,6 +1,6 @@
 package com.tracel.storage
 
-import com.tracel.model.id.Quantity
+import com.tracel.model.item.Quantity
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.support.Stack

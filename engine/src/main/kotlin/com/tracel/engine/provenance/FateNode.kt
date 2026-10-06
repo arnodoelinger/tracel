@@ -1,8 +1,8 @@
 package com.tracel.engine.provenance
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.lot.LotId
 
 /**
  * One step in "what happened to this item" — a lot and where its material

@@ -1,10 +1,9 @@
 package com.tracel.model.lot
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.TxnId
+import com.tracel.model.item.Quantity
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.transaction.TxnId
 
 /**
  * How a lot's life continued after it was created — the edges that turn

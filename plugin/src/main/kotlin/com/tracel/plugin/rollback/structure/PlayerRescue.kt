@@ -1,11 +1,11 @@
 package com.tracel.plugin.rollback.structure
 
-import com.tracel.plugin.util.materialsNamed
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
+import com.tracel.plugin.util.materialsNamed
 import com.tracel.plugin.util.ownsChunkAt
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await

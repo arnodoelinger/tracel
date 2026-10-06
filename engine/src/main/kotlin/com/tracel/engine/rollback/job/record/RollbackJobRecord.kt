@@ -4,7 +4,7 @@ import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.rollback.RollbackJobId
 
 /**
  * Durable record of a completed or resumable rollback job.

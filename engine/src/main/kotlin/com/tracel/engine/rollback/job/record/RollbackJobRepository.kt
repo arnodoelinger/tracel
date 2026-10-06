@@ -3,7 +3,7 @@ package com.tracel.engine.rollback.job.record
 import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.rollback.RollbackJobId
 
 /**
  * Storage port for [RollbackJobRecord]s — what [InvolutionPlanner]

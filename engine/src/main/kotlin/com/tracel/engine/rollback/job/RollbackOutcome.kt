@@ -1,8 +1,8 @@
 package com.tracel.engine.rollback.job
 
 import com.tracel.engine.rollback.plan.RollbackPlan
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 
 /** How [RollbackJobCoordinator.run] ended. */
 public sealed interface RollbackOutcome {

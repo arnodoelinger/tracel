@@ -1,10 +1,10 @@
 package com.tracel.engine.ledger.repository
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.TxnId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
 import com.tracel.model.lot.Lot
+import com.tracel.model.lot.LotId
+import com.tracel.model.transaction.TxnId
 
 /** The lots themselves: creating one and reading it back. */
 public interface Lots {

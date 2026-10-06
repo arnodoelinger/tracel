@@ -1,12 +1,12 @@
 package com.tracel.plugin.rollback.material.spill
 
-import com.tracel.model.transaction.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.WorldId
+import com.tracel.model.item.Quantity
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.listener.support.drop.dropTracked
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.item.Moves

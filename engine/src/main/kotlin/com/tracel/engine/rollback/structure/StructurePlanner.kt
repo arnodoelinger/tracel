@@ -61,18 +61,18 @@ public class StructurePlanner(private val rules: WorldRules) {
             //
             // For example:
             //
-            //    Empty -> Chest -> Empty
+            //    Empty -> Block -> Empty
             //
-            // If our chest was placed and destroyed entirely (!) inside the selected window, restoring
+            // If our block was placed and destroyed entirely (!) inside the selected window, restoring
             // the state from the start of the window means (!) restoring air. The rollback must not
-            // recreate the chest just because an explosion destroyed it later in the same window.
+            // recreate the block just because an explosion destroyed it later in the same window.
             //
             // In contrast:
             //
-            //   Chest -> Empty,
+            //   Block -> Empty,
             //
-            // where the chest already existed when the window opened, means the state at the start
-            // of the window contained the chest, so the explosion must restore it.
+            // where the block already existed when the window opened, means the state at the start
+            // of the window contained the block, so the explosion must restore it.
             //
             // The important boundary is therefore the oldest matched change: "before" is the state
             // that existed immediately before the first change included by the query, while the

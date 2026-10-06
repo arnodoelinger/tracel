@@ -1,11 +1,11 @@
 package com.tracel.engine.rollback.plan
 
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
-import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.model.lot.LotId
 
 /**
  * Net physical change per real holder a [plan] (applied with [restoreTo] as the final

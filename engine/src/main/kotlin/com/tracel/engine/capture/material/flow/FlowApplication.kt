@@ -6,7 +6,7 @@ import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.TxnId
+import com.tracel.model.transaction.TxnId
 
 /** The ledger never saw this arrive, and nobody can say where it came from. */
 public val UNATTRIBUTED_SOURCE: HolderId.Source = HolderId.Source(SourceKind.UNATTRIBUTED)

@@ -4,9 +4,9 @@ import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.LotId
-import com.tracel.model.id.WorldId
+import com.tracel.model.lot.LotId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

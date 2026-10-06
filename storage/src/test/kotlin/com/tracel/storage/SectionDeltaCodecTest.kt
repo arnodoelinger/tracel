@@ -1,6 +1,6 @@
 package com.tracel.storage
 
-import com.tracel.model.transaction.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.*
@@ -209,7 +209,7 @@ class SectionDeltaCodecTest {
     @Test
     fun `a leashed shape round-trips through the payload the world log stores`() {
         val type = EntityTypeKey("minecraft:cow")
-        val at = com.tracel.model.world.BlockPos(com.tracel.model.id.WorldId(java.util.UUID.randomUUID()), 1, 2, 3)
+        val at = com.tracel.model.world.BlockPos(com.tracel.model.world.WorldId(java.util.UUID.randomUUID()), 1, 2, 3)
         val shape = EntityShape(
             type, 1.5, 2.0, 3.5, 90f, -12.5f,
             EntityExtras.Leashed(

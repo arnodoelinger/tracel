@@ -5,8 +5,8 @@ import com.tracel.engine.rollback.involution.plan.InvolutionStep
 import com.tracel.engine.rollback.involution.plan.RemakeInput
 import com.tracel.engine.rollback.involution.plan.RemakeOutput
 import com.tracel.engine.rollback.involution.plan.physicalDeltasForUndo
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock

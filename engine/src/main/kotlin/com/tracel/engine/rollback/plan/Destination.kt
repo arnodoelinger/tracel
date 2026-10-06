@@ -1,7 +1,7 @@
 package com.tracel.engine.rollback.plan
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
+import com.tracel.model.lot.LotId
 
 /**
  * Where what a rollback reclaims from [lotId] is delivered under this target: the one holder of a uniform target, or

@@ -1,8 +1,8 @@
 package com.tracel.engine.rollback.involution.plan
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
 
 /** A piece of a remade craft's output: lot [lotId], [quantity] of it, put back at [holder]. */
 public data class RemakeOutput(

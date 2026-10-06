@@ -1,4 +1,4 @@
-package com.tracel.model.id
+package com.tracel.model.lot
 
 /**
  * Identifies one lot: an immutable batch of units created by a single

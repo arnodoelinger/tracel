@@ -2,14 +2,13 @@ package com.tracel.plugin.util
 
 import com.tracel.engine.log.TransactionLog
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import java.util.*
 
 /** Where this holder sits, when it sits anywhere a block does. */
 fun HolderId.blockPos(): BlockPos? = when (this) {
-    is HolderId.Block -> BlockPos(world, x, y, z)
-    is HolderId.PlacedBlock -> BlockPos(world, x, y, z)
+    is HolderId.AtBlock -> pos
     is HolderId.Entity,
     is HolderId.PlacedEntity,
     is HolderId.ItemEntity,
@@ -23,8 +22,7 @@ fun HolderId.blockPos(): BlockPos? = when (this) {
 
 /** Which world this holder is in, when it names one. */
 fun HolderId.worldId(): WorldId? = when (this) {
-    is HolderId.Block -> world
-    is HolderId.PlacedBlock -> world
+    is HolderId.AtBlock -> world
     is HolderId.Entity,
     is HolderId.PlacedEntity,
     is HolderId.ItemEntity,
@@ -41,8 +39,7 @@ fun HolderId.entityUuid(): UUID? = when (this) {
     is HolderId.Entity -> uuid
     is HolderId.PlacedEntity -> uuid
     is HolderId.ItemEntity -> uuid
-    is HolderId.Block,
-    is HolderId.PlacedBlock,
+    is HolderId.AtBlock,
     is HolderId.Player,
     is HolderId.PlayerStash,
     is HolderId.Source,
@@ -63,4 +60,4 @@ fun HolderId.namedByEntity(): Boolean = entityUuid() != null
  *
  * @see TransactionLog
  */
-fun HolderId.carriesCoordinates(): Boolean = this is HolderId.Block || this is HolderId.PlacedBlock
+fun HolderId.carriesCoordinates(): Boolean = this is HolderId.AtBlock

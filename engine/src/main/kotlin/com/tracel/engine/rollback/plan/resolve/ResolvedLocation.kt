@@ -1,9 +1,9 @@
 package com.tracel.engine.rollback.plan.resolve
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 
 /** Where a dry-run resolve of a lot lands. */
 internal sealed interface ResolvedLocation {

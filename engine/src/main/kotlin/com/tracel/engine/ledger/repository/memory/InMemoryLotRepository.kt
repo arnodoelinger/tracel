@@ -5,20 +5,24 @@ import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
-import com.tracel.platform.concurrency.SingleWriterGuard
+import com.tracel.engine.ledger.LotPortion
+import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.*
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.log.Seq
 import com.tracel.model.lot.AccountLot
 import com.tracel.model.lot.Lot
 import com.tracel.model.lot.LotEdge
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.transaction.TxnId
+import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import kotlinx.atomicfu.atomic
 import kotlinx.collections.immutable.*
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.min
-import com.tracel.engine.ledger.LotPortion
-import com.tracel.engine.ledger.repository.LotRepository
 
 /**
  * In-memory [LotRepository], the reference the stored one is checked against.

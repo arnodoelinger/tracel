@@ -1,6 +1,6 @@
 package com.tracel.engine.rollback.journal
 
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.rollback.RollbackJobId
 
 /**
  * Durable record of which steps of a rollback job have finished.

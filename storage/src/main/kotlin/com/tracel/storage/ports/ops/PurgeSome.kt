@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.History

@@ -1,8 +1,8 @@
 package com.tracel.engine.rollback.involution
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
 import com.tracel.engine.rollback.involution.plan.InvolutionStep
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 
 /** How [InvolutionJobCoordinator.undo] ended. */
 public sealed interface InvolutionOutcome {

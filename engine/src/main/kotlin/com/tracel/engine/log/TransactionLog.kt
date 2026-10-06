@@ -1,10 +1,10 @@
 package com.tracel.engine.log
 
-import com.tracel.model.flow.FlowLot
-import com.tracel.model.id.Seq
-import com.tracel.model.id.TxnId
-import com.tracel.model.transaction.Transaction
 import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.model.flow.FlowLot
+import com.tracel.model.log.Seq
+import com.tracel.model.transaction.Transaction
+import com.tracel.model.transaction.TxnId
 
 /** The append-only record of material moving: every [Transaction] the ledger ever committed. */
 public interface TransactionLog {

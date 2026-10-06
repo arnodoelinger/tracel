@@ -1,4 +1,4 @@
-package com.tracel.model.id
+package com.tracel.model.item
 
 /** A positive count of units of one item key. */
 @JvmInline

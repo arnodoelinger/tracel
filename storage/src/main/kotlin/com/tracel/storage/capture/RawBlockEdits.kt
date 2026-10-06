@@ -1,6 +1,6 @@
 package com.tracel.storage.capture
 
-import com.tracel.model.transaction.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.world.ActionKind
 
 /** One event's block edits still as interned ids: what the ring holds, with nothing resolved. */

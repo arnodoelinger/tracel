@@ -1,8 +1,8 @@
 package com.tracel.plugin.adapter.block
 
 import com.tracel.annotations.Unstable
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape

@@ -1,8 +1,8 @@
 package com.tracel.model.lot
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.Seq
+import com.tracel.model.item.Quantity
+import com.tracel.model.log.Seq
 
 /**
  * One entry in a holder's FIFO queue for one item key: how much of [lot]

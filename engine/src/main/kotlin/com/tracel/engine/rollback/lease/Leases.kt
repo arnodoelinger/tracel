@@ -2,8 +2,8 @@ package com.tracel.engine.rollback.lease
 
 import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
 import com.tracel.engine.rollback.lease.support.KeepsLease
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 
 /** Who is allowed to touch which lots. */
 public abstract class Leases {

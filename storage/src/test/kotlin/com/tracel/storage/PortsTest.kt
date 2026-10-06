@@ -1,13 +1,16 @@
 package com.tracel.storage
 
-import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
 import com.tracel.engine.rollback.job.record.RollbackJobRecord
+import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
 import com.tracel.engine.rollback.plan.*
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.TxnId
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.transaction.TxnId
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
@@ -20,9 +23,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 import java.util.*
-import com.tracel.engine.rollback.plan.step.LotContribution
-import com.tracel.engine.rollback.plan.step.RollbackStep
-import com.tracel.engine.rollback.plan.step.UnmadeOutput
 
 class PortsTest {
     @Test

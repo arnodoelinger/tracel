@@ -2,8 +2,8 @@ package com.tracel.engine.rollback.job
 
 import com.tracel.engine.rollback.lease.Lease
 import com.tracel.engine.rollback.plan.RollbackPlan
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 
 /**
  * The answer to asking for a rollback's lots, given before anything in the world has been touched, so that a refusal

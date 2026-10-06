@@ -1,8 +1,8 @@
 package com.tracel.engine.ledger.repository
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
 import com.tracel.model.lot.LotEdge
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 
 /** How lots became and begat one another: the edges of the lot graph. */
 public interface LotEdges {

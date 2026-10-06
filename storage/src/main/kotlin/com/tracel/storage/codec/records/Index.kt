@@ -1,6 +1,6 @@
 package com.tracel.storage.codec.records
 
-import com.tracel.model.transaction.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.log.LogKind
 import com.tracel.model.world.ActionKind
 import com.tracel.storage.ffm.Bytes.i32

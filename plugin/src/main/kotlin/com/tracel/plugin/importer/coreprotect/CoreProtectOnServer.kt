@@ -2,8 +2,8 @@ package com.tracel.plugin.importer.coreprotect
 
 import com.destroystokyo.paper.profile.ProfileProperty
 import com.tracel.annotations.Unstable
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.storage.codec.records.World
 import io.papermc.paper.entity.EntitySerializationFlag

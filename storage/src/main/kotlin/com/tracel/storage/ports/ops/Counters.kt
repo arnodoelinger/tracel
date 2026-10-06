@@ -1,9 +1,9 @@
 package com.tracel.storage.ports.ops
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.Seq
-import com.tracel.model.id.TxnId
+import com.tracel.model.log.Seq
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.transaction.TxnId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys

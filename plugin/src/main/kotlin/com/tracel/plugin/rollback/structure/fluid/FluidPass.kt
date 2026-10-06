@@ -4,12 +4,12 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.space.groupByTile
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.world.worldOf
+import com.tracel.plugin.governor.throttled
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.claim
-import com.tracel.plugin.governor.throttled
 import com.tracel.plugin.util.LongHashSet
 import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.ownsChunkAt

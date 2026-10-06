@@ -1,7 +1,7 @@
 package com.tracel.storage.capture
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.balance.InventoryDelta
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
 

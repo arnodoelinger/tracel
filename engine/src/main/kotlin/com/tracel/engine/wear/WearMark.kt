@@ -1,6 +1,6 @@
 package com.tracel.engine.wear
 
-import com.tracel.model.id.LotId
+import com.tracel.model.lot.LotId
 
 /**
  * One change to a tool's durability, from [before] to [after] at [epochMillis], told against the lot [lotId] holds it

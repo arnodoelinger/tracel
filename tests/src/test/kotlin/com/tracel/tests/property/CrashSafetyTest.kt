@@ -1,18 +1,18 @@
 package com.tracel.tests.property
 
-import com.tracel.engine.rollback.journal.crash.CrashPoint
-import com.tracel.engine.rollback.journal.memory.InMemoryJournal
-import com.tracel.engine.rollback.journal.JournalExecutor
-import com.tracel.engine.rollback.journal.crash.SimulatedCrash
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.crash.CrashPoint
+import com.tracel.engine.rollback.journal.crash.SimulatedCrash
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player

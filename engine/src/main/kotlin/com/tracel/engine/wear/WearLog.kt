@@ -1,6 +1,6 @@
 package com.tracel.engine.wear
 
-import com.tracel.model.id.LotId
+import com.tracel.model.lot.LotId
 
 /**
  * Tool durability over time, told against the lot that holds the tool.

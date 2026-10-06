@@ -1,13 +1,13 @@
 package com.tracel.plugin.rollback.material
 
 import com.tracel.engine.rollback.involution.plan.InvolutionStep
+import com.tracel.engine.rollback.involution.plan.physicalDeltasForUndo
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.physicalDeltas
-import com.tracel.engine.rollback.involution.plan.physicalDeltasForUndo
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.lot.LotId
 
 /** Computes per-holder item deltas from [plan], reading the ledger once before it runs. */
 internal suspend fun MaterialRestorer.planDeltas(

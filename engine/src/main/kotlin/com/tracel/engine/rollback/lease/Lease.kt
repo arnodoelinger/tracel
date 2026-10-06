@@ -1,7 +1,7 @@
 package com.tracel.engine.rollback.lease
 
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 
 /** The lots a job has to itself while it runs. */
 public data class Lease(

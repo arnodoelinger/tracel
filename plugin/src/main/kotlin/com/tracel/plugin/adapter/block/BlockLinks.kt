@@ -1,7 +1,7 @@
 package com.tracel.plugin.adapter.block
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.block.special.DoubleChest
 import org.bukkit.block.Block
 

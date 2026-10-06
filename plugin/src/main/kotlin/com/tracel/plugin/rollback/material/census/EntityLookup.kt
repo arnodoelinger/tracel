@@ -1,8 +1,8 @@
 package com.tracel.plugin.rollback.material.census
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.util.namedByEntity

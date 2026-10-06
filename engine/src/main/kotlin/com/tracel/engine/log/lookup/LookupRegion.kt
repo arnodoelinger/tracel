@@ -1,8 +1,8 @@
 package com.tracel.engine.log.lookup
 
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.TILE_SHIFT
+import com.tracel.model.world.WorldId
 
 /**
  * An area of one [world]: a rectangle of tiles, which is what an index can look up cheaply, optionally tightened to an

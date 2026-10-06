@@ -3,7 +3,7 @@ package com.tracel.plugin.rollback.composer
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.rollback.RollbackGenius
 import com.tracel.plugin.rollback.material.MaterialHalf

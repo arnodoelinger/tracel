@@ -1,6 +1,6 @@
 package com.tracel.storage
 
-import com.tracel.model.transaction.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
@@ -20,7 +20,7 @@ class CaptureRingTest {
     private val steve = player(1)
 
     private suspend fun warm(stack: Stack) {
-        stack.ledger.mint(chest, diamond, com.tracel.model.id.Quantity(10_000_000), stack.counters.nextTxnId())
+        stack.ledger.mint(chest, diamond, com.tracel.model.item.Quantity(10_000_000), stack.counters.nextTxnId())
         stack.gate.move(CauseKind.MACHINE, null, 1L, diamond, chest, steve, 1)
         stack.drain()
     }

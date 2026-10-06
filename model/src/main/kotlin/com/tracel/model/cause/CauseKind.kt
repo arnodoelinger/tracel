@@ -1,4 +1,4 @@
-package com.tracel.model.transaction
+package com.tracel.model.cause
 
 /** Why a transaction happened. Recorded on every transaction. */
 public enum class CauseKind {

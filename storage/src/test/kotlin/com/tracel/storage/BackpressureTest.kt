@@ -1,7 +1,7 @@
 package com.tracel.storage
 
-import com.tracel.model.transaction.CauseKind
-import com.tracel.model.id.Quantity
+import com.tracel.model.cause.CauseKind
+import com.tracel.model.item.Quantity
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block

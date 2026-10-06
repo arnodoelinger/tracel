@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.ledger
 
-import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys

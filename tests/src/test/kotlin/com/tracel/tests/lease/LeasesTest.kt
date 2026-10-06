@@ -1,9 +1,9 @@
 package com.tracel.tests.lease
 
-import com.tracel.engine.rollback.lease.memory.InMemoryLeases
 import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
-import com.tracel.model.id.LotId
-import com.tracel.model.id.RollbackJobId
+import com.tracel.engine.rollback.lease.memory.InMemoryLeases
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf

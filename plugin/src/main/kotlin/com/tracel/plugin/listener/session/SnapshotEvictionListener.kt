@@ -2,7 +2,7 @@ package com.tracel.plugin.listener.session
 
 import com.tracel.annotations.Observes
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.listener.TracelListener

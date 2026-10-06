@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.log
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.lookup.LookupRegion
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.log.LogKind
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.KeyReader

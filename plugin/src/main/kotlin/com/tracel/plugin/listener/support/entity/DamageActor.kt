@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.support.entity
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Unstable
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.support.cell.ColumnCell

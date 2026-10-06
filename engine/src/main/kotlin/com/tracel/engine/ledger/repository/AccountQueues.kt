@@ -1,12 +1,12 @@
 package com.tracel.engine.ledger.repository
 
 import com.tracel.annotations.Consume
-import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.TxnId
-import com.tracel.model.item.ItemKey
-import com.tracel.model.lot.AccountLot
 import com.tracel.engine.ledger.LotPortion
+import com.tracel.model.holder.HolderId
+import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.AccountLot
+import com.tracel.model.transaction.TxnId
 
 /** What each holder holds of each item, oldest lot first, and the consuming of it. */
 public interface AccountQueues {

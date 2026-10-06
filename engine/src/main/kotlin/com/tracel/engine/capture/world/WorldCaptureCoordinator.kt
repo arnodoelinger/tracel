@@ -1,16 +1,16 @@
 package com.tracel.engine.capture.world
 
-import com.tracel.model.transaction.CauseKind
+import com.tracel.engine.world.WorldLog
+import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Seq
+import com.tracel.model.log.Seq
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.entity.EntityShape
 import java.util.*
-import com.tracel.engine.world.edit.BlockEdits
-import com.tracel.engine.world.WorldLog
 
 /** Turns captured edits into [WorldChange]s and appends them. */
 public class WorldCaptureCoordinator(

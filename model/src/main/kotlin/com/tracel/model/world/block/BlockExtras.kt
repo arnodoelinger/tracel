@@ -1,5 +1,7 @@
 package com.tracel.model.world.block
 
+import com.tracel.model.world.OpaqueBytes
+
 /**
  * The structural detail a block entity carries beyond its block state (like sign text, spawner mob,
  * banner patterns, lectern page, command block command).
@@ -8,11 +10,5 @@ package com.tracel.model.world.block
  * not list this for us.
  */
 public sealed interface BlockExtras {
-    public class Opaque(public val bytes: ByteArray) : BlockExtras {
-        override fun equals(other: Any?): Boolean = other is Opaque && bytes.contentEquals(other.bytes)
-
-        override fun hashCode(): Int = bytes.contentHashCode()
-
-        override fun toString(): String = "Opaque(${bytes.size} bytes)"
-    }
+    public class Opaque(bytes: ByteArray) : OpaqueBytes(bytes), BlockExtras
 }

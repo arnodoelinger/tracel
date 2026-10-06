@@ -2,7 +2,7 @@ package com.tracel.plugin.rollback.structure.fluid
 
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.isFluidShape

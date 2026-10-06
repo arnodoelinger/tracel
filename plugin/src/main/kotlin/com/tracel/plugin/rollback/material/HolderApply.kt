@@ -1,8 +1,8 @@
 package com.tracel.plugin.rollback.material
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.material.holder.*
 import com.tracel.plugin.rollback.material.item.WornStacks

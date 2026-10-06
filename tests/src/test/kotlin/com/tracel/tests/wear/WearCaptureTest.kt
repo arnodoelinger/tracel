@@ -1,13 +1,13 @@
 package com.tracel.tests.wear
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.capture.material.WearCapture
-import com.tracel.engine.wear.memory.InMemoryWearLog
 import com.tracel.engine.wear.WearMark
 import com.tracel.engine.wear.damageAt
-import com.tracel.model.id.LotId
-import com.tracel.model.id.Quantity
+import com.tracel.engine.wear.memory.InMemoryWearLog
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest

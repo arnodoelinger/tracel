@@ -1,8 +1,8 @@
 package com.tracel.tests.rollback
 
 import com.tracel.engine.rollback.structure.space.groupByTile
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.*

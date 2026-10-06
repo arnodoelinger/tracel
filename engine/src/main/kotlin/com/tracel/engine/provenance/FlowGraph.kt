@@ -1,8 +1,8 @@
 package com.tracel.engine.provenance
 
 import com.tracel.engine.ledger.repository.LotRepository
-import com.tracel.model.id.LotId
 import com.tracel.model.lot.LotEdge
+import com.tracel.model.lot.LotId
 
 /**
  * Answers the two questions provenance exists for, by walking the

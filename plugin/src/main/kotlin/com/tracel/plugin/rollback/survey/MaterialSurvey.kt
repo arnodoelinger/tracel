@@ -3,7 +3,7 @@ package com.tracel.plugin.rollback.survey
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.LotId
+import com.tracel.model.lot.LotId
 
 /** Everything the material half of a plan needs, worked out on its own thread. */
 internal data class MaterialSurvey(

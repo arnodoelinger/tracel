@@ -1,8 +1,8 @@
 package com.tracel.plugin.adapter.entity
 
 import com.tracel.annotations.Unstable
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.*
 import com.tracel.plugin.adapter.entity.special.FallingBlockAdapter
 import com.tracel.plugin.util.Warnings

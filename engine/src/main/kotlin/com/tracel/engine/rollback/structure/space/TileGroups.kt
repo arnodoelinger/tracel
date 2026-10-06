@@ -1,8 +1,8 @@
 package com.tracel.engine.rollback.structure.space
 
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.TILE_SHIFT
+import com.tracel.model.world.WorldId
 
 /**
  * Splits [items] by the tile [at] puts each one in, in the order the tiles are first met. Items keep their order

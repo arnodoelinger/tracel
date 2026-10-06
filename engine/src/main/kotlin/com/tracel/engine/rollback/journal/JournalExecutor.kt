@@ -4,16 +4,16 @@ import com.tracel.annotations.Journaled
 import com.tracel.annotations.RequiresLease
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
+import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.journal.crash.CrashPoint
 import com.tracel.engine.rollback.journal.support.SparseSteps
 import com.tracel.engine.rollback.lease.Lease
 import com.tracel.engine.rollback.lease.Leases
-import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.plan.RollbackPlan
-import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
-import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.TxnId
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.transaction.TxnId
 
 /**
  * Runs a [RollbackPlan] in batches and records completed steps in the [Journal].

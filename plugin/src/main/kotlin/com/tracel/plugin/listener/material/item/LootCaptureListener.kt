@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.material.item
 
-import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toBlockPos
