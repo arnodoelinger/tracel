@@ -3,7 +3,6 @@ package com.tracel.plugin.adapter.rollback.structure.group
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.leashHolder
 import com.tracel.model.world.entity.vehicle
-import com.tracel.plugin.adapter.entity.*
 import com.tracel.plugin.adapter.entity.link.applyLeash
 import com.tracel.plugin.adapter.entity.link.applyVehicle
 import com.tracel.plugin.rollback.structure.StructureRestorer

@@ -1,12 +1,9 @@
 package com.tracel.plugin.importer.coreprotect.source
 
 import com.tracel.annotations.Unstable
+import org.bukkit.configuration.file.YamlConfiguration
 import java.nio.file.Files
 import java.nio.file.Path
-import org.bukkit.*
-import org.bukkit.configuration.file.YamlConfiguration
-import org.bukkit.entity.*
-import org.bukkit.inventory.meta.*
 
 /** Finds the database `CoreProtect` itself would open, by reading its folder the way it does. */
 @Unstable

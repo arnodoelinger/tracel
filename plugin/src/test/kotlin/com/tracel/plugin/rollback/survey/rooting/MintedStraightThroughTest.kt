@@ -12,10 +12,10 @@ import com.tracel.model.lot.LotId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.transaction.TxnId
 import com.tracel.tests.support.Fixtures.block
-import java.util.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class MintedStraightThroughTest {
     private val pig = HolderId.Entity(UUID(3L, 3L))

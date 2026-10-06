@@ -12,7 +12,10 @@ import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.util.geometry.regionKey
-import kotlinx.coroutines.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import org.bukkit.Location
 
 /** Respawn a consumed drop. */

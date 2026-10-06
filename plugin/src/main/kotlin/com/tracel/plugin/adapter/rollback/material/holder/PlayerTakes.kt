@@ -1,6 +1,8 @@
 package com.tracel.plugin.adapter.rollback.material.holder
 
-import com.tracel.plugin.adapter.item.*
+import com.tracel.plugin.adapter.item.openGrid
+import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.adapter.item.transientInputSlots
 import com.tracel.plugin.adapter.rollback.material.item.Moves
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import org.bukkit.entity.Player

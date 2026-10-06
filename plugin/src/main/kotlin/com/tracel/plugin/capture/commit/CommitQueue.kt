@@ -1,13 +1,12 @@
 package com.tracel.plugin.capture.commit
 
 import com.tracel.plugin.services.TracelServices
-import java.util.*
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.logging.Level
-import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.logging.Level
+import java.util.logging.Logger
 
 private val logger = Logger.getLogger("MaterialCapture")
 

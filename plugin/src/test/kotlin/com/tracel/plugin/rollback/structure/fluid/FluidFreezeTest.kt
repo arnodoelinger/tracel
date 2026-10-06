@@ -10,12 +10,10 @@ import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.plugin.specifics.block.AIR
 import com.tracel.tests.support.Fixtures
-import java.util.*
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class FluidFreezeTest {
     private val world = Fixtures.world
@@ -105,7 +103,11 @@ class FluidFreezeTest {
             }
             assertEquals(listOf(outside), woken, "the area still holds the river; the spring outside it may run")
         }
-        assertEquals(listOf(outside, river), woken, "and the river, nowhere near the job, runs on once the area lets go")
+        assertEquals(
+            listOf(outside, river),
+            woken,
+            "and the river, nowhere near the job, runs on once the area lets go"
+        )
     }
 
     @Test

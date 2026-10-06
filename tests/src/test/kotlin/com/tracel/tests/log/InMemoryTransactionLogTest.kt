@@ -18,11 +18,11 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.NamespacedNames
-import org.junit.jupiter.api.assertThrows
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.util.*
 
 class InMemoryTransactionLogTest {

@@ -8,7 +8,6 @@ import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.util.geometry.regionKey
 import com.tracel.plugin.util.holder.namedByEntity
-import java.util.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -18,6 +17,7 @@ import org.bukkit.Bukkit
 import org.bukkit.entity.ArmorStand
 import org.bukkit.entity.Item
 import org.bukkit.entity.ItemFrame
+import java.util.*
 
 /** Which UUID holders are gone. */
 internal suspend fun MaterialRestorer.findVanished(

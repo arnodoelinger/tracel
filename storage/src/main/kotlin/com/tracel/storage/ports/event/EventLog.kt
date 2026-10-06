@@ -1,7 +1,6 @@
 package com.tracel.storage.ports.event
 
 import com.tracel.engine.log.lookup.LookupFilter
-import com.tracel.engine.event.EventLog as EventLogPort
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
 import com.tracel.model.log.Seq
@@ -20,6 +19,7 @@ import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.ffm.Bytes.writeBytes
 import com.tracel.storage.intern.Interning
 import java.lang.foreign.MemorySegment
+import com.tracel.engine.event.EventLog as EventLogPort
 
 /** The event log: what was said, what was typed, who joined and disconnected. */
 class EventLog(private val storage: TracelStorage) : EventLogPort {

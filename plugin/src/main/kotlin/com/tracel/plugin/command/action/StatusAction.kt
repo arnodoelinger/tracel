@@ -8,11 +8,7 @@ import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.i18n.unexpected
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.status.health.LAG_PROBE_MILLIS
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.*
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
@@ -37,11 +33,14 @@ class StatusAction(private val services: TracelServices) {
         val database = services.plugin.dataFolder.resolve("database")
 
         // What waits right now, before the wait below changes it: captures not written, and ring slots not applied
-        val queued = services.pendingCaptures.owedNow() + services.store.capture.backlog.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val queued =
+            services.pendingCaptures.owedNow() + services.store.capture.backlog.coerceAtMost(Int.MAX_VALUE.toLong())
+                .toInt()
 
         // How late the queue is is how long it takes to empty: asked of it now, answered when it is
         val started = System.nanoTime()
-        val applied = withTimeoutOrNull(LAG_PROBE_MILLIS) { services.store.capture.awaitApplied(LAG_PROBE_MILLIS) } == true
+        val applied =
+            withTimeoutOrNull(LAG_PROBE_MILLIS) { services.store.capture.awaitApplied(LAG_PROBE_MILLIS) } == true
         val left = (LAG_PROBE_MILLIS - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(1)
         val settled = withTimeoutOrNull(left) { services.pendingCaptures.await(left) } == true
         val took = (System.nanoTime() - started) / 1_000_000

@@ -11,9 +11,9 @@ import com.mojang.brigadier.tree.LiteralCommandNode
 import com.tracel.plugin.i18n.asMessage
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
+import net.kyori.adventure.text.Component
 import java.util.concurrent.CompletableFuture
 import java.util.function.Predicate
-import net.kyori.adventure.text.Component
 
 internal fun pathOf(ctx: CommandContext<CommandSourceStack>): String =
     ctx.nodes.mapNotNull { (it.node as? LiteralCommandNode<*>)?.literal }.drop(1).joinToString(" ").ifEmpty { "help" }

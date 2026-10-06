@@ -11,6 +11,6 @@ object NamespacedNames : NameMatcher {
         val wantedFrom = wanted.indexOf(':') + 1
         val storedLength = storedEnd - storedFrom
         return storedLength == wanted.length - wantedFrom &&
-            stored.regionMatches(storedFrom, wanted, wantedFrom, storedLength, ignoreCase = true)
+                stored.regionMatches(storedFrom, wanted, wantedFrom, storedLength, ignoreCase = true)
     }
 }

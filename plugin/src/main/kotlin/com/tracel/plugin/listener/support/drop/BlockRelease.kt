@@ -2,7 +2,6 @@ package com.tracel.plugin.listener.support.drop
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import kotlinx.coroutines.*
 import org.bukkit.World
 import org.bukkit.block.Block
 

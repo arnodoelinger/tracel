@@ -2,18 +2,13 @@ package com.tracel.storage.ports.log
 
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
-import com.tracel.engine.world.WorldLog as WorldLogPort
 import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.log.LogKind
 import com.tracel.model.log.Seq
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
-import com.tracel.model.world.WorldId
+import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
@@ -30,6 +25,7 @@ import com.tracel.storage.util.eachIndex
 import com.tracel.storage.util.pageAccepted
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
+import com.tracel.engine.world.WorldLog as WorldLogPort
 
 /**
  * The world-change log, plus the indexes that make it searchable.
@@ -343,7 +339,13 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 BlockShape(interning.resolveBlockData(this, afters[i])),
             )
         }
-        BlockEdits(action, cause, if (causedById == 0) null else interning.resolveHolder(this, causedById), epochMillis, edits)
+        BlockEdits(
+            action,
+            cause,
+            if (causedById == 0) null else interning.resolveHolder(this, causedById),
+            epochMillis,
+            edits
+        )
     }
 
     private fun sectionOf(x: Int, y: Int, z: Int): Long =
@@ -736,12 +738,20 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val pick = BooleanArray(n)
         var count = 0
         for (h in 0 until capacity) if (used[h]) {
-            if (!pick[firsts[h]]) { pick[firsts[h]] = true; count++ }
-            if (!pick[lasts[h]]) { pick[lasts[h]] = true; count++ }
+            if (!pick[firsts[h]]) {
+                pick[firsts[h]] = true; count++
+            }
+            if (!pick[lasts[h]]) {
+                pick[lasts[h]] = true; count++
+            }
         }
         for (slot in entities.values) {
-            if (!pick[slot[0]]) { pick[slot[0]] = true; count++ }
-            if (!pick[slot[1]]) { pick[slot[1]] = true; count++ }
+            if (!pick[slot[0]]) {
+                pick[slot[0]] = true; count++
+            }
+            if (!pick[slot[1]]) {
+                pick[slot[1]] = true; count++
+            }
         }
         val out = ArrayList<WorldChange>(count)
         for (i in n - 1 downTo 0) if (pick[i]) out += ordered[i]
@@ -1048,8 +1058,18 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 millis,
                 BlockPos(world, x, y, z),
                 ChangeSubject.Block(
-                    if (extras == null) shapes[beforeSlot] else sectionShape(unit, palette[beforeSlot], extras.before, resolved),
-                    if (extras == null) shapes[afterSlot] else sectionShape(unit, palette[afterSlot], extras.after, resolved),
+                    if (extras == null) shapes[beforeSlot] else sectionShape(
+                        unit,
+                        palette[beforeSlot],
+                        extras.before,
+                        resolved
+                    ),
+                    if (extras == null) shapes[afterSlot] else sectionShape(
+                        unit,
+                        palette[afterSlot],
+                        extras.after,
+                        resolved
+                    ),
                 ),
             )
         }

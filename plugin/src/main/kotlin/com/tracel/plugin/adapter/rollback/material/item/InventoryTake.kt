@@ -5,7 +5,8 @@ import com.tracel.plugin.adapter.item.canCarry
 import com.tracel.plugin.adapter.item.carried
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.withCarried
-import org.bukkit.inventory.*
+import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.ItemStack
 
 /**
  * Takes [amount] of [itemKey] out of [inventory], matched by key.

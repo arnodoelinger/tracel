@@ -36,11 +36,7 @@ import com.tracel.plugin.capture.ShapeCapture
 import com.tracel.plugin.command.action.CoreProtectImportAction
 import com.tracel.plugin.command.action.LookupAction
 import com.tracel.plugin.command.action.support.PurgeGate
-import com.tracel.plugin.config.AutoPurgeSettings
-import com.tracel.plugin.config.DEFAULT_ENTITY_RESTORE_LIMIT
-import com.tracel.plugin.config.DEFAULT_LOG_ENTITY_DAMAGE
-import com.tracel.plugin.config.LoggingSettings
-import com.tracel.plugin.config.PasteSettings
+import com.tracel.plugin.config.*
 import com.tracel.plugin.governor.GovernorSettings
 import com.tracel.plugin.governor.TickGovernor
 import com.tracel.plugin.listener.session.InspectorState
@@ -60,12 +56,12 @@ import com.tracel.plugin.specifics.block.warmFluidShapes
 import com.tracel.plugin.status.rate.WriteRate
 import com.tracel.plugin.util.whereabouts.EntityWhereabouts
 import com.tracel.plugin.util.whereabouts.GroundWhereabouts
-import java.nio.file.Path
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
+import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val WHEREABOUTS_KEPT = 200_000
 

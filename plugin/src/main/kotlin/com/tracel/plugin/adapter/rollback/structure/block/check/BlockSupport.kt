@@ -4,7 +4,6 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.rollback.structure.block.blockAt
-import com.tracel.plugin.adapter.rollback.structure.block.write.place
 import com.tracel.plugin.specifics.block.AIR
 import com.tracel.plugin.specifics.block.isFireBlock
 import org.bukkit.World

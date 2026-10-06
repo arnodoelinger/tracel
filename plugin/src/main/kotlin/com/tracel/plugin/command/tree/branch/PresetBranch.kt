@@ -2,20 +2,19 @@ package com.tracel.plugin.command.tree.branch
 
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
-import com.tracel.plugin.command.action.*
 import com.tracel.plugin.command.brigadier.argument
 import com.tracel.plugin.command.brigadier.executesCommand
 import com.tracel.plugin.command.brigadier.literal
 import com.tracel.plugin.command.brigadier.requiresPermission
 import com.tracel.plugin.command.permission.Permission
-import com.tracel.plugin.command.suggest.*
 import com.tracel.plugin.command.suggest.preset.PresetAddFlagsSuggest
 import com.tracel.plugin.command.suggest.preset.PresetAddNameSuggest
 import com.tracel.plugin.command.suggest.preset.PresetNameSuggest
 import com.tracel.plugin.command.suggest.preset.PresetOwnedSuggest
 import com.tracel.plugin.command.tree.CommandActions
 import com.tracel.plugin.command.tree.tokens
-import com.tracel.plugin.i18n.*
+import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.i18n.usage
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel preset`: saved sets of flags. */

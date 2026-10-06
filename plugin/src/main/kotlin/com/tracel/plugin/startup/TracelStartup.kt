@@ -57,10 +57,10 @@ import com.tracel.storage.ports.ops.StoreAdmin
 import com.tracel.storage.ports.wear.WearLog
 import com.tracel.storage.ports.world.GroundPositions
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.*
 import org.bukkit.Bukkit
 import org.tomlj.Toml
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val LAST_CAPTURE_WAIT_MILLIS = 500L
 private const val WRITE_RATE_SAMPLE_MILLIS = 5_000L

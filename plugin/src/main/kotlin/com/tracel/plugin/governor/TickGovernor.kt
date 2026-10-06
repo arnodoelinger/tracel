@@ -1,10 +1,10 @@
 package com.tracel.plugin.governor
 
-import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.plugin.Plugin
+import kotlin.coroutines.resume
 
 /**
  * The nanoseconds a restore may hold the tick before it hands the rest back.

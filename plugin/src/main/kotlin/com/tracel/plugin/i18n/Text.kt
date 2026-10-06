@@ -4,8 +4,6 @@ import com.mojang.brigadier.LiteralMessage
 import com.mojang.brigadier.Message
 import com.tracel.plugin.metrics.Telemetry
 import io.papermc.paper.command.brigadier.MessageComponentSerializer
-import java.util.*
-import kotlin.math.abs
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.ComponentLike
@@ -18,6 +16,8 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.minimessage.translation.Argument
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator
+import java.util.*
+import kotlin.math.abs
 
 private val MESSAGES: MessageComponentSerializer? = runCatching { MessageComponentSerializer.message() }.getOrNull()
 

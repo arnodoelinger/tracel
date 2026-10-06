@@ -1,9 +1,9 @@
 package com.tracel.plugin.util.runtime
 
-import java.util.logging.Level
-import java.util.logging.Logger
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.util.logging.Level
+import java.util.logging.Logger
 
 class ShutdownTest {
     private val quiet = Logger.getLogger("com.tracel.plugin.ShutdownTest").apply { level = Level.OFF }

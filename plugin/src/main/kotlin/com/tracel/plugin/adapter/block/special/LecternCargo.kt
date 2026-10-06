@@ -5,8 +5,8 @@ import com.tracel.plugin.adapter.block.CargoSlots
 import com.tracel.plugin.adapter.block.capability.cargo.CargoSurface
 import org.bukkit.block.BlockState
 import org.bukkit.block.Lectern
-import org.bukkit.block.data.type.Lectern as LecternData
 import org.bukkit.inventory.ItemStack
+import org.bukkit.block.data.type.Lectern as LecternData
 
 /**
  * Lectern cargo (book).

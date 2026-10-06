@@ -6,8 +6,8 @@ import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.tracel.plugin.i18n.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
-import java.util.concurrent.CompletableFuture
 import org.bukkit.Bukkit
+import java.util.concurrent.CompletableFuture
 
 /** Players who are online, then those the server has seen, best match first. */
 internal object PlayerNameSuggest : SuggestionProvider<CommandSourceStack> {

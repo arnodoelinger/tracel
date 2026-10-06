@@ -1,15 +1,15 @@
 package com.tracel.storage.ports.actor
 
-import com.tracel.model.holder.HolderId
-import com.tracel.engine.actor.VisitTimeline
 import com.tracel.engine.actor.ModeTimeline
-import com.tracel.engine.actor.ActorFacts as ActorFactsPort
+import com.tracel.engine.actor.VisitTimeline
+import com.tracel.model.holder.HolderId
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import java.util.*
+import com.tracel.engine.actor.ActorFacts as ActorFactsPort
 
 /**
  * What the log cannot say about who did a thing: a mob's type and a player's game mode.

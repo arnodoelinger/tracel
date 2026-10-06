@@ -3,11 +3,7 @@ package com.tracel.plugin.adapter.rollback.structure.block.check
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
-import com.tracel.plugin.specifics.block.FluidMadeBlock
-import com.tracel.plugin.specifics.block.NaturalBlock
-import com.tracel.plugin.specifics.block.SoilBlock
-import com.tracel.plugin.specifics.block.Weathering
-import com.tracel.plugin.specifics.block.poursLikeFluid
+import com.tracel.plugin.specifics.block.*
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.block.data.Ageable

@@ -1,7 +1,5 @@
 package com.tracel.plugin.command.args.scope
 
-import org.bukkit.World
-
 object ScopeArgument {
     private val BLOCK_RADIUS = Regex("""(\d+)b""")
     private val CHUNK_RADIUS = Regex("""(\d+)c""")

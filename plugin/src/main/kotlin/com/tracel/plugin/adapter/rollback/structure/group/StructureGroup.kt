@@ -9,22 +9,12 @@ import com.tracel.model.world.entity.vehicle
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.applyTo
 import com.tracel.plugin.adapter.block.toShape
-import com.tracel.plugin.adapter.entity.*
 import com.tracel.plugin.adapter.entity.remember
-import com.tracel.plugin.adapter.rollback.structure.block.PalettePaste
-import com.tracel.plugin.adapter.rollback.structure.block.airBlockData
-import com.tracel.plugin.adapter.rollback.structure.block.blockAt
-import com.tracel.plugin.adapter.rollback.structure.block.check.ShapeTraits
-import com.tracel.plugin.adapter.rollback.structure.block.check.UNSUPPORTED
-import com.tracel.plugin.adapter.rollback.structure.block.check.drifted
-import com.tracel.plugin.adapter.rollback.structure.block.check.hangingCells
-import com.tracel.plugin.adapter.rollback.structure.block.check.hasGravity
-import com.tracel.plugin.adapter.rollback.structure.block.check.isAir
-import com.tracel.plugin.adapter.rollback.structure.block.check.isFire
-import com.tracel.plugin.adapter.rollback.structure.block.check.overlappingFalling
-import com.tracel.plugin.adapter.rollback.structure.block.check.unsupportedAt
-import com.tracel.plugin.adapter.rollback.structure.block.loadChunks
-import com.tracel.plugin.adapter.rollback.structure.block.paint
+import com.tracel.plugin.adapter.entity.spawnInto
+import com.tracel.plugin.adapter.entity.toBlockPos
+import com.tracel.plugin.adapter.entity.toShape
+import com.tracel.plugin.adapter.rollback.structure.block.*
+import com.tracel.plugin.adapter.rollback.structure.block.check.*
 import com.tracel.plugin.adapter.rollback.structure.block.write.apply
 import com.tracel.plugin.adapter.rollback.structure.block.write.place
 import com.tracel.plugin.adapter.rollback.structure.entity.despawn
@@ -42,11 +32,11 @@ import com.tracel.plugin.specifics.block.AIR
 import com.tracel.plugin.util.geometry.chunkKey
 import com.tracel.plugin.util.geometry.chunkKeyX
 import com.tracel.plugin.util.geometry.chunkKeyZ
-import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.block.BlockFace
 import org.bukkit.entity.Entity
+import java.util.*
 
 /** Apply group structure, a slice of a tick at a time. */
 @Unstable

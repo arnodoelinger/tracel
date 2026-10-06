@@ -1,7 +1,6 @@
 package com.tracel.storage
 
 import com.tracel.engine.store.StoreSettings
-import com.tracel.storage.lsm.toLsmConfig
 import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.capture.CaptureRing
@@ -9,6 +8,7 @@ import com.tracel.storage.codec.History
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
+import com.tracel.storage.lsm.toLsmConfig
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
 import kotlinx.coroutines.*

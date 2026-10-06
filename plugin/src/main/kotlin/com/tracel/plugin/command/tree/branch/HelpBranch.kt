@@ -1,13 +1,11 @@
 package com.tracel.plugin.command.tree.branch
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
-import com.tracel.plugin.command.action.*
 import com.tracel.plugin.command.brigadier.executesCommand
 import com.tracel.plugin.command.brigadier.literal
-import com.tracel.plugin.command.suggest.*
 import com.tracel.plugin.command.tree.CommandActions
 import com.tracel.plugin.command.tree.sendHelp
-import com.tracel.plugin.i18n.*
+import com.tracel.plugin.i18n.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel help`. */

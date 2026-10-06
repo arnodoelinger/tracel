@@ -6,8 +6,8 @@ import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.specifics.block.isMovingPiston
 import com.tracel.plugin.specifics.block.isTreePart
 import com.tracel.plugin.specifics.block.wakesBubbles
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.block.data.BlockData
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A block shape and its traits, as seen by a paste. The traits are used to determine the order of placement and

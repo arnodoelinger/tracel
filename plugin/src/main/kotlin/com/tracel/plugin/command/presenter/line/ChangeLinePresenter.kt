@@ -21,10 +21,6 @@ import com.tracel.plugin.command.presenter.support.Glyphs
 import com.tracel.plugin.i18n.lower
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.specifics.block.isAirLike
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
@@ -35,6 +31,10 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator
 import org.bukkit.Bukkit
 import org.bukkit.GameMode
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.*
 
 /** One line per recorded change: lookup, the inspector and rollback previews all read the same. */
 internal object ChangeLinePresenter {
@@ -190,7 +190,13 @@ internal object ChangeLinePresenter {
                 if (family == null) 0 else if (act.name == family.plus) flow.quantity.raw else -flow.quantity.raw
             LoggedLine(
                 millis = transaction.epochMillis,
-                key = if (visit != null) listOf(doer, "visit", visit, flow.itemKey.material, rolledAt != null) else listOf(
+                key = if (visit != null) listOf(
+                    doer,
+                    "visit",
+                    visit,
+                    flow.itemKey.material,
+                    rolledAt != null
+                ) else listOf(
                     doer ?: transaction.cause, family?.name ?: act.name, flow.itemKey.material, place, rolledAt != null
                 ),
                 mark = act.mark,
@@ -266,7 +272,13 @@ internal object ChangeLinePresenter {
             }
             add(tr("lookup.hover.time", "time" to STAMP.format(Instant.ofEpochMilli(entry.millis))))
             entry.rolledAt?.let {
-                add(tr("lookup.hover.rolled_back", "time" to STAMP.format(Instant.ofEpochMilli(it)), "ago" to ago(nowMillis - it)))
+                add(
+                    tr(
+                        "lookup.hover.rolled_back",
+                        "time" to STAMP.format(Instant.ofEpochMilli(it)),
+                        "ago" to ago(nowMillis - it)
+                    )
+                )
             }
             if (at != null) add(tr("lookup.hover.coords", "at" to "${at.x}, ${at.y}, ${at.z}"))
             entry.mode?.let { add(tr("lookup.hover.mode", "mode" to tr("lookup.mode.${it.name.lowercase()}"))) }
@@ -285,7 +297,10 @@ internal object ChangeLinePresenter {
         val clipped = Glyphs.width(label) > Glyphs.LINE - fixed
         val what = if (!clipped) full else Component.text(Glyphs.clip(label, Glyphs.LINE - fixed))
         val shown =
-            if (!clipped) hover else listOf(entry.tip ?: Component.text(label, NamedTextColor.WHITE), Component.empty()) + hover
+            if (!clipped) hover else listOf(
+                entry.tip ?: Component.text(label, NamedTextColor.WHITE),
+                Component.empty()
+            ) + hover
         val row = Component.text()
             .append(ago.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
             .append(mark).append(Component.space())

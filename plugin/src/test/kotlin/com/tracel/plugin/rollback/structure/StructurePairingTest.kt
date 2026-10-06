@@ -27,7 +27,10 @@ class StructurePairingTest {
     fun `trapped chests pair the same way, and a single chest points at nothing`() {
         assertEquals(here.copy(x = 11), structuralPartnerOf(here, shape("trapped_chest[facing=north,type=left]")))
         assertNull(structuralPartnerOf(here, shape("chest[facing=north,type=single]")))
-        assertEquals(here.copy(x = 11), structuralPartnerOf(here, shape("waxed_exposed_copper_chest[facing=north,type=left]")))
+        assertEquals(
+            here.copy(x = 11),
+            structuralPartnerOf(here, shape("waxed_exposed_copper_chest[facing=north,type=left]"))
+        )
         assertNull(structuralPartnerOf(here, shape("ender_chest[facing=north]")))
     }
 

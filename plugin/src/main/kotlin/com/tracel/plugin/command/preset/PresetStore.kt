@@ -2,13 +2,13 @@ package com.tracel.plugin.command.preset
 
 import com.tracel.platform.Versions
 import com.tracel.plugin.config.migrate.FileVersions
+import org.tomlj.Toml
+import org.tomlj.TomlTable
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import org.tomlj.Toml
-import org.tomlj.TomlTable
 
 /** Presets on disk as TOML, like the config. */
 internal class PresetStore(

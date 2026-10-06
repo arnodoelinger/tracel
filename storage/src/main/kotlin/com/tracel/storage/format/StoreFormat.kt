@@ -1,7 +1,7 @@
 package com.tracel.storage.format
 
-import com.tracel.platform.Versions
 import com.tracel.engine.store.StoreFormatException
+import com.tracel.platform.Versions
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys

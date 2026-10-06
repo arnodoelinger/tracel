@@ -1,9 +1,9 @@
 package com.tracel.storage.codec.records
 
 import com.tracel.model.cause.CauseKind
-import com.tracel.model.world.OpaqueBytes
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.OpaqueBytes
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.entity.EntityExtras

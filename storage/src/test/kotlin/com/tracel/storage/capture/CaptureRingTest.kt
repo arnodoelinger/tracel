@@ -2,7 +2,6 @@ package com.tracel.storage.capture
 
 import com.tracel.model.cause.CauseKind
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond

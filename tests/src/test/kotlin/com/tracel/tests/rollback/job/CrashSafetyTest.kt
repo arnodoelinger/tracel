@@ -11,9 +11,7 @@ import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class CrashSafetyTest {
@@ -51,7 +49,10 @@ class CrashSafetyTest {
 
             assertEquals(10L, world.count(chest, diamond), "crash before step $crashAt")
             assertEquals(10L, world.census(diamond), "crash before step $crashAt: no duplication, no loss")
-            assertNull(world.ledger.totalAt(HolderId.Escrow(job), diamond), "crash before step $crashAt: escrow drained")
+            assertNull(
+                world.ledger.totalAt(HolderId.Escrow(job), diamond),
+                "crash before step $crashAt: escrow drained"
+            )
         }
     }
 }

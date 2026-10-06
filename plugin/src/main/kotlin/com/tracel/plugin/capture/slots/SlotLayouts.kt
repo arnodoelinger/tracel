@@ -3,12 +3,11 @@ package com.tracel.plugin.capture.slots
 import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.block.CargoSlots
-import com.tracel.plugin.adapter.item.*
+import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.capture.commit.CommitQueue
 import com.tracel.plugin.services.TracelServices
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.inventory.Inventory
+import java.util.concurrent.ConcurrentHashMap
 
 /** Which slot a container's stacks sit in, written down whenever it changes. */
 internal class SlotLayouts(private val services: TracelServices, private val commits: CommitQueue) {

@@ -1,9 +1,8 @@
 package com.tracel.storage.ports.actor
 
+import com.tracel.engine.actor.EntityKindSource
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.engine.actor.EntityKindSource
-import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.storage.ports.ops.purgeAll
 import com.tracel.storage.support.Stack
 import kotlinx.coroutines.test.runTest

@@ -2,7 +2,6 @@ package com.tracel.plugin.rollback.survey.rooting
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.lot.LotId
-import java.util.*
 
 /**
  * For every lot still sitting in a "Sink" (something the item was consumed into, e.g. fire), walk

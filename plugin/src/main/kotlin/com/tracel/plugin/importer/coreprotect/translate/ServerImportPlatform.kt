@@ -7,12 +7,6 @@ import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.importer.coreprotect.legacy.LegacyRegistry
 import io.papermc.paper.entity.EntitySerializationFlag
-import java.io.ByteArrayInputStream
-import java.io.InputStream
-import java.io.ObjectInputFilter
-import java.io.ObjectStreamClass
-import java.net.URI
-import java.util.*
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.*
 import org.bukkit.attribute.AttributeModifier
@@ -28,6 +22,12 @@ import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.*
 import org.bukkit.potion.PotionEffect
 import org.bukkit.util.io.BukkitObjectInputStream
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.io.ObjectInputFilter
+import java.io.ObjectStreamClass
+import java.net.URI
+import java.util.*
 
 /** The server this plugin runs on, as the translator needs it. */
 object ServerImportPlatform : ImportPlatform {

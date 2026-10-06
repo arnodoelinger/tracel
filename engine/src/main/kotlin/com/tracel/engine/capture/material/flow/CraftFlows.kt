@@ -16,7 +16,8 @@ public fun craftFlows(ingredients: List<Ingredient>, product: Product): List<Flo
             quantity = it.quantity,
             source = it.holder,
             destination = HolderId.Sink(SinkKind.CRAFT_CONSUME),
-            kind = FlowKind.TRANSFORM_IN)
+            kind = FlowKind.TRANSFORM_IN
+        )
     } + Flow(
         itemKey = product.itemKey,
         quantity = product.quantity,

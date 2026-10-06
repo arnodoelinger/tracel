@@ -2,7 +2,6 @@ package com.tracel.storage.capture
 
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.capture.PlacedDeltas
-import com.tracel.engine.capture.CaptureGate as CaptureGatePort
 import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.cause.CauseKind
@@ -10,6 +9,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
+import com.tracel.engine.capture.CaptureGate as CaptureGatePort
 
 /**
  * What a listener actually calls. Wraps [CaptureRing] in the five shapes real capture code has,
@@ -150,7 +150,16 @@ class CaptureGate(private val ring: CaptureRing) : CaptureGatePort {
                 coordinates[i * 3 + 2] = edits[i].at.z
             }
             return ring.overflow(
-                RingEvent.World(cause.ordinal, causedById, epochMillis, action.ordinal, worldId, coordinates, befores, afters)
+                RingEvent.World(
+                    cause.ordinal,
+                    causedById,
+                    epochMillis,
+                    action.ordinal,
+                    worldId,
+                    coordinates,
+                    befores,
+                    afters
+                )
             )
         }
         for (i in edits.indices) {
@@ -168,7 +177,13 @@ class CaptureGate(private val ring: CaptureRing) : CaptureGatePort {
     override fun parkedDeltas(placed: PlacedDeltas): Boolean = ring.park(placed.cause, placed.epochMillis, placed)
 
     /** Everything [from] held went to [to] — see [CaptureRing.release]. */
-    override fun release(cause: CauseKind, causedBy: HolderId?, epochMillis: Long, from: HolderId, to: HolderId): Boolean {
+    override fun release(
+        cause: CauseKind,
+        causedBy: HolderId?,
+        epochMillis: Long,
+        from: HolderId,
+        to: HolderId
+    ): Boolean {
         val fromId = ring.holderId(from)
         val toId = ring.holderId(to)
         val causedById = causedBy?.let(ring::holderId) ?: 0

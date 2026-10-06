@@ -15,11 +15,11 @@ import com.tracel.plugin.specifics.block.holdsFreeFluid
 import com.tracel.plugin.util.collection.LongHashSet
 import com.tracel.plugin.util.geometry.chunkKey
 import com.tracel.plugin.util.geometry.packed
-import java.util.concurrent.atomic.AtomicIntegerArray
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicIntegerArray
 
 /** Wakes the fluids in and around everything a job wrote, once per region, after the freeze is off. */
 internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep>, asItStood: LookupRegion?) {

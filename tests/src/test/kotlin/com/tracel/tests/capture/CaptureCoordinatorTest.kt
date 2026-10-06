@@ -22,10 +22,10 @@ import com.tracel.tests.support.Fixtures.itemEntity
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
 import com.tracel.tests.support.NamespacedNames
-import org.junit.jupiter.api.assertThrows
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 class CaptureCoordinatorTest {
     @Test

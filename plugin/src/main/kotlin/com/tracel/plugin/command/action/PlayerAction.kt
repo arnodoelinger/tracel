@@ -3,6 +3,7 @@ package com.tracel.plugin.command.action
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.command.resolvePlayerUuid
+import com.tracel.plugin.adapter.world.toLookupRegion
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.ScopeArgument
 import com.tracel.plugin.command.args.scope.scopeProblem
@@ -10,7 +11,6 @@ import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.PlayerReport
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.adapter.world.toLookupRegion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope

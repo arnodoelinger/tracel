@@ -7,9 +7,9 @@ import com.tracel.plugin.TracelPlugin
 import com.tracel.plugin.command.action.shortSpan
 import com.tracel.plugin.config.AutoPurgeSettings
 import com.tracel.plugin.services.TracelServices
+import kotlinx.coroutines.*
 import java.util.logging.Level
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.*
 
 private const val FIRST_RUN_DELAY_MILLIS = 5L * 60_000
 

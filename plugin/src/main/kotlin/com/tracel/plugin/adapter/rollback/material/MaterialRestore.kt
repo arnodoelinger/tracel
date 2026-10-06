@@ -12,21 +12,17 @@ import com.tracel.plugin.adapter.rollback.material.spill.recordSpills
 import com.tracel.plugin.adapter.world.ownsChunkAt
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.governor.throttled
-import com.tracel.plugin.rollback.material.ApplyResult
-import com.tracel.plugin.rollback.material.ENTITY_GONE_AT_PLAN
-import com.tracel.plugin.rollback.material.MaterialRestorer
+import com.tracel.plugin.rollback.material.*
 import com.tracel.plugin.rollback.material.census.EntityCensus
-import com.tracel.plugin.rollback.material.shortfallOf
 import com.tracel.plugin.rollback.material.spill.Spill
-import com.tracel.plugin.rollback.material.withholdUnfunded
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.util.geometry.regionKey
 import com.tracel.plugin.util.holder.entityUuid
 import com.tracel.plugin.util.holder.namedByEntity
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.logging.Level
 import kotlinx.coroutines.*
 import org.bukkit.World
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.logging.Level
 
 @Unstable
 internal const val SAMPLED_FAILURES = 3

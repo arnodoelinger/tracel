@@ -13,10 +13,10 @@ import com.tracel.model.log.Seq
 import com.tracel.model.lot.LotId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.transaction.TxnId
-import java.util.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class PairedGapMintsTest {
     private val player = HolderId.Player(UUID(1L, 1L))

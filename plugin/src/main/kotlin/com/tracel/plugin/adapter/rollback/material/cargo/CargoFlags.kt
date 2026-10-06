@@ -5,9 +5,9 @@ import org.bukkit.block.BlockState
 import org.bukkit.block.Jukebox
 import org.bukkit.block.Lectern
 import org.bukkit.block.data.type.ChiseledBookshelf
+import org.bukkit.inventory.ItemStack
 import org.bukkit.block.data.type.Jukebox as JukeboxData
 import org.bukkit.block.data.type.Lectern as LecternData
-import org.bukkit.inventory.ItemStack
 
 /** Sync cargo flags. */
 @Suppress("UsePropertyAccessSyntax")

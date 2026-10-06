@@ -1,7 +1,7 @@
 package com.tracel.plugin.specifics
 
-import java.util.EnumSet
 import org.bukkit.Material
+import java.util.*
 
 /**
  * One line of a game list.

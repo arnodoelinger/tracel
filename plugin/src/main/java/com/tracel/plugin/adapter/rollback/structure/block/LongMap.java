@@ -2,7 +2,7 @@ package com.tracel.plugin.adapter.rollback.structure.block;
 
 /**
  * Open-addressed map from a packed chunk key to a non-null value.
- *
+ * <p>
  * A `null` slot is empty.
  */
 final class LongMap<T> {

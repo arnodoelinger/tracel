@@ -5,22 +5,16 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.log.Seq
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
-import com.tracel.model.world.WorldId
+import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.specifics.block.AIR
 import com.tracel.plugin.specifics.block.isAirLike
 import com.tracel.plugin.specifics.world.VanillaWorldRules
 import com.tracel.tests.support.Fixtures
-import java.util.*
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertSame
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class StructurePlannerScaleTest {
     private val overworld = Fixtures.world

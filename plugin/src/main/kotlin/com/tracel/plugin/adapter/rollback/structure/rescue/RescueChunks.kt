@@ -4,11 +4,10 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.world.ownsChunkAt
 import com.tracel.plugin.rollback.structure.StructureRestorer
-import java.util.*
-import kotlin.math.floor
-import kotlinx.coroutines.*
-import org.bukkit.*
+import kotlinx.coroutines.withContext
+import org.bukkit.World
 import org.bukkit.util.BoundingBox
+import kotlin.math.floor
 
 /** Rescue chunks. */
 internal suspend fun <T> StructureRestorer.inChunk(world: World, x: Int, y: Int, z: Int, work: () -> T): T =

@@ -3,23 +3,11 @@ package com.tracel.plugin.config.read
 import com.tracel.engine.store.PurgeCategory
 import com.tracel.engine.store.StoreSettings
 import com.tracel.plugin.command.args.time.TimeArgument
-import com.tracel.plugin.config.AutoPurgeSettings
-import com.tracel.plugin.config.DEFAULT_ENTITY_RESTORE_LIMIT
-import com.tracel.plugin.config.DEFAULT_LOG_ENTITY_DAMAGE
-import com.tracel.plugin.config.DEFAULT_PASTE_EXPIRE
-import com.tracel.plugin.config.DEFAULT_PASTE_URL
-import com.tracel.plugin.config.DEFAULT_PURGE_INTERVAL_MILLIS
-import com.tracel.plugin.config.DEFAULT_PURGE_KEEP_MILLIS
-import com.tracel.plugin.config.DEFAULT_ROLLBACK_MAX_RADIUS
-import com.tracel.plugin.config.LoggingSettings
-import com.tracel.plugin.config.MIN_PURGE_INTERVAL_MILLIS
-import com.tracel.plugin.config.MIN_RING_SLOTS
-import com.tracel.plugin.config.PasteSettings
-import com.tracel.plugin.config.Settings
+import com.tracel.plugin.config.*
 import com.tracel.plugin.governor.GovernorSettings
 import com.tracel.plugin.integration.privatebin.PrivateBin
-import java.net.URI
 import org.tomlj.TomlTable
+import java.net.URI
 
 private val FOREVER = setOf("forever", "never", "off")
 

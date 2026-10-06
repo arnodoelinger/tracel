@@ -1,16 +1,15 @@
 package com.tracel.storage.ports.ledger
 
 import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
-import com.tracel.engine.rollback.plan.*
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.support.Stack
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.*
 
 class LeasesTest {
     @Test

@@ -35,9 +35,6 @@ import com.tracel.plugin.util.concurrent.ExpiringMap
 import com.tracel.plugin.util.concurrent.ExpiringSet
 import io.papermc.paper.event.player.PlayerNameEntityEvent
 import io.papermc.paper.event.player.PrePlayerAttackEntityEvent
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.floor
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.*
 import org.bukkit.entity.minecart.ExplosiveMinecart
@@ -48,13 +45,15 @@ import org.bukkit.event.hanging.HangingBreakByEntityEvent
 import org.bukkit.event.hanging.HangingBreakEvent
 import org.bukkit.event.hanging.HangingPlaceEvent
 import org.bukkit.event.player.*
-import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.vehicle.VehicleCreateEvent
 import org.bukkit.event.vehicle.VehicleDamageEvent
 import org.bukkit.event.vehicle.VehicleDestroyEvent
 import org.bukkit.event.vehicle.VehicleMoveEvent
 import org.bukkit.inventory.InventoryHolder
 import org.bukkit.persistence.PersistentDataType
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.floor
 
 private const val RECENT_MS = 5_000L
 

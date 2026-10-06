@@ -2,13 +2,13 @@ package com.tracel.plugin.i18n
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
-import java.io.File
-import java.io.InputStream
-import java.util.*
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.text.minimessage.translation.MiniMessageTranslationStore
 import net.kyori.adventure.translation.GlobalTranslator
 import org.bukkit.plugin.Plugin
+import java.io.File
+import java.io.InputStream
+import java.util.*
 
 /** `Tracel`'s texts. */
 object Messages {

@@ -1,8 +1,8 @@
 package com.tracel.plugin.adapter.entity.link
 
+import org.bukkit.Bukkit
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import org.bukkit.Bukkit
 
 /**
  * Vanilla keeps one leash hitch per fence and reuses it. A restore that expected the old

@@ -10,11 +10,11 @@ import com.tracel.plugin.adapter.entity.link.ridingOn
 import com.tracel.plugin.adapter.entity.special.FallingBlockAdapter
 import com.tracel.plugin.util.log.Warnings
 import io.papermc.paper.entity.EntitySerializationFlag
-import java.util.logging.Level
-import java.util.logging.Logger
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
+import java.util.logging.Level
+import java.util.logging.Logger
 
 private val logger = Logger.getLogger("EntityShapes")
 

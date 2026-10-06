@@ -1,6 +1,6 @@
 package com.tracel.storage.ports.ledger
 
-import com.tracel.engine.ledger.*
+import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.ledger.craft.Ingredient
 import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.ledger.repository.LotRepository

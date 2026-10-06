@@ -1,11 +1,11 @@
 package com.tracel.plugin.adapter.command
 
 import com.tracel.plugin.i18n.say
-import java.util.*
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import java.util.*
 
 /** @return the sender as a [Player], or sends [message] and returns `null`. */
 fun CommandSender.requirePlayer(message: Component): Player? {

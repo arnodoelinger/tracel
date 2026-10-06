@@ -1,10 +1,10 @@
 package com.tracel.plugin.startup
 
 import com.tracel.platform.Versions
-import java.nio.file.Files
-import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.nio.file.Files
+import java.nio.file.Path
 
 class VersionsConsistencyTest {
     private val oldest = Versions.Minecraft.SUPPORTED

@@ -13,10 +13,10 @@ import com.tracel.plugin.startup.TracelRuntime
 import com.tracel.plugin.startup.enableTracel
 import com.tracel.plugin.status.disk.CriticalDiskSpace
 import com.tracel.plugin.util.runtime.stopping
-import java.util.logging.Level
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
 import org.bukkit.plugin.java.JavaPlugin
+import java.util.logging.Level
 
 /**
  * Entry point of `Tracel`.
@@ -28,7 +28,9 @@ class TracelPlugin : JavaPlugin() {
         try {
             runtime = enableTracel(this)
         } catch (failure: Throwable) {
-            if (failure is CriticalDiskSpace || failure is StoreFormatException || failure is ImportInterrupted) logger.severe(failure.message)
+            if (failure is CriticalDiskSpace || failure is StoreFormatException || failure is ImportInterrupted) logger.severe(
+                failure.message
+            )
             else logger.log(Level.SEVERE, "Tracel failed to enable. The server cannot run without a ledger.", failure)
             killServer(this)
             throw failure

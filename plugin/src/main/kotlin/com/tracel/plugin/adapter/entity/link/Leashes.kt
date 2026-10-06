@@ -2,10 +2,10 @@ package com.tracel.plugin.adapter.entity.link
 
 import com.tracel.annotations.Unstable
 import io.papermc.paper.entity.Leashable
-import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
+import java.util.*
 
 /** The hitch or entity this one is tied to, or `null` if it is not [Leashable] / not leashed. */
 internal fun Entity.leashedTo(): Entity? {

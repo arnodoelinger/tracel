@@ -15,11 +15,11 @@ import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.specifics.block.AIR
 import com.tracel.plugin.util.geometry.regionKey
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.launch
 import org.bukkit.Bukkit
 import org.bukkit.block.Block
 import org.bukkit.block.BlockState
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * How a listener writes the world log.
@@ -133,9 +133,10 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
                         cause,
                         causedBy,
                         world,
-                        group.filter { !services.selfManagedWorld.wroteSince(it.second, readNanos) }.map { (block, at, shape) ->
-                            BlockEdit(at, shape, block.toShape())
-                        }.filter(keep),
+                        group.filter { !services.selfManagedWorld.wroteSince(it.second, readNanos) }
+                            .map { (block, at, shape) ->
+                                BlockEdit(at, shape, block.toShape())
+                            }.filter(keep),
                         epochMillis,
                     )
                 } finally {

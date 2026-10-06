@@ -30,7 +30,8 @@ object ActionArgument {
                 continue
             }
 
-            val cause = if (raw.equals("hopper", ignoreCase = true)) CauseKind.MACHINE else raw.toEnumOrNull<CauseKind>()
+            val cause =
+                if (raw.equals("hopper", ignoreCase = true)) CauseKind.MACHINE else raw.toEnumOrNull<CauseKind>()
             val action = raw.toEnumOrNull<ActionKind>()
             when {
                 action != null -> {

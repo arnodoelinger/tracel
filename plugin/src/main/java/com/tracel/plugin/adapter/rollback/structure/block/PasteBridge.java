@@ -189,7 +189,8 @@ final class PasteBridge {
         try {
             maybeHasHandle = virtual(lookup, section, ServerMethod.MAYBE_HAS.getId(), MethodType.methodType(boolean.class, Predicate.class))
                     .asType(MethodType.methodType(boolean.class, Object.class, Predicate.class));
-        } catch (NoSuchMethodException | IllegalAccessException ignored) {}
+        } catch (NoSuchMethodException | IllegalAccessException ignored) {
+        }
         maybeHas = maybeHasHandle;
 
         motion = enumConst(types, HeightmapType.MOTION_BLOCKING.name());

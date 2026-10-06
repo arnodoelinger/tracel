@@ -2,11 +2,10 @@ package com.tracel.plugin.adapter.rollback.structure.rescue
 
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.specifics.block.HazardBlock
-import java.util.*
-import kotlin.math.floor
-import org.bukkit.*
+import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.util.BoundingBox
+import kotlin.math.floor
 
 /** Rescue danger. */
 internal suspend fun StructureRestorer.endangered(

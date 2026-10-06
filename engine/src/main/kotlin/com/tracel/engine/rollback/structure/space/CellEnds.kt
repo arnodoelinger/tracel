@@ -28,6 +28,7 @@ private fun spatial(x: Int, y: Int, z: Int): Long =
 private fun spatialX(key: Long): Int = (((key ushr 42).toInt() - TILE_OFFSET) shl 4) or (key and 15).toInt()
 private fun spatialZ(key: Long): Int =
     ((((key ushr 20) and TILE_MASK).toInt() - TILE_OFFSET) shl 4) or ((key ushr 4) and 15).toInt()
+
 private fun spatialY(key: Long): Int = ((key ushr 8) and 0xFFF).toInt() - Y_LIMIT
 
 private fun packXyz(x: Int, y: Int, z: Int): Long =

@@ -1,11 +1,7 @@
 package com.tracel.plugin.command.suggest.flag
 
 import com.tracel.plugin.command.args.time.TimeArgument
-import com.tracel.plugin.command.suggest.quantity.QuantityUnit
-import com.tracel.plugin.command.suggest.quantity.ago
-import com.tracel.plugin.command.suggest.quantity.around
-import com.tracel.plugin.command.suggest.quantity.past
-import com.tracel.plugin.command.suggest.quantity.span
+import com.tracel.plugin.command.suggest.quantity.*
 import com.tracel.plugin.i18n.joined
 import com.tracel.plugin.i18n.tr
 import net.kyori.adventure.text.Component

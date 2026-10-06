@@ -7,10 +7,10 @@ import com.tracel.model.holder.SourceKind
 import com.tracel.model.lot.LotId
 import com.tracel.model.world.BlockPos
 import com.tracel.tests.support.Fixtures
-import java.util.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class RootedAtTest {
     private val lot = LotId(1)

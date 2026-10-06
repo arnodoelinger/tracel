@@ -21,10 +21,10 @@ import com.tracel.model.world.entity.vehicle
 import com.tracel.plugin.specifics.block.AIR
 import com.tracel.plugin.specifics.world.VanillaWorldRules
 import com.tracel.tests.support.Fixtures
-import java.util.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.*
 
 class StructurePlannerTest {
     private val world = Fixtures.world

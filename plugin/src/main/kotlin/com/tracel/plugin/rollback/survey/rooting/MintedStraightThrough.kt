@@ -4,7 +4,6 @@ import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction
-import java.util.*
 
 /**
  * Catches an item that was minted into a mob and immediately moved out of it, in the same

@@ -1,10 +1,10 @@
 package com.tracel.plugin.adapter.world
 
 import com.tracel.model.world.WorldId
-import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.entity.Player
+import java.util.*
 
 /** The live world for [id], or `null` if it is not loaded. */
 fun worldOf(id: WorldId): World? = Bukkit.getWorld(id.uuid)

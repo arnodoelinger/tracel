@@ -8,8 +8,8 @@ import com.tracel.plugin.command.args.purge.PurgeArgument
 import com.tracel.plugin.command.suggest.quantity.ago
 import com.tracel.plugin.i18n.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
-import java.util.concurrent.CompletableFuture
 import org.bukkit.Bukkit
+import java.util.concurrent.CompletableFuture
 
 /** Suggestions for the words of `/tracel data purge`: what is left to say, then the values the last word takes. */
 internal object PurgeSuggest : SuggestionProvider<CommandSourceStack> {

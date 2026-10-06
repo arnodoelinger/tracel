@@ -16,7 +16,6 @@ import com.tracel.plugin.listener.support.cell.DragonEggCell
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.specifics.block.makesBubbles
 import com.tracel.plugin.util.concurrent.ExpiringSet
-import java.util.*
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
@@ -27,6 +26,7 @@ import org.bukkit.event.block.*
 import org.bukkit.event.weather.LightningStrikeEvent
 import org.bukkit.event.world.PortalCreateEvent
 import org.bukkit.event.world.StructureGrowEvent
+import java.util.*
 
 /** World-caused shape edits. */
 @Unstable

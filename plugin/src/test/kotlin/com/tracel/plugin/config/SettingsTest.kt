@@ -4,9 +4,7 @@ import com.tracel.engine.store.PurgeCategory
 import com.tracel.engine.store.StoreSettings
 import com.tracel.engine.store.StoreSync
 import com.tracel.plugin.config.read.readSettings
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.tomlj.Toml
 

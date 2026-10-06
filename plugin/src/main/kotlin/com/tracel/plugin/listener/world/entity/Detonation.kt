@@ -1,8 +1,10 @@
 package com.tracel.plugin.listener.world.entity
 
-import org.bukkit.entity.*
-import org.bukkit.event.entity.*
-import org.bukkit.event.player.*
+import org.bukkit.entity.Creeper
+import org.bukkit.entity.Entity
+import org.bukkit.entity.TNTPrimed
+import org.bukkit.event.entity.EntityDamageEvent
+import org.bukkit.event.entity.EntityRemoveEvent
 
 internal fun Entity.isMidDetonation(cause: EntityRemoveEvent.Cause): Boolean = when {
     this is TNTPrimed -> true

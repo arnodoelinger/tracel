@@ -3,11 +3,7 @@ package com.tracel.plugin.adapter.rollback.material
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
-import com.tracel.plugin.adapter.rollback.material.holder.applyToContainer
-import com.tracel.plugin.adapter.rollback.material.holder.applyToEnderChest
-import com.tracel.plugin.adapter.rollback.material.holder.applyToPlayer
-import com.tracel.plugin.adapter.rollback.material.holder.fillEntityCargo
-import com.tracel.plugin.adapter.rollback.material.holder.takeGroundItem
+import com.tracel.plugin.adapter.rollback.material.holder.*
 import com.tracel.plugin.adapter.rollback.material.item.WornStacks
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.material.ApplyResult

@@ -5,15 +5,17 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.plugin.rollback.structure.StructureRestorer
+import kotlinx.coroutines.*
+import kotlinx.coroutines.future.await
+import org.bukkit.Bukkit
+import org.bukkit.GameMode
+import org.bukkit.Location
+import org.bukkit.entity.Player
+import org.bukkit.event.player.PlayerTeleportEvent
 import java.util.*
 import java.util.logging.Level
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.*
-import kotlinx.coroutines.future.await
-import org.bukkit.*
-import org.bukkit.entity.Player
-import org.bukkit.event.player.PlayerTeleportEvent
 
 /**
  * Get players out of the way of what [applied] just wrote.

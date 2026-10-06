@@ -14,7 +14,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.specifics.block.AIR
 import com.tracel.plugin.util.log.Warnings
-import java.util.UUID
+import java.util.*
 import java.util.logging.Level
 import java.util.logging.Logger
 

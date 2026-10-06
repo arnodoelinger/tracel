@@ -5,9 +5,9 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
-import java.util.UUID
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.*
 
 private val WORLD = WorldId(UUID(0L, 1L))
 private val WHO = UUID(0L, 2L)

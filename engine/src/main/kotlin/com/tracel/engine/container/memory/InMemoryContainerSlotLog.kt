@@ -4,13 +4,13 @@ import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
-import com.tracel.platform.concurrency.SingleWriterGuard
+import com.tracel.engine.container.ContainerSlotEntry
+import com.tracel.engine.container.ContainerSlotLog
 import com.tracel.model.holder.HolderId
+import com.tracel.platform.concurrency.SingleWriterGuard
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.atomic.AtomicLong
-import com.tracel.engine.container.ContainerSlotEntry
-import com.tracel.engine.container.ContainerSlotLog
 
 /** In-memory [ContainerSlotLog], the reference the stored one is checked against. */
 @SingleWriter

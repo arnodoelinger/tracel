@@ -1,13 +1,13 @@
 package com.tracel.storage.ports.log
 
 import com.tracel.storage.TracelStorage
-import com.tracel.engine.log.RolledBack as RolledBackPort
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.records.recordBytes
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.putI64
 import com.tracel.storage.util.eachRow
+import com.tracel.engine.log.RolledBack as RolledBackPort
 
 /** Which log records a rollback took back, and when. */
 class RolledBack(private val storage: TracelStorage) : RolledBackPort {

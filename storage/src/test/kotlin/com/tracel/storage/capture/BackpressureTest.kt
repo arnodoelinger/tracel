@@ -2,7 +2,6 @@ package com.tracel.storage.capture
 
 import com.tracel.model.cause.CauseKind
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
@@ -26,7 +25,10 @@ class BackpressureTest {
             val elapsed = measureNanoTime {
                 repeat(10_000) { gate.move(CauseKind.MACHINE, null, it.toLong(), diamond, chest, steve, 1) }
             }
-            assertTrue(elapsed < 500_000_000, "10 000 refused enqueues took ${elapsed / 1_000_000}ms — something waited")
+            assertTrue(
+                elapsed < 500_000_000,
+                "10 000 refused enqueues took ${elapsed / 1_000_000}ms — something waited"
+            )
             val dropped = gate.dropped
             assertTrue(dropped > 9_000, "a 64-slot ring must have refused most of 10 000 events")
 
@@ -92,7 +94,11 @@ class BackpressureTest {
             assertEquals(100L, accepted + stack.gate.dropped, "every event was either kept or counted as lost")
 
             stack.drain()
-            assertEquals(accepted, stack.ledger.totalAt(steve, diamond)?.raw, "what was kept landed, what was lost did not")
+            assertEquals(
+                accepted,
+                stack.ledger.totalAt(steve, diamond)?.raw,
+                "what was kept landed, what was lost did not"
+            )
         }
     }
 }

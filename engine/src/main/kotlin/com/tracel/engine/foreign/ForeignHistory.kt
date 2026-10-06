@@ -9,7 +9,7 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.entity.EntityTypeKey
-import java.util.UUID
+import java.util.*
 
 /**
  * Foreign history is what another plugin recorded, filed under this one's.

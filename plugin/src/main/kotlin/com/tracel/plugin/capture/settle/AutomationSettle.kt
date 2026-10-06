@@ -2,11 +2,10 @@ package com.tracel.plugin.capture.settle
 
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.item.*
+import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.capture.MaterialCapture
 import com.tracel.plugin.capture.commit.CommitQueue
 import com.tracel.plugin.services.TracelServices
-import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.inventory.Inventory

@@ -19,7 +19,6 @@ import com.tracel.plugin.specifics.command.EntityCommand
 import com.tracel.plugin.specifics.command.isCommand
 import com.tracel.plugin.specifics.entity.dropsSelf
 import com.tracel.plugin.util.concurrent.ExpiringMap
-import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.entity.*
 import org.bukkit.event.entity.EntityDeathEvent
@@ -33,6 +32,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.vehicle.VehicleCreateEvent
 import org.bukkit.event.vehicle.VehicleDestroyEvent
 import org.bukkit.inventory.InventoryHolder
+import java.util.*
 
 /**
  * Entity cargo listener.

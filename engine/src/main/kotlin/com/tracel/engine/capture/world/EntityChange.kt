@@ -5,7 +5,6 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.entity.EntityShape
-import kotlinx.coroutines.*
 import java.util.*
 
 /** One entity appearing, changing or going away, as the region thread saw it. */

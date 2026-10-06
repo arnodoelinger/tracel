@@ -1,7 +1,7 @@
 package com.tracel.engine.actor
 
 import com.tracel.model.world.entity.EntityTypeKey
-import java.util.UUID
+import java.util.*
 
 /** What a mob is, as far as the server can tell right now. */
 public fun interface EntityKindSource {

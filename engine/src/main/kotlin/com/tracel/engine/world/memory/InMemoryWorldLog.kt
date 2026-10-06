@@ -6,13 +6,13 @@ import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.NameMatcher
-import com.tracel.platform.concurrency.SingleWriterGuard
+import com.tracel.engine.world.WorldLog
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
+import com.tracel.platform.concurrency.SingleWriterGuard
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListMap
-import com.tracel.engine.world.WorldLog
 
 /**
  * In-memory [WorldLog], the reference the stored one is checked against.

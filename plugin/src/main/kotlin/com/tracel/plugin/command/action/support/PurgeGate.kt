@@ -1,8 +1,8 @@
 package com.tracel.plugin.command.action.support
 
+import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.delay
 
 /** Keeps a purge and a rollback off each other's data. */
 class PurgeGate(private val rollbackRunning: () -> Boolean) {

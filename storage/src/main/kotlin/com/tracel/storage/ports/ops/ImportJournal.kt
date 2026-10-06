@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.ops
 
-import com.tracel.storage.StorageUnit
 import com.tracel.engine.store.ImportInterrupted
+import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.spi.KeyValueEngine
@@ -23,7 +23,8 @@ data class ImportProgress(val file: String, val size: Long, val rows: Long, val 
     /** Encodes the [ImportProgress] instance into a [ByteArray]. */
     internal fun encode(): ByteArray {
         val name = file.toByteArray(Charsets.UTF_8)
-        return ByteBuffer.allocate(4 + name.size + 24).putInt(name.size).put(name).putLong(size).putLong(rows).putLong(done)
+        return ByteBuffer.allocate(4 + name.size + 24).putInt(name.size).put(name).putLong(size).putLong(rows)
+            .putLong(done)
             .array()
     }
 

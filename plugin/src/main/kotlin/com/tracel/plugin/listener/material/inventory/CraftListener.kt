@@ -21,8 +21,6 @@ import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.drop.CraftDrop
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
-import java.util.logging.Level
-import java.util.logging.Logger
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
 import org.bukkit.block.Container
@@ -33,6 +31,8 @@ import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.CraftItemEvent
 import org.bukkit.inventory.CraftingInventory
 import org.bukkit.inventory.meta.Damageable
+import java.util.logging.Level
+import java.util.logging.Logger
 
 /** Craft listener. */
 class CraftListener(services: TracelServices) : TracelListener(services) {

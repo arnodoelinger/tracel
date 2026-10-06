@@ -3,7 +3,6 @@ package com.tracel.plugin.rollback.structure
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.world.ownsChunkAt
-import java.util.*
 import java.util.concurrent.atomic.AtomicIntegerArray
 
 /** Despawn a sailed boat on its current chunk. */

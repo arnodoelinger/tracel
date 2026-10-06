@@ -4,7 +4,8 @@ import com.tracel.annotations.Unstable
 import com.tracel.plugin.adapter.rollback.structure.block.paint
 import com.tracel.plugin.specifics.block.LEAF_MAX_DISTANCE
 import com.tracel.plugin.specifics.block.isLog
-import org.bukkit.block.*
+import org.bukkit.block.Block
+import org.bukkit.block.BlockFace
 import org.bukkit.block.data.type.Leaves
 
 private val LEAF_FACES =

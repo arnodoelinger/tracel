@@ -4,20 +4,19 @@ import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.context.CommandContext
-import com.tracel.plugin.command.action.*
 import com.tracel.plugin.command.brigadier.argument
 import com.tracel.plugin.command.brigadier.executesCommand
 import com.tracel.plugin.command.brigadier.literal
 import com.tracel.plugin.command.brigadier.requiresPermission
 import com.tracel.plugin.command.permission.Permission
-import com.tracel.plugin.command.suggest.*
 import com.tracel.plugin.command.tree.CommandActions
-import com.tracel.plugin.i18n.*
+import com.tracel.plugin.i18n.failed
+import com.tracel.plugin.i18n.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
-import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Player
+import java.util.*
 
 /** `/tracel tp`: what a lookup line runs when it is clicked. */
 internal fun LiteralArgumentBuilder<CommandSourceStack>.teleportBranch(actions: CommandActions) {

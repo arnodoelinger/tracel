@@ -1,16 +1,7 @@
 package com.tracel.codegen
 
-import com.google.devtools.ksp.processing.CodeGenerator
-import com.google.devtools.ksp.processing.KSPLogger
-import com.google.devtools.ksp.processing.Resolver
-import com.google.devtools.ksp.processing.SymbolProcessor
-import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
-import com.google.devtools.ksp.processing.SymbolProcessorProvider
-import com.google.devtools.ksp.symbol.KSAnnotated
-import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSFunctionDeclaration
-import com.google.devtools.ksp.symbol.KSType
-import com.google.devtools.ksp.symbol.Modifier
+import com.google.devtools.ksp.processing.*
+import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ksp.addOriginatingKSFile
 import com.squareup.kotlinpoet.ksp.writeTo
@@ -69,7 +60,9 @@ public class ObservesProcessor(
             logger.error("@Observes function \"$name\" $problem.", function)
             return null
         }
-        val annotation = function.annotations.first { it.annotationType.resolve().declaration.qualifiedName?.asString() == OBSERVES }
+        val annotation =
+            function.annotations.first { it.annotationType.resolve().declaration.qualifiedName?.asString() == OBSERVES }
+
         fun argument(name: String) = annotation.arguments.firstOrNull { it.name?.asString() == name }?.value
         val priority = (argument("priority") as? KSType)?.declaration?.simpleName?.asString()
             ?: (argument("priority") as? KSClassDeclaration)?.simpleName?.asString()
@@ -130,7 +123,11 @@ public class ObservesProcessor(
             .addParameter("plugin", PLUGIN)
             .addParameter("priority", EVENT_PRIORITY)
             .addParameter("ignoreCancelled", BOOLEAN)
-            .addParameter("handler", LambdaTypeName.get(parameters = listOf(ParameterSpec.unnamed(e)), returnType = UNIT), KModifier.CROSSINLINE)
+            .addParameter(
+                "handler",
+                LambdaTypeName.get(parameters = listOf(ParameterSpec.unnamed(e)), returnType = UNIT),
+                KModifier.CROSSINLINE
+            )
             .addCode(
                 CodeBlock.builder()
                     .add("registerEvent(\n")

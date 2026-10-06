@@ -2,7 +2,8 @@ package com.tracel.engine.ledger.repository.memory
 
 import com.tracel.model.lot.AccountLot
 import com.tracel.model.lot.LotId
-import kotlinx.collections.immutable.*
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * One account's placements, oldest first, as the single writer edits them.

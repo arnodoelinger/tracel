@@ -1,7 +1,6 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.model.log.Seq
-import com.tracel.engine.store.Counters as CountersPort
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
@@ -13,6 +12,7 @@ import com.tracel.storage.spi.MutationBatch
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import com.tracel.engine.store.Counters as CountersPort
 
 /** Durable ID allocation, a block at a time. */
 class Counters(private val storage: TracelStorage, private val blockSize: Long = DEFAULT_BLOCK_SIZE) : CountersPort {

@@ -11,7 +11,6 @@ import com.sk89q.worldedit.function.pattern.Pattern
 import com.sk89q.worldedit.math.BlockVector3
 import com.sk89q.worldedit.regions.Region
 import com.sk89q.worldedit.util.eventbus.Subscribe
-import com.sk89q.worldedit.world.World as WeWorld
 import com.sk89q.worldedit.world.block.BaseBlock
 import com.sk89q.worldedit.world.block.BlockStateHolder
 import com.sk89q.worldedit.world.block.BlockType
@@ -28,13 +27,14 @@ import com.tracel.plugin.adapter.world.ownsChunkAt
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.log.Warnings
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
-import java.util.UUID
+import org.bukkit.Bukkit
+import org.bukkit.World
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.logging.Level
 import java.util.logging.Logger
-import org.bukkit.Bukkit
-import org.bukkit.World
+import com.sk89q.worldedit.world.World as WeWorld
 
 private val logger = Logger.getLogger("WorldEditHook")
 
@@ -127,7 +127,12 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
 
         @Throws(WorldEditException::class)
         override fun <T : BlockStateHolder<T>> setBlock(position: BlockVector3, block: T): Boolean =
-            logged(position.x(), position.y(), position.z(), block, position) { super<AbstractDelegateExtent>.setBlock(position, block) }
+            logged(position.x(), position.y(), position.z(), block, position) {
+                super<AbstractDelegateExtent>.setBlock(
+                    position,
+                    block
+                )
+            }
 
         @Throws(WorldEditException::class)
         override fun <B : BlockStateHolder<B>> setBlock(x: Int, y: Int, z: Int, block: B): Boolean =
@@ -147,7 +152,11 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
             super<Extent>.setBlocks(vset, pattern)
 
         @Throws(WorldEditException::class)
-        override fun <B : BlockStateHolder<B>> replaceBlocks(region: Region, filter: MutableSet<BaseBlock>?, replacement: B): Int =
+        override fun <B : BlockStateHolder<B>> replaceBlocks(
+            region: Region,
+            filter: MutableSet<BaseBlock>?,
+            replacement: B
+        ): Int =
             super<Extent>.replaceBlocks(region, filter, replacement)
 
         @Throws(WorldEditException::class)
@@ -189,8 +198,8 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
             if (!ownsChunkAt(world, x, z)) {
                 Warnings.once(logger, "async") {
                     "an edit is being made off the server's region threads (FAWE does this); " +
-                        "signs, banners and other tile entities it replaces are logged without their details, " +
-                        "and containers it replaces without their contents"
+                            "signs, banners and other tile entities it replaces are logged without their details, " +
+                            "and containers it replaces without their contents"
                 }
                 return Before(logShape(state))
             }

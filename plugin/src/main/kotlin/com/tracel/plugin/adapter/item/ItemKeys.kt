@@ -2,14 +2,14 @@ package com.tracel.plugin.adapter.item
 
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
-import java.security.MessageDigest
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Material
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BundleMeta
 import org.bukkit.inventory.meta.CrossbowMeta
 import org.bukkit.inventory.meta.Damageable
+import java.security.MessageDigest
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 private const val MAX_CACHED_KEYS = 16_384
 

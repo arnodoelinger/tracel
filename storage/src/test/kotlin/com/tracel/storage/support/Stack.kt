@@ -35,7 +35,12 @@ class Stack(
     overflowSlots: Int = ringSlots * CaptureRing.OVERFLOW_FACTOR,
 ) : AutoCloseable {
     val storage: TracelStorage =
-        TracelStorage.open(path, ringSlots = ringSlots, overflowSlots = overflowSlots) { LsmEngine(it, History.configured(config)) }
+        TracelStorage.open(path, ringSlots = ringSlots, overflowSlots = overflowSlots) {
+            LsmEngine(
+                it,
+                History.configured(config)
+            )
+        }
     val counters: Counters = Counters(storage)
     val repo: LotRepository = LotRepository(storage, counters)
     val ledger: LotLedger = LotLedger(repo)

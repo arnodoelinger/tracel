@@ -21,11 +21,11 @@ import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
 import com.tracel.plugin.specifics.block.isAirLike
-import java.util.*
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.util.*
+import kotlin.coroutines.cancellation.CancellationException
 
 internal const val MAX_STACKED_JOBS = RollbackJobRepository.UNDO_DEPTH
 

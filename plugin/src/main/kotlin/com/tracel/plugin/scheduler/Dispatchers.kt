@@ -2,10 +2,6 @@ package com.tracel.plugin.scheduler
 
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.world.ownsChunkAt
-import java.util.*
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Delay
@@ -14,9 +10,14 @@ import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.plugin.IllegalPluginAccessException
 import org.bukkit.plugin.Plugin
+import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
 
 /** Region dispatcher. */
-internal class RegionDispatcher(private val plugin: Plugin, private val holder: HolderId.Block) : CoroutineDispatcher() {
+internal class RegionDispatcher(private val plugin: Plugin, private val holder: HolderId.Block) :
+    CoroutineDispatcher() {
     override fun dispatch(context: CoroutineContext, block: Runnable) {
         val world = Bukkit.getWorld(holder.world.uuid)
         if (world == null) {

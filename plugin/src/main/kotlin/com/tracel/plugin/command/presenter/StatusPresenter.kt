@@ -5,13 +5,13 @@ import com.tracel.plugin.command.action.shortSpan
 import com.tracel.plugin.config.AutoPurgeSettings
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.status.rollback.RollbackSize
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.JoinConfiguration
+import net.kyori.adventure.text.event.HoverEvent
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.JoinConfiguration
-import net.kyori.adventure.text.event.HoverEvent
 
 /** The lines of `/tracel status`. */
 internal object StatusPresenter {

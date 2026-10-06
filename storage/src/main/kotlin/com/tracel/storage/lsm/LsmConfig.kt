@@ -1,8 +1,8 @@
 package com.tracel.storage.lsm
 
-import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.engine.store.StoreSettings
 import com.tracel.engine.store.StoreSync
+import com.tracel.storage.lsm.write.SyncPolicy
 
 /** The wall clock. */
 val WALL_CLOCK: () -> Long = { System.currentTimeMillis() }

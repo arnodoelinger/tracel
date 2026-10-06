@@ -3,7 +3,10 @@ package com.tracel.plugin.adapter.rollback.material.item
 import com.tracel.plugin.specifics.item.isHorseArmor
 import com.tracel.plugin.specifics.item.isLlamaDecor
 import com.tracel.plugin.specifics.item.isSaddle
-import org.bukkit.inventory.*
+import org.bukkit.inventory.ArmoredHorseInventory
+import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.LlamaInventory
+import org.bukkit.inventory.SaddledMountInventory
 
 internal fun intoTack(inventory: SaddledMountInventory, stack: ItemStack): ItemStack? {
     val worn: ItemStack?

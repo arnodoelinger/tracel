@@ -6,11 +6,11 @@ import com.tracel.plugin.adapter.world.ownsChunkAt
 import com.tracel.plugin.util.geometry.chunkKey
 import com.tracel.plugin.util.geometry.chunkKeyX
 import com.tracel.plugin.util.geometry.chunkKeyZ
-import java.util.*
-import kotlin.math.floor
 import org.bukkit.World
 import org.bukkit.entity.Hanging
 import org.bukkit.entity.LeashHitch
+import java.util.*
+import kotlin.math.floor
 
 /** A painting's box stops a hair short of the next cell. Without the inset it would claim that cell too */
 private const val INSET = 1.0E-3

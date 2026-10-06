@@ -18,7 +18,7 @@ import com.tracel.plugin.rollback.structure.block.write.Unchanged
 import com.tracel.plugin.specifics.block.isAirLike
 import com.tracel.plugin.specifics.block.isMovingPiston
 import com.tracel.plugin.specifics.block.ticksOnly
-import org.bukkit.block.*
+import org.bukkit.block.Block
 import org.bukkit.block.data.BlockData
 import org.bukkit.inventory.ItemStack
 

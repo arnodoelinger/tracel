@@ -1,17 +1,17 @@
 package com.tracel.plugin.command.action.support
 
 import com.tracel.plugin.services.TracelServices
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.pow
-import kotlin.math.roundToLong
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.sound.Sound
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickCallback
 import net.kyori.adventure.text.event.ClickEvent
-import org.bukkit.Sound as BukkitSound
 import org.bukkit.entity.Player
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.pow
+import kotlin.math.roundToLong
+import org.bukkit.Sound as BukkitSound
 
 /**
  * There's nothing we can do Easter egg.

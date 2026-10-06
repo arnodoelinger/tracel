@@ -1,6 +1,5 @@
 package com.tracel.storage.ports.ledger
 
-import com.tracel.engine.rollback.lease.Leases as LeasesPort
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.StorageUnit
@@ -13,6 +12,7 @@ import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import com.tracel.engine.rollback.lease.Leases as LeasesPort
 
 /** The durable half of ownership. A lease survives the process dying. */
 class Leases(private val storage: TracelStorage) : LeasesPort() {

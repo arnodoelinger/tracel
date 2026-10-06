@@ -4,7 +4,8 @@ import com.tracel.annotations.Unstable
 import com.tracel.plugin.adapter.rollback.structure.block.paint
 import com.tracel.plugin.specifics.block.BubbleMaker
 import org.bukkit.Material
-import org.bukkit.block.*
+import org.bukkit.block.Block
+import org.bukkit.block.BlockFace
 import org.bukkit.block.data.Levelled
 import org.bukkit.block.data.type.BubbleColumn
 

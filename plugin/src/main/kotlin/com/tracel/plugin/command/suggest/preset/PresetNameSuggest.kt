@@ -8,9 +8,9 @@ import com.tracel.plugin.command.preset.Presets
 import com.tracel.plugin.command.suggest.Suggestion
 import com.tracel.plugin.command.suggest.reply
 import io.papermc.paper.command.brigadier.CommandSourceStack
-import java.util.concurrent.CompletableFuture
 import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player
+import java.util.concurrent.CompletableFuture
 
 /** The names of the presets the sender can use, each with what it holds. */
 internal object PresetNameSuggest : SuggestionProvider<CommandSourceStack> {

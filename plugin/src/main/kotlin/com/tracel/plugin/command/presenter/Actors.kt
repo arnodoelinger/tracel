@@ -5,8 +5,8 @@ import com.tracel.engine.actor.ModeTimeline
 import com.tracel.engine.actor.VisitTimeline
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.actor.PlayerModes
-import java.util.*
 import org.bukkit.GameMode
+import java.util.*
 
 /** Caches what is known about the mobs and players among the holders of a lookup, so that the presenter can show it. */
 internal class Actors(private val facts: ActorFacts?) {

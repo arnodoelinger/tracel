@@ -1,7 +1,5 @@
 package com.tracel.plugin.command.args.scope
 
-import com.tracel.plugin.command.args.scope.ScopeLimits.isOversized
-
 object ScopeLimits {
     const val MAX_BLOCK_RADIUS: Int = 1024
     const val MAX_CHUNK_RADIUS: Int = MAX_BLOCK_RADIUS shr 4

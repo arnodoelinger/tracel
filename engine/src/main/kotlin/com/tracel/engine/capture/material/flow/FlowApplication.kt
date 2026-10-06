@@ -26,12 +26,15 @@ public suspend fun LotLedger.apply(flow: Flow, txn: TxnId): List<LotPortion> =
         FlowKind.MOVE -> {
             move(flow.source, flow.destination, flow.itemKey, flow.quantity, txn)
         }
+
         FlowKind.MINT -> {
             listOf(LotPortion(mint(flow.destination, flow.itemKey, flow.quantity, txn).id, flow.quantity))
         }
+
         FlowKind.BURN -> {
             burn(flow.source, flow.itemKey, flow.quantity, (flow.destination as HolderId.Sink).kind, txn)
         }
+
         FlowKind.TRANSFORM_IN, FlowKind.TRANSFORM_OUT -> {
             notAFlowToApply()
         }

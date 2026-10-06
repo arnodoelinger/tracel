@@ -1,6 +1,6 @@
 package com.tracel.model.world
 
-import java.util.UUID
+import java.util.*
 
 /** Identifies a world. */
 @JvmInline

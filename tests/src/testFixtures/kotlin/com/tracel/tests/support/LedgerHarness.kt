@@ -96,10 +96,14 @@ class LedgerHarness {
     suspend fun rollback(roots: List<LotId>, target: RollbackTarget): AppliedRollback {
         val job = nextJob()
         val outcome = rollbackCoordinator().run(job, roots, target)
-        return AppliedRollback(job, (outcome as? RollbackOutcome.Applied ?: error("rollback not applied: $outcome")).plan)
+        return AppliedRollback(
+            job,
+            (outcome as? RollbackOutcome.Applied ?: error("rollback not applied: $outcome")).plan
+        )
     }
 
-    suspend fun rollback(roots: List<LotId>, to: HolderId): AppliedRollback = rollback(roots, RollbackTarget.Uniform(to))
+    suspend fun rollback(roots: List<LotId>, to: HolderId): AppliedRollback =
+        rollback(roots, RollbackTarget.Uniform(to))
 
     suspend fun undo(job: RollbackJobId): InvolutionOutcome.Undone =
         involutionCoordinator().undo(job) as? InvolutionOutcome.Undone ?: error("undo of $job did not run")

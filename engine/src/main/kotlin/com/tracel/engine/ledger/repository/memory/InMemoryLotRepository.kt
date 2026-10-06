@@ -1,10 +1,6 @@
 package com.tracel.engine.ledger.repository.memory
 
-import com.tracel.annotations.Consume
-import com.tracel.annotations.Reads
-import com.tracel.annotations.RunsOn
-import com.tracel.annotations.SingleWriter
-import com.tracel.annotations.ThreadContext
+import com.tracel.annotations.*
 import com.tracel.engine.ledger.LotPortion
 import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.model.holder.HolderId
@@ -20,7 +16,8 @@ import com.tracel.model.transaction.TxnId
 import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import kotlinx.atomicfu.atomic
-import kotlinx.collections.immutable.*
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentHashMapOf
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.min
 
@@ -382,7 +379,13 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
          * The state after the edits: the builders written out, the account total moved by what was taken, and [queue]
          * stored.
          */
-        fun commit(base: RepositoryState, holder: HolderId, itemKey: ItemKey, key: AccountKey, queue: FifoQueue): RepositoryState {
+        fun commit(
+            base: RepositoryState,
+            holder: HolderId,
+            itemKey: ItemKey,
+            key: AccountKey,
+            queue: FifoQueue
+        ): RepositoryState {
             val remaining = (base.remainingAt[key] ?: 0L) + remainingDelta
             return base.copy(
                 lots = lots.build(),

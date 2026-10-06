@@ -19,13 +19,13 @@ import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.services.TracelServices
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import kotlin.time.Duration.Companion.milliseconds
 
 /** How long planning may run before the player is told it has started. */
 private const val PLANNING_NOTICE_MILLIS = 2_000L

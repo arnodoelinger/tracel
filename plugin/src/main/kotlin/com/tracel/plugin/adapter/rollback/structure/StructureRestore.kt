@@ -17,17 +17,17 @@ import com.tracel.plugin.rollback.structure.dispatchAt
 import com.tracel.plugin.util.geometry.chunkKey
 import com.tracel.plugin.util.geometry.chunkKeyX
 import com.tracel.plugin.util.geometry.chunkKeyZ
-import java.util.*
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicIntegerArray
-import java.util.logging.Level
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import org.bukkit.World
+import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicIntegerArray
+import java.util.logging.Level
+import kotlin.coroutines.cancellation.CancellationException
 
 /** How many times steps that changed regions mid-restore are sent on before they are reported as skipped. */
 private const val MAX_REDISPATCH = 3
@@ -79,7 +79,13 @@ internal suspend fun StructureRestorer.restoreSteps(
                             val cx = anchor.x shr 4
                             val cz = anchor.z shr 4
                             runCatching { world.getChunkAtAsync(cx, cz).await() }
-                            if (runCatching { world.addPluginChunkTicket(cx, cz, services.plugin) }.getOrDefault(false)) {
+                            if (runCatching {
+                                    world.addPluginChunkTicket(
+                                        cx,
+                                        cz,
+                                        services.plugin
+                                    )
+                                }.getOrDefault(false)) {
                                 ticketed += world to chunkKey(anchor.x, anchor.z)
                             }
                         }
@@ -121,7 +127,8 @@ internal suspend fun StructureRestorer.restoreSteps(
                                         "a structure group failed; its steps are reported as skipped",
                                         failure
                                     )
-                                    val why = "restore failed here: ${failure.message ?: failure::class.java.simpleName}"
+                                    val why =
+                                        "restore failed here: ${failure.message ?: failure::class.java.simpleName}"
                                     StructureReport(emptyList(), mine.map { SkippedStep(it.at, why) })
                                 }
                             }

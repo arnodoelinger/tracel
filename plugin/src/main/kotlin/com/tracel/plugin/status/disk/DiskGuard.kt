@@ -3,13 +3,13 @@ package com.tracel.plugin.status.disk
 import com.tracel.plugin.TracelPlugin
 import com.tracel.plugin.adapter.server.killServer
 import com.tracel.plugin.services.TracelServices
-import java.io.File
-import java.util.Locale
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
+import java.util.*
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val CHECK_MILLIS = 10_000L
 private const val GIB = 1024.0 * 1024.0 * 1024.0

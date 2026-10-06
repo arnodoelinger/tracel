@@ -1,7 +1,6 @@
 package com.tracel.plugin.adapter.block.capability.cargo
 
 import com.tracel.plugin.adapter.block.CargoSlots
-import com.tracel.plugin.adapter.block.special.*
 import io.papermc.paper.block.TileStateInventoryHolder
 import org.bukkit.block.BlockState
 

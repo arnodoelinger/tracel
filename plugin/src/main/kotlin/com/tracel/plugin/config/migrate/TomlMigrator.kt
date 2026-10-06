@@ -1,10 +1,10 @@
 package com.tracel.plugin.config.migrate
 
+import org.tomlj.Toml
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.logging.Logger
-import org.tomlj.Toml
 
 private const val SECTION = "version"
 
@@ -98,7 +98,12 @@ internal object TomlMigrator {
         val at = range.firstOrNull { keyOf(lines[it]) == change.from } ?: return
         val line = lines[at]
         val indent = line.length - line.trimStart().length
-        lines[at] = line.substring(0, indent) + change.to + line.substring(line.indexOf(change.from, indent) + change.from.length)
+        lines[at] = line.substring(0, indent) + change.to + line.substring(
+            line.indexOf(
+                change.from,
+                indent
+            ) + change.from.length
+        )
     }
 
     private fun stamp(lines: MutableList<String>, current: Int) {

@@ -2,6 +2,8 @@ package com.tracel.plugin.integration.privatebin
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.math.BigInteger
 import java.net.URI
@@ -15,8 +17,6 @@ import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /** Text put on a `privatebin.net` server, encrypted here. */
 class PrivateBin(server: URI, private val expire: String, private val burn: Boolean) {

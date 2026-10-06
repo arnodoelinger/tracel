@@ -3,14 +3,15 @@ package com.tracel.plugin.adapter.rollback.structure.entity
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.adapter.entity.*
+import com.tracel.plugin.adapter.entity.cargoStacks
+import com.tracel.plugin.adapter.entity.emptyCargo
 import com.tracel.plugin.adapter.entity.link.takeOffShoulder
 import com.tracel.plugin.adapter.entity.link.unleash
 import com.tracel.plugin.adapter.entity.link.unleashHeld
+import com.tracel.plugin.adapter.entity.sittingAt
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.entity.Despawn
 import com.tracel.plugin.util.log.Warnings
-import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
@@ -22,6 +23,7 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.LeashHitch
 import org.bukkit.entity.Snowman
+import java.util.*
 
 @Unstable
 internal fun StructureRestorer.despawn(

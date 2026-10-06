@@ -152,7 +152,13 @@ internal class SetupWizard(private val services: TracelServices, private val sta
         base(
             player,
             "setup.title",
-            body(player, *listOfNotNull("setup.done.config", "setup.done.thanks", "setup.done.restart".takeIf { restart }).toTypedArray()),
+            body(
+                player,
+                *listOfNotNull(
+                    "setup.done.config",
+                    "setup.done.thanks",
+                    "setup.done.restart".takeIf { restart }).toTypedArray()
+            ),
         ),
         DialogType.notice(button(player, "setup.button.done") { _, _ -> }),
     )

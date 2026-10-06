@@ -13,9 +13,9 @@ import com.tracel.plugin.command.suggest.reply
 import com.tracel.plugin.command.suggest.splitTrailing
 import com.tracel.plugin.i18n.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
-import java.util.concurrent.CompletableFuture
 import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player
+import java.util.concurrent.CompletableFuture
 
 /** The name of the preset being saved: yours to overwrite first, then a few to start from. */
 internal object PresetAddNameSuggest : SuggestionProvider<CommandSourceStack> {

@@ -6,12 +6,12 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.annotations.Observes
 import com.tracel.engine.actor.EntityKindSource
 import com.tracel.model.world.entity.EntityTypeKey
-import java.time.Duration
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.entity.Item
 import org.bukkit.entity.Player
 import org.bukkit.event.Listener
+import java.time.Duration
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 /** What every mob in the world is, for the storage thread to ask the first time it writes one down. */
 internal class EntityKinds : EntityKindSource, Listener {

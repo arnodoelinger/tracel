@@ -9,12 +9,12 @@ import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.block.Block
 import org.bukkit.event.Cancellable
 import org.bukkit.event.block.BlockCookEvent
 import org.bukkit.event.inventory.BrewEvent
 import org.bukkit.event.inventory.FurnaceBurnEvent
+import java.util.concurrent.ConcurrentHashMap
 
 /** Smelt event listener. */
 class SmeltListener(services: TracelServices) : TracelListener(services) {

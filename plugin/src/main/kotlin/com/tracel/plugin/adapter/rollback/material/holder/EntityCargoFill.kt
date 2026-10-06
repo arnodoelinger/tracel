@@ -8,11 +8,7 @@ import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.adapter.rollback.material.cargo.applyArmorStand
 import com.tracel.plugin.adapter.rollback.material.cargo.applyItemFrame
-import com.tracel.plugin.adapter.rollback.material.item.Moves
-import com.tracel.plugin.adapter.rollback.material.item.WornStacks
-import com.tracel.plugin.adapter.rollback.material.item.applyDelta
-import com.tracel.plugin.adapter.rollback.material.item.stackFor
-import com.tracel.plugin.adapter.rollback.material.item.stacksOf
+import com.tracel.plugin.adapter.rollback.material.item.*
 import com.tracel.plugin.adapter.rollback.material.spill.spillInRegion
 import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer

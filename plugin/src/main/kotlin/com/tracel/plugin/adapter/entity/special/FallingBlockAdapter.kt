@@ -4,7 +4,6 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.EntityExtras
 import com.tracel.plugin.util.log.Warnings
-import java.util.logging.Logger
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.NamespacedKey
@@ -12,6 +11,7 @@ import org.bukkit.World
 import org.bukkit.block.data.BlockData
 import org.bukkit.entity.Entity
 import org.bukkit.entity.FallingBlock
+import java.util.logging.Logger
 
 /**
  * Falling block (block in mid-air).

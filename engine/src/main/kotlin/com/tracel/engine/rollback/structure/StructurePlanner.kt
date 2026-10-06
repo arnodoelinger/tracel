@@ -2,12 +2,12 @@ package com.tracel.engine.rollback.structure
 
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
+import com.tracel.engine.rollback.structure.space.CellEnds
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.block.BlockShape
 import java.util.*
-import com.tracel.engine.rollback.structure.space.CellEnds
 
 @RunsOn(ThreadContext.ASYNC)
 public class StructurePlanner(private val rules: WorldRules) {

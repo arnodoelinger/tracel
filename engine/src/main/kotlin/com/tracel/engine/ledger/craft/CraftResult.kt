@@ -1,7 +1,7 @@
 package com.tracel.engine.ledger.craft
 
-import com.tracel.model.lot.Lot
 import com.tracel.engine.ledger.LotPortion
+import com.tracel.model.lot.Lot
 
 /**
  * What a craft did: the lot it produced, and what it ate to produce it.

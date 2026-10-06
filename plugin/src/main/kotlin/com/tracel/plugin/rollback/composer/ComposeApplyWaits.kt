@@ -15,8 +15,8 @@ import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
 import com.tracel.plugin.specifics.block.isAirLike
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.*
+import kotlin.coroutines.cancellation.CancellationException
 
 /** What the first wait left behind. */
 internal class FirstWait(

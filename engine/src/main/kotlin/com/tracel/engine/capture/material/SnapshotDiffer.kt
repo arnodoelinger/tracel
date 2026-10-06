@@ -38,7 +38,12 @@ public class SnapshotDiffer(
                 else -> base.merge(prior.totals)
             }
             val next = Snapshot(current, seeded = true)
-            if (swap(holder, prior, next)) return deltasBetween(holder, previous, current, fromGap = prior?.seeded != true)
+            if (swap(holder, prior, next)) return deltasBetween(
+                holder,
+                previous,
+                current,
+                fromGap = prior?.seeded != true
+            )
         }
     }
 

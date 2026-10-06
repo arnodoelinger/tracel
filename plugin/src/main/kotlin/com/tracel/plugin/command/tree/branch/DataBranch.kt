@@ -2,17 +2,18 @@ package com.tracel.plugin.command.tree.branch
 
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
-import com.tracel.plugin.command.action.*
 import com.tracel.plugin.command.brigadier.argument
 import com.tracel.plugin.command.brigadier.executesCommand
 import com.tracel.plugin.command.brigadier.literal
 import com.tracel.plugin.command.brigadier.requiresPermission
 import com.tracel.plugin.command.permission.Permission
 import com.tracel.plugin.command.permission.has
-import com.tracel.plugin.command.suggest.*
+import com.tracel.plugin.command.suggest.ExportSuggest
+import com.tracel.plugin.command.suggest.PurgeSuggest
 import com.tracel.plugin.command.tree.CommandActions
 import com.tracel.plugin.command.tree.tokens
-import com.tracel.plugin.i18n.*
+import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.i18n.usage
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel data`: export, import, migrate, purge. */

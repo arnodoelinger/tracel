@@ -2,7 +2,8 @@ package com.tracel.plugin.adapter.rollback.structure.rescue
 
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.specifics.block.HazardBlock
-import org.bukkit.*
+import org.bukkit.Location
+import org.bukkit.World
 import org.bukkit.block.Block
 
 /** Rescue spots. */

@@ -1,6 +1,5 @@
 package com.tracel.storage.ports.log
 
-import com.tracel.engine.log.TransactionLog as TransactionLogPort
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.cause.CauseKind
@@ -8,6 +7,7 @@ import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.Quantity
+import com.tracel.model.item.namesMaterial
 import com.tracel.model.log.LogKind
 import com.tracel.model.log.Seq
 import com.tracel.model.lot.LotId
@@ -25,9 +25,9 @@ import com.tracel.storage.intern.Interning
 import com.tracel.storage.util.ascending
 import com.tracel.storage.util.eachIndex
 import com.tracel.storage.util.eachRow
-import com.tracel.model.item.namesMaterial
 import com.tracel.storage.util.pageAccepted
 import java.lang.foreign.MemorySegment
+import com.tracel.engine.log.TransactionLog as TransactionLogPort
 
 /**
  * The append-only log, plus the four indexes that make it searchable.

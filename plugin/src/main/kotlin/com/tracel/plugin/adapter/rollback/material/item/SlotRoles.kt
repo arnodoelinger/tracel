@@ -4,7 +4,9 @@ import com.tracel.plugin.specifics.inventory.BrewingSlot
 import com.tracel.plugin.specifics.inventory.FurnaceSlot
 import org.bukkit.Bukkit
 import org.bukkit.Material
-import org.bukkit.inventory.*
+import org.bukkit.inventory.CookingRecipe
+import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.RecipeChoice
 
 internal fun furnaceSlot(stack: ItemStack): Int = when {
     stack.type.isFuel && !isSmeltable(stack.type) -> FurnaceSlot.FUEL.slot

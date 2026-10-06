@@ -1,9 +1,9 @@
 package com.tracel.plugin.integration.worldedit
 
 import com.tracel.plugin.services.TracelServices
+import org.bukkit.Bukkit
 import java.util.logging.Level
 import java.util.logging.Logger
-import org.bukkit.Bukkit
 
 private val logger = Logger.getLogger("WorldEditSupport")
 
@@ -73,8 +73,8 @@ internal object WorldEditSupport {
         } catch (failure: Throwable) {
             logger.warning(
                 "Tracel could not add itself to FAWE's extent.allowed-plugins ($failure). Edits FAWE makes block " +
-                    "by block are not logged until `$EXTENT_PACKAGE` is added to extent.allowed-plugins in " +
-                    "FastAsyncWorldEditэ' configuration."
+                        "by block are not logged until `$EXTENT_PACKAGE` is added to extent.allowed-plugins in " +
+                        "FastAsyncWorldEditэ' configuration."
             )
         }
     }

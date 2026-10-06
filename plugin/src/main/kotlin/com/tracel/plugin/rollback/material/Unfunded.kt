@@ -2,8 +2,6 @@ package com.tracel.plugin.rollback.material
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.adapter.rollback.material.reported
-import kotlinx.coroutines.*
 
 /** What each key's takes fell short by, as the holders reported it. A holder that says nothing itemised took nothing. */
 internal fun shortfallOf(

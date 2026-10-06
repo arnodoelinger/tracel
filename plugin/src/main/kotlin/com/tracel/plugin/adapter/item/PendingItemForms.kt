@@ -3,12 +3,11 @@ package com.tracel.plugin.adapter.item
 import com.tracel.model.item.ContentHash
 import com.tracel.plugin.TracelPlugin
 import com.tracel.plugin.adapter.item.PendingItemForms.seen
-import java.util.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Decorated stacks seen on a region thread, waiting for the storage thread.

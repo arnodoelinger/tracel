@@ -4,7 +4,6 @@ import com.tracel.plugin.TracelPlugin
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.format.StoreFormat
 import com.tracel.storage.ports.ops.InterruptedImport
-import kotlinx.coroutines.*
 
 /** Migrate the store to the latest format. */
 internal fun migrateStore(plugin: TracelPlugin, storage: TracelStorage) {

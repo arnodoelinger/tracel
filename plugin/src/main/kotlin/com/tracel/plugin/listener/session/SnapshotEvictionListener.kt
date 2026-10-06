@@ -6,12 +6,12 @@ import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.event.world.ChunkUnloadEvent
 import org.bukkit.event.world.EntitiesUnloadEvent
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Drops inventory snapshots of holders that left memory. Without it the differ keeps one per

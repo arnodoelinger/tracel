@@ -3,7 +3,7 @@ package com.tracel.model.world
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
-import java.util.UUID
+import java.util.*
 
 /** What a [WorldChange] happened to. */
 public sealed interface ChangeSubject {

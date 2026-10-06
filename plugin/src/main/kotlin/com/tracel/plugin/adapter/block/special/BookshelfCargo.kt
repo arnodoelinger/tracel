@@ -6,8 +6,8 @@ import com.tracel.plugin.adapter.block.capability.cargo.CargoSurface
 import org.bukkit.block.Block
 import org.bukkit.block.BlockState
 import org.bukkit.block.ChiseledBookshelf
-import org.bukkit.block.data.type.ChiseledBookshelf as ChiseledBookshelfData
 import org.bukkit.inventory.ItemStack
+import org.bukkit.block.data.type.ChiseledBookshelf as ChiseledBookshelfData
 
 /**
  * Chiseled bookshelf cargo.

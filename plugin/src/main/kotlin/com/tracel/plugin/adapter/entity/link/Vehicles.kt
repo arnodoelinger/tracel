@@ -1,9 +1,9 @@
 package com.tracel.plugin.adapter.entity.link
 
 import com.tracel.annotations.Unstable
-import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
+import java.util.*
 
 /** The vehicle this entity is sitting in. `null` if it is standing. */
 internal fun Entity.ridingOn(): Entity? = runCatching { vehicle }.getOrNull()

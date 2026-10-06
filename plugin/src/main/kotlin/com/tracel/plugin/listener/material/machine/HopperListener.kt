@@ -12,10 +12,10 @@ import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
-import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.block.Crafter
 import org.bukkit.event.inventory.InventoryMoveItemEvent
 import org.bukkit.inventory.Inventory
+import java.util.concurrent.ConcurrentHashMap
 
 /** Hopper transfer listener. */
 class HopperListener(services: TracelServices) : TracelListener(services) {
