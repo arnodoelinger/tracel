@@ -1,14 +1,14 @@
 package com.tracel.plugin.listener.material.machine
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.cargoTotals
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.block.Block
 import org.bukkit.event.Cancellable
 import org.bukkit.event.block.BlockCookEvent

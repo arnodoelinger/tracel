@@ -1,27 +1,27 @@
 package com.tracel.plugin.rollback.structure.fluid
 
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.plugin.specifics.block.AIR
+import com.tracel.tests.support.Fixtures
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.*
 
 class FluidFreezeTest {
-    private val world = WorldId(UUID(0L, 1L))
+    private val world = Fixtures.world
     private val elsewhere = WorldId(UUID(0L, 2L))
     private val water = BlockShape(BlockDataKey("minecraft:water[level=3]"))
     private val nobody: suspend (List<BlockPos>) -> Unit = {}
 
-    private fun set(x: Int, y: Int, z: Int) = StructureStep.SetBlock(BlockPos(world, x, y, z), BlockShape.AIR, water)
+    private fun set(x: Int, y: Int, z: Int) = StructureStep.SetBlock(BlockPos(world, x, y, z), AIR, water)
 
     private val area = LookupRegion(world, 0, 1, 0, 1, minX = 0, maxX = 31, minZ = 0, maxZ = 31)
 
@@ -103,7 +103,11 @@ class FluidFreezeTest {
             }
             assertEquals(listOf(outside), woken, "the area still holds the river; the spring outside it may run")
         }
-        assertEquals(listOf(outside, river), woken, "and the river, nowhere near the job, runs on once the area lets go")
+        assertEquals(
+            listOf(outside, river),
+            woken,
+            "and the river, nowhere near the job, runs on once the area lets go"
+        )
     }
 
     @Test

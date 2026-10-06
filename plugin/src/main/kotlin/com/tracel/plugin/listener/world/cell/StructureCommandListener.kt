@@ -1,15 +1,21 @@
 package com.tracel.plugin.listener.world.cell
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.TracelServices
+import com.tracel.plugin.adapter.command.toCommandOrigin
+import com.tracel.plugin.adapter.world.ownsChunkAt
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.util.*
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.command.StructureCommand
+import com.tracel.plugin.specifics.command.VANILLA_NAMESPACE
+import com.tracel.plugin.util.command.CommandOrigin
+import com.tracel.plugin.util.command.parseBlockPos
+import com.tracel.plugin.util.command.tokenize
+import com.tracel.plugin.util.log.Warnings
 import org.bukkit.Bukkit
-import org.bukkit.GameRules
 import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.block.Block
@@ -75,10 +81,11 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
         val at = if (moved) null else origin
         val nameAndRest = effective.trim().split(Regex("\\s+"), limit = 2)
         val rest = nameAndRest.getOrNull(1) ?: ""
-        when (nameAndRest.getOrNull(0)?.lowercase()?.removePrefix("minecraft:")) {
-            "setblock" -> handleSetblock(rest, world, causedBy, cause, at)
-            "fill" -> handleFill(rest, world, causedBy, cause, at)
-            "clone" -> handleClone(rest, world, causedBy, cause, at)
+        when (StructureCommand.named(nameAndRest.getOrNull(0)?.lowercase()?.removePrefix(VANILLA_NAMESPACE))) {
+            StructureCommand.SETBLOCK -> handleSetblock(rest, world, causedBy, cause, at)
+            StructureCommand.FILL -> handleFill(rest, world, causedBy, cause, at)
+            StructureCommand.CLONE -> handleClone(rest, world, causedBy, cause, at)
+            null -> Unit
         }
     }
 
@@ -160,44 +167,4 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
         val EXECUTE_MOVES = Regex("\\b(at|positioned|align|anchored|facing|rotated)\\b", RegexOption.IGNORE_CASE)
         val EXECUTE_ELSEWHERE = Regex("\\bin\\s+\\S+", RegexOption.IGNORE_CASE)
     }
-}
-
-/** Vanilla refuses `/fill` and `/clone` past this; capturing more would log a no-op. */
-@Suppress("DEPRECATION")
-internal fun World.blockModificationLimit(): Int =
-    getGameRuleValue(GameRules.MAX_BLOCK_MODIFICATIONS) // TODO: elvis?
-
-/** Inclusive block AABB; max is exclusive, same as [BoundingBox.of] for two blocks. */
-internal fun blockBox(from: ParsedBlockPos, to: ParsedBlockPos): BoundingBox =
-    BoundingBox.of(from.vector(), to.vector()).expandDirectional(1.0, 1.0, 1.0)
-
-/** `x` blocks. */
-internal fun BoundingBox.xBlocks(): IntRange = minX.toInt() until maxX.toInt()
-
-/** `y` blocks. */
-internal fun BoundingBox.yBlocks(): IntRange = minY.toInt() until maxY.toInt()
-
-/** `z` blocks. */
-internal fun BoundingBox.zBlocks(): IntRange = minZ.toInt() until maxZ.toInt()
-
-/** `null` if vanilla would refuse the `/fill` for [maxBlocks]. */
-internal fun fillBox(from: ParsedBlockPos, to: ParsedBlockPos, maxBlocks: Int): BoundingBox? {
-    val box = blockBox(from, to)
-    return if (box.volume > maxBlocks) null else box
-}
-
-/**
- * Destination of `/clone` only.
- *
- * Source is read-only and must not be captured.
- */
-internal fun cloneDestBox(
-    srcFrom: ParsedBlockPos,
-    srcTo: ParsedBlockPos,
-    dstOrigin: ParsedBlockPos,
-    maxBlocks: Int,
-): BoundingBox? {
-    val src = blockBox(srcFrom, srcTo)
-    if (src.volume > maxBlocks) return null
-    return src.shift(dstOrigin.x - src.minX, dstOrigin.y - src.minY, dstOrigin.z - src.minZ)
 }

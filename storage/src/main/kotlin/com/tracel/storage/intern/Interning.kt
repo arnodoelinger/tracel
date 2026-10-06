@@ -2,9 +2,10 @@ package com.tracel.storage.intern
 
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.tracel.engine.actor.EntityKindSource
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.StorageUnit
@@ -13,7 +14,6 @@ import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ffm.Key
 import java.lang.foreign.MemorySegment
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -317,10 +317,4 @@ private class Interned<T : Any>(
 
         const val COUNTER_BASE = 0x7000_0000
     }
-}
-
-/** What a mob is, as far as the server can tell right now. */
-fun interface EntityKindSource {
-    /** @return the type of the live (or just gone) entity [uuid], or `null` if it is not known. */
-    fun kindOf(uuid: UUID): EntityTypeKey?
 }

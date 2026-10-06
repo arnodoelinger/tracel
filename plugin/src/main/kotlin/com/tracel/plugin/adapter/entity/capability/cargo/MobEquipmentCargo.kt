@@ -1,10 +1,6 @@
 package com.tracel.plugin.adapter.entity.capability.cargo
 
-import org.bukkit.entity.AbstractHorse
-import org.bukkit.entity.ArmorStand
-import org.bukkit.entity.CopperGolem
-import org.bukkit.entity.Entity
-import org.bukkit.entity.Mob
+import org.bukkit.entity.*
 import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.ItemStack
 

@@ -1,13 +1,14 @@
 package com.tracel.storage
 
-import com.tracel.annotations.Unstable
-import com.tracel.engine.ownership.SingleWriterGuard
+import com.tracel.engine.store.StoreSettings
+import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.capture.CaptureRing
 import com.tracel.storage.codec.History
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
+import com.tracel.storage.lsm.toLsmConfig
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
 import kotlinx.coroutines.*
@@ -75,11 +76,17 @@ class TracelStorage private constructor(
         val open = currentCoroutineContext()[OpenUnit]
         if (open != null) return block()
         return withContext(readers) {
-            StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+            StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
                 withContext(OpenUnit(unit, Thread.currentThread(), readOnly = true)) { block() }
             }
         }
     }
+
+    override suspend fun mark(): Int = read { mark() }
+
+    override suspend fun release(mark: Int) = read { release(mark) }
+
+    override suspend fun rollbackTo(mark: Int) = read { rollbackTo(mark) }
 
     /**
      * Runs [block] inside one unit of work and commits it as one batch.
@@ -103,7 +110,7 @@ class TracelStorage private constructor(
 
     /** Re-reads interned ids after the store was replaced under them. Call inside [alone]. */
     fun reloadInterning() {
-        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::reload)
+        StorageUnit(engine.snapshot(), MutationBatch()).use(interning::reload)
         replaced.forEach { it() }
     }
 
@@ -138,12 +145,12 @@ class TracelStorage private constructor(
     }
 
     private suspend fun <T> readOnly(block: StorageUnit.() -> T): T = withContext(readers) {
-        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(block)
+        StorageUnit(engine.snapshot(), MutationBatch()).use(block)
     }
 
     private suspend fun <T> unit(block: StorageUnit.() -> T): T = lock.withLock {
         withContext(dispatcher) {
-            val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
+            val open = StorageUnit(engine.snapshot(), MutationBatch())
             open.use {
                 val result = try {
                     withContext(OpenUnit(open, Thread.currentThread())) { open.block() }.also {
@@ -162,7 +169,7 @@ class TracelStorage private constructor(
 
     private suspend fun <T> suspendingUnit(block: suspend () -> T): T = lock.withLock {
         withContext(dispatcher) {
-            val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
+            val open = StorageUnit(engine.snapshot(), MutationBatch())
             open.use {
                 val result = try {
                     withContext(OpenUnit(open, Thread.currentThread())) { block() }.also {
@@ -196,11 +203,13 @@ class TracelStorage private constructor(
     }
 
     companion object {
-        const val DEFAULT_RING_SLOTS = 1 shl 16
+        const val DEFAULT_RING_SLOTS = StoreSettings.DEFAULT_RING_SLOTS
         const val MAX_READERS = 16
         private const val CLOSE_GRACE_MILLIS = 1_000L
 
-        /** Opens (or creates) the store at [path]. */
+        fun open(path: Path, settings: StoreSettings): TracelStorage =
+            open(path, ringSlots = settings.ringSlots, lsm = settings.toLsmConfig())
+
         fun open(
             path: Path,
             ringSlots: Int = DEFAULT_RING_SLOTS,
@@ -211,7 +220,7 @@ class TracelStorage private constructor(
             val engine = engineFactory(path)
             val executor = Executors.newSingleThreadScheduledExecutor { runnable -> Thread(runnable, "Tracel-Storage") }
             val interning = Interning()
-            StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::restore)
+            StorageUnit(engine.snapshot(), MutationBatch()).use(interning::restore)
 
             // These threads only ever decode records already in memory or in a
             // mapped file; more of them than cores buys queueing, not throughput.

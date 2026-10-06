@@ -5,6 +5,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ffm.Bytes.i32
+import com.tracel.engine.world.GroundPositions as GroundPositionsPort
 
 /**
  * Remembers where a dropped item last touched the ground.
@@ -12,9 +13,9 @@ import com.tracel.storage.ffm.Bytes.i32
  * Item transactions only know the item UUID. When the item despawns, this store keeps its
  * final position so a rollback can drop it back in the right place.
  */
-class GroundPositions(private val storage: TracelStorage) {
+class GroundPositions(private val storage: TracelStorage) : GroundPositionsPort {
     /** Saves the final ground position of multiple dropped items. */
-    suspend fun rememberAll(positions: Map<HolderId.ItemEntity, HolderId.Block>) {
+    override suspend fun rememberAll(positions: Map<HolderId.ItemEntity, HolderId.Block>) {
         if (positions.isEmpty()) return
         storage.write {
             for ((item, at) in positions) {
@@ -26,7 +27,7 @@ class GroundPositions(private val storage: TracelStorage) {
     }
 
     /** Returns where [item] was last seen on the ground. */
-    suspend fun find(item: HolderId.ItemEntity): HolderId.Block? = storage.read {
+    override suspend fun find(item: HolderId.ItemEntity): HolderId.Block? = storage.read {
         val itemId = storage.interning.findHolderId(this, item) ?: return@read null
         val record = get(Keys.groundAt(itemId)) ?: return@read null
         storage.interning.resolveHolder(this, record.i32(0)) as? HolderId.Block

@@ -3,17 +3,14 @@ package com.tracel.plugin.util.holder
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.util.blockPos
-import com.tracel.plugin.util.carriesCoordinates
-import com.tracel.plugin.util.entityUuid
-import com.tracel.plugin.util.namedByEntity
+import com.tracel.model.world.WorldId
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.*
 
-private val WORLD = WorldId(java.util.UUID(0L, 1L))
-private val WHO = java.util.UUID(0L, 2L)
+private val WORLD = WorldId(UUID(0L, 1L))
+private val WHO = UUID(0L, 2L)
 
 class HolderIdsTest {
     @Test

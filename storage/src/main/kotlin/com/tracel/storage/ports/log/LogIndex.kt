@@ -1,8 +1,7 @@
 package com.tracel.storage.ports.log
 
-import com.tracel.annotations.CauseKind
-import com.tracel.annotations.isBookkeeping
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupRegion
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.log.LogKind
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.KeyReader
@@ -421,12 +420,12 @@ internal fun regionScans(
     until: Long? = null,
 ): List<Scan> {
     val worldId = interning.findWorldId(unit, region.world) ?: return emptyList()
-    val bound = ColumnBound(worldId, region.maxChunkZ, since, until)
-    val out = ArrayList<Scan>(region.maxChunkX - region.minChunkX + 1)
-    for (x in region.minChunkX..region.maxChunkX) {
+    val bound = ColumnBound(worldId, region.maxTileZ, since, until)
+    val out = ArrayList<Scan>(region.maxTileX - region.minTileX + 1)
+    for (x in region.minTileX..region.maxTileX) {
         out += Scan(
             prefix = Keys.spatialColumnPrefix(worldId, x),
-            from = Keys.spatialChunkFrom(worldId, x, region.minChunkZ, until),
+            from = Keys.spatialChunkFrom(worldId, x, region.minTileZ, until),
             bound = bound,
         )
     }

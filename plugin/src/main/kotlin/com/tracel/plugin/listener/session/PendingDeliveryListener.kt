@@ -2,10 +2,9 @@ package com.tracel.plugin.listener.session
 
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
-import com.tracel.plugin.TracelServices
+import com.tracel.plugin.adapter.rollback.material.deliverPending
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.rollback.material.deliverPending
-import com.tracel.plugin.rollback.structure.rescueJoined
+import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.launch
 import org.bukkit.entity.Player
 import org.bukkit.event.player.PlayerJoinEvent
@@ -20,7 +19,7 @@ class PendingDeliveryListener(services: TracelServices) : TracelListener(service
     fun onJoin(event: PlayerJoinEvent) {
         val player = event.player
         deliver(player)
-        later(player, JOIN_SETTLE_TICKS) { services.scope.launch { services.structureRestorer.rescueJoined(player) } }
+        later(player, JOIN_SETTLE_TICKS) { services.scope.launch { services.rescueJoined(player) } }
     }
 
     // Folia never fires the post-respawn event; the player is back in the world a couple of ticks after this one

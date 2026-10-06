@@ -1,19 +1,14 @@
 package com.tracel.storage.ports.log
 
-import com.tracel.annotations.CauseKind
-import com.tracel.annotations.isBookkeeping
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Seq
-import com.tracel.model.id.WorldId
 import com.tracel.model.log.LogKind
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
+import com.tracel.model.log.Seq
+import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
@@ -344,7 +339,13 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 BlockShape(interning.resolveBlockData(this, afters[i])),
             )
         }
-        BlockEdits(action, cause, if (causedById == 0) null else interning.resolveHolder(this, causedById), epochMillis, edits)
+        BlockEdits(
+            action,
+            cause,
+            if (causedById == 0) null else interning.resolveHolder(this, causedById),
+            epochMillis,
+            edits
+        )
     }
 
     private fun sectionOf(x: Int, y: Int, z: Int): Long =
@@ -597,8 +598,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val shapes = arrayOfNulls<BlockShape>(dataKeys.size)
         for (i in dataKeys.indices) {
             val data = interning.resolveBlockData(unit, dataKeys[i])
-            shapes[i] = if (data.value == BlockShape.AIR.data.value) BlockShape.AIR
-            else simpleShapes.getOrPut(data) { BlockShape(data) }
+            shapes[i] = simpleShapes.getOrPut(data) { BlockShape(data) }
         }
         val holderKeys = distinctOf(holderIdsSeen, holderCount)
         val holderValues = arrayOfNulls<HolderId>(holderKeys.size)
@@ -738,12 +738,20 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val pick = BooleanArray(n)
         var count = 0
         for (h in 0 until capacity) if (used[h]) {
-            if (!pick[firsts[h]]) { pick[firsts[h]] = true; count++ }
-            if (!pick[lasts[h]]) { pick[lasts[h]] = true; count++ }
+            if (!pick[firsts[h]]) {
+                pick[firsts[h]] = true; count++
+            }
+            if (!pick[lasts[h]]) {
+                pick[lasts[h]] = true; count++
+            }
         }
         for (slot in entities.values) {
-            if (!pick[slot[0]]) { pick[slot[0]] = true; count++ }
-            if (!pick[slot[1]]) { pick[slot[1]] = true; count++ }
+            if (!pick[slot[0]]) {
+                pick[slot[0]] = true; count++
+            }
+            if (!pick[slot[1]]) {
+                pick[slot[1]] = true; count++
+            }
         }
         val out = ArrayList<WorldChange>(count)
         for (i in n - 1 downTo 0) if (pick[i]) out += ordered[i]
@@ -931,8 +939,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val x = Records.wchgX(record)
         val y = Records.wchgY(record)
         val z = Records.wchgZ(record)
-        if ((x shr 4) !in region.minChunkX..region.maxChunkX) return false
-        if ((z shr 4) !in region.minChunkZ..region.maxChunkZ) return false
+        if ((x shr 4) !in region.minTileX..region.maxTileX) return false
+        if ((z shr 4) !in region.minTileZ..region.maxTileZ) return false
         return x + 15 >= region.minX && x <= region.maxX &&
                 y + 15 >= region.minY && y <= region.maxY &&
                 z + 15 >= region.minZ && z <= region.maxZ
@@ -979,8 +987,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         for (id in dataIds) {
             val data = interning.resolveBlockData(unit, id)
             blockData[id] = data
-            shapes[id] = if (data.value == BlockShape.AIR.data.value) BlockShape.AIR
-            else simpleShapes.getOrPut(data) { BlockShape(data) }
+            shapes[id] = simpleShapes.getOrPut(data) { BlockShape(data) }
         }
         val holders = HashMap<Int, HolderId>(holderIds.size * 2)
         for (id in holderIds) holders[id] = interning.resolveHolder(unit, id)
@@ -1051,8 +1058,18 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 millis,
                 BlockPos(world, x, y, z),
                 ChangeSubject.Block(
-                    if (extras == null) shapes[beforeSlot] else sectionShape(unit, palette[beforeSlot], extras.before, resolved),
-                    if (extras == null) shapes[afterSlot] else sectionShape(unit, palette[afterSlot], extras.after, resolved),
+                    if (extras == null) shapes[beforeSlot] else sectionShape(
+                        unit,
+                        palette[beforeSlot],
+                        extras.before,
+                        resolved
+                    ),
+                    if (extras == null) shapes[afterSlot] else sectionShape(
+                        unit,
+                        palette[afterSlot],
+                        extras.after,
+                        resolved
+                    ),
                 ),
             )
         }
@@ -1066,8 +1083,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     ): BlockShape {
         val data = resolved?.blockData?.get(dataId) ?: interning.resolveBlockData(unit, dataId)
         if (extras == null || extras.isEmpty()) {
-            return if (data.value == BlockShape.AIR.data.value) BlockShape.AIR
-            else simpleShapes.getOrPut(data) { BlockShape(data) }
+            return simpleShapes.getOrPut(data) { BlockShape(data) }
         }
         return BlockShape(data, Records.decodeBlockExtras(extras))
     }
@@ -1162,7 +1178,6 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         if (extrasLen == 0) resolved?.shapes?.get(dataId)?.let { return it }
         val data = resolved?.blockData?.get(dataId) ?: interning.resolveBlockData(unit, dataId)
         if (extrasLen == 0) {
-            if (data.value == BlockShape.AIR.data.value) return BlockShape.AIR
             return simpleShapes.getOrPut(data) { BlockShape(data) }
         }
         val extras = Records.decodeBlockExtras(

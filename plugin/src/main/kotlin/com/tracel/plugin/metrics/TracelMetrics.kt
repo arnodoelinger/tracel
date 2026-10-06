@@ -1,14 +1,13 @@
 package com.tracel.plugin.metrics
 
-import com.tracel.plugin.DEFAULT_PASTE_URL
-import com.tracel.plugin.Settings
-import com.tracel.plugin.TracelServices
+import com.tracel.engine.store.StoreReport
+import com.tracel.engine.store.StoreSettings
+import com.tracel.engine.store.StoreSync
+import com.tracel.plugin.config.DEFAULT_PASTE_URL
+import com.tracel.plugin.config.Settings
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
-import com.tracel.plugin.status.DiskLevel
-import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.History
-import com.tracel.storage.lsm.LsmConfig
-import com.tracel.storage.lsm.write.SyncPolicy
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.status.disk.DiskLevel
 import org.bstats.bukkit.Metrics
 import org.bstats.charts.AdvancedPie
 import org.bstats.charts.SimplePie
@@ -53,17 +52,17 @@ internal object TracelMetrics {
 
     private fun setup(metrics: Metrics, services: TracelServices, settings: Settings) {
         metrics.pie("sync_policy") {
-            when (settings.lsm.sync) {
-                SyncPolicy.EveryBatch -> "every-batch"
-                is SyncPolicy.Interval -> "interval"
-                SyncPolicy.Never -> "never"
+            when (settings.store.sync) {
+                StoreSync.EveryBatch -> "every-batch"
+                is StoreSync.Interval -> "interval"
+                StoreSync.Never -> "never"
             }
         }
         metrics.pie("advanced_tuning") {
-            val defaults = LsmConfig()
-            val untouched = settings.lsm.memtableBytes == defaults.memtableBytes &&
-                    settings.lsm.maxFrozenMemtables == defaults.maxFrozenMemtables &&
-                    settings.ringSlots == TracelStorage.DEFAULT_RING_SLOTS
+            val defaults = StoreSettings()
+            val untouched = settings.store.memtableBytes == defaults.memtableBytes &&
+                    settings.store.maxFrozenMemtables == defaults.maxFrozenMemtables &&
+                    settings.store.ringSlots == StoreSettings.DEFAULT_RING_SLOTS
             if (untouched) "defaults" else "tuned"
         }
         metrics.shares("logging_off") {
@@ -100,11 +99,11 @@ internal object TracelMetrics {
 
     private fun state(metrics: Metrics, services: TracelServices, settings: Settings) {
         val store = StoreSample(services)
-        metrics.pie("database_size") { sizeBucket(store.read().bytes) }
+        metrics.pie("database_size") { sizeBucket(store.read().liveBytes) }
         metrics.pie("history_rows") { rowsBucket(store.read().rows) }
         metrics.pie("bytes_per_row") {
             val now = store.read()
-            if (now.rows < 100_000) null else perRowBucket(now.bytes / now.rows)
+            if (now.rows < 100_000) null else perRowBucket(now.liveBytes / now.rows)
         }
         metrics.pie("history_age") {
             store.read().oldestMillis?.let { ageBucket(System.currentTimeMillis() - it) } ?: "empty"
@@ -115,18 +114,18 @@ internal object TracelMetrics {
         }
         metrics.pie("write_rate") { services.writeRate.perSecond()?.let(::rateBucket) }
         metrics.pie("capture_ring_peak") {
-            fillBucket(Telemetry.drainPeakBacklog() * 100 / settings.ringSlots.coerceAtLeast(1))
+            fillBucket(Telemetry.drainPeakBacklog() * 100 / settings.store.ringSlots.coerceAtLeast(1))
         }
         metrics.pie("capture_losses") {
-            val ring = services.storage.ring
+            val ring = services.store.capture
             when {
                 ring.dropped > 0 -> "events lost"
                 ring.ringFull > 0 -> "ring filled, nothing lost"
                 else -> "none"
             }
         }
-        metrics.line("events_logged", since { services.counters.seqIssued.get() })
-        metrics.line("events_lost", since { services.storage.ring.dropped })
+        metrics.line("events_logged", since { services.counters.seqIssued })
+        metrics.line("events_lost", since { services.store.capture.dropped })
         metrics.shares("player_languages") {
             Bukkit.getOnlinePlayers().groupingBy { it.locale().language.ifEmpty { "unknown" } }.eachCount()
         }
@@ -159,24 +158,15 @@ internal object TracelMetrics {
         }
     }
 
-    private class Store(val rows: Long, val bytes: Long, val oldestMillis: Long?)
-
     private class StoreSample(private val services: TracelServices) {
         private var taken = 0L
-        private var last: Store? = null
+        private var last: StoreReport? = null
 
         @Synchronized
-        fun read(): Store {
+        fun read(): StoreReport {
             val now = System.currentTimeMillis()
             last?.takeIf { now - taken < STORE_FRESH_MILLIS }?.let { return it }
-            val engine = services.storage.engine
-            val segments = listOf(History.BLOCKS, History.ITEMS, History.EVENTS, History.CONTAINERS)
-                .flatMap(engine::history)
-            val fresh = Store(
-                rows = segments.sumOf { it.entries },
-                bytes = engine.stats().liveBytes,
-                oldestMillis = segments.filter { it.entries > 0 }.minOfOrNull { it.windowStartMillis },
-            )
+            val fresh = services.store.report()
             taken = now
             last = fresh
             return fresh

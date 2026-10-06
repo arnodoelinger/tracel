@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.support.lectern
 
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringMap
 
 /**
  * Storage for lectern page numbers.

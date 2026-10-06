@@ -69,5 +69,5 @@ internal object ItemPresenter {
     }
 
     private fun isContainer(holder: HolderId) =
-        holder is HolderId.Block || holder is HolderId.Entity || holder is HolderId.EnderChest
+        holder is HolderId.Block || holder is HolderId.Entity || holder is HolderId.PlayerStash
 }

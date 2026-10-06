@@ -2,15 +2,18 @@ package com.tracel.engine.rollback.plan
 
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
-import com.tracel.annotations.Unstable
-import com.tracel.engine.ledger.LotRepository
-import com.tracel.engine.ledger.PlacedRun
+import com.tracel.engine.ledger.repository.LotRepository
+import com.tracel.engine.ledger.repository.PlacedRun
+import com.tracel.engine.rollback.plan.resolve.ResolvedLocation
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.LotId
-import com.tracel.model.id.TxnId
 import com.tracel.model.lot.Lot
 import com.tracel.model.lot.LotEdge
+import com.tracel.model.lot.LotId
+import com.tracel.model.transaction.TxnId
 
 /**
  * Plans the material changes needed for a rollback.
@@ -217,7 +220,6 @@ public class RollbackPlanner(
      * [depth] limits recursive transform resolution. Hitting the limit produces an untracked
      * gap rather than continuing indefinitely or guessing where the material went.
      */
-    @Unstable
     private suspend fun locate(lotId: LotId, depth: Int): ResolvedLocation {
         val edges = edgeCache[lotId].orEmpty()
 
@@ -239,7 +241,7 @@ public class RollbackPlanner(
             for (transform in transforms.sortedByDescending { it.craftedBy.raw }) {
                 when (val outputLocation = resolve(transform.child, depth + 1)) {
                     is ResolvedLocation.Holder -> {
-                        // Only when there is an output left to take apart. Burned in lava,
+                        // Only when there is an output left to take apart. Burned away,
                         // swallowed by an inventory reconcile, on a ground item that despawned
                         // — the craft's output is already gone, so actionFor compensates the
                         // ingredient below and that is the whole of the answer.
@@ -264,7 +266,7 @@ public class RollbackPlanner(
                     //
                     // Handing the pieces back as ordinary leaves instead is what made a chain of
                     // crafts roll back only its last link. For example, the planks craft stopped
-                    // being unmakeable the moment eight of its planks became a chest, and the
+                    // being unmakeable the moment eight of its planks became a container, and the
                     // rollback returned planks where it owed logs.
                     is ResolvedLocation.Split -> {
                         val pieces = wholeOutput(transform.child, outputLocation, depth + 1)
@@ -348,7 +350,6 @@ public class RollbackPlanner(
      * @return the surviving output pieces when the craft can safely be unmade, or `null` when the
      * caller must fall back to resolving the pieces individually.
      */
-    @Unstable
     // TODO: dangerous; make it better in future
     private suspend fun wholeOutput(
         output: LotId,
@@ -435,7 +436,7 @@ public class RollbackPlanner(
         if (holder in vanished) return RollbackStep.Mint(lotId, quantity, SinkKind.UNTRACKED_GAP)
         return when (holder) {
             is HolderId.Sink -> RollbackStep.Mint(lotId, quantity, holder.kind)
-            else -> RollbackStep.Take(lotId, quantity, holder) // Offline is still a "Take"
+            else -> RollbackStep.Take(lotId, quantity, holder) // Offline is still a "TAKE"
         }
     }
 }

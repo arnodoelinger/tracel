@@ -1,0 +1,17 @@
+package com.tracel.engine.rollback.involution.plan
+
+import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
+
+/** An ingredient of a craft that is made again: [quantity] of [itemKey] that came from lot [lotId]. */
+public data class RemakeInput(
+    /** Lot ID. */
+    public val lotId: LotId,
+
+    /** Item key. */
+    public val itemKey: ItemKey,
+
+    /** Quantity of a lot. */
+    public val quantity: Quantity,
+)

@@ -1,10 +1,9 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.RollbackJobId
-import com.tracel.plugin.TracelServices
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.rollback.RollbackGenius
 import com.tracel.plugin.rollback.material.MaterialHalf
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -12,6 +11,7 @@ import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.structure.StructureHalf
 import com.tracel.plugin.rollback.survey.WorldCensus
+import com.tracel.plugin.services.TracelServices
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger

@@ -1,9 +1,14 @@
 package com.tracel.storage.support
 
-import com.tracel.engine.capture.CaptureCoordinator
-import com.tracel.engine.capture.releaseFlows
+import com.tracel.engine.capture.material.CaptureCoordinator
+import com.tracel.engine.capture.material.flow.releaseFlows
+import com.tracel.engine.capture.world.WorldCaptureCoordinator
 import com.tracel.engine.ledger.LotLedger
-import com.tracel.engine.world.WorldCaptureCoordinator
+import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.SinkKind
+import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.Lot
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.CaptureRing
@@ -14,13 +19,14 @@ import com.tracel.storage.lsm.LsmEngine
 import com.tracel.storage.ports.container.ContainerSlotLog
 import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.job.RollbackJobRepository
-import com.tracel.storage.ports.ledger.LotLeaseRegistry
+import com.tracel.storage.ports.ledger.Leases
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import java.nio.file.Path
+
 
 class Stack(
     path: Path,
@@ -29,7 +35,12 @@ class Stack(
     overflowSlots: Int = ringSlots * CaptureRing.OVERFLOW_FACTOR,
 ) : AutoCloseable {
     val storage: TracelStorage =
-        TracelStorage.open(path, ringSlots = ringSlots, overflowSlots = overflowSlots) { LsmEngine(it, History.configured(config)) }
+        TracelStorage.open(path, ringSlots = ringSlots, overflowSlots = overflowSlots) {
+            LsmEngine(
+                it,
+                History.configured(config)
+            )
+        }
     val counters: Counters = Counters(storage)
     val repo: LotRepository = LotRepository(storage, counters)
     val ledger: LotLedger = LotLedger(repo)
@@ -38,7 +49,7 @@ class Stack(
     val containerSlots: ContainerSlotLog = ContainerSlotLog(storage, counters)
     val worldCapture: WorldCaptureCoordinator =
         WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
-    val leases: LotLeaseRegistry = LotLeaseRegistry(storage)
+    val leases: Leases = Leases(storage)
     val jobs: RollbackJobRepository = RollbackJobRepository(storage)
     val journal: Journal = Journal.forRollback(storage)
     val involutionJournal: Journal = Journal.forInvolution(storage)
@@ -57,6 +68,17 @@ class Stack(
         },
         worldSink = { edits -> worldCapture.record(edits) },
     )
+
+    suspend fun mint(at: HolderId, item: ItemKey, amount: Long): Lot =
+        ledger.mint(at, item, Quantity(amount), counters.nextTxnId())
+
+    suspend fun move(from: HolderId, to: HolderId, item: ItemKey, amount: Long) {
+        ledger.move(from, to, item, Quantity(amount), counters.nextTxnId())
+    }
+
+    suspend fun burn(at: HolderId, item: ItemKey, amount: Long, reason: SinkKind = SinkKind.HAZARD) {
+        ledger.burn(at, item, Quantity(amount), reason, counters.nextTxnId())
+    }
 
     suspend fun drain(): Int {
         var total = 0

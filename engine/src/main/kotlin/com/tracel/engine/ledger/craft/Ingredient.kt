@@ -1,0 +1,8 @@
+package com.tracel.engine.ledger.craft
+
+import com.tracel.model.holder.HolderId
+import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+
+/** One ingredient a craft consumes. */
+public data class Ingredient(public val holder: HolderId, public val itemKey: ItemKey, public val quantity: Quantity)

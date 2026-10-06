@@ -1,17 +1,17 @@
 package com.tracel.plugin.listener.material.machine
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.item.addTo
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import org.bukkit.Bukkit
 import org.bukkit.GameEvent
 import org.bukkit.block.Block

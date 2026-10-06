@@ -7,13 +7,14 @@ import com.fastasyncworldedit.core.queue.IChunkGet
 import com.fastasyncworldedit.core.queue.IChunkSet
 import com.sk89q.worldedit.extent.Extent
 import com.sk89q.worldedit.world.block.BlockTypesCache
-import com.tracel.annotations.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.TracelServices
-import com.tracel.plugin.util.Warnings
-import java.util.UUID
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.AIR
+import com.tracel.plugin.util.log.Warnings
+import java.util.*
 import java.util.logging.Level
 import java.util.logging.Logger
 
@@ -78,7 +79,7 @@ private class ChunkLogger(
                 val from = before?.get(i)
                 if (from == to) continue
                 val afterShape = shapeOf(to) ?: continue
-                val beforeShape = if (from == null || from == NO_CHANGE) BlockShape.AIR else shapeOf(from) ?: continue
+                val beforeShape = if (from == null || from == NO_CHANGE) AIR else shapeOf(from) ?: continue
                 buffer.note(baseX + (i and 15), baseY + (i shr 8), baseZ + ((i shr 4) and 15), beforeShape, afterShape)
                 if (buffer.size >= BATCH) send(buffer, epochMillis)
             }

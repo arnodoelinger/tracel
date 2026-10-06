@@ -1,5 +1,6 @@
 package com.tracel.storage.ports.ops
 
+import com.tracel.engine.store.PurgeSummary
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
@@ -10,9 +11,6 @@ import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
 import com.tracel.storage.codec.records.Lot as LotRecord
 
-/** What a purge threw away, for the line that gets printed afterward. */
-data class PurgeSummary(val rows: Long, val bytes: Long, val oldest: Long? = null, val newest: Long? = null)
-
 /** Deletes the `Tracel`'s history. */
 suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
     return storage.alone {
@@ -21,7 +19,7 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
         var oldest = Long.MAX_VALUE
         var newest = Long.MIN_VALUE
         val bytes = storage.engine.stats().liveBytes
-        StorageUnit(storage.engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+        StorageUnit(storage.engine.snapshot(), MutationBatch()).use { unit ->
             unit.eachRow(ByteArray(0)) { cursor ->
                 total++
                 val key = cursor.key()

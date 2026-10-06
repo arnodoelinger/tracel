@@ -286,7 +286,13 @@ class LsmEngine(
                     val seq = sequence.incrementAndGet()
                     logs.append(seq, keep)
                     keep.forEach { key, value ->
-                        check(fresh.put(key, value, seq)) { "the memtable made for a wipe cannot hold what the wipe keeps" }
+                        check(
+                            fresh.put(
+                                key,
+                                value,
+                                seq
+                            )
+                        ) { "the memtable made for a wipe cannot hold what the wipe keeps" }
                     }
                     logs.sync()
                     last = seq

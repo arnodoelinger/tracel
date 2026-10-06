@@ -1,7 +1,7 @@
 package com.tracel.storage.crash
 
-import com.tracel.annotations.CauseKind
-import com.tracel.model.id.Quantity
+import com.tracel.model.cause.CauseKind
+import com.tracel.model.item.Quantity
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
@@ -27,7 +27,7 @@ object CrashHarness {
 
                 var moved = 0
                 while (moved < TOTAL) {
-                    stack.gate.move(CauseKind.HOPPER, null, System.currentTimeMillis(), diamond, chest, steve, 1)
+                    stack.gate.move(CauseKind.MACHINE, null, System.currentTimeMillis(), diamond, chest, steve, 1)
                     val drained = stack.drain()
                     if (drained == 0) continue
                     moved += drained

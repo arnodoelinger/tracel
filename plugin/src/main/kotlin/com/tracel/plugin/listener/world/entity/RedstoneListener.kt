@@ -3,9 +3,12 @@ package com.tracel.plugin.listener.world.entity
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.TracelListener
-import org.bukkit.Material
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.canPrimeTnt
+import com.tracel.plugin.specifics.block.isButtonOrLever
+import com.tracel.plugin.specifics.block.isPressurePlate
+import com.tracel.plugin.specifics.item.ignitesCreepers
 import org.bukkit.entity.Creeper
 import org.bukkit.entity.Player
 import org.bukkit.event.block.Action
@@ -85,21 +88,7 @@ class RedstoneListener(services: TracelServices) : TracelListener(services) {
     fun onPlayerInteractEntity(event: PlayerInteractEntityEvent) {
         val creeper = event.rightClicked as? Creeper ?: return
         val item = event.player.inventory.getItem(event.hand)
-        if (item.type != Material.FLINT_AND_STEEL && item.type != Material.FIRE_CHARGE) return
+        if (!item.type.ignitesCreepers()) return
         services.redstoneTriggers.recordCreeperIgnition(creeper.uniqueId, HolderId.Player(event.player.uniqueId))
-    }
-
-    private fun Material.isButtonOrLever(): Boolean = this == Material.LEVER || name.endsWith("_BUTTON")
-    private fun Material.isPressurePlate(): Boolean = name.endsWith("_PRESSURE_PLATE")
-    private fun Material.canPrimeTnt(): Boolean = when (this) {
-        Material.REDSTONE_BLOCK,
-        Material.OBSERVER,
-        Material.LEVER,
-        Material.REDSTONE_TORCH,
-        Material.REDSTONE_WALL_TORCH,
-        Material.TRIPWIRE_HOOK,
-            -> true
-
-        else -> name.endsWith("_BUTTON") || name.endsWith("_PRESSURE_PLATE")
     }
 }

@@ -1,16 +1,15 @@
 package com.tracel.storage.crash
 
-import com.tracel.engine.journal.CrashPoint
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.journal.SimulatedCrash
-import com.tracel.engine.ownership.LeaseAcquisition
 import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.crash.CrashPoint
+import com.tracel.engine.rollback.journal.crash.SimulatedCrash
+import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
@@ -28,9 +27,9 @@ class CrashRecoveryTest {
         val steve = player(1)
 
         val root = Stack(dir).use { stack ->
-            val lot = stack.ledger.mint(chest, diamond, Quantity(10), stack.counters.nextTxnId())
-            stack.ledger.move(chest, steve, diamond, Quantity(10), stack.counters.nextTxnId())
-            stack.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, stack.counters.nextTxnId())
+            val lot = stack.mint(chest, diamond, 10)
+            stack.move(chest, steve, diamond, 10)
+            stack.burn(steve, diamond, 4, SinkKind.HAZARD)
             lot.id
         }
 
@@ -73,8 +72,8 @@ class CrashRecoveryTest {
         val steve = player(1)
 
         Stack(dir).use { stack ->
-            val root = stack.ledger.mint(chest, diamond, Quantity(10), stack.counters.nextTxnId())
-            stack.ledger.move(chest, steve, diamond, Quantity(6), stack.counters.nextTxnId())
+            val root = stack.mint(chest, diamond, 10)
+            stack.move(chest, steve, diamond, 6)
 
             val plan = RollbackPlanner(stack.repo, { true }).plan(listOf(root.id))
             val executor = JournalExecutor(

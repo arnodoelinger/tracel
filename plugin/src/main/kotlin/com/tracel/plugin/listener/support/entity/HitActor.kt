@@ -2,7 +2,7 @@ package com.tracel.plugin.listener.support.entity
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Entity
 import org.bukkit.persistence.PersistentDataType

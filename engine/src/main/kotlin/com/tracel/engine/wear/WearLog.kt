@@ -1,31 +1,27 @@
 package com.tracel.engine.wear
 
-import com.tracel.model.id.LotId
-
-/** One change to a tool's durability, told against the lot the ledger holds it as. */
-public data class WearMark(
-    public val lotId: LotId,
-    public val epochMillis: Long,
-    public val before: Int,
-    public val after: Int,
-)
+import com.tracel.model.lot.LotId
 
 /**
- * Tool durability over time.
+ * Tool durability over time, told against the lot that holds the tool.
  *
- * The item key forgot the damage on purpose, so a swing is not a burn and a mint. This is where the damage went instead.
+ * An item key forgets the damage on purpose, so that a swing is not a burn and a mint. This is where the damage goes
+ * instead: one mark for every change, so any moment in a lot's life has a damage that can be read back.
  */
 public interface WearLog {
-    /** Records [mark]. */
+    /** Appends [mark] to the history of its lot. */
     public suspend fun record(mark: WearMark)
 
     /** Every mark of each of [lots], oldest first. Lots without one are absent. */
     public suspend fun marksOf(lots: Collection<LotId>): Map<LotId, List<WearMark>>
 }
 
-/** Damage at [epochMillis]: what the last mark by then left, or what the first later one started from. */
+/**
+ * The damage these marks, oldest first, say there was at [epochMillis]: what the last mark by then left, or, if all
+ * come later, what the first of them started from. `null` without marks.
+ */
 public fun List<WearMark>.damageAt(epochMillis: Long): Int? =
     lastOrNull { it.epochMillis <= epochMillis }?.after ?: firstOrNull()?.before
 
-/** Damage the newest mark left behind. */
+/** The damage the newest mark left behind, or `null` without marks. */
 public val List<WearMark>.damageNow: Int? get() = lastOrNull()?.after

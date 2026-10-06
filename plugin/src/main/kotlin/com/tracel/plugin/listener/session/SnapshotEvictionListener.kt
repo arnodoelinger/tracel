@@ -2,10 +2,10 @@ package com.tracel.plugin.listener.session
 
 import com.tracel.annotations.Observes
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
-import com.tracel.plugin.TracelServices
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.launch
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.event.world.ChunkUnloadEvent
@@ -24,7 +24,7 @@ class SnapshotEvictionListener(services: TracelServices) : TracelListener(servic
     @Observes(ignoreCancelled = false)
     fun onQuit(event: PlayerQuitEvent) {
         val uuid = event.player.uniqueId
-        forgetLater(listOf(HolderId.Player(uuid), HolderId.EnderChest(uuid)))
+        forgetLater(listOf(HolderId.Player(uuid), HolderId.PlayerStash(uuid)))
     }
 
     @Observes(ignoreCancelled = false)

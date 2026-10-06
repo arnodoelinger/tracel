@@ -1,11 +1,10 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.plugin.TracelServices
+import com.tracel.engine.store.ExportSummary
+import com.tracel.engine.store.StoppedByRequest
 import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.i18n.*
-import com.tracel.storage.ports.ops.ExportSummary
-import com.tracel.storage.ports.ops.StoppedByRequest
-import com.tracel.storage.ports.ops.importFrom
+import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -68,8 +67,7 @@ class ImportAction(private val services: TracelServices) {
         services.scope.launch {
             val done = try {
                 runCatching {
-                    importFrom(
-                        services.storage,
+                    services.store.importFrom(
                         path,
                         stopped = { phase.get() == STOPPING },
                         commit = { phase.compareAndSet(CHECKING, REPLACING) },
@@ -81,8 +79,6 @@ class ImportAction(private val services: TracelServices) {
                 services.purging.set(false)
             }
             done.onSuccess {
-                services.repo.forget()
-                services.counters.forget()
                 services.differ.forgetAll()
                 sender.say(report(it, localeOf(sender)))
             }.onFailure {

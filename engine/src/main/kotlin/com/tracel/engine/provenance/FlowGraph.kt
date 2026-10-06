@@ -1,8 +1,8 @@
 package com.tracel.engine.provenance
 
-import com.tracel.engine.ledger.LotRepository
-import com.tracel.model.id.LotId
+import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.model.lot.LotEdge
+import com.tracel.model.lot.LotId
 
 /**
  * Answers the two questions provenance exists for, by walking the
@@ -28,7 +28,6 @@ public class FlowGraph(private val repo: LotRepository, private val maxDepth: In
     /** "What happened to this item?" — walks children forward to whatever is still live, or a sink. */
     public suspend fun fateOf(lotId: LotId): FateNode = repo.reading { buildFate(lotId, depth = 0) }
 
-    /** Recursively builds a tree of the lot's ancestors, up to [maxDepth]. */
     private suspend fun buildOrigin(lotId: LotId, depth: Int): ProvenanceNode {
         val lot = repo.lot(lotId)
         val parents =
@@ -36,7 +35,6 @@ public class FlowGraph(private val repo: LotRepository, private val maxDepth: In
         return ProvenanceNode(lotId, lot.itemKey, lot.createdBy, parents)
     }
 
-    /** Recursively builds a tree of the lot's descendants, up to [maxDepth]. */
     private suspend fun buildFate(lotId: LotId, depth: Int): FateNode {
         val lot = repo.lot(lotId)
         val children =

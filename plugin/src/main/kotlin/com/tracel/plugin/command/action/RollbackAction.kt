@@ -1,23 +1,24 @@
 package com.tracel.plugin.command.action
 
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.TracelServices
-import com.tracel.plugin.command.args.ActionFilter
-import com.tracel.plugin.command.args.FilterResult
-import com.tracel.plugin.command.args.ParsedLookupArgs
-import com.tracel.plugin.command.args.RollbackArgument
+import com.tracel.plugin.adapter.rollback.composer.warmForPreview
+import com.tracel.plugin.command.args.action.ActionFilter
+import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
+import com.tracel.plugin.command.args.rollback.FilterResult
+import com.tracel.plugin.command.args.rollback.RollbackArgument
 import com.tracel.plugin.command.highlight.Highlights
-import com.tracel.plugin.command.presenter.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter
 import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
 import com.tracel.plugin.command.presenter.RollbackPresenter.resurrections
+import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.i18n.*
+import com.tracel.plugin.metrics.Telemetry
 import com.tracel.plugin.rollback.composer.FULL_FLUSH_SECONDS
-import com.tracel.plugin.rollback.composer.warmForPreview
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
+import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -25,7 +26,6 @@ import net.kyori.adventure.text.Component
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import kotlin.time.Duration.Companion.milliseconds
-import com.tracel.plugin.metrics.Telemetry
 
 /** How long planning may run before the player is told it has started. */
 private const val PLANNING_NOTICE_MILLIS = 2_000L

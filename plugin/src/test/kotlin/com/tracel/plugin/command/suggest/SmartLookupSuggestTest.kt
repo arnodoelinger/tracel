@@ -90,7 +90,7 @@ class SmartLookupSuggestTest {
         val texts = LookupSuggest.suggest("a:block,c", lists).map { it.text }
         assertEquals(listOf("a:block,craft", "a:block,container"), texts)
         assertEquals(
-            "Crafting",
+            "Items crafted",
             LookupSuggest.suggest("a:block,c", lists).first { it.text.endsWith("craft") }.tooltip?.plain()
         )
     }

@@ -1,10 +1,16 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.plugin.TracelServices
+import com.tracel.engine.foreign.NoRoomForImport
 import com.tracel.plugin.command.action.ExportAction.Companion.records
 import com.tracel.plugin.i18n.*
-import com.tracel.plugin.importer.coreprotect.*
-import com.tracel.storage.ports.ops.NoRoomForImport
+import com.tracel.plugin.importer.coreprotect.CoreProtectImport
+import com.tracel.plugin.importer.coreprotect.ImportOutcome
+import com.tracel.plugin.importer.coreprotect.ImportOutlook
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectDatabase
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectLocation
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectLocator
+import com.tracel.plugin.importer.coreprotect.translate.ServerImportPlatform
+import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

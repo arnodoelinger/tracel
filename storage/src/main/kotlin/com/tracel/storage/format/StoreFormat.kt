@@ -1,5 +1,6 @@
 package com.tracel.storage.format
 
+import com.tracel.engine.store.StoreFormatException
 import com.tracel.platform.Versions
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
@@ -36,8 +37,6 @@ class Migration(
     }
 }
 
-/** The database cannot be used by this build as it is. The message says why, for whoever runs the server. */
-class StoreFormatException(message: String) : IllegalStateException(message)
 
 /** What [StoreFormat.ensure] did: [from] is [to] when nothing had to move. */
 class FormatOutcome(val from: FormatVersion, val to: FormatVersion) {
@@ -76,7 +75,7 @@ object StoreFormat {
         migrations: List<Migration> = MIGRATIONS,
     ): FormatOutcome {
         val engine = storage.engine
-        val (stored, empty) = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+        val (stored, empty) = StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
             unit.get(Keys.formatVersion())?.let(::decode) to !unit.scan(ByteArray(0)).use { it.next() }
         }
 
@@ -119,7 +118,7 @@ object StoreFormat {
 
     private fun commit(storage: TracelStorage, version: FormatVersion, step: (StorageUnit) -> Unit) {
         val engine = storage.engine
-        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+        StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
             step(unit)
             unit.put(Keys.formatVersion(), encode(version))
             engine.write(unit.batch, durable = true)

@@ -2,20 +2,17 @@ package com.tracel.plugin.listener.session
 
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
-import com.tracel.model.id.WorldId
-import com.tracel.plugin.TracelServices
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.event.Cancellable
 import org.bukkit.event.block.*
-import com.tracel.plugin.rollback.structure.fluid.FluidFreeze
 
 /**
  * Keeps fluids out of the cells a running rollback or undo holds: no flow into, out of or inside them, nothing formed
  * or faded there, no sponge drinking from them.
- *
- * @see [FluidFreeze]
  */
 class FluidFreezeListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.LOWEST)

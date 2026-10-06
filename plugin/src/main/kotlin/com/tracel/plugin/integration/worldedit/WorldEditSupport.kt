@@ -1,10 +1,7 @@
 package com.tracel.plugin.integration.worldedit
 
-import com.tracel.annotations.Observes
-import com.tracel.plugin.TracelServices
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.Bukkit
-import org.bukkit.event.Listener
-import org.bukkit.event.server.PluginEnableEvent
 import java.util.logging.Level
 import java.util.logging.Logger
 
@@ -76,8 +73,8 @@ internal object WorldEditSupport {
         } catch (failure: Throwable) {
             logger.warning(
                 "Tracel could not add itself to FAWE's extent.allowed-plugins ($failure). Edits FAWE makes block " +
-                    "by block are not logged until `$EXTENT_PACKAGE` is added to extent.allowed-plugins in " +
-                    "FastAsyncWorldEditэ' configuration."
+                        "by block are not logged until `$EXTENT_PACKAGE` is added to extent.allowed-plugins in " +
+                        "FastAsyncWorldEditэ' configuration."
             )
         }
     }
@@ -88,12 +85,3 @@ internal object WorldEditSupport {
 
 /** The class `FAWE` sees, lowercased the way it compares: the extent the hook wraps with. */
 private const val EXTENT_CLASS = "com.tracel.plugin.integration.worldedit.worldedithook\$loggingextent"
-
-/** Catches `WorldEdit` being enabled after `Tracel` did, which the load order is meant to prevent but cannot always. */
-internal class WorldEditAttachListener(private val services: TracelServices) : Listener {
-    /** When a `WorldEdit` plugin is enabled, try to attach the hook. */
-    @Observes
-    fun onEnable(event: PluginEnableEvent) {
-        if (WorldEditSupport.isWorldEdit(event.plugin.name)) WorldEditSupport.attach(services)
-    }
-}

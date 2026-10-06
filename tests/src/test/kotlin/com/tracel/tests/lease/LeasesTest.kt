@@ -1,0 +1,134 @@
+package com.tracel.tests.lease
+
+import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
+import com.tracel.engine.rollback.lease.memory.InMemoryLeases
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Test
+
+class LeasesTest {
+    @Test
+    fun `a job can acquire lots nothing else holds`() = runTest {
+        val registry = InMemoryLeases()
+        val granted = registry.acquire(RollbackJobId(1), setOf(LotId(1), LotId(2)))
+        assertInstanceOf(LeaseAcquisition.Granted::class.java, granted)
+    }
+
+    @Test
+    fun `a second job is denied overlapping lots, and told who holds them`() = runTest {
+        val registry = InMemoryLeases()
+        val jobA = RollbackJobId(1)
+        val jobB = RollbackJobId(2)
+
+        registry.acquire(jobA, setOf(LotId(1), LotId(2), LotId(3)))
+        val denied = registry.acquire(jobB, setOf(LotId(3), LotId(4)))
+
+        assertInstanceOf(LeaseAcquisition.Denied::class.java, denied)
+        assertEquals(mapOf(LotId(3) to jobA), (denied as LeaseAcquisition.Denied).conflicts)
+    }
+
+    @Test
+    fun `denial reserves nothing - not even the non-conflicting lots`() = runTest {
+        val registry = InMemoryLeases()
+        val jobA = RollbackJobId(1)
+        val jobB = RollbackJobId(2)
+
+        registry.acquire(jobA, setOf(LotId(1)))
+        registry.acquire(jobB, setOf(LotId(1), LotId(99))) // Denied because of lot 1
+
+        val jobC = RollbackJobId(3)
+        assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(jobC, setOf(LotId(99))))
+    }
+
+    @Test
+    fun `a job re-acquiring its own lots succeeds, not a conflict with itself`() = runTest {
+        val registry = InMemoryLeases()
+        val job = RollbackJobId(1)
+        registry.acquire(job, setOf(LotId(1), LotId(2)))
+
+        assertInstanceOf(
+            LeaseAcquisition.Granted::class.java,
+            registry.acquire(job, setOf(LotId(1), LotId(2), LotId(3)))
+        )
+    }
+
+    @Test
+    fun `releasing a job frees its lots for someone else`() = runTest {
+        val registry = InMemoryLeases()
+        val jobA = RollbackJobId(1)
+        val jobB = RollbackJobId(2)
+
+        registry.acquire(jobA, setOf(LotId(1)))
+        registry.release(jobA)
+
+        assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(jobB, setOf(LotId(1))))
+    }
+
+    @Test
+    fun `extend grows a lease to cover a lot discovered mid-flight`() = runTest {
+        val registry = InMemoryLeases()
+        val job = RollbackJobId(1)
+        val lease = (registry.acquire(job, setOf(LotId(1))) as LeaseAcquisition.Granted).lease
+
+        val extended = registry.extend(lease, setOf(LotId(2)))
+
+        assertInstanceOf(LeaseAcquisition.Granted::class.java, extended)
+        assertEquals(setOf(LotId(1), LotId(2)), (extended as LeaseAcquisition.Granted).lease.lotIds)
+    }
+
+    @Test
+    fun `extending into a lot someone else holds is denied, and the original lease is untouched`() = runTest {
+        val registry = InMemoryLeases()
+        val jobA = RollbackJobId(1)
+        val jobB = RollbackJobId(2)
+        val lease = (registry.acquire(jobA, setOf(LotId(1))) as LeaseAcquisition.Granted).lease
+        registry.acquire(jobB, setOf(LotId(2)))
+
+        val extended = registry.extend(lease, setOf(LotId(2)))
+        assertInstanceOf(LeaseAcquisition.Denied::class.java, extended)
+
+        assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(jobA, setOf(LotId(1))))
+    }
+
+    @Test
+    fun `transfer hands every held lot to another job atomically`() = runTest {
+        val registry = InMemoryLeases()
+        val from = RollbackJobId(1)
+        val to = RollbackJobId(2)
+        registry.acquire(from, setOf(LotId(1), LotId(2)))
+
+        val transferred = registry.transfer(from, to)
+
+        assertEquals(setOf(LotId(1), LotId(2)), transferred)
+        assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(to, setOf(LotId(1), LotId(2))))
+        assertInstanceOf(LeaseAcquisition.Denied::class.java, registry.acquire(from, setOf(LotId(1))))
+    }
+
+    @Test
+    fun `reapAbandoned frees every lease older than the given age`() = runTest {
+        val registry = InMemoryLeases()
+        val stale = RollbackJobId(1)
+        registry.acquire(stale, setOf(LotId(1)))
+
+        val reaped = registry.reapAbandoned(nowMillis = System.currentTimeMillis() + 10_000, maxAgeMillis = 5_000)
+
+        assertEquals(setOf(stale), reaped)
+        assertInstanceOf(LeaseAcquisition.Granted::class.java, registry.acquire(RollbackJobId(2), setOf(LotId(1))))
+    }
+
+    @Test
+    fun `renewing a lease via acquire resets its abandonment clock`() = runTest {
+        val registry = InMemoryLeases()
+        val job = RollbackJobId(1)
+        registry.acquire(job, setOf(LotId(1)))
+
+        registry.acquire(job, setOf(LotId(1)))
+
+        val now = System.currentTimeMillis()
+        val reaped = registry.reapAbandoned(nowMillis = now, maxAgeMillis = 60_000)
+        assertEquals(emptySet<RollbackJobId>(), reaped, "a lease renewed just now is nowhere near abandoned")
+    }
+}

@@ -1,19 +1,17 @@
 package com.tracel.tests.log
 
-import com.tracel.annotations.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
-import com.tracel.engine.world.InMemoryWorldLog
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
+import com.tracel.engine.world.memory.InMemoryWorldLog
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.Seq
-import com.tracel.model.id.WorldId
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
+import com.tracel.model.log.Seq
+import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.tests.support.Fixtures.player
+import com.tracel.tests.support.NamespacedNames
+import com.tracel.tests.support.TestShapes
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -34,12 +32,12 @@ class InMemoryWorldLogTest {
         WorldChange(
             Seq(seq), ActionKind.BLOCK_BREAK, cause, by, seq,
             BlockPos(world, x, y, z),
-            ChangeSubject.Block(stone, BlockShape.AIR),
+            ChangeSubject.Block(stone, TestShapes.AIR),
         )
 
     @Test
     fun `excluded causes and a radius both apply when a player is named`() = runTest {
-        val log = InMemoryWorldLog()
+        val log = InMemoryWorldLog(NamespacedNames)
         val steve = player(1)
         log.append(broke(1, 5, 5, by = steve))
         log.append(broke(2, 300, 5, by = steve))

@@ -1,8 +1,9 @@
 package com.tracel.storage.codec.records
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.OpaqueBytes
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.entity.EntityExtras
@@ -27,7 +28,7 @@ object World {
     const val CHANGE_SECTION: Byte = 2
 
     const val WCHG_HEADER_BYTES = 32
-    const val MAX_EXTRAS_BYTES = 0xFFFF
+    const val MAX_EXTRAS_BYTES = OpaqueBytes.MAX_BYTES
 
     private const val BLOCK_TAIL_BYTES = 12
     private const val ENTITY_TAIL_BYTES = 24
@@ -38,11 +39,11 @@ object World {
     private const val EXTRAS_RIDING: Byte = 4
     private const val POSE_BYTES = 33
 
-    const val LINK_BYTES = 17
+    const val LINK_BYTES = OpaqueBytes.LINK_BYTES
 
     fun blockExtras(extras: BlockExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
-        is BlockExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.nbt)
+        is BlockExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.bytes)
     }
 
     fun decodeBlockExtras(bytes: ByteArray): BlockExtras? = when {
@@ -53,7 +54,7 @@ object World {
 
     fun entityExtras(extras: EntityExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
-        is EntityExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.nbt)
+        is EntityExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.bytes)
         is EntityExtras.Falling -> tagged(EXTRAS_FALLING, extras.data.value.toByteArray(Charsets.UTF_8))
         is EntityExtras.Leashed -> link(EXTRAS_LEASHED, extras.holder, extras.rest)
         is EntityExtras.Riding -> link(EXTRAS_RIDING, extras.vehicle, extras.rest)

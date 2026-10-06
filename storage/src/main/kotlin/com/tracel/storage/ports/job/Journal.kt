@@ -1,13 +1,13 @@
 package com.tracel.storage.ports.job
 
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
-import com.tracel.engine.journal.Journal as JournalPort
+import com.tracel.engine.rollback.journal.Journal as JournalPort
 
 /** Which steps of which job have already run. */
 class Journal(private val storage: TracelStorage, private val kind: Byte) : JournalPort {

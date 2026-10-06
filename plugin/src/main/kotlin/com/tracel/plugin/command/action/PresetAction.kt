@@ -1,7 +1,9 @@
 package com.tracel.plugin.command.action
 
 import com.tracel.plugin.command.action.support.NothingWeCanDo
-import com.tracel.plugin.command.args.parseLookupArgs
+import com.tracel.plugin.command.args.lookup.parseLookupArgs
+import com.tracel.plugin.command.permission.Permission
+import com.tracel.plugin.command.permission.has
 import com.tracel.plugin.command.preset.Preset
 import com.tracel.plugin.command.preset.PresetStore
 import com.tracel.plugin.i18n.*
@@ -16,7 +18,6 @@ import org.bukkit.entity.Player
 internal class PresetAction(private val store: PresetStore, private val nothing: NothingWeCanDo) {
     private companion object {
         const val MAX_PERSONAL = 50
-        const val GLOBAL = "tracel.preset.global"
     }
 
     /** Lists what [sender] can use, each a click away from the command line. */
@@ -107,7 +108,7 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
     fun share(sender: CommandSender, name: String) {
         val owner = (sender as? Player)?.uniqueId
         val lower = name.lowercase()
-        if (!sender.hasPermission(GLOBAL)) return refuse(
+        if (!sender.has(Permission.PRESET_GLOBAL)) return refuse(
             sender,
             tr("preset.reason.global_perm"),
             tr("preset.hint.admin")
@@ -138,7 +139,7 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
     fun unshare(sender: CommandSender, name: String) {
         val owner = (sender as? Player)?.uniqueId
         val lower = name.lowercase()
-        if (!sender.hasPermission(GLOBAL)) return refuse(
+        if (!sender.has(Permission.PRESET_GLOBAL)) return refuse(
             sender,
             tr("preset.reason.global_perm"),
             tr("preset.hint.admin")
@@ -178,7 +179,7 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
             store.find(lower, null) == null ->
                 refuse(sender, tr("preset.reason.missing", "name" to lower), tr("preset.hint.list"))
 
-            !sender.hasPermission("tracel.preset.global") ->
+            !sender.has(Permission.PRESET_GLOBAL) ->
                 refuse(sender, tr("preset.reason.global_perm"), tr("preset.hint.admin"))
 
             else -> {
@@ -198,7 +199,7 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
 
     private fun buttons(sender: CommandSender, preset: Preset): Component {
         val server = preset.owner == null
-        val mayChangeServer = sender.hasPermission(GLOBAL)
+        val mayChangeServer = sender.has(Permission.PRESET_GLOBAL)
         val line = Component.text().append(useButton(preset.name))
         if (sender is Player && mayChangeServer) {
             val key = if (server) "unshare" else "share"

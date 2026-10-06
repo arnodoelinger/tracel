@@ -3,9 +3,9 @@ package com.tracel.plugin.listener.session
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.toHolderId
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityPickupItemEvent
 import org.bukkit.event.inventory.InventoryClickEvent

@@ -1,23 +1,24 @@
 package com.tracel.plugin.listener.material.item
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
 import com.tracel.engine.balance.InventoryDelta
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.entity.*
-import com.tracel.plugin.adapter.entity.kind.dropsSelf
 import com.tracel.plugin.adapter.entity.kind.hullItemKey
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.entity.HitActor
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
-import com.tracel.plugin.listener.world.entity.isCommand
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.command.EntityCommand
+import com.tracel.plugin.specifics.command.isCommand
+import com.tracel.plugin.specifics.entity.dropsSelf
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import org.bukkit.Bukkit
 import org.bukkit.entity.*
 import org.bukkit.event.entity.EntityDeathEvent
@@ -199,7 +200,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onKillCommand(event: PlayerCommandPreprocessEvent) {
         val body = event.message.removePrefix("/")
-        if (!body.isCommand("kill")) return
+        if (!body.isCommand(EntityCommand.KILL.literal)) return
         if (!event.player.hasPermission("minecraft.command.kill")) return
         val selector = body.substringAfter(' ', "").trim().ifEmpty { return }
         val targets = runCatching { Bukkit.selectEntities(event.player, selector) }.getOrNull() ?: return

@@ -1,5 +1,6 @@
 package com.tracel.storage.ports.ops
 
+import com.tracel.engine.store.ImportInterrupted
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
@@ -10,9 +11,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 internal const val IMPORT_BATCH_ROWS = 20_000
-
-/** An import was cut short and cannot be finished, so what is in the database is a part of the file. */
-class ImportInterrupted(message: String) : IllegalStateException(message)
 
 /**
  * Where an import that has not finished had got to: the export it reads, how big that file is, how many rows it holds
@@ -25,7 +23,8 @@ data class ImportProgress(val file: String, val size: Long, val rows: Long, val 
     /** Encodes the [ImportProgress] instance into a [ByteArray]. */
     internal fun encode(): ByteArray {
         val name = file.toByteArray(Charsets.UTF_8)
-        return ByteBuffer.allocate(4 + name.size + 24).putInt(name.size).put(name).putLong(size).putLong(rows).putLong(done)
+        return ByteBuffer.allocate(4 + name.size + 24).putInt(name.size).put(name).putLong(size).putLong(rows)
+            .putLong(done)
             .array()
     }
 
@@ -48,7 +47,7 @@ data class ImportProgress(val file: String, val size: Long, val rows: Long, val 
 object InterruptedImport {
     /** The import this database is in the middle of, or `null` if it is not. */
     fun pending(storage: TracelStorage): ImportProgress? =
-        StorageUnit(storage.engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+        StorageUnit(storage.engine.snapshot(), MutationBatch()).use { unit ->
             unit.get(Keys.importProgress())?.let { value ->
                 ImportProgress.decode(ByteArray(value.byteSize().toInt()).also { out ->
                     java.lang.foreign.MemorySegment.ofArray(out).copyFrom(value)

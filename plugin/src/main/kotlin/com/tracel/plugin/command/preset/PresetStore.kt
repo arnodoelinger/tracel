@@ -1,7 +1,7 @@
 package com.tracel.plugin.command.preset
 
-import com.tracel.plugin.migrate.FileVersions
 import com.tracel.platform.Versions
+import com.tracel.plugin.config.migrate.FileVersions
 import org.tomlj.Toml
 import org.tomlj.TomlTable
 import java.nio.file.Files
@@ -9,11 +9,6 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-
-/** A saved set of flags. [owner] `null` is the server's own: everyone sees it, a personal one of the same name wins. */
-internal data class Preset(val name: String, val owner: UUID?, val tokens: List<String>) {
-    val text: String get() = tokens.joinToString(" ")
-}
 
 /** Presets on disk as TOML, like the config. */
 internal class PresetStore(
@@ -142,10 +137,4 @@ internal class PresetStore(
 
         fun validName(name: String): Boolean = NAME.matches(name)
     }
-}
-
-/** The store the commands and their completions share; set when the commands are registered. */
-internal object Presets {
-    @Volatile
-    var store: PresetStore? = null
 }

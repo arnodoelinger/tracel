@@ -1,12 +1,12 @@
 package com.tracel.plugin.setup
 
-import com.tracel.plugin.AutoPurgeSettings
-import com.tracel.plugin.LoggingSettings
+import com.tracel.engine.store.PurgeCategory
 import com.tracel.plugin.TracelPlugin
-import com.tracel.plugin.TracelServices
-import com.tracel.plugin.command.args.ScopeLimits
+import com.tracel.plugin.command.args.scope.ScopeLimits
+import com.tracel.plugin.config.AutoPurgeSettings
+import com.tracel.plugin.config.LoggingSettings
+import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.startup.startAutoPurge
-import com.tracel.storage.ports.ops.PurgeCategory
 
 /** How often to purge, in milliseconds. 1 day. */
 private const val PURGE_EVERY_MILLIS = 86_400_000L

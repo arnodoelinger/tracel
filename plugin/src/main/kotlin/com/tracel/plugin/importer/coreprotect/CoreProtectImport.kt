@@ -1,32 +1,13 @@
 package com.tracel.plugin.importer.coreprotect
 
-import com.tracel.storage.ports.ops.ForeignHistory
-import com.tracel.storage.ports.ops.ImportMark
+import com.tracel.engine.foreign.ForeignHistory
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectDatabase
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectStream
+import com.tracel.plugin.importer.coreprotect.translate.CoreProtectTranslator
+import com.tracel.plugin.importer.coreprotect.translate.ImportPlatform
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-
-/**
- * What an import is about to do, or did.
- *
- * @property resumed where an earlier import of the same database stopped, if there was one
- * @property lastRows the row each table ended on when the import looked, in [SourceTable] order
- * @property ownSince when our own history starts, or `null` while there is none
- */
-class ImportOutlook(
-    val version: String?,
-    val resumed: ImportMark?,
-    val lastRows: List<Long>,
-    val span: Pair<Long, Long>?,
-    val ownSince: Long?,
-) {
-    /** The rows of each table still to read, counted by row number. */
-    val left: List<Long> =
-        lastRows.mapIndexed { i, last -> (last - (resumed?.rows?.getOrNull(i) ?: 0L)).coerceAtLeast(0) }
-}
-
-/** How an import ended. */
-class ImportOutcome(val outlook: ImportOutlook, val tally: ImportTally, val stopped: Boolean, val tookMillis: Long)
 
 /**
  * Reads a `CoreProtect` database into the logs, a batch at a time.

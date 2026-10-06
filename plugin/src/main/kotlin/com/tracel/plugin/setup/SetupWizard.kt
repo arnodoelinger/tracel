@@ -1,9 +1,9 @@
 package com.tracel.plugin.setup
 
-import com.tracel.plugin.TracelServices
+import com.tracel.engine.store.PurgeCategory
 import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.importer.coreprotect.CoreProtectLocator
-import com.tracel.storage.ports.ops.PurgeCategory
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectLocator
+import com.tracel.plugin.services.TracelServices
 import io.papermc.paper.dialog.Dialog
 import io.papermc.paper.dialog.DialogResponseView
 import io.papermc.paper.registry.data.dialog.ActionButton
@@ -152,7 +152,13 @@ internal class SetupWizard(private val services: TracelServices, private val sta
         base(
             player,
             "setup.title",
-            body(player, *listOfNotNull("setup.done.config", "setup.done.thanks", "setup.done.restart".takeIf { restart }).toTypedArray()),
+            body(
+                player,
+                *listOfNotNull(
+                    "setup.done.config",
+                    "setup.done.thanks",
+                    "setup.done.restart".takeIf { restart }).toTypedArray()
+            ),
         ),
         DialogType.notice(button(player, "setup.button.done") { _, _ -> }),
     )

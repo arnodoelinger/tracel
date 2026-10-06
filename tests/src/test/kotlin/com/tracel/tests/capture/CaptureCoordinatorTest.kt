@@ -1,43 +1,42 @@
 package com.tracel.tests.capture
 
-import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
-import com.tracel.engine.capture.CaptureCoordinator
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
-import com.tracel.engine.log.InMemoryTransactionLog
+import com.tracel.engine.capture.material.CaptureCoordinator
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
+import com.tracel.engine.log.memory.InMemoryTransactionLog
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.Quantity
-import com.tracel.model.id.Seq
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.log.Seq
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.itemEntity
 import com.tracel.tests.support.Fixtures.player
 import com.tracel.tests.support.LedgerHarness
-import com.tracel.tests.support.assertFails
+import com.tracel.tests.support.NamespacedNames
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 class CaptureCoordinatorTest {
     @Test
     fun `a matched move updates the ledger and logs one transaction`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
-        // A chest already has 10 diamonds from ordinary bootstrapping (mint), then a click
-        // moves 4 of them to Steve — captured purely as "chest lost 4, Steve gained 4".
         world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
         val deltas = listOf(InventoryDelta(chest, diamond, -4L), InventoryDelta(steve, diamond, 4L))
 
@@ -55,7 +54,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `an unmatched gain mints, and the mint is what gets logged`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
@@ -75,7 +74,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `recordCraft consumes ingredients and produces the output as one transaction`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val stick = ItemKey("minecraft:stick")
         var nextSeqRaw = 1L
@@ -110,7 +109,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a craft carries the place it happened, or no radius query can ever find it`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val stick = ItemKey("minecraft:stick")
         var nextSeqRaw = 1L
@@ -134,7 +133,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `recordDirect bypasses the balancer, using exactly the sink kind the caller chose`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val ground = itemEntity(1)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
@@ -155,7 +154,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `recordDirect with no flows records nothing`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
@@ -168,7 +167,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `an empty diff records nothing - no transaction, no log entry`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
@@ -181,18 +180,16 @@ class CaptureCoordinatorTest {
     @Test
     fun `a capture that cannot fully apply applies none of it, and logs nothing`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
-        // Steve gains stone out of nowhere (a satisfiable "MINT") in the very same capture that
-        // says a chest lost diamonds the ledger never knew it had (an unsatisfiable "BURN").
         val stone = ItemKey("minecraft:stone")
         val deltas = listOf(InventoryDelta(steve, stone, 3L), InventoryDelta(chest, diamond, -5L))
 
-        assertFails<IllegalStateException> {
+        assertThrows<IllegalStateException> {
             coordinator.record(deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
         }
 
@@ -204,7 +201,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `recordDirect refuses a flow set it cannot fully apply, leaving the ledger untouched`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val ground = itemEntity(7)
         val steve = player(1)
         var nextSeqRaw = 1L
@@ -212,13 +209,12 @@ class CaptureCoordinatorTest {
 
         world.ledger.mint(ground, diamond, Quantity(2), world.nextTxn())
 
-        // Two flows draining the same ground item: the first is fine, the second overdraws it
         val flows = listOf(
             Flow(diamond, Quantity(2), ground, steve, FlowKind.MOVE),
             Flow(diamond, Quantity(1), ground, HolderId.Sink(SinkKind.DESPAWN), FlowKind.BURN),
         )
 
-        assertFails<IllegalStateException> {
+        assertThrows<IllegalStateException> {
             coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
         }
 
@@ -229,10 +225,8 @@ class CaptureCoordinatorTest {
 
     @Test
     fun `a flow drawing on what an earlier flow in the same capture deposited is allowed`() = runTest {
-        // The check simulates the flows in order rather than only summing per source, so a
-        // legitimate hand-off inside one transaction is not mistaken for an overdraw.
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         val ground = itemEntity(7)
@@ -257,7 +251,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a move out of a holder the ledger never credited mints the shortfall rather than failing`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val ground = itemEntity(1)
         var nextSeqRaw = 1L
@@ -285,7 +279,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a shortfall at a holder the policy excludes is refused, not minted`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val ground = itemEntity(1)
         var nextSeqRaw = 1L
@@ -293,7 +287,7 @@ class CaptureCoordinatorTest {
 
         val deltas = listOf(InventoryDelta(ground, diamond, -2L), InventoryDelta(steve, diamond, 2L))
 
-        assertFails<IllegalStateException> {
+        assertThrows<IllegalStateException> {
             coordinator.record(
                 deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve,
                 mintShortfall = { it is HolderId.Player },
@@ -305,7 +299,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `without the flag that same move is still refused outright`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val ground = itemEntity(1)
         var nextSeqRaw = 1L
@@ -313,7 +307,7 @@ class CaptureCoordinatorTest {
 
         val deltas = listOf(InventoryDelta(steve, diamond, -2L), InventoryDelta(ground, diamond, 2L))
 
-        assertFails<IllegalStateException> {
+        assertThrows<IllegalStateException> {
             coordinator.record(deltas, epochMillis = 1_000L, cause = CauseKind.PLAYER_ACTION, causedBy = steve)
         }
     }
@@ -321,7 +315,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a mint and a withdrawal of the same material in one transaction both apply`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val bush = block(10, 64, 10)
         val steve = player(1)
         var nextSeqRaw = 1L

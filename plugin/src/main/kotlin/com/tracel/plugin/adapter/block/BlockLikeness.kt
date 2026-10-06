@@ -1,6 +1,10 @@
 package com.tracel.plugin.adapter.block
 
 import com.tracel.annotations.Unstable
+import com.tracel.plugin.specifics.block.COSMETIC_PROPERTIES
+import com.tracel.plugin.specifics.block.GroundBlock
+import com.tracel.plugin.specifics.block.copperCore
+import com.tracel.plugin.specifics.command.VANILLA_NAMESPACE
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -14,18 +18,6 @@ internal object BlockLikeness {
     private val materials = ConcurrentHashMap<String, String>()
     private val stripped = ConcurrentHashMap<String, String>()
     private val families = ConcurrentHashMap<String, String>()
-
-    private val COSMETIC = setOf(
-        "snowy", "age", "moisture", "power", "powered", "lit", "unstable", "triggered",
-        "occupied", "berries", "distance", "persistent", "bloom", "can_summon", "shrieking",
-        "hatch", "eggs", "dusted", "delay", "locked", "level",
-    )
-
-    private val GROUND = setOf(
-        "dirt", "grass_block", "mycelium", "podzol", "dirt_path", "coarse_dirt", "rooted_dirt",
-    )
-
-    private val COPPER_WEATHER = listOf("exposed_", "weathered_", "oxidized_")
 
     private data class Parsed(val material: String, val props: Map<String, String>)
 
@@ -49,27 +41,17 @@ internal object BlockLikeness {
         families.getOrPut(material) { family(material) ?: "" }.takeIf { it.isNotEmpty() }
 
     private fun strip(parsed: Parsed): String {
-        val kept = parsed.props.filterKeys { it !in COSMETIC }
+        val kept = parsed.props.filterKeys { it !in COSMETIC_PROPERTIES }
         if (kept.isEmpty()) return parsed.material
         return parsed.material + kept.entries.sortedBy { it.key }
             .joinToString(",", "[", "]") { "${it.key}=${it.value}" }
     }
 
     private fun family(material: String): String? {
-        val name = material.removePrefix("minecraft:")
-        if (name in GROUND) return "ground"
+        val name = material.removePrefix(VANILLA_NAMESPACE)
+        if (name in GroundBlock.ids) return "ground"
         copperCore(name)?.let { return "copper:$it" }
         return null
-    }
-
-    private fun copperCore(name: String): String? {
-        var s = name
-        if (s.startsWith("waxed_")) s = s.removePrefix("waxed_")
-        for (prefix in COPPER_WEATHER) {
-            if (s.startsWith(prefix)) s = s.removePrefix(prefix)
-        }
-        if (s == "copper_block") s = "copper"
-        return s.takeIf { ("copper" in it || it == "lightning_rod") && "ore" !in it && it != "raw_copper_block" }
     }
 
     private fun parse(raw: String): Parsed {

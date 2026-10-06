@@ -1,14 +1,13 @@
 package com.tracel.plugin.util.whereabouts
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
-import com.tracel.plugin.util.EntityWhereabouts
+import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.*
 
 class EntityWhereaboutsTest {
-    private val world = WorldId(UUID(0L, 1L))
+    private val world = Fixtures.world
     private fun pos(x: Int) = HolderId.Block(world, x, 64, 0)
     private fun id(n: Long) = UUID(0L, n)
 

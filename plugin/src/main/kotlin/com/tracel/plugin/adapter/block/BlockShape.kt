@@ -1,8 +1,8 @@
 package com.tracel.plugin.adapter.block
 
 import com.tracel.annotations.Unstable
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape
@@ -14,7 +14,7 @@ import com.tracel.plugin.adapter.block.capability.extras.NameableExtras
 import com.tracel.plugin.adapter.block.special.BannerExtras
 import com.tracel.plugin.adapter.block.special.ChiseledBookshelfCapture
 import com.tracel.plugin.adapter.block.special.SkullExtras
-import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.log.Warnings
 import org.bukkit.Material
 import org.bukkit.Nameable
 import org.bukkit.block.*
@@ -121,7 +121,7 @@ private fun applyBlockEntityExtras(
     data: BlockData,
 ) {
     runCatching {
-        val item = rebuilt(extras.nbt)
+        val item = rebuilt(extras.bytes)
         val bannerMeta = item.itemMeta as? BannerMeta
         if (bannerMeta != null) {
             val banner = block.getState(false) as? Banner ?: return

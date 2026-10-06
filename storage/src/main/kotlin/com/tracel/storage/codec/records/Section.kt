@@ -1,6 +1,6 @@
 package com.tracel.storage.codec.records
 
-import com.tracel.annotations.CauseKind
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.world.ActionKind
 import com.tracel.storage.ffm.Bytes.i16
 import com.tracel.storage.ffm.Bytes.i32

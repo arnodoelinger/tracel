@@ -7,6 +7,7 @@ import com.tracel.storage.spi.MutationBatch
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Files
 import java.nio.file.Path
 
 class LsmEngineTest {
@@ -64,8 +65,8 @@ class LsmEngineTest {
     }
 
     private fun walBytes(dir: Path): Long =
-        java.nio.file.Files.list(dir).use { stream ->
-            stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.mapToLong { java.nio.file.Files.size(it) }
+        Files.list(dir).use { stream ->
+            stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.mapToLong { Files.size(it) }
                 .sum()
         }
 

@@ -1,6 +1,8 @@
 package com.tracel.storage.crash
 
+import com.tracel.model.cause.CauseKind
 import com.tracel.storage.support.Stack
+import com.tracel.tests.support.Fixtures
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
@@ -59,11 +61,11 @@ class KillNineRecoveryTest {
 
             val before = stack.ledger.totalAt(player(1), diamond)?.raw ?: 0L
             stack.gate.move(
-                com.tracel.annotations.CauseKind.HOPPER,
+                CauseKind.MACHINE,
                 null,
                 System.currentTimeMillis(),
                 diamond,
-                com.tracel.tests.support.Fixtures.block(0, 64, 0),
+                Fixtures.block(0, 64, 0),
                 player(1),
                 1,
             )

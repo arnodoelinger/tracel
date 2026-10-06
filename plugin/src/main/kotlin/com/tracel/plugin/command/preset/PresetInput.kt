@@ -1,8 +1,8 @@
 package com.tracel.plugin.command.preset
 
-import com.tracel.plugin.command.args.ParsedLookupArgs
-import com.tracel.plugin.command.args.filledFrom
-import com.tracel.plugin.command.args.parseLookupArgs
+import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
+import com.tracel.plugin.command.args.lookup.filledFrom
+import com.tracel.plugin.command.args.lookup.parseLookupArgs
 import com.tracel.plugin.i18n.tr
 import java.util.*
 

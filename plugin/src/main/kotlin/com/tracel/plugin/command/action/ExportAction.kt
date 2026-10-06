@@ -1,10 +1,9 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.plugin.TracelServices
+import com.tracel.engine.store.ExportSummary
+import com.tracel.engine.store.StoppedByRequest
 import com.tracel.plugin.i18n.*
-import com.tracel.storage.ports.ops.ExportSummary
-import com.tracel.storage.ports.ops.StoppedByRequest
-import com.tracel.storage.ports.ops.exportTo
+import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -28,7 +27,7 @@ class ExportAction(private val services: TracelServices) {
     /** Shows how much disk the export may take, and how much is left, before it is run for real. */
     fun confirmExport(sender: CommandSender) {
         val locale = localeOf(sender)
-        val size = services.storage.engine.stats().liveBytes
+        val size = services.store.liveBytes
         val free = freeSpace(services.exportDirectory)
         val args = arrayOf("size" to "%.1f".format(locale, size / MIB), "free" to "%.1f".format(locale, free / MIB))
         sender.say(
@@ -54,7 +53,7 @@ class ExportAction(private val services: TracelServices) {
 
         services.scope.launch {
             val done = try {
-                runCatching { exportTo(services.storage, to, stopping::get) }
+                runCatching { services.store.exportTo(to, stopping::get) }
             } finally {
                 running.set(false)
             }

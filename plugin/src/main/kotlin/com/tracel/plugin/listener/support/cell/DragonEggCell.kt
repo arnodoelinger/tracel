@@ -2,7 +2,7 @@ package com.tracel.plugin.listener.support.cell
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import org.bukkit.block.Block
 import java.util.*
 

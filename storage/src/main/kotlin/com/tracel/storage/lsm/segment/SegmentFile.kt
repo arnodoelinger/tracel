@@ -1,7 +1,7 @@
 package com.tracel.storage.lsm.segment
 
-import com.tracel.platform.Versions
 import com.github.luben.zstd.Zstd
+import com.tracel.platform.Versions
 import com.tracel.storage.ffm.Bytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
@@ -210,6 +210,9 @@ object SegmentFile {
         require(magic.contentEquals(MAGIC)) {
             "$path is not a Tracel segment (starts ${String(magic, Charsets.ISO_8859_1)})"
         }
+
+        val version = segment.i32(footerAt + FOOTER_BYTES - 8)
+        require(version == VERSION) { "$path is segment v$version, this build reads v$VERSION" }
 
         val indexOffset = segment.i64(footerAt)
         val indexBytes = segment.i32(footerAt + 8)

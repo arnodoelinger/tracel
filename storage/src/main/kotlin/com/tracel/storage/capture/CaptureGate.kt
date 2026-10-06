@@ -1,13 +1,15 @@
 package com.tracel.storage.capture
 
-import com.tracel.annotations.CauseKind
 import com.tracel.engine.balance.InventoryDelta
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.capture.PlacedDeltas
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
+import com.tracel.model.world.WorldId
+import com.tracel.engine.capture.CaptureGate as CaptureGatePort
 
 /**
  * What a listener actually calls. Wraps [CaptureRing] in the five shapes real capture code has,
@@ -18,11 +20,11 @@ import com.tracel.model.world.ActionKind
  * full too, or interning is saturated. A caller that wants to know can look; a caller that does not
  * is correct to ignore it, because [CaptureRing.dropped] is counting either way.
  */
-class CaptureGate(private val ring: CaptureRing) {
+class CaptureGate(private val ring: CaptureRing) : CaptureGatePort {
     val dropped: Long get() = ring.dropped
 
     /** A quantity of one item key moving between two holders. The whole hot path, in one call. */
-    fun move(
+    override fun move(
         cause: CauseKind,
         causedBy: HolderId?,
         epochMillis: Long,
@@ -54,7 +56,7 @@ class CaptureGate(private val ring: CaptureRing) {
     }
 
     /** One unbalanced delta — a mint or a burn the balancer will pair against a source or a sink. */
-    fun single(
+    override fun single(
         cause: CauseKind,
         causedBy: HolderId?,
         epochMillis: Long,
@@ -83,7 +85,7 @@ class CaptureGate(private val ring: CaptureRing) {
     }
 
     /** A diff's worth of deltas. The list is the caller's; nothing here keeps a reference to it. */
-    fun many(cause: CauseKind, causedBy: HolderId?, epochMillis: Long, deltas: List<InventoryDelta>): Boolean {
+    override fun many(cause: CauseKind, causedBy: HolderId?, epochMillis: Long, deltas: List<InventoryDelta>): Boolean {
         if (deltas.isEmpty()) return true
         if (deltas.size > CaptureRing.MAX_DELTAS) return false
 
@@ -115,7 +117,7 @@ class CaptureGate(private val ring: CaptureRing) {
      * a ring slot is 24 bytes. Returns `false` for anything else so the caller knows to go the
      * slow way round rather than quietly losing it.
      */
-    fun blocks(
+    override fun blocks(
         cause: CauseKind,
         action: ActionKind,
         causedBy: HolderId?,
@@ -148,7 +150,16 @@ class CaptureGate(private val ring: CaptureRing) {
                 coordinates[i * 3 + 2] = edits[i].at.z
             }
             return ring.overflow(
-                RingEvent.World(cause.ordinal, causedById, epochMillis, action.ordinal, worldId, coordinates, befores, afters)
+                RingEvent.World(
+                    cause.ordinal,
+                    causedById,
+                    epochMillis,
+                    action.ordinal,
+                    worldId,
+                    coordinates,
+                    befores,
+                    afters
+                )
             )
         }
         for (i in edits.indices) {
@@ -160,13 +171,19 @@ class CaptureGate(private val ring: CaptureRing) {
     }
 
     /** Block edits the ring cannot carry. */
-    fun parkedBlocks(edits: BlockEdits): Boolean = ring.park(edits.cause, edits.epochMillis, edits)
+    override fun parkedBlocks(edits: BlockEdits): Boolean = ring.park(edits.cause, edits.epochMillis, edits)
 
     /** Item deltas that carry a place. */
-    fun parkedDeltas(placed: PlacedDeltas): Boolean = ring.park(placed.cause, placed.epochMillis, placed)
+    override fun parkedDeltas(placed: PlacedDeltas): Boolean = ring.park(placed.cause, placed.epochMillis, placed)
 
     /** Everything [from] held went to [to] — see [CaptureRing.release]. */
-    fun release(cause: CauseKind, causedBy: HolderId?, epochMillis: Long, from: HolderId, to: HolderId): Boolean {
+    override fun release(
+        cause: CauseKind,
+        causedBy: HolderId?,
+        epochMillis: Long,
+        from: HolderId,
+        to: HolderId
+    ): Boolean {
         val fromId = ring.holderId(from)
         val toId = ring.holderId(to)
         val causedById = causedBy?.let(ring::holderId) ?: 0

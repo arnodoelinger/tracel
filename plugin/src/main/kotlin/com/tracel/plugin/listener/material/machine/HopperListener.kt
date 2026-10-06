@@ -1,17 +1,17 @@
 package com.tracel.plugin.listener.material.machine
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.TracelServices
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.item.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.block.Crafter
 import org.bukkit.event.inventory.InventoryMoveItemEvent
 import org.bukkit.inventory.Inventory
@@ -66,7 +66,7 @@ class HopperListener(services: TracelServices) : TracelListener(services) {
                 seeding -= destination
             }
         }
-        material.settleLater(at, CauseKind.HOPPER, mapOf(source to event.source, destination to event.destination))
+        material.settleLater(at, CauseKind.MACHINE, mapOf(source to event.source, destination to event.destination))
     }
 }
 

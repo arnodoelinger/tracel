@@ -1,10 +1,10 @@
 package com.tracel.plugin.command.presenter
 
+import com.tracel.engine.actor.ActorFacts
+import com.tracel.engine.actor.ModeTimeline
+import com.tracel.engine.actor.VisitTimeline
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.mode.PlayerModes
-import com.tracel.storage.ports.actor.ActorFacts
-import com.tracel.storage.ports.actor.ModeTimeline
-import com.tracel.storage.ports.actor.VisitTimeline
+import com.tracel.plugin.actor.PlayerModes
 import org.bukkit.GameMode
 import java.util.*
 

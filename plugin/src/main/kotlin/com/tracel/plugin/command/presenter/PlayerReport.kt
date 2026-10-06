@@ -9,9 +9,6 @@ import com.tracel.model.world.WorldChange
 import com.tracel.model.world.block.BlockShape
 import java.util.*
 
-/** Where a player was busiest: the center of the 16 x 16 column with the most records. */
-internal data class Hotspot(val x: Int, val y: Int, val z: Int, val records: Int)
-
 /** What one player did in a window, counted. */
 internal data class PlayerReport(
     val records: Int,

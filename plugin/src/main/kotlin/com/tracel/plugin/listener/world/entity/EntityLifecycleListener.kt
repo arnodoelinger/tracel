@@ -1,22 +1,21 @@
 package com.tracel.plugin.listener.world.entity
 
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.annotations.Unstable
-import com.tracel.engine.world.EntityChange
+import com.tracel.engine.capture.world.EntityChange
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.EntityShape
-import com.tracel.plugin.TracelServices
-import com.tracel.plugin.adapter.entity.SelfManagedLink
 import com.tracel.plugin.adapter.entity.kind.SpawnKind
 import com.tracel.plugin.adapter.entity.kind.isScenery
-import com.tracel.plugin.adapter.entity.kind.kind
 import com.tracel.plugin.adapter.entity.kind.logsWorldShape
+import com.tracel.plugin.adapter.entity.link.SelfManagedLink
+import com.tracel.plugin.adapter.entity.remember
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.entity.toShape
 import com.tracel.plugin.listener.TracelListener
@@ -26,18 +25,21 @@ import com.tracel.plugin.listener.support.entity.DamageBlame
 import com.tracel.plugin.listener.support.entity.HitActor
 import com.tracel.plugin.listener.support.entity.damageBlame
 import com.tracel.plugin.listener.support.entity.explosionActor
-import com.tracel.plugin.listener.support.entity.isBlastSource
-import com.tracel.plugin.util.ExpiringMap
-import com.tracel.plugin.util.ExpiringSet
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.command.EntityCommand
+import com.tracel.plugin.specifics.command.isCommand
+import com.tracel.plugin.specifics.entity.isBlastSource
+import com.tracel.plugin.specifics.entity.kind
+import com.tracel.plugin.specifics.item.spawnsAnEntity
+import com.tracel.plugin.util.concurrent.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringSet
 import io.papermc.paper.event.player.PlayerNameEntityEvent
 import io.papermc.paper.event.player.PrePlayerAttackEntityEvent
-import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.*
 import org.bukkit.entity.minecart.ExplosiveMinecart
 import org.bukkit.event.block.Action
 import org.bukkit.event.block.TNTPrimeEvent
-import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.entity.*
 import org.bukkit.event.hanging.HangingBreakByEntityEvent
 import org.bukkit.event.hanging.HangingBreakEvent
@@ -49,19 +51,28 @@ import org.bukkit.event.vehicle.VehicleDestroyEvent
 import org.bukkit.event.vehicle.VehicleMoveEvent
 import org.bukkit.inventory.InventoryHolder
 import org.bukkit.persistence.PersistentDataType
-import java.util.concurrent.ConcurrentHashMap
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.floor
 
 private const val RECENT_MS = 5_000L
+
 private const val SUMMON_WINDOW_MS = 1_000L
+
 private const val USE_MS = 1_500L
+
 private const val USES_KEPT = 256
+
 private const val USE_RADIUS_SQUARED = 9.0
+
 private const val MILLIS_PER_TICK = 50L
+
 private const val DYING_KEPT = 4_096
+
 private const val SUMMON_FRESH_TICKS = 5
+
 private const val SPAWN_REACH = 2
+
 private const val SWEEP_REACH = 8.0
 
 private val KILLED_BY_COMMAND = setOf(EntityRemoveEvent.Cause.DEATH, EntityRemoveEvent.Cause.DISCARD)
@@ -144,8 +155,8 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val body = if (text.startsWith("/")) text.substring(1) else text
         val by = HolderId.Player(event.player.uniqueId)
         when {
-            body.isCommand("summon") -> summoner.put(event.player.world.uid, by)
-            body.isCommand("kill") -> killer.put(event.player.world.uid, by)
+            body.isCommand(EntityCommand.SUMMON.literal) -> summoner.put(event.player.world.uid, by)
+            body.isCommand(EntityCommand.KILL.literal) -> killer.put(event.player.world.uid, by)
         }
     }
 
@@ -638,47 +649,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     }
 }
 
-internal fun String.isCommand(name: String): Boolean {
-    val bare = removePrefix("minecraft:")
-    return bare.regionMatches(
-        0,
-        name,
-        0,
-        name.length,
-        ignoreCase = true
-    ) && (bare.length == name.length || bare[name.length] == ' ')
-}
-
-private fun Material.spawnsAnEntity(): Boolean = when {
-    name.endsWith("_SPAWN_EGG") || name.endsWith("_CUSHION") -> true
-    !name.endsWith("_BUCKET") -> false
-    else -> this !in NOT_LIVE_BUCKETS
-}
-
-private val NOT_LIVE_BUCKETS = setOf(
-    Material.WATER_BUCKET,
-    Material.LAVA_BUCKET,
-    Material.MILK_BUCKET,
-    Material.POWDER_SNOW_BUCKET,
-)
-
 private fun EntityShape.blockPos(world: UUID): BlockPos =
     BlockPos(WorldId(world), floor(x).toInt(), floor(y).toInt(), floor(z).toInt())
 
-private fun Entity.isMidDetonation(cause: EntityRemoveEvent.Cause): Boolean = when {
-    this is TNTPrimed -> true
-    this !is Creeper -> false
-    cause == EntityRemoveEvent.Cause.EXPLODE -> true
-    runCatching { isIgnited }.getOrDefault(false) -> true
-    else -> diedInAnExplosion()
-}
-
 private data class Blame(val who: HolderId?, val cause: CauseKind? = null)
-
-private fun Entity.diedInAnExplosion(): Boolean = when (lastDamageCause?.cause) {
-    EntityDamageEvent.DamageCause.BLOCK_EXPLOSION,
-    EntityDamageEvent.DamageCause.ENTITY_EXPLOSION,
-        -> true
-
-    else -> false
-}

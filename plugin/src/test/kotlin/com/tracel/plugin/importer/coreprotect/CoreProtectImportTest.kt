@@ -1,20 +1,24 @@
 package com.tracel.plugin.importer.coreprotect
 
-import com.tracel.annotations.CauseKind
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.event.EventKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
+import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
+import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectDatabase
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectLocation
+import com.tracel.plugin.importer.coreprotect.tally.Skipped
+import com.tracel.plugin.importer.coreprotect.tally.Taken
+import com.tracel.plugin.importer.coreprotect.translate.BlockDetail
+import com.tracel.plugin.importer.coreprotect.translate.ImportPlatform
+import com.tracel.plugin.specifics.block.AIR
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.storage.ports.event.EventLog
@@ -22,9 +26,9 @@ import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.ops.ForeignHistory
+import com.tracel.tests.support.Fixtures
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
@@ -33,7 +37,7 @@ import java.sql.DriverManager
 import java.util.*
 
 class CoreProtectImportTest {
-    private val overworld = WorldId(UUID(0L, 1L))
+    private val overworld = Fixtures.world
     private val steve = UUID(0L, 42L)
 
     private val platform = object : ImportPlatform {
@@ -65,7 +69,7 @@ class CoreProtectImportTest {
             if (material == "minecraft:removed_item") return null
             return ItemKey(
                 material.substringAfter(':').uppercase(),
-                metadata?.let { com.tracel.model.item.ContentHash(it.joinToString()) })
+                metadata?.let { ContentHash(it.joinToString()) })
         }
 
         override fun stack(entry: Any?): Pair<ItemKey, Int>? =
@@ -155,7 +159,7 @@ class CoreProtectImportTest {
 
     private fun WorldChange.block() = subject as ChangeSubject.Block
 
-    private fun BlockShape.detail() = (extras as? BlockExtras.Opaque)?.nbt?.toString(Charsets.UTF_8)
+    private fun BlockShape.detail() = (extras as? BlockExtras.Opaque)?.bytes?.toString(Charsets.UTF_8)
 
     @Test
     fun `rows become changes with both sides, and nothing is taken twice`(@TempDir dir: Path) = runTest {
@@ -185,7 +189,7 @@ class CoreProtectImportTest {
                 "a waterlogged block leaves its water"
             )
             assertEquals(stairs, history[0].block().before.data.value)
-            assertEquals(BlockShape.AIR, history[1].block().before, "placed where the row before said nothing was left")
+            assertEquals(AIR, history[1].block().before, "placed where the row before said nothing was left")
             assertEquals(stairs, history[1].block().after.data.value)
             assertEquals(ActionKind.BLOCK_BREAK, history[2].action)
             assertEquals(HolderId.Player(steve), history[2].causedBy)
@@ -296,7 +300,7 @@ class CoreProtectImportTest {
             val pig = store.at(3).single().subject as ChangeSubject.Entity
             assertEquals(
                 "minecraft:pig:baby|tame|Dolly",
-                (pig.before!!.extras as EntityExtras.Opaque).nbt.toString(Charsets.UTF_8)
+                (pig.before!!.extras as EntityExtras.Opaque).bytes.toString(Charsets.UTF_8)
             )
             assertNull(
                 (store.at(4).single().subject as ChangeSubject.Entity).before!!.extras,
@@ -349,7 +353,7 @@ class CoreProtectImportTest {
                 took.flows.single().itemKey.decoration?.hex,
                 "what the item carried is part of what it is"
             )
-            assertEquals(CauseKind.HOPPER, hopper.cause)
+            assertEquals(CauseKind.MACHINE, hopper.cause)
             assertEquals(FlowKind.MINT, hopper.flows.single().kind)
             assertTrue(
                 moved.all { store.transactions.lotsAt(it.seq).isEmpty() },
@@ -410,7 +414,7 @@ class CoreProtectImportTest {
                     HolderId.Player(steve),
                     5_000_000,
                     BlockPos(overworld, 1, 64, 0),
-                    ChangeSubject.Block(BlockShape.AIR, BlockShape(BlockDataKey("minecraft:stone"))),
+                    ChangeSubject.Block(AIR, BlockShape(BlockDataKey("minecraft:stone"))),
                 ),
             )
             val tally = store.import(location).tally
@@ -444,29 +448,6 @@ class CoreProtectImportTest {
             assertEquals(3_000, chat.size)
             assertEquals(3_000, chat.map { it.text }.distinct().size)
             assertEquals(chat.sortedByDescending { it.epochMillis }, chat, "read out in the order it was said")
-        }
-    }
-
-    @Test
-    fun `the developer server's own database goes in`(@TempDir dir: Path) = runTest {
-        val real = Path.of("run/plugins/CoreProtect/database.db")
-        assumeTrue(Files.isRegularFile(real))
-        val lenient = object : ImportPlatform by platform {
-            override fun world(name: String): WorldId = WorldId(UUID.nameUUIDFromBytes(name.toByteArray()))
-            override fun blockState(state: String): String =
-                if (state == "minecraft:water") "minecraft:water[level=0]" else state
-
-            override fun entityType(name: String): String = "minecraft:${name.substringAfter(':')}"
-            override fun decode(blob: ByteArray): List<Any?>? = null
-        }
-        Store(dir).use { store ->
-            val outcome = CoreProtectDatabase.open(CoreProtectLocation.File(real))
-                .use { store.importer(lenient).run(it, { false }) { _, _ -> } }
-            val tally = outcome.tally
-            println("CoreProtect ${outcome.outlook.version}: ${tally.rows} rows -> ${tally.taken}, skipped ${tally.skipped}, folded ${tally.folded}, ${outcome.tookMillis} ms")
-            assertEquals(outcome.outlook.lastRows.sum(), tally.rows)
-            assertEquals(tally.rows, tally.taken.values.sum() + tally.skipped.values.sum() + tally.folded)
-            assertTrue(tally.taken.getValue(Taken.BLOCKS) > 0)
         }
     }
 

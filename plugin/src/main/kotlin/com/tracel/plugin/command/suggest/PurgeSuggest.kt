@@ -4,8 +4,8 @@ import com.mojang.brigadier.context.CommandContext
 import com.mojang.brigadier.suggestion.SuggestionProvider
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
-import com.tracel.plugin.command.args.PurgeArgument
-import com.tracel.plugin.command.suggest.support.ago
+import com.tracel.plugin.command.args.purge.PurgeArgument
+import com.tracel.plugin.command.suggest.quantity.ago
 import com.tracel.plugin.i18n.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import org.bukkit.Bukkit

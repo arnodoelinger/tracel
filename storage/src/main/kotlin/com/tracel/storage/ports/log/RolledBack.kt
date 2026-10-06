@@ -7,11 +7,12 @@ import com.tracel.storage.codec.records.recordBytes
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.putI64
 import com.tracel.storage.util.eachRow
+import com.tracel.engine.log.RolledBack as RolledBackPort
 
 /** Which log records a rollback took back, and when. */
-class RolledBack(private val storage: TracelStorage) {
+class RolledBack(private val storage: TracelStorage) : RolledBackPort {
     /** Notes that job [job] took back [seqs] at [millis]. */
-    suspend fun mark(job: Long, seqs: LongArray, millis: Long) {
+    override suspend fun mark(job: Long, seqs: LongArray, millis: Long) {
         var from = 0
         while (from < seqs.size) {
             val to = minOf(seqs.size, from + CHUNK)
@@ -29,7 +30,7 @@ class RolledBack(private val storage: TracelStorage) {
     }
 
     /** Forgets what job [job] took back: its rollback was undone. */
-    suspend fun restore(job: Long) {
+    override suspend fun restore(job: Long) {
         do {
             val done = storage.write {
                 val seqs = ArrayList<Long>(CHUNK)
@@ -47,7 +48,7 @@ class RolledBack(private val storage: TracelStorage) {
     }
 
     /** When each of [seqs] was taken back, for those that were. */
-    suspend fun of(seqs: Collection<Long>): Map<Long, Long> {
+    override suspend fun of(seqs: Collection<Long>): Map<Long, Long> {
         if (seqs.isEmpty()) return emptyMap()
         return storage.read {
             val out = HashMap<Long, Long>()

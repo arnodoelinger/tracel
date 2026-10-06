@@ -14,7 +14,7 @@ private val logger = Logger.getLogger("EntityState")
 /** Copies `Paper` capabilities from a deserialized ghost onto the live hull. */
 internal fun applyShapeInPlace(entity: Entity, extras: EntityExtras.Opaque?) {
     extras ?: return
-    val ghost = deserializeEntity(extras.nbt, entity.world, preserveUUID = false) ?: return
+    val ghost = deserializeEntity(extras.bytes, entity.world, preserveUUID = false) ?: return
     if (ghost.isInWorld) {
         ghost.emptyCargo()
         runCatching { ghost.remove() }

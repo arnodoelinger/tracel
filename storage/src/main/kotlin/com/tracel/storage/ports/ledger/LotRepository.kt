@@ -4,14 +4,18 @@ import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.annotations.Consume
 import com.tracel.engine.ledger.LotPortion
-import com.tracel.engine.ledger.PlacedRun
-import com.tracel.engine.ledger.PlacedRuns
+import com.tracel.engine.ledger.repository.PlacedRun
+import com.tracel.engine.ledger.repository.PlacedRuns
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.*
 import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.log.Seq
 import com.tracel.model.lot.AccountLot
 import com.tracel.model.lot.Lot
 import com.tracel.model.lot.LotEdge
+import com.tracel.model.lot.LotId
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.transaction.TxnId
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
@@ -26,7 +30,7 @@ import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.atomic.AtomicLong
-import com.tracel.engine.ledger.LotRepository as LotRepositoryPort
+import com.tracel.engine.ledger.repository.LotRepository as LotRepositoryPort
 import com.tracel.storage.codec.records.Lot as LotRecord
 
 /** [LotRepositoryPort] over the packed keyspace. */
@@ -611,6 +615,10 @@ class LotRepository(
             out += decodeEdge(this, cursor.value(), parent = KeyReader.u64(cursor.key(), 9), child = lotId.raw)
         }
         return out
+    }
+
+    init {
+        storage.afterReplace(::forget)
     }
 
     fun forget() {

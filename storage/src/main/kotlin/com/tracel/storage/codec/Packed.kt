@@ -3,10 +3,10 @@ package com.tracel.storage.codec
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
-import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.codec.Packed.BLOCK
@@ -61,7 +61,7 @@ object Packed {
         is HolderId.Block -> block(BLOCK, holder.world, holder.x, holder.y, holder.z)
         is HolderId.PlacedBlock -> block(PLACED_BLOCK, holder.world, holder.x, holder.y, holder.z)
         is HolderId.Player -> uuid(PLAYER, holder.uuid)
-        is HolderId.EnderChest -> uuid(ENDER_CHEST, holder.uuid)
+        is HolderId.PlayerStash -> uuid(ENDER_CHEST, holder.uuid)
         is HolderId.Entity -> uuid(ENTITY, holder.uuid)
         is HolderId.PlacedEntity -> uuid(PLACED_ENTITY, holder.uuid)
         is HolderId.ItemEntity -> uuid(ITEM_ENTITY, holder.uuid)
@@ -85,7 +85,7 @@ object Packed {
         BLOCK -> HolderId.Block(WorldId(UUID(v.i64(1), v.i64(9))), v.i32(17), v.i32(21), v.i32(25))
         PLACED_BLOCK -> HolderId.PlacedBlock(WorldId(UUID(v.i64(1), v.i64(9))), v.i32(17), v.i32(21), v.i32(25))
         PLAYER -> HolderId.Player(UUID(v.i64(1), v.i64(9)))
-        ENDER_CHEST -> HolderId.EnderChest(UUID(v.i64(1), v.i64(9)))
+        ENDER_CHEST -> HolderId.PlayerStash(UUID(v.i64(1), v.i64(9)))
         ENTITY -> HolderId.Entity(UUID(v.i64(1), v.i64(9)))
         PLACED_ENTITY -> HolderId.PlacedEntity(UUID(v.i64(1), v.i64(9)))
         ITEM_ENTITY -> HolderId.ItemEntity(UUID(v.i64(1), v.i64(9)))

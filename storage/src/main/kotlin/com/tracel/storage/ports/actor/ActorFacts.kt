@@ -1,5 +1,7 @@
 package com.tracel.storage.ports.actor
 
+import com.tracel.engine.actor.ModeTimeline
+import com.tracel.engine.actor.VisitTimeline
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.TracelStorage
@@ -7,6 +9,7 @@ import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import java.util.*
+import com.tracel.engine.actor.ActorFacts as ActorFactsPort
 
 /**
  * What the log cannot say about who did a thing: a mob's type and a player's game mode.
@@ -14,9 +17,9 @@ import java.util.*
  * A mob's type is written once, when the mob first gets an ID (see `Interning.entityKinds`). A player's mode is a
  * timeline, one row per switch.
  */
-class ActorFacts(private val storage: TracelStorage) {
+class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
     /** Notes that [player] was in [mode] from [millis] on, unless that is the mode they were already in. */
-    suspend fun noteMode(player: UUID, mode: Int, millis: Long) {
+    override suspend fun noteMode(player: UUID, mode: Int, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
             val latest = scan(Keys.actorModePrefix(holder)).use { cursor ->
@@ -27,7 +30,7 @@ class ActorFacts(private val storage: TracelStorage) {
     }
 
     /** Notes that [player] opened a container at [millis]; the visit stays open until [closeVisit]. */
-    suspend fun openVisit(player: UUID, millis: Long) {
+    override suspend fun openVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
             put(Keys.actorVisit(holder, millis), Records.long(VisitTimeline.OPEN))
@@ -35,7 +38,7 @@ class ActorFacts(private val storage: TracelStorage) {
     }
 
     /** Notes that [player] let go of the container they had open, if they had one. */
-    suspend fun closeVisit(player: UUID, millis: Long) {
+    override suspend fun closeVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: return@write
             val (key, open) = scan(Keys.actorVisitPrefix(holder)).use { cursor ->
@@ -46,7 +49,7 @@ class ActorFacts(private val storage: TracelStorage) {
     }
 
     /** The container visits of each of [players]; a player with none is left out. */
-    suspend fun visitsOf(players: Collection<UUID>): Map<UUID, VisitTimeline> {
+    override suspend fun visitsOf(players: Collection<UUID>): Map<UUID, VisitTimeline> {
         if (players.isEmpty()) return emptyMap()
         return storage.read {
             val out = HashMap<UUID, VisitTimeline>()
@@ -64,7 +67,7 @@ class ActorFacts(private val storage: TracelStorage) {
     }
 
     /** The mode of each of [players] over time; a player with no rows is left out. */
-    suspend fun modesOf(players: Collection<UUID>): Map<UUID, ModeTimeline> {
+    override suspend fun modesOf(players: Collection<UUID>): Map<UUID, ModeTimeline> {
         if (players.isEmpty()) return emptyMap()
         return storage.read {
             val out = HashMap<UUID, ModeTimeline>()
@@ -82,7 +85,7 @@ class ActorFacts(private val storage: TracelStorage) {
     }
 
     /** The type of each of [entities] that was written down; the rest are left out. */
-    suspend fun kindsOf(entities: Collection<UUID>): Map<UUID, EntityTypeKey> {
+    override suspend fun kindsOf(entities: Collection<UUID>): Map<UUID, EntityTypeKey> {
         if (entities.isEmpty()) return emptyMap()
         return storage.read {
             val out = HashMap<UUID, EntityTypeKey>()
@@ -93,28 +96,5 @@ class ActorFacts(private val storage: TracelStorage) {
             }
             out
         }
-    }
-}
-
-/** What game mode (as the code it was noted with) a player was in at any moment. */
-class ModeTimeline internal constructor(private val since: NavigableMap<Long, Int>) {
-    /** @return the mode at [millis], or `null` if nothing was known about the player by then. */
-    fun at(millis: Long): Int? = since.floorEntry(millis)?.value
-}
-
-/**
- * When a player had a container open. Everything they move while one is open is one visit, and lookup shows the
- * visit's result, not every click.
- */
-class VisitTimeline internal constructor(private val opened: NavigableMap<Long, Long>) {
-    /** @return when the visit [millis] fell in began, if any; it names the visit. */
-    fun at(millis: Long): Long? {
-        val visit = opened.floorEntry(millis) ?: return null
-        return visit.key.takeIf { visit.value == OPEN || millis <= visit.value + SLACK_MILLIS }
-    }
-
-    internal companion object {
-        const val OPEN = Long.MAX_VALUE
-        const val SLACK_MILLIS = 1_000L
     }
 }

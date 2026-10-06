@@ -1,16 +1,15 @@
 package com.tracel.plugin.listener.world.cell
 
 import com.destroystokyo.paper.event.block.BlockDestroyEvent
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
-import com.tracel.engine.world.BlockEdit
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toPlacedBlockId
 import com.tracel.plugin.adapter.block.toShape
@@ -19,6 +18,12 @@ import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.FireCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.entity.explosionActor
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.WaterPlant
+import com.tracel.plugin.specifics.block.isAirLike
+import com.tracel.plugin.specifics.block.isShapedByNeighbours
+import com.tracel.plugin.specifics.block.poursLikeFluid
+import com.tracel.plugin.specifics.item.isBucket
 import io.papermc.paper.event.block.BlockBreakBlockEvent
 import io.papermc.paper.event.block.VaultChangeStateEvent
 import org.bukkit.Material
@@ -26,15 +31,13 @@ import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
 import org.bukkit.block.data.Directional
 import org.bukkit.block.data.Waterlogged
-import org.bukkit.block.data.type.*
-import org.bukkit.block.data.type.Tripwire
 import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile
 import org.bukkit.event.block.*
 import org.bukkit.event.entity.EntityChangeBlockEvent
-import org.bukkit.event.entity.ProjectileHitEvent
 import org.bukkit.event.entity.EntityEnterBlockEvent
+import org.bukkit.event.entity.ProjectileHitEvent
 import org.bukkit.event.player.PlayerBucketEmptyEvent
 import org.bukkit.event.player.PlayerBucketFillEvent
 import java.util.*
@@ -157,7 +160,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     @Unstable
     fun onDispenseBucket(event: BlockDispenseEvent) {
         val type = event.item.type
-        if (type != Material.BUCKET && !type.name.endsWith("_BUCKET")) return
+        if (!type.isBucket()) return
         val facing = (event.block.blockData as? Directional)?.facing ?: return
         val target = event.block.getRelative(facing)
         shape.reread(
@@ -261,7 +264,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             causedBy = by,
             blocks = touched
         )
-        val plants = touched.filter { it.type in SPONGE_PLANTS }
+        val plants = touched.filter { it.type in WaterPlant.materials }
         if (plants.isNotEmpty()) {
             material.releasing(
                 releases = plants.map { BlockRelease(it.toPlacedBlockId(), it) },
@@ -337,13 +340,11 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         )
 }
 
-private val SPONGE_PLANTS = setOf(Material.KELP, Material.KELP_PLANT, Material.SEAGRASS, Material.TALL_SEAGRASS)
-
 private fun Block.leavesWater(): Boolean =
     type == Material.ICE || (blockData as? Waterlogged)?.isWaterlogged == true
 
 private fun rememberActor(player: UUID, block: Block) {
-    if (block.type == Material.WATER || block.type == Material.LAVA || block.leavesWater()) {
+    if (block.type.poursLikeFluid() || block.leavesWater()) {
         ColumnCell.rememberFluidAround(player, block, FLUID_RADIUS)
     } else {
         ColumnCell.remember(player, block)
@@ -359,9 +360,4 @@ private fun gravityAbove(broken: Block): List<Block> {
         at = at.getRelative(BlockFace.UP)
     }
     return out
-}
-
-private fun Block.isShapedByNeighbours(): Boolean = when (blockData) {
-    is Chest, is Fence, is Wall, is GlassPane, is Stairs, is RedstoneWire, is Tripwire -> true
-    else -> false
 }

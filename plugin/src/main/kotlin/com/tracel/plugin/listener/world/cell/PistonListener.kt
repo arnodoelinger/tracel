@@ -1,14 +1,15 @@
 package com.tracel.plugin.listener.world.cell
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.block.toPlacedBlockId
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.isMovingPiston
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
 import org.bukkit.block.data.Directional
@@ -33,7 +34,7 @@ class PistonListener(services: TracelServices) : TracelListener(services) {
         val by = services.redstoneTriggers.recentPressNear(piston.world, piston.x, piston.y, piston.z)
         val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.WORLD
         shape.reread(ActionKind.BLOCK_CHANGE, cause, by, touched.distinct(), delayTicks = PISTON_SETTLE_TICKS) {
-            !it.after.data.value.startsWith("minecraft:moving_piston")
+            !it.after.isMovingPiston()
         }
         if (blocks.isEmpty()) return
 

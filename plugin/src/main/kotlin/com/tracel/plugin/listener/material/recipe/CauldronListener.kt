@@ -1,11 +1,11 @@
 package com.tracel.plugin.listener.material.recipe
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player
 import org.bukkit.event.block.CauldronLevelChangeEvent
 

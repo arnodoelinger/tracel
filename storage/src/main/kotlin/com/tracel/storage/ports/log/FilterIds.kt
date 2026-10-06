@@ -1,6 +1,6 @@
 package com.tracel.storage.ports.log
 
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.intern.Interning
 

@@ -1,22 +1,27 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.annotations.CauseKind
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.event.EventKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
-import com.tracel.plugin.TracelServices
+import com.tracel.model.world.WorldId
+import com.tracel.plugin.adapter.command.resolvePlayerUuid
+import com.tracel.plugin.adapter.world.toLookupRegion
+import com.tracel.plugin.adapter.world.toWorldId
 import com.tracel.plugin.command.action.support.LookupSearch
-import com.tracel.plugin.command.args.*
+import com.tracel.plugin.command.args.action.ActionArgument
+import com.tracel.plugin.command.args.action.ActionFilter
+import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
+import com.tracel.plugin.command.args.scope.actionProblems
+import com.tracel.plugin.command.args.scope.scopeProblem
 import com.tracel.plugin.command.args.support.MaterialAliases
-import com.tracel.plugin.command.presenter.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.LookupPresenter
+import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.i18n.*
-import com.tracel.plugin.util.PrivateBin
-import com.tracel.plugin.util.resolvePlayerUuid
-import com.tracel.plugin.util.toLookupRegion
-import com.tracel.plugin.util.toWorldId
+import com.tracel.plugin.integration.privatebin.PrivateBin
+import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
@@ -27,7 +32,6 @@ import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
-import com.tracel.plugin.metrics.Telemetry
 
 /** Action responsible for executing transaction and world log lookups. */
 class LookupAction(private val services: TracelServices) {

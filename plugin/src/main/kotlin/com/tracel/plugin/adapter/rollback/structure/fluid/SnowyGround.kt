@@ -1,0 +1,45 @@
+package com.tracel.plugin.adapter.rollback.structure.fluid
+
+import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.world.block.BlockShape
+import com.tracel.plugin.adapter.block.BlockDataCache
+import com.tracel.plugin.adapter.rollback.structure.block.check.ShapeTraits
+import com.tracel.plugin.adapter.rollback.structure.block.paint
+import com.tracel.plugin.specifics.block.isSnowId
+import com.tracel.plugin.specifics.block.isSnowMaterial
+import org.bukkit.World
+import org.bukkit.block.data.Snowable
+
+/** Whether [shape] is a snow shape, using the cache. */
+internal fun isSnowShape(shape: BlockShape): Boolean = ShapeTraits.of(shape) and ShapeTraits.SNOW != 0
+
+/** Whether [shape] is a snow shape, without using the cache. */
+internal fun snowShapeUncached(shape: BlockShape): Boolean {
+    val data = BlockDataCache.of(shape.data)
+    if (data != null) return isSnowMaterial(data.material)
+    return isSnowId(shape.data.value.substringBefore('[').substringAfter(':'))
+}
+
+/** Fix the snowy ground property of blocks after a rollback. */
+internal suspend fun fixSnowyGround(
+    world: World,
+    steps: List<StructureStep.SetBlock>,
+    owns: (Int, Int) -> Boolean,
+    pace: suspend () -> Unit = {},
+) {
+    for ((at, target, expected) in steps) {
+        pace()
+        if (!isSnowShape(target) && !isSnowShape(expected)) continue
+        val x = at.x
+        val z = at.z
+        if (!owns(x, z)) continue
+        val below = world.getBlockAt(x, at.y - 1, z)
+        val data = below.blockData
+        if (data !is Snowable) continue
+        val shouldBeSnowy = isSnowMaterial(world.getBlockAt(x, at.y, z).type)
+        if (data.isSnowy != shouldBeSnowy) {
+            data.isSnowy = shouldBeSnowy
+            below.paint(data)
+        }
+    }
+}

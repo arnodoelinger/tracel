@@ -2,16 +2,17 @@ package com.tracel.plugin.rollback.composer
 
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.job.Reservation
-import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.PreparedPlan
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.adapter.rollback.structure.redstone.redstoneCells
 import com.tracel.plugin.rollback.result.outcome.*
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import kotlinx.coroutines.launch
 
 @Unstable
@@ -81,8 +82,7 @@ private suspend fun RollbackComposer.applyReserved(
         planned.roots,
         planned.target,
         planned.vanished,
-        prepared = composite.material,
-        preparedAt = planned.witness,
+        prepared = planned.witness?.let { PreparedPlan(composite.material, it) },
         structural = planned.structural,
         covered = planned.covered,
     )

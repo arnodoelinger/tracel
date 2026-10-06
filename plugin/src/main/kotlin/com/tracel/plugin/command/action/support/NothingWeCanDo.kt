@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.action.support
 
-import com.tracel.plugin.TracelServices
+import com.tracel.plugin.services.TracelServices
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.sound.Sound
 import net.kyori.adventure.text.Component

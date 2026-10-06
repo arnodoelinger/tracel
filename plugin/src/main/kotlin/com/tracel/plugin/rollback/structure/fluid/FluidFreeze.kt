@@ -1,11 +1,11 @@
 package com.tracel.plugin.rollback.structure.fluid
 
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.util.LongHashSet
-import com.tracel.plugin.util.packed
+import com.tracel.model.world.WorldId
+import com.tracel.plugin.util.collection.LongHashSet
+import com.tracel.plugin.util.geometry.packed
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext

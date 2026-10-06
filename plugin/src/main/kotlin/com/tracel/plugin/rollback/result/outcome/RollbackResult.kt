@@ -1,6 +1,6 @@
 package com.tracel.plugin.rollback.result.outcome
 
-import com.tracel.model.id.RollbackJobId
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.StructureReport
 

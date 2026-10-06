@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.wear
 
 import com.tracel.engine.wear.WearMark
-import com.tracel.model.id.LotId
+import com.tracel.model.lot.LotId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.records.Wear

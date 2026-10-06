@@ -1,17 +1,23 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.annotations.CauseKind
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
 import com.tracel.engine.rollback.structure.StructurePlanner
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.result.outcome.Planned
-import com.tracel.plugin.rollback.survey.*
-import com.tracel.plugin.util.chunkKey
+import com.tracel.plugin.rollback.survey.NO_MATERIAL
+import com.tracel.plugin.rollback.survey.planMaterial
+import com.tracel.plugin.rollback.survey.rooting.awayFromAirToAir
+import com.tracel.plugin.rollback.survey.rooting.awayFromEntitiesGone
+import com.tracel.plugin.rollback.survey.withStructuralPartners
+import com.tracel.plugin.rollback.survey.withTrails
+import com.tracel.plugin.specifics.world.VanillaWorldRules
+import com.tracel.plugin.util.geometry.chunkKey
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -73,13 +79,13 @@ internal suspend fun RollbackComposer.planRollback(
         .filterNot { it.action == ActionKind.BLOCK_CLICK || it.seq.raw < importedBelow }
 
     // Structure first, then material
-    val outcome = if (!structure) null else StructurePlanner().planAll(paired)
+    val outcome = if (!structure) null else StructurePlanner(VanillaWorldRules).planAll(paired)
     val create = outcome?.create?.inPlaceOrder() ?: emptyList()
     val destroy = outcome?.destroy?.inPlaceOrder() ?: emptyList()
     val keepCargoOn = create.mapNotNullTo(HashSet()) { (it as? StructureStep.SpawnEntity)?.entity }
     val covered = if (!structure) null else placedCovered(create + destroy) + LiveProjectile.holders()
     val materials = if (!material) NO_MATERIAL else planMaterial(txns, keepCargoOn, structure, covered)
-    val vanishedCells = outcome?.airToAir ?: emptySet()
+    val vanishedCells = outcome?.emptyToEmpty ?: emptySet()
     val bornAndGone = outcome?.bornAndGone ?: emptySet()
     val target = materials.target.awayFromAirToAir(vanishedCells).awayFromEntitiesGone(bornAndGone)
     val everyChange = if (!structure || changes.isEmpty()) emptyList() else services.worldLog.query(wide)

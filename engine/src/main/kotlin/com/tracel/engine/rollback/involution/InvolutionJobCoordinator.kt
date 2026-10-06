@@ -1,15 +1,18 @@
 package com.tracel.engine.rollback.involution
 
 import com.tracel.annotations.Journaled
-import com.tracel.engine.journal.CrashPoint
-import com.tracel.engine.journal.Journal
-import com.tracel.engine.ledger.LotRepository
-import com.tracel.engine.ownership.LeaseAcquisition
-import com.tracel.engine.ownership.LotLease
-import com.tracel.engine.ownership.LotLeaseRegistry
-import com.tracel.engine.rollback.job.RollbackJobRepository
-import com.tracel.model.id.RollbackJobId
-import com.tracel.model.id.TxnId
+import com.tracel.engine.ledger.repository.LotRepository
+import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
+import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
+import com.tracel.engine.rollback.involution.plan.InvolutionStep
+import com.tracel.engine.rollback.job.record.RollbackJobRepository
+import com.tracel.engine.rollback.journal.Journal
+import com.tracel.engine.rollback.journal.crash.CrashPoint
+import com.tracel.engine.rollback.lease.Lease
+import com.tracel.engine.rollback.lease.Leases
+import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
+import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.transaction.TxnId
 
 /**
  * Journaled undo of an applied job.
@@ -19,12 +22,17 @@ import com.tracel.model.id.TxnId
 public class InvolutionJobCoordinator(
     private val jobs: RollbackJobRepository,
     private val repo: LotRepository,
-    private val leases: LotLeaseRegistry,
+    private val leases: Leases,
     private val executor: InvolutionExecutor,
     private val journal: Journal,
     private val nextTxnId: suspend () -> TxnId,
     private val batchSize: Int = DEFAULT_BATCH_SIZE,
 ) {
+    /**
+     * Journaled undo of an applied job.
+     *
+     * Does not replan-and-compare; the recorded plan is the truth.
+     */
     @Journaled
     public suspend fun undo(
         job: RollbackJobId,
@@ -78,7 +86,7 @@ public class InvolutionJobCoordinator(
     }
 
     private suspend fun runSteps(
-        lease: LotLease,
+        lease: Lease,
         steps: List<InvolutionStep>,
         words: LongArray,
         n: Int,

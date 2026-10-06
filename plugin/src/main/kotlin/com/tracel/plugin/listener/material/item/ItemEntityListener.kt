@@ -1,16 +1,15 @@
 package com.tracel.plugin.listener.material.item
 
-import com.tracel.annotations.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.engine.balance.InventoryDelta
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.TracelServices
-import com.tracel.plugin.adapter.entity.kind.dropsManagedCargo
+import com.tracel.model.world.WorldId
+import com.tracel.plugin.adapter.entity.remember
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.entity.toCargoHolderId
 import com.tracel.plugin.adapter.item.toHolderId
@@ -27,7 +26,9 @@ import com.tracel.plugin.listener.support.flow.CREATIVE_SINK
 import com.tracel.plugin.listener.support.flow.CREATIVE_SOURCE
 import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.entity.dropsManagedCargo
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Item
@@ -338,7 +339,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             val taken = before - remaining
             if (taken <= 0L) return@later
             for ((key, amount) in stack.totalsOf(taken)) material.adjust(destination, key, amount)
-            movedStack(CauseKind.HOPPER, null, stack, taken, HolderId.ItemEntity(item.uniqueId), destination)
+            movedStack(CauseKind.MACHINE, null, stack, taken, HolderId.ItemEntity(item.uniqueId), destination)
         }
     }
 

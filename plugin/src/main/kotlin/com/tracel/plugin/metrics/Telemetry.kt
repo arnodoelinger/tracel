@@ -1,9 +1,9 @@
 package com.tracel.plugin.metrics
 
-import com.tracel.plugin.command.args.LookupScope
-import com.tracel.plugin.command.args.ParsedLookupArgs
+import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
+import com.tracel.plugin.command.args.scope.LookupScope
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
-import com.tracel.plugin.status.RollbackSize
+import com.tracel.plugin.status.rollback.RollbackSize
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.LongAdder

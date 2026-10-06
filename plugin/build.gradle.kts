@@ -20,7 +20,7 @@ dependencies {
     compileOnly(libs.paper.api)
     compileOnly(libs.fawe.core) { exclude(group = "net.kyori") }
     testImplementation(libs.paper.api)
-    testImplementation(project(":tests"))
+    testImplementation(testFixtures(project(":tests")))
     testImplementation(libs.sqlite.jdbc)
 }
 

@@ -1,28 +1,26 @@
 package com.tracel.plugin.integration.worldedit
 
-import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
+import com.tracel.plugin.specifics.block.AIR
+import com.tracel.tests.support.Fixtures
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import java.util.*
 
 class EditBufferTest {
-    private val buffer = EditBuffer(WorldId(UUID(0L, 1L)))
+    private val buffer = EditBuffer(Fixtures.world)
     private val stone = BlockShape(BlockDataKey("minecraft:stone"))
     private val dirt = BlockShape(BlockDataKey("minecraft:dirt"))
 
     @Test
     fun `a cell written twice is one change from the first shape to the last`() {
         buffer.note(1, 64, 1, stone, dirt)
-        buffer.note(1, 64, 1, dirt, BlockShape.AIR)
+        buffer.note(1, 64, 1, dirt, AIR)
 
         val edit = buffer.drain().getValue(ActionKind.BLOCK_BREAK).single()
         assertEquals(stone, edit.before)
-        assertEquals(BlockShape.AIR, edit.after)
+        assertEquals(AIR, edit.after)
     }
 
     @Test
@@ -35,8 +33,8 @@ class EditBufferTest {
 
     @Test
     fun `edits are grouped by what they did to their cell`() {
-        buffer.note(0, 64, 0, BlockShape.AIR, stone)
-        buffer.note(1, 64, 0, stone, BlockShape.AIR)
+        buffer.note(0, 64, 0, AIR, stone)
+        buffer.note(1, 64, 0, stone, AIR)
         buffer.note(2, 64, 0, stone, dirt)
 
         val grouped = buffer.drain()
@@ -48,7 +46,7 @@ class EditBufferTest {
 
     @Test
     fun `one kind of air replaced by another is nothing`() {
-        buffer.note(0, 64, 0, BlockShape.AIR, BlockShape(BlockDataKey("minecraft:cave_air")))
+        buffer.note(0, 64, 0, AIR, BlockShape(BlockDataKey("minecraft:cave_air")))
 
         assertTrue(buffer.drain().isEmpty())
     }

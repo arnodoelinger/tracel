@@ -2,22 +2,20 @@ package com.tracel.engine.rollback.structure
 
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
-import com.tracel.annotations.Unstable
+import com.tracel.engine.rollback.structure.space.CellEnds
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.block.BlockShape
-import com.tracel.model.world.entity.EntityShape
 import java.util.*
 
 @RunsOn(ThreadContext.ASYNC)
-@Unstable
-public class StructurePlanner {
+public class StructurePlanner(private val rules: WorldRules) {
     /** The steps to restore the world to the state at the start of the window. */
     public class Outcome(
         public val create: List<StructureStep>,
         public val destroy: List<StructureStep>,
-        public val airToAir: Set<BlockPos>,
+        public val emptyToEmpty: Set<BlockPos>,
         public val bornAndGone: Set<UUID>,
     )
 
@@ -26,13 +24,13 @@ public class StructurePlanner {
         planAll(changes).let { it.create to it.destroy }
 
     /**
-     * The steps, [cellsAirToAir] and [entitiesBornAndGone] in one pass: all three group the changes by the same key
+     * The steps, [cellsEmptyToEmpty] and [entitiesBornAndGone] in one pass: all three group the changes by the same key
      * and look at the same oldest and newest end, so asking for them one at a time built that map three times over.
      */
     public fun planAll(changes: List<WorldChange>): Outcome {
         val create = mutableListOf<StructureStep>()
         val destroy = mutableListOf<StructureStep>()
-        val airToAir = HashSet<BlockPos>()
+        val emptyToEmpty = HashSet<BlockPos>()
         val bornAndGone = HashSet<UUID>()
 
         val cells = CellEnds(changes)
@@ -63,18 +61,18 @@ public class StructurePlanner {
             //
             // For example:
             //
-            //    Air -> Chest -> Air
+            //    Empty -> Block -> Empty
             //
-            // If our chest was placed and destroyed entirely (!) inside the selected window, restoring
+            // If our block was placed and destroyed entirely (!) inside the selected window, restoring
             // the state from the start of the window means (!) restoring air. The rollback must not
-            // recreate the chest just because an explosion destroyed it later in the same window.
+            // recreate the block just because an explosion destroyed it later in the same window.
             //
             // In contrast:
             //
-            //   Chest -> Air,
+            //   Block -> Empty,
             //
-            // where the chest already existed when the window opened, means the state at the start
-            // of the window contained the chest, so the explosion must restore it.
+            // where the block already existed when the window opened, means the state at the start
+            // of the window contained the block, so the explosion must restore it.
             //
             // The important boundary is therefore the oldest matched change: "before" is the state
             // that existed immediately before the first change included by the query, while the
@@ -89,7 +87,7 @@ public class StructurePlanner {
             // time and can make rollbacks recreate objects that never existed at the beginning of the
             // selected window.
             val target = subject.before
-            if (target.isAirLike && expected.isAirLike) airToAir += oldest.at
+            if (rules.isEmpty(target) && rules.isEmpty(expected)) emptyToEmpty += oldest.at
             if (target == expected) return@forEach
             val step = StructureStep.SetBlock(
                 oldest.at,
@@ -99,7 +97,7 @@ public class StructurePlanner {
 
             // Restoring to air is a removal, and a removal has to wait until the ledger
             // has finished emptying whatever stood there.
-            if (target.isAirLike) destroy += step else create += step
+            if (rules.isEmpty(target)) destroy += step else create += step
         }
 
         for (slot in entities.values) {
@@ -114,7 +112,7 @@ public class StructurePlanner {
                     // Lived at window open: put it back. Came and went inside the window, however
                     // it went: leave it gone, same as a block placed and blown up. Respawning it
                     // handed the placer the item back and hung the frame too, and re-armed crystals.
-                    if (before != null && !before.isFallingBlock()) {
+                    if (before != null && !rules.isMovingBlock(before)) {
                         create += StructureStep.SpawnEntity(oldest.at, subject.entity, before)
                     }
                 }
@@ -123,37 +121,32 @@ public class StructurePlanner {
                     val remove = StructureStep.RemoveEntity(oldest.at, subject.entity, now)
                     // Falling sand still here when the block returns drops as an item.
                     // Remove it in create so undo spawns it after the block is gone again.
-                    //
-                    // Hangings: same trap, nail included. Removals run before block writes
-                    // *within* a phase — a painting left in `destroy` was still on the wall
-                    // while create rebuilt the block, vanilla popped it (ENTITY_REMOVE WORLD,
-                    // item on the floor), our remove reported [Absent] and never journaled,
-                    // undo had nothing to put back. Don't leave hangings in destroy.
-                    if (now.isFallingBlock() || now.popsWhenABlockReturns()) create += remove else destroy += remove
+                    // Hangings: same trap, nail included.
+                    if (rules.isMovingBlock(now) || rules.dropsWhenBlockReturns(now)) create += remove else destroy += remove
                 }
 
                 before != now ->
-                    // Still standing: change-in-place; undo puts the newer shape back.
+                    // Still standing: change-in-place; undo puts the newer shape back
                     create += StructureStep.SpawnEntity(oldest.at, subject.entity, before, now)
             }
         }
 
         // Hangings cannot share a cell with a block. Don't fucking break them.
         val hangingIn = HashSet<BlockPos>()
-        for (step in create) if (step is StructureStep.SpawnEntity && step.shape.hangs()) hangingIn += step.at
+        for (step in create) if (step is StructureStep.SpawnEntity && rules.isHanging(step.shape)) hangingIn += step.at
         if (hangingIn.isNotEmpty()) {
-            create.removeAll { it is StructureStep.SetBlock && it.at in hangingIn && !it.target.isAirLike }
+            create.removeAll { it is StructureStep.SetBlock && it.at in hangingIn && !rules.isEmpty(it.target) }
         }
 
-        return Outcome(create, destroy, airToAir, bornAndGone)
+        return Outcome(create, destroy, emptyToEmpty, bornAndGone)
     }
 
-    /** Cells that were air at both window ends — do not dump restored items into a chest that never comes back. */
-    @Unstable
-    public fun cellsAirToAir(changes: List<WorldChange>): Set<BlockPos> = planAll(changes).airToAir
+    /**
+     * Cells that were empty at both window ends — do not dump restored items into a container that never comes back.
+     */
+    public fun cellsEmptyToEmpty(changes: List<WorldChange>): Set<BlockPos> = planAll(changes).emptyToEmpty
 
     /** Entities born and gone inside the window: the rollback leaves them gone, so nothing may be handed to them. */
-    @Unstable
     public fun entitiesBornAndGone(changes: List<WorldChange>): Set<UUID> = planAll(changes).bornAndGone
 
     private companion object {
@@ -161,20 +154,3 @@ public class StructurePlanner {
         const val OLDEST = 1
     }
 }
-
-@Unstable
-private fun EntityShape.isFallingBlock(): Boolean {
-    val type = type.value
-    return type == "minecraft:falling_block" || type.endsWith(":falling_block")
-}
-
-@Unstable
-private fun EntityShape.hangs(): Boolean {
-    val name = type.value.substringAfter(':')
-    return name == "item_frame" || name == "glow_item_frame" || name == "painting" ||
-            name == "leash_knot"
-}
-
-@Unstable
-private fun EntityShape.popsWhenABlockReturns(): Boolean =
-    type.value.substringAfter(':') == "painting"

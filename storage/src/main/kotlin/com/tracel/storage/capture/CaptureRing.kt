@@ -1,11 +1,12 @@
 package com.tracel.storage.capture
 
-import com.tracel.annotations.CauseKind
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.capture.PlacedDeltas
+import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.storage.codec.CaptureSlot
 import com.tracel.storage.ffm.OffHeapRing
@@ -20,8 +21,6 @@ import kotlin.time.Duration.Companion.milliseconds
 private const val APPLIED_POLL_MILLIS = 10L
 
 /**
- * 
- *
  * What a `Folia` region thread is allowed to do with storage: intern two ids, write 24 bytes,
  * return — and goodbye.
  *
@@ -36,7 +35,7 @@ private const val APPLIED_POLL_MILLIS = 10L
  * if (chest == 0 || item == 0) return
  *
  * // Reserves space in the ring buffer for a header and 2 state deltas
- * val claim = ring.begin(CauseKind.HOPPER, causedBy = 0, epochMillis, deltaCount = 2)
+ * val claim = ring.begin(CauseKind.MACHINE, causedBy = 0, epochMillis, deltaCount = 2)
  *
  * // If the ring buffer is full, exit immediately
  * if (claim == CaptureRing.REJECTED) return
@@ -92,15 +91,24 @@ class CaptureRing(
         return ring.consumerCursor() >= upTo && overflowApplied.get() >= queued
     }
 
+    /** Numeric ID of [holder], interned on first sight. `0` if the table is full: drop the event. */
     fun holderId(holder: HolderId): Int = interning.holderIdForCapture(holder)
 
+    /** Numeric ID of [itemKey], interned on first sight. `0` if the table is full: drop the event. */
     fun itemKeyId(itemKey: ItemKey): Int = interning.itemKeyIdForCapture(itemKey)
 
+    /** Numeric ID of [world], interned on first sight. `0` if the table is full: drop the event. */
     fun worldId(world: WorldId): Int = interning.worldIdForCapture(world)
 
+    /** Numeric ID of [blockData], interned on first sight. `0` if the table is full: drop the event. */
     fun blockDataId(blockData: BlockDataKey): Int = interning.blockDataIdForCapture(blockData)
 
-    /** Claims `1 + deltaCount` contiguous slots, or [REJECTED] if the ring is full. Never waits. */
+    /**
+     * Claims `1 + deltaCount` contiguous slots for an item event, or [REJECTED] if the ring is full
+     * or events already wait outside it — joining the ring then would reorder them. Never waits.
+     *
+     * Nothing is visible to the drain until [commit].
+     */
     fun begin(cause: CauseKind, causedByHolderId: Int, epochMillis: Long, deltaCount: Int): Long {
         require(deltaCount in 1..MAX_DELTAS) { "an event with $deltaCount deltas does not belong in a ring slot" }
         if (overflowHeld.get() > 0) return REJECTED
@@ -117,13 +125,14 @@ class CaptureRing(
         return claim
     }
 
-    /** Delta. */
+    /** Writes delta number [index] of a claim from [begin]: [holderId] gained [delta] of [itemKeyId], negative if it lost. */
     fun delta(claim: Long, index: Int, holderId: Int, itemKeyId: Int, delta: Long) {
         CaptureSlot.writeDelta(ring.payload, ring.payloadOffset(claim + 1 + index), holderId, itemKeyId, delta)
     }
 
     /**
-     * Claims `1 + count` contiguous slots for a world change, or [REJECTED] if the ring is full.
+     * Claims `1 + count` contiguous slots for a world change, or [REJECTED] if the ring is full
+     * or events already wait outside it. Never waits.
      *
      * One header for the whole event rather than one per block: an explosion is forty coordinates
      * changing for a single reason, at a single instant, in a single world.
@@ -166,7 +175,13 @@ class CaptureRing(
         )
     }
 
-    /** Enqueues "everything [fromHolderId] had went to [toHolderId]" in one slot. */
+    /**
+     * Enqueues "everything [fromHolderId] had went to [toHolderId]" in one slot.
+     *
+     * Unlike [begin], it publishes by itself: there is no payload to wait for.
+     *
+     * @return `false` if the ring is full or events wait outside it, and nothing was written
+     */
     fun release(
         cause: CauseKind,
         causedByHolderId: Int,
@@ -190,7 +205,14 @@ class CaptureRing(
         return true
     }
 
-    /** Holds [payload] off the ring and puts a one-slot marker in its place/ */
+    /**
+     * Holds [payload] off the ring and puts a one-slot marker in its place, so a payload too
+     * big or too odd for slots still keeps its position in the order.
+     *
+     * If the ring has no room the marker goes to the overflow instead, with the payload's weight.
+     *
+     * @return `false` if even the overflow was full, and the event was lost and counted
+     */
     fun park(cause: CauseKind, epochMillis: Long, payload: Any): Boolean {
         var token = parkTokens.incrementAndGet() and Int.MAX_VALUE
         if (token == 0) token = parkTokens.incrementAndGet() and Int.MAX_VALUE
@@ -243,7 +265,7 @@ class CaptureRing(
         return true
     }
 
-    // Storage thread only
+    // region Storage thread only
 
     /** Whether events wait outside the ring, which new events then join, so that order holds. */
     internal fun hasOverflow(): Boolean = overflowHeld.get() > 0
@@ -300,10 +322,11 @@ class CaptureRing(
 
     private class Queued(val event: RingEvent, val weight: Long)
 
-    companion object {
-        const val REJECTED = -1L // It must not wait, ever
-        const val MAX_DELTAS = 4095
+    // endregion
 
+    companion object {
+        const val REJECTED = -1L
+        const val MAX_DELTAS = 4095
         const val OVERFLOW_FACTOR = 16
 
         private fun weightOf(event: RingEvent): Long = 1L + when (event) {

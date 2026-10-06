@@ -21,6 +21,7 @@ internal object BookshelfCargo : CargoSurface {
         return BookshelfHeld(state)
     }
 
+    /** Sync bookshelf cargo. */
     @Suppress("UsePropertyAccessSyntax")
     fun sync(block: Block) {
         val state = runCatching { block.getState(false) }.getOrNull() as? ChiseledBookshelf ?: return
