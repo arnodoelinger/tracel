@@ -1,6 +1,7 @@
 package com.tracel.storage.ports.ledger
 
 import com.tracel.model.item.ContentHash
+import com.tracel.engine.ledger.ItemForms as ItemFormsPort
 import com.tracel.model.item.ItemKey
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
@@ -22,9 +23,9 @@ import java.lang.foreign.ValueLayout.JAVA_BYTE
  * One row per distinct decorated item that has ever existed on the server, which is a small
  * number — the same sword enchanted the same way is the same row however many people own one.
  */
-class ItemForms(private val storage: TracelStorage) {
+class ItemForms(private val storage: TracelStorage) : ItemFormsPort {
     /** The same for a whole batch, as one commit. */
-    suspend fun rememberAll(forms: Map<ContentHash, ByteArray>) {
+    override suspend fun rememberAll(forms: Map<ContentHash, ByteArray>) {
         if (forms.isEmpty()) return
         storage.write {
             for ((hash, bytes) in forms) {
@@ -35,7 +36,7 @@ class ItemForms(private val storage: TracelStorage) {
     }
 
     /** The serialized item behind [hash], or null if this store never saw one. */
-    suspend fun find(hash: ContentHash): ByteArray? = storage.read {
+    override suspend fun find(hash: ContentHash): ByteArray? = storage.read {
         get(Keys.itemForm(hash.digest()))?.toArray(JAVA_BYTE)
     }
 }

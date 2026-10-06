@@ -1,7 +1,12 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.world.WorldId
+import com.tracel.engine.store.PurgeTally
+import com.tracel.engine.store.PurgeSpec
+import com.tracel.engine.store.PurgeReport
+import com.tracel.engine.store.PurgeFilter
+import com.tracel.engine.store.PurgeCategory
+import com.tracel.engine.store.Around
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.History
@@ -11,7 +16,7 @@ import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.ContainerSlot
 import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.spi.HistorySegment
-import com.tracel.storage.util.LongSet
+import com.tracel.storage.util.LongSetUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.lang.foreign.MemorySegment
@@ -21,75 +26,14 @@ import java.util.*
 /** Runs [it] immediately, without waiting for anything. */
 private val IMMEDIATELY: Around = { it() }
 
-/** What a partial purge may take. Everything else, the lot ledger included, is state and stays. */
-enum class PurgeCategory(internal val history: Int) {
-    /** Block and entity changes in the world. */
-    BLOCKS(History.BLOCKS),
-
-    /** Item movements: the transactions and every index on them. */
-    ITEMS(History.ITEMS),
-
-    /** Container layouts over time, and the visits that opened them. */
-    CONTAINERS(History.CONTAINERS),
-
-    /** What was said and typed, and who joined and disconnected. */
-    EVENTS(History.EVENTS),
-}
-
-/**
- * What to take. Whatever is set has to match; a record that misses any of it stays.
- *
- * @property before only records older than this, in epoch millis
- * @property world only what happened in this world. Container visits have no world and stay
- * @property player only what this player did
- */
-data class PurgeFilter(
-    val before: Long? = null,
-    val world: WorldId? = null,
-    val player: UUID? = null,
-)
-
-/** A [filter] applied to [categories]. */
-data class PurgeSpec(
-    val categories: Set<PurgeCategory>,
-    val filter: PurgeFilter = PurgeFilter(),
-    val wholeWindowsOnly: Boolean = false,
-) {
-    init {
-        require(!wholeWindowsOnly || (filter.world == null && filter.player == null)) {
-            "a window can only be left on the edge when the age is all that is asked"
-        }
-        require(categories.isNotEmpty()) { "a purge of no category purges nothing" }
-        require(PurgeCategory.CONTAINERS !in categories || filter.player == null) {
-            "a container layout is nobody's doing, so it cannot be purged by player"
-        }
+/** The kind of history in the store that [this] category covers. */
+internal val PurgeCategory.history: Int
+    get() = when (this) {
+        PurgeCategory.BLOCKS -> History.BLOCKS
+        PurgeCategory.ITEMS -> History.ITEMS
+        PurgeCategory.CONTAINERS -> History.CONTAINERS
+        PurgeCategory.EVENTS -> History.EVENTS
     }
-}
-
-/**
- * One category's share: [matched] of its [total] records, [rows] rows with the indexes, the disk [bytes] they took,
- * and the span they cover.
- */
-data class PurgeTally(
-    val total: Long,
-    val matched: Long,
-    val rows: Long,
-    val oldest: Long?,
-    val newest: Long?,
-    val bytes: Long = 0,
-)
-
-/** What a partial purge took, or would take. */
-data class PurgeReport(val tallies: Map<PurgeCategory, PurgeTally>) {
-    val matched: Long get() = tallies.values.sumOf { it.matched }
-    val rows: Long get() = tallies.values.sumOf { it.rows }
-    val bytes: Long get() = tallies.values.sumOf { it.bytes }
-    val oldest: Long? get() = tallies.values.mapNotNull { it.oldest }.minOrNull()
-    val newest: Long? get() = tallies.values.mapNotNull { it.newest }.maxOrNull()
-}
-
-/** Runs one piece of work; whoever hands one in may make it wait for a good moment first. */
-typealias Around = suspend (suspend () -> Unit) -> Unit
 
 /** Counts what a purge of [spec] would take, and touches nothing. */
 suspend fun previewPurge(storage: TracelStorage, spec: PurgeSpec): PurgeReport =
@@ -124,7 +68,7 @@ private class Analysis {
     var matched = 0L
     var oldest = Long.MAX_VALUE
     var newest = Long.MIN_VALUE
-    var seqs: LongSet? = null
+    var seqs: LongSetUtils? = null
     var keys: HashSet<ByteBuffer>? = null
 
     fun took(epoch: Long) {
@@ -239,7 +183,7 @@ private suspend fun analyze(
     everything: Boolean,
 ): Analysis = storage.read {
     val analysis = Analysis()
-    if (!everything && category != PurgeCategory.CONTAINERS) analysis.seqs = LongSet()
+    if (!everything && category != PurgeCategory.CONTAINERS) analysis.seqs = LongSetUtils()
     when (category) {
         PurgeCategory.BLOCKS -> storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.WCHG)) { cursor ->
             while (cursor.next()) {
@@ -291,13 +235,14 @@ private fun StorageUnit.analyzeContainers(
 ) {
     val keys = HashSet<ByteBuffer>()
     val sitsIn = HashMap<Int, Boolean>()
+    val before = filter.before
     storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.CONTAINER_SLOT)) { cursor ->
         while (cursor.next()) {
             analysis.total++
             val epoch = ContainerSlot.layoutEpochMillis(cursor.value())
             val holderId = cursor.keyU32(1)
             val taken = everything || (
-                    (filter.before == null || epoch < filter.before) &&
+                    (before == null || epoch < before) &&
                             (filter.world == null || sitsIn.getOrPut(holderId) {
                                 val holder = runCatching { storage.interning.resolveHolder(this, holderId) }.getOrNull()
                                 (holder as? HolderId.Block)?.world == filter.world
@@ -313,7 +258,7 @@ private fun StorageUnit.analyzeContainers(
         while (cursor.next()) {
             analysis.total++
             val epoch = Keys.invert(cursor.keyU64(5))
-            if (everything || (filter.world == null && (filter.before == null || epoch < filter.before))) {
+            if (everything || (filter.world == null && (before == null || epoch < before))) {
                 analysis.took(epoch)
                 keys += ByteBuffer.wrap(cursor.key())
             }

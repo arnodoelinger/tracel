@@ -288,4 +288,21 @@ class ArchitectureTest {
         )
         domainScope().files.assertFalse(testName = "model or engine mentions a game") { game.containsMatchIn(it.text) }
     }
+
+    @Test
+    fun `the plugin reaches storage only where it is wired together`() {
+        Konsist.scopeFromModule("plugin").files
+            .filter { "/plugin/src/main/kotlin/" in it.path && "/plugin/startup/" !in it.path }
+            .assertFalse(testName = "plugin code outside startup imports storage") {
+                Regex("""^import com\.tracel\.storage\.""", RegexOption.MULTILINE).containsMatchIn(it.text)
+            }
+    }
+
+    @Test
+    fun `nothing below storage knows about it`() {
+        (Konsist.scopeFromModule("model") + Konsist.scopeFromModule("platform") + engineScope()).files
+            .assertFalse(testName = "a lower layer imports storage") {
+                Regex("""^import com\.tracel\.storage\.""", RegexOption.MULTILINE).containsMatchIn(it.text)
+            }
+    }
 }

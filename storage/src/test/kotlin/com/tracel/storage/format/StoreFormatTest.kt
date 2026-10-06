@@ -1,10 +1,7 @@
 package com.tracel.storage.format
 
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.format.FormatVersion
-import com.tracel.storage.format.Migration
-import com.tracel.storage.format.StoreFormat
-import com.tracel.storage.format.StoreFormatException
+import com.tracel.engine.store.StoreFormatException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse

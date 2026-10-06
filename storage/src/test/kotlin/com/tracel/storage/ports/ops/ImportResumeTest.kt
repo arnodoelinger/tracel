@@ -1,6 +1,7 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.storage.TracelStorage
+import com.tracel.engine.store.ImportInterrupted
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.spi.MutationBatch
 import kotlinx.coroutines.test.runTest

@@ -30,7 +30,7 @@ import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.listener.support.flow.worldgenMintFlows
 import com.tracel.plugin.util.carriesCoordinates
-import com.tracel.storage.capture.PlacedDeltas
+import com.tracel.engine.capture.PlacedDeltas
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
@@ -798,14 +798,14 @@ class MaterialCapture internal constructor(private val services: TracelServices)
         try {
             services.atomically {
                 for (commit in batch) {
-                    val mark = services.storage.read { mark() }
+                    val mark = services.mark()
                     try {
                         commit.work()
-                        services.storage.read { release(mark) }
+                        services.release(mark)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (e: Exception) {
-                        services.storage.read { rollbackTo(mark) }
+                        services.rollbackTo(mark)
                         val level = if (e is IllegalStateException) Level.FINE else Level.WARNING
                         logger.log(level, "untracked material in ${commit.what}, not recorded", e)
                     }

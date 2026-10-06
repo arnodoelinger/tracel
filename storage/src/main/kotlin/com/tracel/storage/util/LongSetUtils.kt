@@ -1,7 +1,7 @@
 package com.tracel.storage.util
 
 /** A set of non-negative longs that does not box them: a day of a busy server's sequence numbers fits in a few MiB. */
-internal class LongSet(expected: Int = 16) {
+internal class LongSetUtils(expected: Int = 16) {
     private var table = LongArray(capacityFor(expected)).also { it.fill(EMPTY) }
 
     var size: Int = 0; private set

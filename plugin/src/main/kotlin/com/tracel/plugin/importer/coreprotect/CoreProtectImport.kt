@@ -1,7 +1,7 @@
 package com.tracel.plugin.importer.coreprotect
 
-import com.tracel.storage.ports.ops.ForeignHistory
-import com.tracel.storage.ports.ops.ImportMark
+import com.tracel.engine.foreign.ForeignHistory
+import com.tracel.engine.foreign.ImportMark
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext

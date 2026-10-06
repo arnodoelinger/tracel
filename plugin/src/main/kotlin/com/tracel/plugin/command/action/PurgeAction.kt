@@ -1,6 +1,11 @@
 package com.tracel.plugin.command.action
 
 import com.tracel.model.world.WorldId
+import com.tracel.engine.store.PurgeSummary
+import com.tracel.engine.store.PurgeSpec
+import com.tracel.engine.store.PurgeReport
+import com.tracel.engine.store.PurgeFilter
+import com.tracel.engine.store.PurgeCategory
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.command.action.ExportAction.Companion.records
@@ -8,7 +13,6 @@ import com.tracel.plugin.command.args.PurgeArgs
 import com.tracel.plugin.command.args.PurgeArgument
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.util.resolvePlayerUuid
-import com.tracel.storage.ports.ops.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -76,7 +80,7 @@ class PurgeAction(private val services: TracelServices) {
         services.scope.launch {
             try {
                 services.flushCapture()
-                val report = previewPurge(services.storage, spec)
+                val report = services.store.previewPurge(spec)
                 sender.say(previewCard(report, args, spec, localeOf(sender), command))
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -93,7 +97,7 @@ class PurgeAction(private val services: TracelServices) {
             try {
                 services.purgeGate.awaitIdle { sender.send("purge.waiting") }
                 services.flushCapture()
-                val report = purgeSome(services.storage, spec) { slice -> services.purgeGate.slice(slice = slice) }
+                val report = services.store.purgeSome(spec) { slice -> services.purgeGate.slice(slice = slice) }
                 sender.say(report(report, localeOf(sender)))
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -108,7 +112,7 @@ class PurgeAction(private val services: TracelServices) {
     private fun everything(sender: CommandSender, args: PurgeArgs, command: String) {
         val locale = localeOf(sender)
         if (!args.confirmed) {
-            val size = services.storage.engine.stats().liveBytes / MIB
+            val size = services.store.liveBytes / MIB
             sender.say(
                 Component.join(
                     JoinConfiguration.newlines(),
@@ -134,9 +138,7 @@ class PurgeAction(private val services: TracelServices) {
                     delay(GATE_POLL_MILLIS.milliseconds)
                 }
                 held = true
-                val summary = purgeAll(services.storage)
-                services.repo.forget()
-                services.counters.forget()
+                val summary = services.store.purgeAll()
                 services.differ.forgetAll()
                 sender.say(wiped(summary, locale))
             } catch (cancelled: CancellationException) {

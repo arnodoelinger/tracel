@@ -1,6 +1,7 @@
 package com.tracel.storage.ports.event
 
 import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.event.EventLog as EventLogPort
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
 import com.tracel.model.log.Seq
@@ -21,11 +22,11 @@ import com.tracel.storage.intern.Interning
 import java.lang.foreign.MemorySegment
 
 /** The event log: what was said, what was typed, who joined and disconnected. */
-class EventLog(private val storage: TracelStorage) {
+class EventLog(private val storage: TracelStorage) : EventLogPort {
     private val interning: Interning get() = storage.interning
 
     /** Appends [event]. The log is append-only, so a sequence number that is taken is an error. */
-    suspend fun append(event: ActorEvent) {
+    override suspend fun append(event: ActorEvent) {
         storage.write {
             val seq = event.seq.raw
             check(get(Keys.event(seq)) == null) { "event at ${event.seq} already appended — the log is append-only" }
@@ -52,7 +53,7 @@ class EventLog(private val storage: TracelStorage) {
      * The events of [kinds] that [filter] lets through, newest first. Only who, when and where are asked of the
      * filter: an event is not a block or an item, and a filter that names one matches no event.
      */
-    suspend fun query(filter: LookupFilter, kinds: Set<EventKind>): List<ActorEvent> = storage.read {
+    override suspend fun query(filter: LookupFilter, kinds: Set<EventKind>): List<ActorEvent> = storage.read {
         if (kinds.isEmpty() || filter.material != null || filter.blockMaterials.isNotEmpty()) return@read emptyList()
         val holderIds = filter.holders.map { interning.findHolderId(this, it) ?: return@map null }
         if (filter.holders.isNotEmpty() && holderIds.all { it == null }) return@read emptyList()

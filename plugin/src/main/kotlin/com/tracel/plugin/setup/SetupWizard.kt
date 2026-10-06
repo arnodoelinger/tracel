@@ -3,7 +3,7 @@ package com.tracel.plugin.setup
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.importer.coreprotect.CoreProtectLocator
-import com.tracel.storage.ports.ops.PurgeCategory
+import com.tracel.engine.store.PurgeCategory
 import io.papermc.paper.dialog.Dialog
 import io.papermc.paper.dialog.DialogResponseView
 import io.papermc.paper.registry.data.dialog.ActionButton

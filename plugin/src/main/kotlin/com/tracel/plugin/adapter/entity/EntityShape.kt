@@ -6,7 +6,7 @@ import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.*
 import com.tracel.plugin.adapter.entity.special.FallingBlockAdapter
 import com.tracel.plugin.util.Warnings
-import com.tracel.storage.codec.records.World
+import com.tracel.model.world.OpaqueBytes
 import io.papermc.paper.entity.EntitySerializationFlag
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
@@ -72,8 +72,8 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
             return@runCatching null
         }
         val nbt = Bukkit.getUnsafe().serializeEntity(entity, EntitySerializationFlag.FORCE)
-        val links = (if (leashed) World.LINK_BYTES else 0) + if (riding) World.LINK_BYTES else 0
-        val room = World.MAX_EXTRAS_BYTES - links
+        val links = (if (leashed) OpaqueBytes.LINK_BYTES else 0) + if (riding) OpaqueBytes.LINK_BYTES else 0
+        val room = OpaqueBytes.MAX_BYTES - links
         if (nbt.size > room) {
             Warnings.once(logger, "huge:${entity.type}") {
                 "a ${entity.type} serializes to ${nbt.size} bytes, past the $room a " +

@@ -1,6 +1,7 @@
 package com.tracel.storage.intern
 
 import com.github.benmanes.caffeine.cache.Cache
+import com.tracel.engine.actor.EntityKindSource
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
@@ -317,10 +318,4 @@ private class Interned<T : Any>(
 
         const val COUNTER_BASE = 0x7000_0000
     }
-}
-
-/** What a mob is, as far as the server can tell right now. */
-fun interface EntityKindSource {
-    /** @return the type of the live (or just gone) entity [uuid], or `null` if it is not known. */
-    fun kindOf(uuid: UUID): EntityTypeKey?
 }

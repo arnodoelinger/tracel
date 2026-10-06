@@ -3,7 +3,7 @@ package com.tracel.storage.capture
 import com.tracel.storage.codec.CaptureSlot
 
 /**
- * One published ring event, copied off the mmap. Slots will go back immediately.
+ * One published ring event, copied off the `mmap`. Slots will go back immediately.
  *
  * IDs are intern numbers. [Drainer] resolves them on the storage thread.
  */
@@ -12,6 +12,7 @@ internal sealed interface RingEvent {
     val causedBy: Int
     val epochMillis: Long
 
+    /** Item changes: parallel arrays, [holders]`[i]` gained [amounts]`[i]` of [itemKeys]`[i]`, negative if it lost. */
     class Items(
         override val cause: Int,
         override val causedBy: Int,
@@ -21,6 +22,10 @@ internal sealed interface RingEvent {
         val amounts: LongArray,
     ) : RingEvent
 
+    /**
+     * Everything [fromHolderId] had went to [toHolderId]. When [fromHolderId] is [CaptureRing.PARKED],
+     * [toHolderId] is not a holder but the token of a payload held by [CaptureRing.park].
+     */
     class Release(
         override val cause: Int,
         override val causedBy: Int,
@@ -29,6 +34,10 @@ internal sealed interface RingEvent {
         val toHolderId: Int,
     ) : RingEvent
 
+    /**
+     * Block changes in one world, one reason, one instant. Parallel arrays again: block `i` sits at
+     * [coordinates]`[3i..3i+2]` as x, y, z, and went from data id [befores]`[i]` to [afters]`[i]`.
+     */
     class World(
         override val cause: Int,
         override val causedBy: Int,
@@ -47,6 +56,10 @@ internal class Collected(val events: List<RingEvent>, val end: Long)
 /**
  * Copies up to [maxBatch] published events off the ring without releasing them: a batch that never
  * commits is read again, not lost. One consumer at a time; the [Drainer] serialises it.
+ *
+ * Stops at the first slot that is not published yet — a claimed event is not an event until its header is.
+ *
+ * @throws IllegalStateException if a slot where an event should start holds anything else
  */
 internal fun CaptureRing.collectPublished(maxBatch: Int): Collected {
     val out = ArrayList<RingEvent>()

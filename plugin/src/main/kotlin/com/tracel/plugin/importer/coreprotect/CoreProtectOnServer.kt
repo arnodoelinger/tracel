@@ -5,7 +5,7 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.storage.codec.records.World
+import com.tracel.model.world.OpaqueBytes
 import io.papermc.paper.entity.EntitySerializationFlag
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.*
@@ -148,7 +148,7 @@ object ServerImportPlatform : ImportPlatform {
             (mob as? LivingEntity)?.equipment?.clear()
             dress(mob, kept)
             Bukkit.getUnsafe().serializeEntity(mob, EntitySerializationFlag.FORCE)
-                .takeIf { it.size <= World.MAX_EXTRAS_BYTES }
+                .takeIf { it.size <= OpaqueBytes.MAX_BYTES }
         }.getOrNull()
 
     private fun stackOf(entry: Any?): ItemStack? {

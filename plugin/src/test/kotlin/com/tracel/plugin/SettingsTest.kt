@@ -1,9 +1,8 @@
 package com.tracel.plugin
 
-import com.tracel.storage.TracelStorage
-import com.tracel.storage.lsm.LsmConfig
-import com.tracel.storage.lsm.write.SyncPolicy
-import com.tracel.storage.ports.ops.PurgeCategory
+import com.tracel.engine.store.StoreSync
+import com.tracel.engine.store.StoreSettings
+import com.tracel.engine.store.PurgeCategory
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -76,20 +75,20 @@ class SettingsTest {
 
     @Test
     fun `sync takes the two words and any interval`() {
-        assertEquals(SyncPolicy.EveryBatch, read("sync" to "every-batch").lsm.sync)
-        assertEquals(SyncPolicy.Never, read("sync" to "NEVER").lsm.sync)
-        assertEquals(SyncPolicy.Interval(500), read("sync" to "500ms").lsm.sync)
-        assertEquals(SyncPolicy.Interval(5_000), read("sync" to "5s").lsm.sync)
-        assertEquals(SyncPolicy.Interval(60_000), read("sync" to "1m").lsm.sync)
+        assertEquals(StoreSync.EveryBatch, read("sync" to "every-batch").store.sync)
+        assertEquals(StoreSync.Never, read("sync" to "NEVER").store.sync)
+        assertEquals(StoreSync.Interval(500), read("sync" to "500ms").store.sync)
+        assertEquals(StoreSync.Interval(5_000), read("sync" to "5s").store.sync)
+        assertEquals(StoreSync.Interval(60_000), read("sync" to "1m").store.sync)
         assertTrue(complaints.isEmpty())
     }
 
     @Test
     fun `sizes come in the units an admin writes them in`() {
-        assertEquals(16L shl 20, read("memtable-size" to "16MiB").lsm.memtableBytes)
-        assertEquals(4L shl 20, read("memtable-size" to "4MB").lsm.memtableBytes)
-        assertEquals(2L shl 30, read("memtable-size" to "2GiB").lsm.memtableBytes)
-        assertEquals(8L shl 20, read("memtable-size" to 8_388_608).lsm.memtableBytes)
+        assertEquals(16L shl 20, read("memtable-size" to "16MiB").store.memtableBytes)
+        assertEquals(4L shl 20, read("memtable-size" to "4MB").store.memtableBytes)
+        assertEquals(2L shl 30, read("memtable-size" to "2GiB").store.memtableBytes)
+        assertEquals(8L shl 20, read("memtable-size" to 8_388_608).store.memtableBytes)
         assertTrue(complaints.isEmpty())
     }
 
@@ -97,8 +96,8 @@ class SettingsTest {
     fun `a value it cannot read keeps the default and says which key`() {
         val settings = read("sync" to "sometimes", "memtable-size" to "lots")
 
-        assertEquals(LsmConfig().sync, settings.lsm.sync)
-        assertEquals(LsmConfig().memtableBytes, settings.lsm.memtableBytes)
+        assertEquals(StoreSettings().sync, settings.store.sync)
+        assertEquals(StoreSettings().memtableBytes, settings.store.memtableBytes)
         assertEquals(2, complaints.size)
         assertTrue(complaints.any { it.contains("advanced.sync") && it.contains("sometimes") }) { complaints.toString() }
         assertTrue(complaints.any { it.contains("advanced.memtable-size") }) { complaints.toString() }
@@ -106,22 +105,22 @@ class SettingsTest {
 
     @Test
     fun `every fallback is the safe direction, so a typo costs speed and never durability`() {
-        assertEquals(SyncPolicy.EveryBatch, read("sync" to "nevr").lsm.sync)
-        assertEquals(SyncPolicy.EveryBatch, read("sync" to "every batch").lsm.sync)
+        assertEquals(StoreSync.EveryBatch, read("sync" to "nevr").store.sync)
+        assertEquals(StoreSync.EveryBatch, read("sync" to "every batch").store.sync)
     }
 
     @Test
     fun `numbers that would stall the server are refused rather than obeyed`() {
-        assertEquals(LsmConfig().memtableBytes, read("memtable-size" to "4KiB").lsm.memtableBytes)
-        assertEquals(LsmConfig().maxFrozenMemtables, read("max-pending-flushes" to 0).lsm.maxFrozenMemtables)
+        assertEquals(StoreSettings().memtableBytes, read("memtable-size" to "4KiB").store.memtableBytes)
+        assertEquals(StoreSettings().maxFrozenMemtables, read("max-pending-flushes" to 0).store.maxFrozenMemtables)
         assertEquals(2, complaints.size)
     }
 
     @Test
     fun `the capture ring has to be a power of two`() {
-        assertEquals(1 shl 18, read("capture-ring-slots" to (1 shl 18)).ringSlots)
-        assertEquals(TracelStorage.DEFAULT_RING_SLOTS, read("capture-ring-slots" to 65_000).ringSlots)
-        assertEquals(TracelStorage.DEFAULT_RING_SLOTS, read("capture-ring-slots" to 512).ringSlots)
+        assertEquals(1 shl 18, read("capture-ring-slots" to (1 shl 18)).store.ringSlots)
+        assertEquals(StoreSettings.DEFAULT_RING_SLOTS, read("capture-ring-slots" to 65_000).store.ringSlots)
+        assertEquals(StoreSettings.DEFAULT_RING_SLOTS, read("capture-ring-slots" to 512).store.ringSlots)
         assertEquals(2, complaints.size)
     }
 

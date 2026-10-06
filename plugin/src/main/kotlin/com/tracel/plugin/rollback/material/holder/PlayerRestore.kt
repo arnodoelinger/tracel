@@ -85,7 +85,7 @@ internal suspend fun MaterialRestorer.applyToEnderChest(
                     deltas,
                     job,
                     System.currentTimeMillis(),
-                    enderChest = true
+                    stash = true
                 )
             }
             deliverIfBack(holder.uuid)

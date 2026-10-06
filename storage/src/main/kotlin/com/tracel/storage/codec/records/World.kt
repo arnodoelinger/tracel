@@ -1,6 +1,7 @@
 package com.tracel.storage.codec.records
 
 import com.tracel.model.cause.CauseKind
+import com.tracel.model.world.OpaqueBytes
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockDataKey
@@ -27,7 +28,7 @@ object World {
     const val CHANGE_SECTION: Byte = 2
 
     const val WCHG_HEADER_BYTES = 32
-    const val MAX_EXTRAS_BYTES = 0xFFFF
+    const val MAX_EXTRAS_BYTES = OpaqueBytes.MAX_BYTES
 
     private const val BLOCK_TAIL_BYTES = 12
     private const val ENTITY_TAIL_BYTES = 24
@@ -38,7 +39,7 @@ object World {
     private const val EXTRAS_RIDING: Byte = 4
     private const val POSE_BYTES = 33
 
-    const val LINK_BYTES = 17
+    const val LINK_BYTES = OpaqueBytes.LINK_BYTES
 
     fun blockExtras(extras: BlockExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)

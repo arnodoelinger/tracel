@@ -1,6 +1,7 @@
 package com.tracel.storage
 
-import com.tracel.annotations.Unstable
+import com.tracel.engine.store.StoreSettings
+import com.tracel.storage.lsm.toLsmConfig
 import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.capture.CaptureRing
@@ -80,6 +81,12 @@ class TracelStorage private constructor(
             }
         }
     }
+
+    override suspend fun mark(): Int = read { mark() }
+
+    override suspend fun release(mark: Int) = read { release(mark) }
+
+    override suspend fun rollbackTo(mark: Int) = read { rollbackTo(mark) }
 
     /**
      * Runs [block] inside one unit of work and commits it as one batch.
@@ -196,11 +203,13 @@ class TracelStorage private constructor(
     }
 
     companion object {
-        const val DEFAULT_RING_SLOTS = 1 shl 16
+        const val DEFAULT_RING_SLOTS = StoreSettings.DEFAULT_RING_SLOTS
         const val MAX_READERS = 16
         private const val CLOSE_GRACE_MILLIS = 1_000L
 
-        /** Opens (or creates) the store at [path]. */
+        fun open(path: Path, settings: StoreSettings): TracelStorage =
+            open(path, ringSlots = settings.ringSlots, lsm = settings.toLsmConfig())
+
         fun open(
             path: Path,
             ringSlots: Int = DEFAULT_RING_SLOTS,

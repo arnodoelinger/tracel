@@ -617,6 +617,10 @@ class LotRepository(
         return out
     }
 
+    init {
+        storage.afterReplace(::forget)
+    }
+
     fun forget() {
         lots.invalidateAll()
     }

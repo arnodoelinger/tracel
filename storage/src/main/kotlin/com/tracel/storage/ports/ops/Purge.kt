@@ -1,6 +1,7 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.storage.StorageUnit
+import com.tracel.engine.store.PurgeSummary
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
@@ -9,9 +10,6 @@ import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
 import com.tracel.storage.codec.records.Lot as LotRecord
-
-/** What a purge threw away, for the line that gets printed afterward. */
-data class PurgeSummary(val rows: Long, val bytes: Long, val oldest: Long? = null, val newest: Long? = null)
 
 /** Deletes the `Tracel`'s history. */
 suspend fun purgeAll(storage: TracelStorage): PurgeSummary {

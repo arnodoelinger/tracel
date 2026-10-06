@@ -5,7 +5,7 @@ import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.annotations.Observes
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.storage.intern.EntityKindSource
+import com.tracel.engine.actor.EntityKindSource
 import org.bukkit.entity.Item
 import org.bukkit.entity.Player
 import org.bukkit.event.Listener

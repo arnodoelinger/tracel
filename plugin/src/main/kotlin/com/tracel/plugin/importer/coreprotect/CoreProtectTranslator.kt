@@ -23,7 +23,7 @@ import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.plugin.util.AIR
-import com.tracel.storage.ports.ops.ForeignRecord
+import com.tracel.engine.foreign.ForeignRecord
 import java.util.*
 
 /** What a block entity carried that its block state does not say. */

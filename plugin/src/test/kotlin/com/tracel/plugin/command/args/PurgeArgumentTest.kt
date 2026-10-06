@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.args
 
-import com.tracel.storage.ports.ops.PurgeCategory
+import com.tracel.engine.store.PurgeCategory
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 

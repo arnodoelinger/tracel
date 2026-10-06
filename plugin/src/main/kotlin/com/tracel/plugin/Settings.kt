@@ -1,23 +1,21 @@
 package com.tracel.plugin
 
 import com.tracel.plugin.command.args.TimeArgument
+import com.tracel.engine.store.StoreSync
+import com.tracel.engine.store.StoreSettings
 import com.tracel.plugin.governor.GovernorSettings
 import com.tracel.plugin.util.PrivateBin
-import com.tracel.storage.TracelStorage
-import com.tracel.storage.lsm.LsmConfig
-import com.tracel.storage.lsm.write.SyncPolicy
-import com.tracel.storage.ports.ops.PurgeCategory
+import com.tracel.engine.store.PurgeCategory
 import org.tomlj.TomlTable
 import java.net.URI
 
 /**
  * `Tracel` settings.
  *
- * @see LsmConfig
+ * @see StoreSettings
  */
 internal data class Settings(
-    val lsm: LsmConfig = LsmConfig(),
-    val ringSlots: Int = TracelStorage.DEFAULT_RING_SLOTS,
+    val store: StoreSettings = StoreSettings(),
     val entityRestoreLimit: Int = DEFAULT_ENTITY_RESTORE_LIMIT,
     val logEntityDamage: Boolean = DEFAULT_LOG_ENTITY_DAMAGE,
     val rollbackMaxRadius: Int? = DEFAULT_ROLLBACK_MAX_RADIUS,
@@ -77,19 +75,19 @@ internal fun readSettings(
     purge: TomlTable? = null,
     logging: TomlTable? = null,
 ): Settings {
-    val defaults = LsmConfig()
+    val defaults = StoreSettings()
 
     val sync = advanced.setting("advanced", "sync", defaults.sync, complain) { parseSync(it.toString()) }
 
     val memtable = advanced.setting("advanced", "memtable-size", defaults.memtableBytes, complain) {
-        parseBytes(it.toString())?.takeIf { bytes -> bytes >= LsmConfig.MIN_MEMTABLE_BYTES }
+        parseBytes(it.toString())?.takeIf { bytes -> bytes >= StoreSettings.MIN_MEMTABLE_BYTES }
     }
 
     val pending = advanced.setting("advanced", "max-pending-flushes", defaults.maxFrozenMemtables, complain) {
-        (it as? Number)?.toInt()?.takeIf { count -> count >= LsmConfig.MIN_PENDING_FLUSHES }
+        (it as? Number)?.toInt()?.takeIf { count -> count >= StoreSettings.MIN_PENDING_FLUSHES }
     }
 
-    val slots = advanced.setting("advanced", "capture-ring-slots", TracelStorage.DEFAULT_RING_SLOTS, complain) {
+    val slots = advanced.setting("advanced", "capture-ring-slots", StoreSettings.DEFAULT_RING_SLOTS, complain) {
         (it as? Number)?.toInt()?.takeIf { n -> n >= MIN_RING_SLOTS && n.countOneBits() == 1 }
     }
 
@@ -152,12 +150,12 @@ internal fun readSettings(
     }
 
     return Settings(
-        lsm = defaults.copy(
-            sync = sync,
+        store = StoreSettings(
             memtableBytes = memtable,
             maxFrozenMemtables = pending,
+            sync = sync,
+            ringSlots = slots,
         ),
-        ringSlots = slots,
         entityRestoreLimit = entityRestoreLimit,
         logEntityDamage = logEntityDamage,
         rollbackMaxRadius = maxRadius,
@@ -181,11 +179,11 @@ private fun <T> TomlTable?.setting(
     return default
 }
 
-private fun parseSync(value: String): SyncPolicy? =
+private fun parseSync(value: String): StoreSync? =
     when (value.trim().lowercase()) {
-        "every-batch" -> SyncPolicy.EveryBatch
-        "never" -> SyncPolicy.Never
-        else -> parseDuration(value)?.let(SyncPolicy::Interval)
+        "every-batch" -> StoreSync.EveryBatch
+        "never" -> StoreSync.Never
+        else -> parseDuration(value)?.let(StoreSync::Interval)
     }
 
 private fun parseDuration(value: String): Long? {

@@ -12,7 +12,7 @@ import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.material.spill.spillInRegion
 import com.tracel.plugin.rollback.result.report.RestorationReport
-import com.tracel.storage.ports.ledger.PendingDelivery
+import com.tracel.engine.ledger.PendingDelivery
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.bukkit.entity.Player
@@ -43,8 +43,8 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
             val moves = Moves()
             val enderMoves = Moves()
             val worn = PendingWorn.take(player.uniqueId)
-            for ((_, itemKey, delta, _, enderChest) in claimed.sortedBy { it.delta > 0L }) {
-                if (enderChest) {
+            for ((_, itemKey, delta, _, stash) in claimed.sortedBy { it.delta > 0L }) {
+                if (stash) {
                     applyDelta(itemKey, delta, forms[itemKey], enderMoves, player.enderChest, worn = worn)
                 } else {
                     applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory, worn = worn)
@@ -57,7 +57,7 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
             takeFromMenu(player, moves)
             spillInRegion(holder, moves, at.world, at, sink)
             services.differ.rebaseline(holder, player.heldTotals())
-            if (claimed.any { it.enderChest }) {
+            if (claimed.any { it.stash }) {
                 val ender = HolderId.PlayerStash(player.uniqueId)
                 spillInRegion(ender, enderMoves, at.world, at, sink)
                 services.differ.rebaseline(ender, player.enderChest.toItemTotals())
@@ -106,7 +106,7 @@ internal suspend fun MaterialRestorer.requeue(player: UUID, claimed: List<Pendin
     val now = System.currentTimeMillis()
     runCatching {
         services.atomically {
-            for ((owed, entries) in claimed.groupBy { it.job to it.enderChest }) {
+            for ((owed, entries) in claimed.groupBy { it.job to it.stash }) {
                 val deltas = LinkedHashMap<ItemKey, Long>()
                 for ((_, itemKey, delta) in entries) deltas.merge(itemKey, delta, Long::plus)
                 services.pendingDeliveries.enqueueAll(player, deltas, owed.first, now, owed.second)

@@ -1,6 +1,6 @@
 package com.tracel.plugin.setup
 
-import com.tracel.storage.ports.ops.PurgeCategory
+import com.tracel.engine.store.PurgeCategory
 
 /** What the setup collected, one screen at a time. */
 internal class SetupChoices {

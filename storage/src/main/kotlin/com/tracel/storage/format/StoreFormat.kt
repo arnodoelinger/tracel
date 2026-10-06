@@ -1,6 +1,7 @@
 package com.tracel.storage.format
 
 import com.tracel.platform.Versions
+import com.tracel.engine.store.StoreFormatException
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
@@ -36,8 +37,6 @@ class Migration(
     }
 }
 
-/** The database cannot be used by this build as it is. The message says why, for whoever runs the server. */
-class StoreFormatException(message: String) : IllegalStateException(message)
 
 /** What [StoreFormat.ensure] did: [from] is [to] when nothing had to move. */
 class FormatOutcome(val from: FormatVersion, val to: FormatVersion) {

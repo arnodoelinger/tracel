@@ -1,7 +1,7 @@
 package com.tracel.plugin.command.args
 
 import com.tracel.plugin.i18n.tr
-import com.tracel.storage.ports.ops.PurgeCategory
+import com.tracel.engine.store.PurgeCategory
 import net.kyori.adventure.text.Component
 
 /** What `/tracel data purge` was asked for, once its words are read. Names are still names: the action resolves them. */

@@ -1,6 +1,7 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.model.log.Seq
+import com.tracel.engine.store.Counters as CountersPort
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
@@ -14,30 +15,31 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 /** Durable ID allocation, a block at a time. */
-class Counters(private val storage: TracelStorage, private val blockSize: Long = DEFAULT_BLOCK_SIZE) {
+class Counters(private val storage: TracelStorage, private val blockSize: Long = DEFAULT_BLOCK_SIZE) : CountersPort {
     private class Reservation(var next: Long, var exhaustedAt: Long)
 
     private val lock = ReentrantLock()
     private val reserved = HashMap<Int, Reservation>()
 
-    /** How many sequence numbers were handed out since start: one per record written to a log. */
-    val seqIssued = AtomicLong()
+    private val issued = AtomicLong()
+
+    override val seqIssued: Long get() = issued.get()
 
     init {
         storage.afterReplace(::forget)
     }
 
     /** @return a new transaction ID. */
-    suspend fun nextTxnId(): TxnId = TxnId(next(TXN))
+    override suspend fun nextTxnId(): TxnId = TxnId(next(TXN))
 
     /** @return a new sequence number. */
-    suspend fun nextSeq(): Seq = Seq(next(SEQ)).also { seqIssued.incrementAndGet() }
+    override suspend fun nextSeq(): Seq = Seq(next(SEQ)).also { issued.incrementAndGet() }
 
     /** @return a new range of sequence numbers. */
-    suspend fun nextSeqRange(count: Int): Seq {
+    override suspend fun nextSeqRange(count: Int): Seq {
         require(count > 0) { "a range of $count sequences is not a range" }
         if (count == 1) return nextSeq()
-        return Seq(nextRange(SEQ, count)).also { seqIssued.addAndGet(count.toLong()) }
+        return Seq(nextRange(SEQ, count)).also { issued.addAndGet(count.toLong()) }
     }
 
     /** @return a new lot ID. */
@@ -47,7 +49,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     suspend fun nextFifoSeq(): Seq = Seq(next(PLACEMENT))
 
     /** @return a new rollback job ID. */
-    suspend fun nextRollbackJobId(): RollbackJobId = RollbackJobId(next(ROLLBACK_JOB))
+    override suspend fun nextRollbackJobId(): RollbackJobId = RollbackJobId(next(ROLLBACK_JOB))
 
     /** @return a new pending delivery ID. */
     suspend fun nextPendingDeliveryId(): Long = next(PENDING_DELIVERY)
@@ -62,7 +64,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     fun nextPackIdOn(unit: StorageUnit): Long = nextOn(unit, PACK)
 
     /** @return a new sequence number. */
-    suspend fun peekTxnId(): Long {
+    override suspend fun peekTxnId(): Long {
         lock.lock()
         val cached = try {
             reserved[TXN]?.takeIf { it.next < it.exhaustedAt }?.next

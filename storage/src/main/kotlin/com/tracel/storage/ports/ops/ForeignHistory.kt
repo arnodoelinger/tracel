@@ -1,19 +1,17 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.engine.log.TransactionLog
+import com.tracel.engine.foreign.NoRoomForImport
+import com.tracel.engine.foreign.ImportRoom
+import com.tracel.engine.foreign.ImportMark
+import com.tracel.engine.foreign.ForeignRecord
+import com.tracel.engine.foreign.ForeignHistory as ForeignHistoryPort
 import com.tracel.engine.world.WorldLog
-import com.tracel.engine.world.edit.BlockEdits
-import com.tracel.model.cause.CauseKind
 import com.tracel.model.event.ActorEvent
-import com.tracel.model.event.EventKind
-import com.tracel.model.flow.Flow
 import com.tracel.model.holder.HolderId
 import com.tracel.model.log.Seq
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.transaction.TxnId
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.StorageUnit
@@ -27,62 +25,6 @@ import com.tracel.storage.ports.event.EventLog
 import java.lang.foreign.MemorySegment
 import java.util.*
 
-/**
- * Foreign history is what another plugin recorded, filed under this one's.
- *
- * It is older than anything recorded here and has to read that way in every index, so it is numbered below
- * [Counters.SEQ_BASE], where nothing of our own ever is.
- */
-sealed interface ForeignRecord {
-    /** Block edits that happened together. */
-    data class Blocks(val edits: BlockEdits) : ForeignRecord
-
-    /** One change to the world that stands alone: an entity gone, a block clicked. */
-    data class Change(
-        val action: ActionKind,
-        val cause: CauseKind,
-        val causedBy: HolderId?,
-        val epochMillis: Long,
-        val at: BlockPos,
-        val subject: ChangeSubject,
-    ) : ForeignRecord
-
-    /** Items changing hands. There are no lots behind these: the ledger never saw them. */
-    data class Moved(
-        val cause: CauseKind,
-        val causedBy: HolderId?,
-        val epochMillis: Long,
-        val at: BlockPos?,
-        val flows: List<Flow>,
-    ) : ForeignRecord
-
-    /** Something said or typed, or a session starting or ending. */
-    data class Happened(
-        val kind: EventKind,
-        val by: HolderId?,
-        val epochMillis: Long,
-        val at: BlockPos?,
-        val text: String?,
-    ) : ForeignRecord
-}
-
-/**
- * How far into a source an import got: the last row read of each of its tables, in the order the importer
- * keeps them, and what came out of them so far.
- */
-data class ImportMark(val rows: List<Long>, val records: Long)
-
-/**
- * What an import has to fit into.
- *
- * @property ownSince when this store's own history starts; a foreign record from then on is not taken
- * @property mark where the last import of the same source stopped
- */
-data class ImportRoom(val ownSince: Long?, val mark: ImportMark?)
-
-/** The store numbered its own history from one, so there is nowhere older history could go. */
-class NoRoomForImport : IllegalStateException("this database numbers its own history from the start")
-
 /** Handles history from other plugins, filed under this one's. */
 class ForeignHistory(
     private val storage: TracelStorage,
@@ -90,9 +32,9 @@ class ForeignHistory(
     private val transactions: TransactionLog,
     private val events: EventLog,
     private val counters: Counters,
-) {
+) : ForeignHistoryPort {
     /** Makes sure there is room below our own history, and says how much of [source] is already in. */
-    suspend fun room(source: Long): ImportRoom = storage.write {
+    override suspend fun room(source: Long): ImportRoom = storage.write {
         val seqKey = Keys.counter(Counters.SEQ)
         val own = get(seqKey)?.let(Records::asLong)
         if (own != null && own < Counters.SEQ_BASE) {
@@ -116,7 +58,7 @@ class ForeignHistory(
      *
      * @return how many records were written
      */
-    suspend fun append(source: Long, rows: List<Long>, records: List<ForeignRecord>): Int = storage.batched {
+    override suspend fun append(source: Long, rows: List<Long>, records: List<ForeignRecord>): Int = storage.batched {
         var next = storage.read { nextImportSeq() }
         val firstTxn =
             storage.read { get(Keys.counter(Counters.TXN))?.let(Records::asLong) ?: Counters.first(Counters.TXN) }
@@ -184,13 +126,13 @@ class ForeignHistory(
      * and `Tracel`. For example, `CoreProtect` does not know about lots and it doesn't have ledger transactions, so
      * it's impossible to know what to leave alone when rolling back a block change.
      */
-    suspend fun importedBelow(): Long = storage.read {
+    override suspend fun importedBelow(): Long = storage.read {
         val own = get(Keys.counter(Counters.SEQ))?.let(Records::asLong) ?: Counters.SEQ_BASE
         if (own >= Counters.SEQ_BASE) Counters.SEQ_BASE else 0L
     }
 
     /** Says what kind of mob [entity] is, for an actor that is known by its type alone. */
-    suspend fun noteKind(entity: UUID, kind: EntityTypeKey) {
+    override suspend fun noteKind(entity: UUID, kind: EntityTypeKey) {
         storage.write {
             val id = storage.interning.internHolder(this, HolderId.Entity(entity))
             put(Keys.actorKind(id), Records.int(storage.interning.internEntityType(this, kind)))

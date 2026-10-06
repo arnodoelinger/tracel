@@ -25,7 +25,7 @@ import com.tracel.storage.intern.Interning
 import com.tracel.storage.util.ascending
 import com.tracel.storage.util.eachIndex
 import com.tracel.storage.util.eachRow
-import com.tracel.storage.util.namesMaterial
+import com.tracel.model.item.namesMaterial
 import com.tracel.storage.util.pageAccepted
 import java.lang.foreign.MemorySegment
 

@@ -32,6 +32,11 @@ import com.tracel.plugin.readSettings
 import com.tracel.plugin.scheduler.TracelSchedulers
 import com.tracel.plugin.startup.version.MinecraftVersion
 import com.tracel.storage.TracelStorage
+import com.tracel.storage.ports.world.GroundPositions
+import com.tracel.storage.ports.ops.ForeignHistory
+import com.tracel.storage.ports.log.RolledBack
+import com.tracel.storage.ports.ops.StoreAdmin
+import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.Drainer
 import com.tracel.storage.ports.actor.ActorFacts
@@ -64,7 +69,7 @@ private const val WRITE_RATE_SAMPLE_MILLIS = 5_000L
 
 /** Wired plugin after a successful [enable]. */
 internal class TracelRuntime(
-    val storage: TracelStorage,
+    val store: StoreAdmin,
     val services: TracelServices,
     val drain: Job,
     val entityDrain: Job,
@@ -105,11 +110,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         logging = config.getTable("logging"),
     )
     ScopeLimits.rollbackMaxBlocks = settings.rollbackMaxRadius
-    val storage = TracelStorage.open(
-        plugin.dataFolder.resolve("database").toPath(),
-        ringSlots = settings.ringSlots,
-        lsm = settings.lsm,
-    )
+    val storage = TracelStorage.open(plugin.dataFolder.resolve("database").toPath(), settings.store)
     resumeImport(plugin, storage)
     migrateStore(plugin, storage)
     val entityKinds = EntityKinds()
@@ -123,6 +124,8 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val containerSlots = ContainerSlotLog(storage, counters)
     val wear = WearLog(storage, counters)
     val actors = ActorFacts(storage)
+    val events = EventLog(storage)
+    val admin = StoreAdmin(storage)
     val leases = Leases(storage)
     val jobs = RollbackJobRepository(storage)
     val pendingDeliveries = PendingDeliveryRepository(storage, counters)
@@ -162,8 +165,13 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         undo = involutionCoordinator,
         undoJournal = undoJournal,
         pendingDeliveries = pendingDeliveries,
-        storage = storage,
+        unit = storage,
+        store = admin,
         gate = CaptureGate(storage.ring),
+        events = events,
+        rolledBack = RolledBack(storage),
+        foreign = ForeignHistory(storage, worldLog, log, events, counters),
+        groundPositions = GroundPositions(storage),
         worldLog = worldLog,
         containerSlots = containerSlots,
         wear = wear,
@@ -281,7 +289,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     services.scope.launch {
         while (isActive) {
             services.writeRate.sample()
-            Telemetry.backlog(storage.ring.backlog)
+            Telemetry.backlog(admin.capture.backlog)
             delay(WRITE_RATE_SAMPLE_MILLIS.milliseconds)
         }
     }
@@ -299,7 +307,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
 
     plugin.logger.info("Tracel ${plugin.pluginMeta.version} enabled.")
 
-    return TracelRuntime(storage, services, drain, entityDrain, formDrain, releaseDrain, lastCaptures)
+    return TracelRuntime(admin, services, drain, entityDrain, formDrain, releaseDrain, lastCaptures)
 }
 
 private fun migrateStore(plugin: TracelPlugin, storage: TracelStorage) {

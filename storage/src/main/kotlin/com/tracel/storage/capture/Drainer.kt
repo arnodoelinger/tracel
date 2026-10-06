@@ -1,6 +1,7 @@
 package com.tracel.storage.capture
 
 import com.tracel.engine.balance.InventoryDelta
+import com.tracel.engine.capture.PlacedDeltas
 import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.cause.CauseKind

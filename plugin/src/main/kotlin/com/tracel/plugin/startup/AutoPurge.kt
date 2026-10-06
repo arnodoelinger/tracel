@@ -4,10 +4,9 @@ import com.tracel.plugin.AutoPurgeSettings
 import com.tracel.plugin.TracelPlugin
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.shortSpan
-import com.tracel.storage.ports.ops.PurgeCategory
-import com.tracel.storage.ports.ops.PurgeFilter
-import com.tracel.storage.ports.ops.PurgeSpec
-import com.tracel.storage.ports.ops.purgeSome
+import com.tracel.engine.store.PurgeCategory
+import com.tracel.engine.store.PurgeFilter
+import com.tracel.engine.store.PurgeSpec
 import kotlinx.coroutines.*
 import java.util.logging.Level
 import kotlin.time.Duration.Companion.milliseconds
@@ -45,7 +44,7 @@ private suspend fun sweep(plugin: TracelPlugin, services: TracelServices, keep: 
         var bytes = 0L
         for ((category, millis) in keep) {
             val spec = PurgeSpec(setOf(category), PurgeFilter(now - millis), wholeWindowsOnly = true)
-            val report = purgeSome(services.storage, spec) { slice -> services.purgeGate.slice(slice = slice) }
+            val report = services.store.purgeSome(spec) { slice -> services.purgeGate.slice(slice = slice) }
             records += report.matched
             bytes += report.bytes
         }

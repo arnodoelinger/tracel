@@ -42,18 +42,18 @@ import com.tracel.plugin.rollback.structure.rescueJoined
 import com.tracel.plugin.status.WriteRate
 import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.plugin.util.GroundWhereabouts
-import com.tracel.storage.TracelStorage
-import com.tracel.storage.capture.CaptureGate
-import com.tracel.storage.ports.actor.ActorFacts
-import com.tracel.storage.ports.event.EventLog
-import com.tracel.storage.ports.job.Journal
-import com.tracel.storage.ports.ledger.ItemForms
-import com.tracel.storage.ports.ledger.LotRepository
-import com.tracel.storage.ports.ledger.PendingDeliveryRepository
-import com.tracel.storage.ports.log.RolledBack
-import com.tracel.storage.ports.ops.Counters
-import com.tracel.storage.ports.ops.ForeignHistory
-import com.tracel.storage.ports.world.GroundPositions
+import com.tracel.engine.store.StoreAdmin
+import com.tracel.engine.capture.CaptureGate
+import com.tracel.engine.actor.ActorFacts
+import com.tracel.engine.event.EventLog
+import com.tracel.engine.rollback.journal.Journal
+import com.tracel.engine.ledger.ItemForms
+import com.tracel.engine.ledger.repository.LotRepository
+import com.tracel.engine.ledger.PendingDeliveryRepository
+import com.tracel.engine.log.RolledBack
+import com.tracel.engine.store.Counters
+import com.tracel.engine.foreign.ForeignHistory
+import com.tracel.engine.world.GroundPositions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import org.bukkit.entity.Player
@@ -78,7 +78,8 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param undo coordinates involution jobs
  * @param undoJournal which undo steps already ran, plus whether their items went back
  * @param pendingDeliveries stores pending item deliveries
- * @param storage provides access to plugin's storage
+ * @param unit the unit of work every write runs in
+ * @param store what an operator can do to the stored history
  * @param gate fast path for capture events
  * @param worldLog stores world changes
  * @param containerSlots stores which slot a container's contents last sat in
@@ -106,8 +107,13 @@ class TracelServices(
     val undo: InvolutionJobCoordinator,
     val undoJournal: Journal,
     val pendingDeliveries: PendingDeliveryRepository,
-    val storage: TracelStorage,
+    val unit: UnitOfWork,
+    val store: StoreAdmin,
     val gate: CaptureGate,
+    val events: EventLog,
+    val rolledBack: RolledBack,
+    val foreign: ForeignHistory,
+    val groundPositions: GroundPositions,
     val worldLog: WorldLog,
     val containerSlots: ContainerSlotLog,
     val wear: WearLog,
@@ -129,7 +135,7 @@ class TracelServices(
 
     @Volatile
     var worldEdit: AutoCloseable? = null
-) : UnitOfWork by storage {
+) : UnitOfWork by unit {
     val purging: AtomicBoolean = AtomicBoolean(false)
 
     @Volatile
@@ -138,10 +144,7 @@ class TracelServices(
     @Volatile
     var lastPurgeMillis: Long? = null
     val governor: TickGovernor = TickGovernor(plugin, governorSettings)
-    val events: EventLog = EventLog(storage)
-    val rolledBack: RolledBack = RolledBack(storage)
-    val writeRate: WriteRate = WriteRate(total = { counters.seqIssued.get() })
-    val foreign: ForeignHistory = ForeignHistory(storage, worldLog, log, events, counters)
+    val writeRate: WriteRate = WriteRate(total = { counters.seqIssued })
     val purgeGate: PurgeGate = PurgeGate { composite.isRunning }
     val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }
     val shape: ShapeCapture = ShapeCapture(this)
@@ -150,14 +153,14 @@ class TracelServices(
     val wearCapture: WearCapture = WearCapture(repo, log, wear, counters::nextTxnId, counters::nextSeq)
     val worldCapture: WorldCaptureCoordinator =
         WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
-    val entityCapture: EntityCaptureQueue = EntityCaptureQueue(worldCapture, storage)
+    val entityCapture: EntityCaptureQueue = EntityCaptureQueue(worldCapture, unit)
     val restorer: MaterialRestorer = MaterialRestorer(this)
     val selfManagedWorld: SelfManagedWorldGuard = SelfManagedWorldGuard()
     val structureRestorer: StructureRestorer = StructureRestorer(this)
     val composite: RollbackGenius = RollbackComposer(this, structureRestorer, restorer, restorer)
     val redstoneTriggers: RedstoneTrigger = RedstoneTrigger()
     val whereabouts: EntityWhereabouts = EntityWhereabouts(capacity = WHEREABOUTS_KEPT)
-    val groundWhereabouts: GroundWhereabouts = GroundWhereabouts(GroundPositions(storage))
+    val groundWhereabouts: GroundWhereabouts = GroundWhereabouts(groundPositions)
     val selfManagedSpawns: SpawnGuard = SpawnGuard()
     val blockDrops: BlockDrop = BlockDrop()
     val hullDrops: HullDrop = HullDrop()

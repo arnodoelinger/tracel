@@ -8,7 +8,6 @@ import com.tracel.plugin.i18n.say
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.i18n.unexpected
 import com.tracel.plugin.status.LAG_PROBE_MILLIS
-import com.tracel.storage.codec.History
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,20 +33,15 @@ class StatusAction(private val services: TracelServices) {
     }
 
     private suspend fun read(): StatusSnapshot {
-        val engine = services.storage.engine
-        val (history, bytes) = withContext(Dispatchers.IO) {
-            listOf(History.BLOCKS, History.ITEMS, History.EVENTS, History.CONTAINERS).map(engine::history) to
-                    engine.stats().liveBytes
-        }
-        val (blocks, items, events, containers) = history
+        val stored = withContext(Dispatchers.IO) { services.store.report() }
         val database = services.plugin.dataFolder.resolve("database")
 
         // What waits right now, before the wait below changes it: captures not written, and ring slots not applied
-        val queued = services.pendingCaptures.owedNow() + services.storage.ring.backlog.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val queued = services.pendingCaptures.owedNow() + services.store.capture.backlog.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
         // How late the queue is is how long it takes to empty: asked of it now, answered when it is
         val started = System.nanoTime()
-        val applied = withTimeoutOrNull(LAG_PROBE_MILLIS) { services.storage.ring.awaitApplied(LAG_PROBE_MILLIS) } == true
+        val applied = withTimeoutOrNull(LAG_PROBE_MILLIS) { services.store.capture.awaitApplied(LAG_PROBE_MILLIS) } == true
         val left = (LAG_PROBE_MILLIS - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(1)
         val settled = withTimeoutOrNull(left) { services.pendingCaptures.await(left) } == true
         val took = (System.nanoTime() - started) / 1_000_000
@@ -56,11 +50,11 @@ class StatusAction(private val services: TracelServices) {
 
         return StatusSnapshot(
             nowMillis = System.currentTimeMillis(),
-            blockRows = blocks.sumOf { it.entries },
-            itemRows = items.sumOf { it.entries },
-            eventRows = events.sumOf { it.entries },
-            oldestMillis = history.flatten().filter { it.entries > 0 }.minOfOrNull { it.windowStartMillis },
-            databaseBytes = bytes,
+            blockRows = stored.blockRows,
+            itemRows = stored.itemRows,
+            eventRows = stored.eventRows,
+            oldestMillis = stored.oldestMillis,
+            databaseBytes = stored.liveBytes,
             diskFree = database.usableSpace,
             diskTotal = database.totalSpace,
             queued = queued,
@@ -72,6 +66,7 @@ class StatusAction(private val services: TracelServices) {
             lagBeyondProbe = beyond,
             mspt = runCatching { Bukkit.getAverageTickTime() }.getOrNull(),
             forwardCompatible = services.forwardCompatible,
+            format = services.store.formatVersion,
         )
     }
 }

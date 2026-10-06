@@ -1,6 +1,7 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.storage.StorageUnit
+import com.tracel.engine.store.ImportInterrupted
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.spi.KeyValueEngine
@@ -10,9 +11,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 internal const val IMPORT_BATCH_ROWS = 20_000
-
-/** An import was cut short and cannot be finished, so what is in the database is a part of the file. */
-class ImportInterrupted(message: String) : IllegalStateException(message)
 
 /**
  * Where an import that has not finished had got to: the export it reads, how big that file is, how many rows it holds

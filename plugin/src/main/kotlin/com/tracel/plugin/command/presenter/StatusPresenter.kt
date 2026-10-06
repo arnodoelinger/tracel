@@ -6,8 +6,7 @@ import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.status.DiskLevel
 import com.tracel.plugin.status.Health
 import com.tracel.plugin.status.RollbackSize
-import com.tracel.storage.format.StoreFormat
-import com.tracel.storage.ports.ops.PurgeCategory
+import com.tracel.engine.store.PurgeCategory
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.HoverEvent
@@ -35,7 +34,7 @@ internal class StatusSnapshot(
     val lagBeyondProbe: Boolean,
     val mspt: Double?,
     val forwardCompatible: Boolean,
-    val format: String = StoreFormat.CURRENT.toString(),
+    val format: String,
 ) {
     val disk: DiskLevel get() = DiskLevel.of(diskFree, diskTotal)
     val health: Health get() = Health.of(forwardCompatible, mspt, lagMillis, disk)

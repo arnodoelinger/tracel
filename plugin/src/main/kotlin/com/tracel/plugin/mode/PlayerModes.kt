@@ -1,7 +1,7 @@
 package com.tracel.plugin.mode
 
 import com.tracel.annotations.Observes
-import com.tracel.storage.ports.actor.ActorFacts
+import com.tracel.engine.actor.ActorFacts
 import org.bukkit.Bukkit
 import org.bukkit.GameMode
 import org.bukkit.entity.Player

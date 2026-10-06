@@ -1,6 +1,8 @@
 package com.tracel.storage.lsm
 
 import com.tracel.storage.lsm.write.SyncPolicy
+import com.tracel.engine.store.StoreSettings
+import com.tracel.engine.store.StoreSync
 
 /** The wall clock. */
 val WALL_CLOCK: () -> Long = { System.currentTimeMillis() }
@@ -35,3 +37,14 @@ data class LsmConfig(
         const val DAY_MILLIS: Long = 86_400_000L
     }
 }
+
+/** The engine's view of [this]: the same sizes, with the sync policy in the engine's own words. */
+fun StoreSettings.toLsmConfig(): LsmConfig = LsmConfig(
+    memtableBytes = memtableBytes,
+    maxFrozenMemtables = maxFrozenMemtables,
+    sync = when (val choice = sync) {
+        StoreSync.EveryBatch -> SyncPolicy.EveryBatch
+        StoreSync.Never -> SyncPolicy.Never
+        is StoreSync.Interval -> SyncPolicy.Interval(choice.millis)
+    },
+)

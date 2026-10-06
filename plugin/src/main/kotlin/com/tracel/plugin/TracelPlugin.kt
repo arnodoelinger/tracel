@@ -5,8 +5,8 @@ import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.startup.TracelRuntime
 import com.tracel.plugin.startup.enableTracel
 import com.tracel.plugin.status.CriticalDiskSpace
-import com.tracel.storage.format.StoreFormatException
-import com.tracel.storage.ports.ops.ImportInterrupted
+import com.tracel.engine.store.StoreFormatException
+import com.tracel.engine.store.ImportInterrupted
 import com.tracel.plugin.util.killServer
 import com.tracel.plugin.util.serverIsStopping
 import com.tracel.plugin.util.stopping
@@ -40,7 +40,7 @@ class TracelPlugin : JavaPlugin() {
         val run = runtime
         stopping(logger, "storage") {
             val live = run ?: return@stopping
-            val clean = live.storage.closeAfter(5_000L) {
+            val clean = live.store.closeAfter(5_000L) {
                 stopping(logger, "the WorldEdit hook") { live.services.worldEdit?.close() }
                 stopping(logger, "the last captures") { live.lastCaptures() }
                 live.drain.cancel()

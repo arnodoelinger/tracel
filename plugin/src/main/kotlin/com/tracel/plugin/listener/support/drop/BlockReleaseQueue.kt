@@ -221,7 +221,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
             for ((batch, flows) in work) {
                 if (flows.isEmpty()) continue
                 // Savepoint per batch: one unseen-material failure must not unwind the rest of the commit
-                val mark = services.storage.read { mark() }
+                val mark = services.mark()
                 try {
                     val (mints, rest) = flows.partition { it.kind == FlowKind.MINT && it.destination !is HolderId.Entity }
                     if (mints.isNotEmpty()) services.capture.recordDirect(
@@ -238,14 +238,14 @@ class BlockReleaseQueue(private val services: TracelServices) {
                         batch.causedBy,
                         batch.at
                     )
-                    services.storage.read { release(mark) }
+                    services.release(mark)
                 } catch (e: IllegalStateException) {
-                    services.storage.read { rollbackTo(mark) }
+                    services.rollbackTo(mark)
                     logger.log(Level.FINE, "block release touched untracked material, not recorded", e)
                 }
             }
             for (follow in after) {
-                val mark = services.storage.read { mark() }
+                val mark = services.mark()
                 try {
                     services.capture.recordDirect(
                         listOf(follow.flow),
@@ -254,9 +254,9 @@ class BlockReleaseQueue(private val services: TracelServices) {
                         follow.causedBy,
                         follow.at
                     )
-                    services.storage.read { release(mark) }
+                    services.release(mark)
                 } catch (e: IllegalStateException) {
-                    services.storage.read { rollbackTo(mark) }
+                    services.rollbackTo(mark)
                     logger.log(Level.FINE, "a move off a claimed drop found nothing to move, not recorded", e)
                 }
             }

@@ -17,7 +17,7 @@ import com.tracel.plugin.command.presenter.support.Glyphs
 import com.tracel.plugin.i18n.lower
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.util.isAirLike
-import com.tracel.storage.util.namesMaterial
+import com.tracel.model.item.namesMaterial
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent

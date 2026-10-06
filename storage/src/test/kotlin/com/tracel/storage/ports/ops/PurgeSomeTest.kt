@@ -1,6 +1,10 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.engine.container.ContainerSlotEntry
+import com.tracel.engine.store.PurgeReport
+import com.tracel.engine.store.PurgeSpec
+import com.tracel.engine.store.PurgeFilter
+import com.tracel.engine.store.PurgeCategory
 import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.cause.CauseKind

@@ -1,6 +1,8 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.platform.Versions
+import com.tracel.engine.store.StoppedByRequest
+import com.tracel.engine.store.ExportSummary
 import com.github.luben.zstd.ZstdInputStream
 import com.github.luben.zstd.ZstdOutputStream
 import com.tracel.storage.TracelStorage
@@ -19,18 +21,6 @@ import java.nio.file.StandardCopyOption
 private val MAGIC = "TEXP".toByteArray(Charsets.US_ASCII)
 private const val VERSION = Versions.Format.EXPORT
 internal const val TIME_KEY_SIZE = 17
-
-/** What an export turned out to be, for the line that gets printed afterward. */
-data class ExportSummary(
-    val rows: Long,
-    val bytes: Long,
-    val file: Path,
-    val oldest: Long? = null,
-    val newest: Long? = null,
-)
-
-/** Thrown out of an export or an import that was told to stop, before it changed anything that outlives it. */
-class StoppedByRequest : RuntimeException("stopped on request")
 
 /**
  * The whole history as one file you can carry.

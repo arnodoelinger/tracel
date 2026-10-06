@@ -1,7 +1,7 @@
 package com.tracel.plugin.mode
 
 import com.tracel.annotations.Observes
-import com.tracel.storage.ports.actor.ActorFacts
+import com.tracel.engine.actor.ActorFacts
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryOpenEvent

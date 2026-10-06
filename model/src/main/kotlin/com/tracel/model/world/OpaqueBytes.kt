@@ -10,4 +10,9 @@ public abstract class OpaqueBytes(public val bytes: ByteArray) {
     final override fun hashCode(): Int = bytes.contentHashCode()
 
     final override fun toString(): String = "${javaClass.simpleName}(${bytes.size} bytes)"
+
+    public companion object {
+        public const val MAX_BYTES: Int = 0xFFFF
+        public const val LINK_BYTES: Int = 17
+    }
 }
