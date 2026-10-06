@@ -1,19 +1,19 @@
 package com.tracel.tests.property
 
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
-import com.tracel.engine.ownership.LeaseAcquisition
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
+import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.involution.InvolutionExecutor
-import com.tracel.engine.rollback.involution.InvolutionPlanner
-import com.tracel.engine.rollback.involution.InvolutionStep
-import com.tracel.engine.rollback.job.InMemoryRollbackJobRepository
-import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
+import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
+import com.tracel.engine.rollback.involution.plan.InvolutionStep
+import com.tracel.engine.rollback.job.record.memory.InMemoryRollbackJobRepository
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackPlanner
-import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.SinkKind
@@ -74,7 +74,7 @@ class InvolutionTest {
 
         val root = world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
         world.ledger.move(chest, steve, diamond, Quantity(10), world.nextTxn())
-        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, world.nextTxn())
 
         // The state involution has to reproduce: 6 with Steve, nothing in the chest, census 6
         assertEquals(6L, world.ledger.totalAt(steve, diamond)?.raw)

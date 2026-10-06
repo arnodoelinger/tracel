@@ -42,7 +42,7 @@ object World {
 
     fun blockExtras(extras: BlockExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
-        is BlockExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.nbt)
+        is BlockExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.bytes)
     }
 
     fun decodeBlockExtras(bytes: ByteArray): BlockExtras? = when {
@@ -53,7 +53,7 @@ object World {
 
     fun entityExtras(extras: EntityExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
-        is EntityExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.nbt)
+        is EntityExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.bytes)
         is EntityExtras.Falling -> tagged(EXTRAS_FALLING, extras.data.value.toByteArray(Charsets.UTF_8))
         is EntityExtras.Leashed -> link(EXTRAS_LEASHED, extras.holder, extras.rest)
         is EntityExtras.Riding -> link(EXTRAS_RIDING, extras.vehicle, extras.rest)

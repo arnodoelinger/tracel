@@ -1,6 +1,7 @@
 package com.tracel.plugin.integration.worldedit
 
-import com.tracel.engine.world.BlockEdit
+import com.tracel.plugin.util.isAirLike
+import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos

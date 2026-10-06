@@ -1,7 +1,7 @@
 package com.tracel.storage
 
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.ownership.LeaseAcquisition
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackPlanner

@@ -31,7 +31,7 @@ class BackpressureTest {
         TracelStorage.open(dir, ringSlots = 64, overflowSlots = 0).use { storage ->
             val gate = CaptureGate(storage.ring)
             val elapsed = kotlin.system.measureNanoTime {
-                repeat(10_000) { gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1) }
+                repeat(10_000) { gate.move(CauseKind.MACHINE, null, it.toLong(), diamond, chest, steve, 1) }
             }
             assertTrue(
                 elapsed < 500_000_000,
@@ -49,7 +49,7 @@ class BackpressureTest {
             // Pushed faster than it is drained, so the ring genuinely fills and genuinely refuses
             var accepted = 0L
             repeat(200_000) {
-                if (stack.gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1)) accepted++
+                if (stack.gate.move(CauseKind.MACHINE, null, it.toLong(), diamond, chest, steve, 1)) accepted++
                 if (it % 4_096 == 0) stack.drainer.drainOnce()
             }
             stack.drain()
@@ -75,7 +75,7 @@ class BackpressureTest {
 
             var accepted = 0L
             repeat(300) {
-                if (stack.gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1)) accepted++
+                if (stack.gate.move(CauseKind.MACHINE, null, it.toLong(), diamond, chest, steve, 1)) accepted++
             }
             assertEquals(300L, accepted, "nothing was refused: what the ring could not hold waited outside it")
             assertEquals(0L, stack.gate.dropped, "and nothing was lost")
@@ -93,7 +93,7 @@ class BackpressureTest {
 
             var accepted = 0L
             repeat(100) {
-                if (stack.gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1)) accepted++
+                if (stack.gate.move(CauseKind.MACHINE, null, it.toLong(), diamond, chest, steve, 1)) accepted++
             }
             assertTrue(stack.gate.dropped > 0, "the ring and the waiting room together cannot hold 100 events")
             assertEquals(100L, accepted + stack.gate.dropped, "every event was either kept or counted as lost")
@@ -107,13 +107,13 @@ class BackpressureTest {
     fun `drops are counted rather than swallowed`(@TempDir dir: Path) = runTest {
         TracelStorage.open(dir, ringSlots = 64, overflowSlots = 0).use { storage ->
             val gate = CaptureGate(storage.ring)
-            repeat(1_000) { gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1) }
+            repeat(1_000) { gate.move(CauseKind.MACHINE, null, it.toLong(), diamond, chest, steve, 1) }
             val dropped = gate.dropped
             assertTrue(dropped > 0, "a 64-slot ring cannot have taken 1 000 events")
 
             // Never resets: a counter that forgets is a lie, and an operator needs to see the
             // total since start-up, not since whenever something last looked.
-            repeat(100) { gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1) }
+            repeat(100) { gate.move(CauseKind.MACHINE, null, it.toLong(), diamond, chest, steve, 1) }
             assertTrue(gate.dropped >= dropped, "the drop count must never go backwards")
         }
     }

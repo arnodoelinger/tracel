@@ -1,6 +1,6 @@
 package com.tracel.annotations
 
-/** First parameter must be a `LotLease`. `Konsist` enforces it. */
+/** First parameter must be a `Lease`. `Konsist` enforces it. */
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.BINARY)
 @MustBeDocumented

@@ -74,8 +74,8 @@ private fun EntityShape.putHullBack(
 
     val opaque = extras.opaque
     if (opaque != null) {
-        val restored = deserializeEntity(opaque.nbt, world, preserveUUID = true)
-            ?: deserializeEntity(opaque.nbt, world, preserveUUID = false)
+        val restored = deserializeEntity(opaque.bytes, world, preserveUUID = true)
+            ?: deserializeEntity(opaque.bytes, world, preserveUUID = false)
         if (restored != null && place(restored, loc)) {
             if (!keepCargo) stripCargo(restored)
             revive(restored)

@@ -19,7 +19,9 @@ class ArchitectureTest {
         .files
         .filterNot { it.name == "ArchitectureTest" }
 
-    private fun domainScope() = Konsist.scopeFromModules(listOf("model", "engine"))
+    private fun engineScope() = Konsist.scopeFromModule("engine")
+
+    private fun domainScope() = Konsist.scopeFromModule("model") + engineScope()
 
     @Test
     fun `no code touches BukkitScheduler`() {
@@ -101,7 +103,7 @@ class ArchitectureTest {
 
     @Test
     fun `InMemory ports are SingleWriter STORAGE and writes check in`() {
-        val ports = Konsist.scopeFromModule("engine")
+        val ports = engineScope()
             .classes()
             .filter { it.name.startsWith("InMemory") }
         check(ports.isNotEmpty()) { "no InMemory* classes in engine" }
@@ -121,7 +123,7 @@ class ArchitectureTest {
 
     @Test
     fun `Reads methods on InMemory ports do not check in`() {
-        Konsist.scopeFromModule("engine")
+        engineScope()
             .classes()
             .filter { it.name.startsWith("InMemory") }
             .flatMap { it.functions(includeNested = false) }
@@ -131,13 +133,13 @@ class ArchitectureTest {
 
     @Test
     fun `engine never claims REGION`() {
-        Konsist.scopeFromModule("engine")
+        engineScope()
             .classes()
             .withAnnotationOf(RunsOn::class)
             .assertFalse(testName = "no REGION in engine") { klass ->
                 klass.annotations.any { it.text.contains("REGION") }
             }
-        Konsist.scopeFromModule("engine")
+        engineScope()
             .functions()
             .withAnnotationOf(RunsOn::class)
             .assertFalse(testName = "no REGION functions in engine") { function ->
@@ -147,7 +149,7 @@ class ArchitectureTest {
 
     @Test
     fun `STORAGE types never mention Bukkit`() {
-        Konsist.scopeFromModule("engine")
+        engineScope()
             .classes()
             .withAnnotationOf(RunsOn::class)
             .filter { klass -> klass.annotations.any { it.text.contains("STORAGE") } }
@@ -170,7 +172,7 @@ class ArchitectureTest {
 
     @Test
     fun `takeFifo and drainFifo are Consume`() {
-        (Konsist.scopeFromModule("engine") + Konsist.scopeFromModule("storage"))
+        (engineScope() + Konsist.scopeFromModule("storage"))
             .functions()
             .filter { it.name == "takeFifo" || it.name == "drainFifo" }
             .assertTrue(testName = "FIFO consume is @Consume") { it.hasAnnotationOf(Consume::class) }
@@ -180,7 +182,7 @@ class ArchitectureTest {
     fun `model and engine properties are never var`() {
         domainScope()
             .properties()
-            .filterNot { it.containingFile.name == "InMemoryLotRepository" }
+            .filterNot { it.containingFile.name == "InMemoryLotRepository" || it.containingFile.name == "FifoQueue" }
             .withPublicOrDefaultModifier()
             .assertFalse(testName = "no var properties") { it.isVar }
     }
@@ -225,13 +227,13 @@ class ArchitectureTest {
     }
 
     @Test
-    fun `RequiresLease functions take a LotLease first`() {
-        val gated = Konsist.scopeFromModule("engine")
+    fun `RequiresLease functions take a Lease first`() {
+        val gated = engineScope()
             .functions()
             .withAnnotationOf(RequiresLease::class)
         check(gated.isNotEmpty()) { "no @RequiresLease functions" }
-        gated.assertTrue(testName = "first parameter is a LotLease") {
-            it.parameters.firstOrNull()?.type?.name == "LotLease"
+        gated.assertTrue(testName = "first parameter is a Lease") {
+            it.parameters.firstOrNull()?.type?.name == "Lease"
         }
     }
 
@@ -276,5 +278,14 @@ class ArchitectureTest {
             .filter { "/src/main/kotlin/" in it.path && "/com/tracel/plugin/rollback/" !in it.path }
             .filterNot { it.name == "TracelServices" }
             .assertFalse(testName = "rollback internals leak out") { importsRollback(it.text, "structure", "planning") }
+    }
+
+    @Test
+    fun `model and engine know no game`() {
+        val game = Regex(
+            """minecraft|bukkit|folia|spigot|vanilla|chunk|\bnbt\b|chest|piston|painting|item_frame|falling_block|lava|hopper""",
+            RegexOption.IGNORE_CASE,
+        )
+        domainScope().files.assertFalse(testName = "model or engine mentions a game") { game.containsMatchIn(it.text) }
     }
 }

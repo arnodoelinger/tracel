@@ -2,7 +2,7 @@ package com.tracel.storage.ports.ops
 
 import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.log.TransactionLog
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.engine.world.WorldLog
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind

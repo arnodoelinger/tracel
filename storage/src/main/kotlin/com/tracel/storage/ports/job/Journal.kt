@@ -7,7 +7,7 @@ import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
-import com.tracel.engine.journal.Journal as JournalPort
+import com.tracel.engine.rollback.journal.Journal as JournalPort
 
 /** Which steps of which job have already run. */
 class Journal(private val storage: TracelStorage, private val kind: Byte) : JournalPort {

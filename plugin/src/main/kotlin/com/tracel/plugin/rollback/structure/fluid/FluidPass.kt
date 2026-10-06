@@ -1,8 +1,8 @@
 package com.tracel.plugin.rollback.structure.fluid
 
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.engine.rollback.structure.groupByChunk
+import com.tracel.engine.rollback.structure.space.groupByTile
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
@@ -26,7 +26,7 @@ internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep
     if (blocks.isEmpty()) return
     val footprint = HashMap<WorldId, LongHashSet>()
     for (step in blocks) footprint.getOrPut(step.at.world) { LongHashSet(blocks.size) } += packed(step.at.x, step.at.y, step.at.z)
-    val groups: List<List<StructureStep>> = groupByChunk(blocks) { it.at }
+    val groups: List<List<StructureStep>> = groupByTile(blocks) { it.at }
     val claimed = AtomicIntegerArray(groups.size)
 
     coroutineScope {
@@ -61,7 +61,7 @@ internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep
 internal suspend fun StructureRestorer.wakeCells(cells: List<BlockPos>) {
     if (cells.isEmpty()) return
     coroutineScope {
-        groupByChunk(cells) { it }.map { group ->
+        groupByTile(cells) { it }.map { group ->
             async {
                 val anchor = group.first()
                 withContext(services.schedulers.region(HolderId.Block(anchor.world, anchor.x, anchor.y, anchor.z))) {

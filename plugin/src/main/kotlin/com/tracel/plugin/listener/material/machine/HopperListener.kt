@@ -66,7 +66,7 @@ class HopperListener(services: TracelServices) : TracelListener(services) {
                 seeding -= destination
             }
         }
-        material.settleLater(at, CauseKind.HOPPER, mapOf(source to event.source, destination to event.destination))
+        material.settleLater(at, CauseKind.MACHINE, mapOf(source to event.source, destination to event.destination))
     }
 }
 

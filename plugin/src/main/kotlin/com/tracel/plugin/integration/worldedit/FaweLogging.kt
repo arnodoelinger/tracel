@@ -1,5 +1,6 @@
 package com.tracel.plugin.integration.worldedit
 
+import com.tracel.plugin.util.AIR
 import com.fastasyncworldedit.core.extent.processor.ProcessorScope
 import com.fastasyncworldedit.core.queue.IBatchProcessor
 import com.fastasyncworldedit.core.queue.IChunk
@@ -78,7 +79,7 @@ private class ChunkLogger(
                 val from = before?.get(i)
                 if (from == to) continue
                 val afterShape = shapeOf(to) ?: continue
-                val beforeShape = if (from == null || from == NO_CHANGE) BlockShape.AIR else shapeOf(from) ?: continue
+                val beforeShape = if (from == null || from == NO_CHANGE) AIR else shapeOf(from) ?: continue
                 buffer.note(baseX + (i and 15), baseY + (i shr 8), baseZ + ((i shr 4) and 15), beforeShape, afterShape)
                 if (buffer.size >= BATCH) send(buffer, epochMillis)
             }

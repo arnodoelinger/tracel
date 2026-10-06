@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.args
 
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.command.args.support.MaterialAliases
 import com.tracel.plugin.i18n.tr

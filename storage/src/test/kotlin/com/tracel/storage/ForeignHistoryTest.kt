@@ -1,9 +1,10 @@
 package com.tracel.storage
 
+import com.tracel.tests.support.TestShapes
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.event.EventKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
@@ -48,7 +49,7 @@ class ForeignHistoryTest {
             CauseKind.PLAYER_ACTION,
             player(1),
             millis,
-            listOf(BlockEdit(at, before, BlockShape.AIR))
+            listOf(BlockEdit(at, before, TestShapes.AIR))
         ),
     )
 
@@ -62,7 +63,7 @@ class ForeignHistoryTest {
     @Test
     fun `imported history reads as older than our own at the same block`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
-            stack.own(here, 5_000, BlockShape.AIR, dirt)
+            stack.own(here, 5_000, TestShapes.AIR, dirt)
             val foreign = stack.foreign()
             assertEquals(5_000L, foreign.room(7).ownSince)
             assertEquals(
@@ -103,7 +104,7 @@ class ForeignHistoryTest {
         Stack(dir).use { stack ->
             val blast = BlockEdits(
                 ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, null, 1_000,
-                (0 until 8).map { BlockEdit(here.copy(x = it), stone, BlockShape.AIR) },
+                (0 until 8).map { BlockEdit(here.copy(x = it), stone, TestShapes.AIR) },
             )
             val pig = UUID(9L, 9L)
             val type = EntityTypeKey("minecraft:pig")
@@ -129,7 +130,7 @@ class ForeignHistoryTest {
                     player(1),
                     1_000,
                     here,
-                    ChangeSubject.Block(stone, BlockShape.AIR)
+                    ChangeSubject.Block(stone, TestShapes.AIR)
                 ),
             )
             assertThrows<NoRoomForImport> { stack.foreign().room(7) }
@@ -196,12 +197,12 @@ class ForeignHistoryTest {
         runTest {
             Stack(dir).use { stack ->
                 stack.storage.write { putPinned(Keys.counter(Counters.SEQ), Records.long(300)) }
-                stack.own(here, 1_000, BlockShape.AIR, dirt)
+                stack.own(here, 1_000, TestShapes.AIR, dirt)
                 assertThrows<NoRoomForImport> { stack.foreign().room(7) }
                 assertEquals(0L, stack.foreign().importedBelow(), "numbered from one, so what is down there is its own")
 
                 purgeAll(stack.storage)
-                stack.own(here, 9_000, BlockShape.AIR, stone)
+                stack.own(here, 9_000, TestShapes.AIR, stone)
 
                 assertEquals(9_000L, stack.foreign().room(7).ownSince)
                 assertEquals(Counters.SEQ_BASE, stack.foreign().importedBelow())

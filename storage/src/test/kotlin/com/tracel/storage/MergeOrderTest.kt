@@ -1,10 +1,11 @@
 package com.tracel.storage
 
+import com.tracel.tests.support.TestShapes
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
@@ -40,7 +41,7 @@ class MergeOrderTest {
                                     BlockEdit(
                                         BlockPos(world, chunkX * 16, 64 + i, chunkZ * 16),
                                         BlockShape(BlockDataKey("minecraft:stone")),
-                                        BlockShape.AIR,
+                                        TestShapes.AIR,
                                     )
                                 ),
                             )

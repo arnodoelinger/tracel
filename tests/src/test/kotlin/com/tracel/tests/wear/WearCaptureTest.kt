@@ -1,8 +1,8 @@
 package com.tracel.tests.wear
 
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.capture.WearCapture
-import com.tracel.engine.wear.InMemoryWearLog
+import com.tracel.engine.capture.material.WearCapture
+import com.tracel.engine.wear.memory.InMemoryWearLog
 import com.tracel.engine.wear.WearMark
 import com.tracel.engine.wear.damageAt
 import com.tracel.model.id.LotId

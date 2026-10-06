@@ -1,7 +1,7 @@
 package com.tracel.tests.property
 
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget

@@ -1,6 +1,6 @@
 package com.tracel.plugin.rollback.material
 
-import com.tracel.engine.rollback.involution.InvolutionStep
+import com.tracel.engine.rollback.involution.plan.InvolutionStep
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
@@ -18,7 +18,7 @@ import kotlinx.coroutines.CompletableDeferred
 import java.util.*
 import java.util.logging.Logger
 
-/** [MaterialHalf] wired to real Bukkit state — inventories, entity cargo, ground drops. */
+/** [MaterialHalf] wired to real `Bukkit` state — inventories, entity cargo, ground drops. */
 class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, WorldCensus {
     internal val logger = Logger.getLogger(MaterialRestorer::class.java.name)
 

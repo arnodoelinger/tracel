@@ -338,7 +338,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             val taken = before - remaining
             if (taken <= 0L) return@later
             for ((key, amount) in stack.totalsOf(taken)) material.adjust(destination, key, amount)
-            movedStack(CauseKind.HOPPER, null, stack, taken, HolderId.ItemEntity(item.uniqueId), destination)
+            movedStack(CauseKind.MACHINE, null, stack, taken, HolderId.ItemEntity(item.uniqueId), destination)
         }
     }
 

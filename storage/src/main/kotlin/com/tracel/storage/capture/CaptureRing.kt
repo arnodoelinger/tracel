@@ -1,7 +1,7 @@
 package com.tracel.storage.capture
 
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey
@@ -36,7 +36,7 @@ private const val APPLIED_POLL_MILLIS = 10L
  * if (chest == 0 || item == 0) return
  *
  * // Reserves space in the ring buffer for a header and 2 state deltas
- * val claim = ring.begin(CauseKind.HOPPER, causedBy = 0, epochMillis, deltaCount = 2)
+ * val claim = ring.begin(CauseKind.MACHINE, causedBy = 0, epochMillis, deltaCount = 2)
  *
  * // If the ring buffer is full, exit immediately
  * if (claim == CaptureRing.REJECTED) return

@@ -1,9 +1,9 @@
 package com.tracel.storage.support
 
-import com.tracel.engine.capture.CaptureCoordinator
-import com.tracel.engine.capture.releaseFlows
+import com.tracel.engine.capture.material.CaptureCoordinator
+import com.tracel.engine.capture.material.flow.releaseFlows
 import com.tracel.engine.ledger.LotLedger
-import com.tracel.engine.world.WorldCaptureCoordinator
+import com.tracel.engine.capture.world.WorldCaptureCoordinator
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.CaptureRing
@@ -14,7 +14,7 @@ import com.tracel.storage.lsm.LsmEngine
 import com.tracel.storage.ports.container.ContainerSlotLog
 import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.job.RollbackJobRepository
-import com.tracel.storage.ports.ledger.LotLeaseRegistry
+import com.tracel.storage.ports.ledger.Leases
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.log.TransactionLog
@@ -38,7 +38,7 @@ class Stack(
     val containerSlots: ContainerSlotLog = ContainerSlotLog(storage, counters)
     val worldCapture: WorldCaptureCoordinator =
         WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
-    val leases: LotLeaseRegistry = LotLeaseRegistry(storage)
+    val leases: Leases = Leases(storage)
     val jobs: RollbackJobRepository = RollbackJobRepository(storage)
     val journal: Journal = Journal.forRollback(storage)
     val involutionJournal: Journal = Journal.forInvolution(storage)

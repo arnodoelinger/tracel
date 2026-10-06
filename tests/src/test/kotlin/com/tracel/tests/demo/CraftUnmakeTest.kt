@@ -1,9 +1,9 @@
 package com.tracel.tests.demo
 
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget

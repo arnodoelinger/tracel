@@ -1,9 +1,9 @@
 package com.tracel.tests.property
 
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.rollback.plan.RollbackPlanner
-import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
 import com.tracel.tests.support.Fixtures.diamond

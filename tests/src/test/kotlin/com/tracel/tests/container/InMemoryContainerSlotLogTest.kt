@@ -1,7 +1,7 @@
 package com.tracel.tests.container
 
 import com.tracel.engine.container.ContainerSlotEntry
-import com.tracel.engine.container.InMemoryContainerSlotLog
+import com.tracel.engine.container.memory.InMemoryContainerSlotLog
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import kotlinx.coroutines.test.runTest

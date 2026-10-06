@@ -1,7 +1,8 @@
 package com.tracel.plugin.rollback.composer
 
+import com.tracel.plugin.util.isAirLike
 import com.tracel.engine.rollback.job.Reservation
-import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.job.RollbackOutcome
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId

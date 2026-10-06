@@ -1,10 +1,11 @@
 package com.tracel.storage
 
+import com.tracel.tests.support.TestShapes
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
@@ -36,7 +37,7 @@ class SectionDeltaLogTest {
 
     private fun section(count: Int, shape: (Int) -> BlockShape = { stone }): List<BlockEdit> =
         (0 until count).map { i ->
-            BlockEdit(BlockPos(world, i and 15, 64 + (i shr 8), (i shr 4) and 15), shape(i), BlockShape.AIR)
+            BlockEdit(BlockPos(world, i and 15, 64 + (i shr 8), (i shr 4) and 15), shape(i), TestShapes.AIR)
         }
 
     private suspend fun blast(stack: Stack, edits: List<BlockEdit>) {
@@ -68,7 +69,7 @@ class SectionDeltaLogTest {
                 assertEquals(1_700_000_000_000L, epochMillis)
                 val subject = subject1 as ChangeSubject.Block
                 assertEquals(stone, subject.before)
-                assertEquals(BlockShape.AIR, subject.after)
+                assertEquals(TestShapes.AIR, subject.after)
             }
             assertEquals(SECTION_FULL, read.map { it.seq.raw }.toSet().size)
         }
@@ -80,7 +81,7 @@ class SectionDeltaLogTest {
             blast(stack, section(SECTION_RING))
 
             val wanted = LookupRegion(
-                world, minChunkX = 0, maxChunkX = 0, minChunkZ = 0, maxChunkZ = 0,
+                world, minTileX = 0, maxTileX = 0, minTileZ = 0, maxTileZ = 0,
                 minX = 3, maxX = 12, minY = 64, maxY = 64, minZ = 5, maxZ = 5,
             )
             val read = stack.worldLog.query(LookupFilter(region = wanted, limit = Int.MAX_VALUE))
@@ -113,7 +114,7 @@ class SectionDeltaLogTest {
             blast(stack, section(SECTION_RING))
 
             val elsewhere = LookupRegion(
-                world, minChunkX = 40, maxChunkX = 41, minChunkZ = 40, maxChunkZ = 41,
+                world, minTileX = 40, maxTileX = 41, minTileZ = 40, maxTileZ = 41,
             )
             assertEquals(
                 emptyList<BlockPos>(),
@@ -160,7 +161,7 @@ class SectionDeltaLogTest {
             assertTrue(
                 stack.gate.blocks(
                     CauseKind.PLAYER_ACTION, ActionKind.BLOCK_CHANGE, steve, 1_700_000_001_000L, world,
-                    listOf(BlockEdit(at, BlockShape.AIR, dirt)),
+                    listOf(BlockEdit(at, TestShapes.AIR, dirt)),
                 )
             )
             stack.drain()
@@ -172,7 +173,7 @@ class SectionDeltaLogTest {
                 "history reads newest first however the two families were merged",
             )
             assertEquals(dirt, (history[0].subject as ChangeSubject.Block).after)
-            assertEquals(BlockShape.AIR, (history[1].subject as ChangeSubject.Block).after)
+            assertEquals(TestShapes.AIR, (history[1].subject as ChangeSubject.Block).after)
         }
     }
 
@@ -182,7 +183,7 @@ class SectionDeltaLogTest {
             val chestAt = BlockPos(world, 6, 64, 6)
             val chest = BlockShape(BlockDataKey("minecraft:chest[facing=north]"), BlockExtras.Opaque(byteArrayOf(4, 2)))
             val edits =
-                section(SECTION_FULL).map { if (it.at == chestAt) BlockEdit(it.at, chest, BlockShape.AIR) else it }
+                section(SECTION_FULL).map { if (it.at == chestAt) BlockEdit(it.at, chest, TestShapes.AIR) else it }
             blastDirect(stack, edits)
 
             val change = stack.worldLog.at(chestAt).single()
@@ -239,7 +240,7 @@ class SectionDeltaLogTest {
                     BlockEdit(
                         BlockPos(world, i and 15, 64 + s * 16, i shr 4),
                         stone,
-                        BlockShape.AIR
+                        TestShapes.AIR
                     )
                 }
             }
@@ -315,7 +316,7 @@ class SectionDeltaLogTest {
             assertTrue(
                 stack.gate.blocks(
                     CauseKind.PLAYER_ACTION, ActionKind.BLOCK_CHANGE, steve, 1_700_000_001_000L, world,
-                    listOf(BlockEdit(BlockShape.AIR.let { _ -> at }, BlockShape.AIR, dirt)),
+                    listOf(BlockEdit(TestShapes.AIR.let { _ -> at }, TestShapes.AIR, dirt)),
                 )
             )
             stack.drain()
@@ -341,7 +342,7 @@ class SectionDeltaLogTest {
                         BlockEdit(
                             BlockPos(world, it and 15, 64 + (it shr 4), 0),
                             stone,
-                            BlockShape.AIR
+                            TestShapes.AIR
                         )
                     },
                 )
@@ -353,7 +354,7 @@ class SectionDeltaLogTest {
                         BlockEdit(
                             BlockPos(world, it and 15, 64 + (it shr 4), 1),
                             stone,
-                            BlockShape.AIR
+                            TestShapes.AIR
                         )
                     },
                 )

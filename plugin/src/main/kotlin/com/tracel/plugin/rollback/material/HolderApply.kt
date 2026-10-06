@@ -50,7 +50,7 @@ internal suspend fun MaterialRestorer.dispatch(
     worn: WornStacks? = null,
 ): ApplyResult = when (holder) {
     is HolderId.Player -> applyToPlayer(holder, deltas, forms, job, sink, worn)
-    is HolderId.EnderChest -> applyToEnderChest(holder, deltas, forms, job, sink, worn)
+    is HolderId.PlayerStash -> applyToEnderChest(holder, deltas, forms, job, sink, worn)
     is HolderId.Block -> applyToContainer(holder, deltas, forms, sink, asOf, worn) ?: ApplyResult.Ok
 
     is HolderId.ItemEntity -> takeGroundItem(holder, deltas, worn) ?: ApplyResult.Ok

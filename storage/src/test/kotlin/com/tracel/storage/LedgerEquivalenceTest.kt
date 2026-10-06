@@ -17,6 +17,10 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.nio.file.Path
 import kotlin.random.Random
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
+import com.tracel.engine.ledger.repository.LotRepository
+import com.tracel.engine.ledger.repository.memory.InMemoryLotRepository
 
 /**
  * The store against the in-memory reference, one random ledger history at a time: after every
@@ -84,7 +88,7 @@ class LedgerEquivalenceTest {
                         val have = reference.ledger.totalAt(a, item)?.raw ?: 0L
                         if (have > 0) {
                             val q = Quantity(random.nextLong(1, have + 1))
-                            both { it.ledger.burn(a, item, q, SinkKind.LAVA, it.next()) }
+                            both { it.ledger.burn(a, item, q, SinkKind.HAZARD, it.next()) }
                         }
                     }
 

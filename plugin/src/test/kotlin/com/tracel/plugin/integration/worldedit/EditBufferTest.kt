@@ -1,5 +1,6 @@
 package com.tracel.plugin.integration.worldedit
 
+import com.tracel.plugin.util.AIR
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.block.BlockDataKey
@@ -18,11 +19,11 @@ class EditBufferTest {
     @Test
     fun `a cell written twice is one change from the first shape to the last`() {
         buffer.note(1, 64, 1, stone, dirt)
-        buffer.note(1, 64, 1, dirt, BlockShape.AIR)
+        buffer.note(1, 64, 1, dirt, AIR)
 
         val edit = buffer.drain().getValue(ActionKind.BLOCK_BREAK).single()
         assertEquals(stone, edit.before)
-        assertEquals(BlockShape.AIR, edit.after)
+        assertEquals(AIR, edit.after)
     }
 
     @Test
@@ -35,8 +36,8 @@ class EditBufferTest {
 
     @Test
     fun `edits are grouped by what they did to their cell`() {
-        buffer.note(0, 64, 0, BlockShape.AIR, stone)
-        buffer.note(1, 64, 0, stone, BlockShape.AIR)
+        buffer.note(0, 64, 0, AIR, stone)
+        buffer.note(1, 64, 0, stone, AIR)
         buffer.note(2, 64, 0, stone, dirt)
 
         val grouped = buffer.drain()
@@ -48,7 +49,7 @@ class EditBufferTest {
 
     @Test
     fun `one kind of air replaced by another is nothing`() {
-        buffer.note(0, 64, 0, BlockShape.AIR, BlockShape(BlockDataKey("minecraft:cave_air")))
+        buffer.note(0, 64, 0, AIR, BlockShape(BlockDataKey("minecraft:cave_air")))
 
         assertTrue(buffer.drain().isEmpty())
     }

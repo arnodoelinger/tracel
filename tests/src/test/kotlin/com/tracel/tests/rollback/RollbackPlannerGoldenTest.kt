@@ -1,9 +1,9 @@
 package com.tracel.tests.rollback
 
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.plan.*
 import com.tracel.model.holder.HolderId
@@ -22,6 +22,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 
 class RollbackPlannerGoldenTest {
     private val steve = player(1)
@@ -109,13 +112,13 @@ class RollbackPlannerGoldenTest {
         val world = LedgerHarness()
         val root = world.ledger.mint(steve, log, Quantity(16), world.nextTxn())
         craft(world, log, 16, planks, 64)
-        world.ledger.burn(steve, planks, Quantity(32), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, planks, Quantity(32), SinkKind.HAZARD, world.nextTxn())
 
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
 
         golden(
             plan,
-            listOf(take(4, 32, steve), RollbackStep.Mint(LotId(3), Quantity(32), SinkKind.LAVA)),
+            listOf(take(4, 32, steve), RollbackStep.Mint(LotId(3), Quantity(32), SinkKind.HAZARD)),
             mapOf(LotId(4) to root.id, LotId(3) to root.id),
         )
         apply(world, plan)

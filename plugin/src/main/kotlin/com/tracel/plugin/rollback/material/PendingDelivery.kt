@@ -58,7 +58,7 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
             spillInRegion(holder, moves, at.world, at, sink)
             services.differ.rebaseline(holder, player.heldTotals())
             if (claimed.any { it.enderChest }) {
-                val ender = HolderId.EnderChest(player.uniqueId)
+                val ender = HolderId.PlayerStash(player.uniqueId)
                 spillInRegion(ender, enderMoves, at.world, at, sink)
                 services.differ.rebaseline(ender, player.enderChest.toItemTotals())
             }
@@ -86,7 +86,7 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
 
 private suspend fun MaterialRestorer.rewearDelivered(player: Player, claimed: List<PendingDelivery>) {
     if (claimed.none { it.delta > 0L && WornStacks.wears(it.itemKey) }) return
-    val mine = setOf(HolderId.Player(player.uniqueId), HolderId.EnderChest(player.uniqueId))
+    val mine = setOf(HolderId.Player(player.uniqueId), HolderId.PlayerStash(player.uniqueId))
     for (job in claimed.mapTo(LinkedHashSet()) { it.job }) {
         val record = runCatching { services.atomically { services.jobs.find(job) } }.getOrNull() ?: continue
         val asOf = record.targetTimeMillis ?: continue

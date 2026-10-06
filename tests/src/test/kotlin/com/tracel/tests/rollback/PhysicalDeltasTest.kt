@@ -1,7 +1,7 @@
 package com.tracel.tests.rollback
 
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.rollback.plan.*
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
@@ -13,6 +13,9 @@ import com.tracel.tests.support.LedgerHarness
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 
 class PhysicalDeltasTest {
     @Test
@@ -40,7 +43,7 @@ class PhysicalDeltasTest {
 
         val plan = RollbackPlan(
             listOf(
-                RollbackStep.Mint(lot.id, Quantity(3), SinkKind.LAVA),
+                RollbackStep.Mint(lot.id, Quantity(3), SinkKind.HAZARD),
                 RollbackStep.Debt(lot.id, Quantity(1), bob.uuid),
             )
         )

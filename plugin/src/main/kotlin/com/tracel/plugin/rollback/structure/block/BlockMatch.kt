@@ -1,5 +1,7 @@
 package com.tracel.plugin.rollback.structure.block
 
+import com.tracel.plugin.util.isAirLike
+import com.tracel.plugin.util.AIR
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
 import com.tracel.plugin.adapter.block.BlockLikeness
@@ -9,7 +11,7 @@ import org.bukkit.block.data.BlockData
 
 /** Is [block] already what [expected] wants. */
 internal fun StructureRestorer.matchesExpected(block: Block, expected: BlockShape): Boolean {
-    val data = BlockDataCache.of(expected.data) ?: return expected == BlockShape.AIR && block.isEmpty
+    val data = BlockDataCache.of(expected.data) ?: return expected == AIR && block.isEmpty
     if (data.material.isAir) return block.isEmpty
     val current = block.blockData
     return current.sameState(data) || BlockLikeness.sameEnough(current.asString, expected.data.value)

@@ -69,7 +69,7 @@ internal suspend fun MaterialRestorer.applyToPlayer(
 
 /** Apply per-player ender inventory. */
 internal suspend fun MaterialRestorer.applyToEnderChest(
-    holder: HolderId.EnderChest,
+    holder: HolderId.PlayerStash,
     deltas: Map<ItemKey, Long>,
     forms: Map<ItemKey, ByteArray>,
     job: RollbackJobId,

@@ -2,15 +2,18 @@ package com.tracel.engine.rollback.plan
 
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
-import com.tracel.annotations.Unstable
-import com.tracel.engine.ledger.LotRepository
-import com.tracel.engine.ledger.PlacedRun
+import com.tracel.engine.ledger.repository.LotRepository
+import com.tracel.engine.ledger.repository.PlacedRun
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
 import com.tracel.model.id.TxnId
 import com.tracel.model.lot.Lot
 import com.tracel.model.lot.LotEdge
+import com.tracel.engine.rollback.plan.resolve.ResolvedLocation
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 
 /**
  * Plans the material changes needed for a rollback.
@@ -217,7 +220,6 @@ public class RollbackPlanner(
      * [depth] limits recursive transform resolution. Hitting the limit produces an untracked
      * gap rather than continuing indefinitely or guessing where the material went.
      */
-    @Unstable
     private suspend fun locate(lotId: LotId, depth: Int): ResolvedLocation {
         val edges = edgeCache[lotId].orEmpty()
 
@@ -348,7 +350,6 @@ public class RollbackPlanner(
      * @return the surviving output pieces when the craft can safely be unmade, or `null` when the
      * caller must fall back to resolving the pieces individually.
      */
-    @Unstable
     // TODO: dangerous; make it better in future
     private suspend fun wholeOutput(
         output: LotId,
@@ -435,7 +436,7 @@ public class RollbackPlanner(
         if (holder in vanished) return RollbackStep.Mint(lotId, quantity, SinkKind.UNTRACKED_GAP)
         return when (holder) {
             is HolderId.Sink -> RollbackStep.Mint(lotId, quantity, holder.kind)
-            else -> RollbackStep.Take(lotId, quantity, holder) // Offline is still a "Take"
+            else -> RollbackStep.Take(lotId, quantity, holder) // Offline is still a "TAKE"
         }
     }
 }

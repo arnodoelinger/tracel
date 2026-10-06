@@ -5,9 +5,9 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import java.util.*
 
-/** One stuff a rollback has to do to the world's shape. */
+/** One thing a rollback has to do to the world's shape: put a block back, put an entity back, or take one away. */
 public sealed interface StructureStep {
-    /** The position. */
+    /** The cell this step is about. */
     public val at: BlockPos
 
     /**

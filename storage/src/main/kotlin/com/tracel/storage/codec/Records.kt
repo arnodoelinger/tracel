@@ -1,7 +1,7 @@
 package com.tracel.storage.codec
 
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId

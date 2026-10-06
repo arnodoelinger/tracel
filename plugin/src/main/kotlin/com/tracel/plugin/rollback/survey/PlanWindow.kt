@@ -1,9 +1,9 @@
 package com.tracel.plugin.rollback.survey
 
+import com.tracel.plugin.rollback.structure.structuralPartnerOf
 import com.tracel.annotations.Unstable
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
-import com.tracel.engine.rollback.structure.structuralPartnerOf
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
@@ -71,8 +71,8 @@ internal suspend fun RollbackComposer.withStructuralPartners(
         val (world, cx, cz) = chunk
         val box = LookupRegion(
             world = world,
-            minChunkX = cx, maxChunkX = cx,
-            minChunkZ = cz, maxChunkZ = cz,
+            minTileX = cx, maxTileX = cx,
+            minTileZ = cz, maxTileZ = cz,
             minX = cells.minOf { it.x }, maxX = cells.maxOf { it.x },
             minY = cells.minOf { it.y }, maxY = cells.maxOf { it.y },
             minZ = cells.minOf { it.z }, maxZ = cells.maxOf { it.z },

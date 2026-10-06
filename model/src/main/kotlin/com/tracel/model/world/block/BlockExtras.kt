@@ -5,14 +5,14 @@ package com.tracel.model.world.block
  * banner patterns, lectern page, command block command).
  *
  * [Opaque] is the whole vanilla surface and every modded one with it, because the platform will
- * not enumerate this for us.
+ * not list this for us.
  */
 public sealed interface BlockExtras {
-    public class Opaque(public val nbt: ByteArray) : BlockExtras {
-        override fun equals(other: Any?): Boolean = other is Opaque && nbt.contentEquals(other.nbt)
+    public class Opaque(public val bytes: ByteArray) : BlockExtras {
+        override fun equals(other: Any?): Boolean = other is Opaque && bytes.contentEquals(other.bytes)
 
-        override fun hashCode(): Int = nbt.contentHashCode()
+        override fun hashCode(): Int = bytes.contentHashCode()
 
-        override fun toString(): String = "Opaque(${nbt.size} bytes)"
+        override fun toString(): String = "Opaque(${bytes.size} bytes)"
     }
 }

@@ -1,6 +1,6 @@
 package com.tracel.tests.capture
 
-import com.tracel.engine.capture.SnapshotDiffer
+import com.tracel.engine.capture.material.SnapshotDiffer
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.diamondBlock

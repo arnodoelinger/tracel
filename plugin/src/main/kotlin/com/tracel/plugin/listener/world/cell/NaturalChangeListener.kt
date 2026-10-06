@@ -4,7 +4,7 @@ import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent
 import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
-import com.tracel.engine.world.BlockEdit
+import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind

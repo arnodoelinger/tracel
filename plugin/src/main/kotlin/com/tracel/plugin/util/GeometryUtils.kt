@@ -1,6 +1,6 @@
 package com.tracel.plugin.util
 
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
@@ -124,10 +124,10 @@ fun Location.toLookupRegion(
 
     return LookupRegion(
         WorldId(targetWorld.uid),
-        minChunkX = blockRadius?.let { (blockX - it) shr 4 } ?: (chunkX - chunkRadius),
-        maxChunkX = blockRadius?.let { (blockX + it) shr 4 } ?: (chunkX + chunkRadius),
-        minChunkZ = blockRadius?.let { (blockZ - it) shr 4 } ?: (chunkZ - chunkRadius),
-        maxChunkZ = blockRadius?.let { (blockZ + it) shr 4 } ?: (chunkZ + chunkRadius),
+        minTileX = blockRadius?.let { (blockX - it) shr 4 } ?: (chunkX - chunkRadius),
+        maxTileX = blockRadius?.let { (blockX + it) shr 4 } ?: (chunkX + chunkRadius),
+        minTileZ = blockRadius?.let { (blockZ - it) shr 4 } ?: (chunkZ - chunkRadius),
+        maxTileZ = blockRadius?.let { (blockZ + it) shr 4 } ?: (chunkZ + chunkRadius),
         minX = blockRadius?.let { blockX - it } ?: Int.MIN_VALUE,
         maxX = blockRadius?.let { blockX + it } ?: Int.MAX_VALUE,
         minY = minY,

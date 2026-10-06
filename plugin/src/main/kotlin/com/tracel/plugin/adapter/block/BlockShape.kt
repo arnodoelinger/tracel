@@ -121,7 +121,7 @@ private fun applyBlockEntityExtras(
     data: BlockData,
 ) {
     runCatching {
-        val item = rebuilt(extras.nbt)
+        val item = rebuilt(extras.bytes)
         val bannerMeta = item.itemMeta as? BannerMeta
         if (bannerMeta != null) {
             val banner = block.getState(false) as? Banner ?: return

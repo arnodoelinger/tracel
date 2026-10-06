@@ -4,8 +4,8 @@ import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.annotations.Consume
 import com.tracel.engine.ledger.LotPortion
-import com.tracel.engine.ledger.PlacedRun
-import com.tracel.engine.ledger.PlacedRuns
+import com.tracel.engine.ledger.repository.PlacedRun
+import com.tracel.engine.ledger.repository.PlacedRuns
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.*
 import com.tracel.model.item.ItemKey
@@ -26,7 +26,7 @@ import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.atomic.AtomicLong
-import com.tracel.engine.ledger.LotRepository as LotRepositoryPort
+import com.tracel.engine.ledger.repository.LotRepository as LotRepositoryPort
 import com.tracel.storage.codec.records.Lot as LotRecord
 
 /** [LotRepositoryPort] over the packed keyspace. */

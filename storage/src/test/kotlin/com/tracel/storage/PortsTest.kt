@@ -1,7 +1,7 @@
 package com.tracel.storage
 
-import com.tracel.engine.ownership.LeaseAcquisition
-import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.plan.*
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.LotId
@@ -20,6 +20,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 import java.util.*
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 
 class PortsTest {
     @Test
@@ -145,7 +148,7 @@ class PortsTest {
                             steve,
                         ),
                         RollbackStep.Take(LotId(11), Quantity(4), steve),
-                        RollbackStep.Mint(LotId(13), Quantity(2), SinkKind.LAVA),
+                        RollbackStep.Mint(LotId(13), Quantity(2), SinkKind.HAZARD),
                         RollbackStep.Debt(LotId(14), Quantity(1), UUID(7, 8)),
                     ),
                 ),

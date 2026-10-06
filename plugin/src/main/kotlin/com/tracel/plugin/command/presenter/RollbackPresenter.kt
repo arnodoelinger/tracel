@@ -1,5 +1,6 @@
 package com.tracel.plugin.command.presenter
 
+import com.tracel.plugin.util.isAirLike
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.rollback.result.outcome.Planned

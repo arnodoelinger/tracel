@@ -1,14 +1,14 @@
 package com.tracel.tests.property
 
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.job.InMemoryRollbackJobRepository
-import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.job.record.memory.InMemoryRollbackJobRepository
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackPlanner
-import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.id.Quantity
@@ -119,7 +119,7 @@ class CraftChainRollbackTest {
             Product(steve, planks, Quantity(64)),
             world.nextTxn(),
         )
-        world.ledger.burn(steve, planks, Quantity(32), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, planks, Quantity(32), SinkKind.HAZARD, world.nextTxn())
 
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(logs.id))
         assertTrue(

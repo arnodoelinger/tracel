@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.structure.block
 
+import com.tracel.plugin.util.isAirLike
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.block.BlockDataKey

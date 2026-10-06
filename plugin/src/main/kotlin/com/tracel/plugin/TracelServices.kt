@@ -1,18 +1,18 @@
 package com.tracel.plugin
 
-import com.tracel.engine.capture.CaptureCoordinator
-import com.tracel.engine.capture.SnapshotDiffer
-import com.tracel.engine.capture.WearCapture
+import com.tracel.engine.capture.material.CaptureCoordinator
+import com.tracel.engine.capture.material.SnapshotDiffer
+import com.tracel.engine.capture.material.WearCapture
 import com.tracel.engine.container.ContainerSlotLog
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
-import com.tracel.engine.rollback.job.RollbackJobRepository
+import com.tracel.engine.rollback.job.record.RollbackJobRepository
 import com.tracel.engine.rollback.plan.WorldQuery
 import com.tracel.engine.wear.WearLog
-import com.tracel.engine.world.EntityCaptureQueue
-import com.tracel.engine.world.WorldCaptureCoordinator
+import com.tracel.engine.capture.world.EntityCaptureQueue
+import com.tracel.engine.capture.world.WorldCaptureCoordinator
 import com.tracel.engine.world.WorldLog
 import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork

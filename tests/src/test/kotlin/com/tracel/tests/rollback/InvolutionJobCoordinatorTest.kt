@@ -1,14 +1,14 @@
 package com.tracel.tests.rollback
 
-import com.tracel.engine.journal.CrashPoint
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.journal.SimulatedCrash
+import com.tracel.engine.rollback.journal.crash.CrashPoint
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.crash.SimulatedCrash
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.involution.InvolutionExecutor
+import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.involution.InvolutionOutcome
-import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.SinkKind
@@ -48,7 +48,7 @@ class InvolutionJobCoordinatorTest {
 
         val root = world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
         world.ledger.move(chest, steve, diamond, Quantity(10), world.nextTxn())
-        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, world.nextTxn())
 
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
@@ -92,7 +92,7 @@ class InvolutionJobCoordinatorTest {
 
         val root = world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
         world.ledger.move(chest, steve, diamond, Quantity(10), world.nextTxn())
-        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, world.nextTxn())
 
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
@@ -177,7 +177,7 @@ class InvolutionJobCoordinatorTest {
 
         val root = world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
         world.ledger.move(chest, steve, diamond, Quantity(10), world.nextTxn())
-        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, world.nextTxn())
 
         val job = RollbackJobId(1)
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
@@ -200,7 +200,7 @@ class InvolutionJobCoordinatorTest {
             val iterationRoot =
                 iterationWorld.ledger.mint(iterationChest, diamond, Quantity(10), iterationWorld.nextTxn())
             iterationWorld.ledger.move(iterationChest, iterationSteve, diamond, Quantity(10), iterationWorld.nextTxn())
-            iterationWorld.ledger.burn(iterationSteve, diamond, Quantity(4), SinkKind.LAVA, iterationWorld.nextTxn())
+            iterationWorld.ledger.burn(iterationSteve, diamond, Quantity(4), SinkKind.HAZARD, iterationWorld.nextTxn())
             val iterationPlan = RollbackPlanner(iterationWorld.repo, { true }).plan(listOf(iterationRoot.id))
             val iterationLease = iterationWorld.acquireLease(job, iterationPlan)
             JournalExecutor(

@@ -5,7 +5,7 @@ import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.annotations.Unstable
-import com.tracel.engine.world.EntityChange
+import com.tracel.engine.capture.world.EntityChange
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind

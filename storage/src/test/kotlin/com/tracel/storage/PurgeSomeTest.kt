@@ -1,9 +1,10 @@
 package com.tracel.storage
 
+import com.tracel.tests.support.TestShapes
 import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.container.ContainerSlotEntry
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.flow.FlowLot
@@ -51,7 +52,7 @@ class PurgeSomeTest {
 
     private fun broke(seq: Long, world: WorldId, by: HolderId, epoch: Long, x: Int = seq.toInt()) = WorldChange(
         Seq(seq), ActionKind.BLOCK_BREAK, CauseKind.PLAYER_ACTION, by, epoch,
-        BlockPos(world, x, 70, 3), ChangeSubject.Block(stone, BlockShape.AIR),
+        BlockPos(world, x, 70, 3), ChangeSubject.Block(stone, TestShapes.AIR),
     )
 
     private fun moved(seq: Long, world: WorldId, by: HolderId, epoch: Long) = Transaction(
@@ -76,13 +77,13 @@ class PurgeSomeTest {
         stack.worldLog.append(
             WorldChange(
                 Seq(505), ActionKind.BLOCK_BREAK, CauseKind.ROLLBACK, steve, 150,
-                BlockPos(overworld, 9, 70, 9), ChangeSubject.Block(stone, BlockShape.AIR),
+                BlockPos(overworld, 9, 70, 9), ChangeSubject.Block(stone, TestShapes.AIR),
             )
         )
         stack.worldCapture.record(
             BlockEdits(
                 ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, steve, 300,
-                (0 until 40).map { BlockEdit(BlockPos(overworld, it and 15, 64, it shr 4), stone, BlockShape.AIR) },
+                (0 until 40).map { BlockEdit(BlockPos(overworld, it and 15, 64, it shr 4), stone, TestShapes.AIR) },
             )
         )
         stack.log.append(moved(1001, overworld, steve, 120))

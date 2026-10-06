@@ -1,6 +1,6 @@
 package com.tracel.plugin.rollback.result.outcome
 
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
 import com.tracel.model.holder.HolderId

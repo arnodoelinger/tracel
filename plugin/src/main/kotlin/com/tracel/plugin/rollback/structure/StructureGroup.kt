@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.structure
 
+import com.tracel.plugin.util.AIR
 import com.tracel.plugin.governor.Throttle
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
@@ -293,7 +294,7 @@ private suspend fun StructureRestorer.applySliced(
                     if (above.isFire() && planned.value[abovePos]?.target?.isFire() != true && abovePos !in unwritten) {
                         val burning = above.toShape()
                         above.paint(airBlockData())
-                        applied += StructureStep.SetBlock(abovePos, BlockShape.AIR, burning)
+                        applied += StructureStep.SetBlock(abovePos, AIR, burning)
                     }
                 }
             }
@@ -407,7 +408,7 @@ private fun extinguish(
     val block = world.getBlockAt(above.x, above.y, above.z)
     val burning = block.toShape()
     block.paint(airBlockData())
-    applied += StructureStep.SetBlock(above, BlockShape.AIR, burning)
+    applied += StructureStep.SetBlock(above, AIR, burning)
 }
 
 private fun PalettePaste.fireAt(world: World, x: Int, y: Int, z: Int): Boolean {

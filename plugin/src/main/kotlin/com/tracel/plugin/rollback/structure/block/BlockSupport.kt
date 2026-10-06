@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.structure.block
 
+import com.tracel.plugin.util.AIR
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.BlockDataCache
@@ -33,7 +34,7 @@ internal fun BlockShape.isFire(): Boolean = ShapeTraits.of(this) and ShapeTraits
 
 /** Whether it's an air. */
 internal fun BlockShape.isAir(): Boolean =
-    this == BlockShape.AIR || ShapeTraits.of(this) and ShapeTraits.AIR != 0
+    this == AIR || ShapeTraits.of(this) and ShapeTraits.AIR != 0
 
 /** Same check as [BlockShape.isFire], against the block actually in the world. */
 internal fun Block.isFire(): Boolean =

@@ -25,7 +25,7 @@ private val CHEST_KEY: ItemKey = ItemStack(Material.CHEST).toItemKey()
 @Unstable
 fun Inventory.toHolderId(): HolderId? = when (val owner = holder) {
     is Player ->
-        if (type == InventoryType.ENDER_CHEST) HolderId.EnderChest(owner.uniqueId)
+        if (type == InventoryType.ENDER_CHEST) HolderId.PlayerStash(owner.uniqueId)
         else HolderId.Player(owner.uniqueId)
 
     is Entity -> HolderId.Entity(owner.uniqueId)

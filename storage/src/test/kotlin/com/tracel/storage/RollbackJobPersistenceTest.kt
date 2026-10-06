@@ -1,7 +1,8 @@
 package com.tracel.storage
 
-import com.tracel.engine.rollback.job.RollbackJobRecord
-import com.tracel.engine.rollback.job.RollbackJobRepository
+import com.tracel.tests.support.TestShapes
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
+import com.tracel.engine.rollback.job.record.RollbackJobRepository
 import com.tracel.engine.rollback.plan.*
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
@@ -24,6 +25,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 import java.util.*
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 
 class RollbackJobPersistenceTest {
     private val world = WorldId(UUID(0L, 1L))
@@ -33,7 +37,7 @@ class RollbackJobPersistenceTest {
     private val plan = RollbackPlan(
         listOf(
             RollbackStep.Take(LotId(1), Quantity(3), block(0, 64, 0)),
-            RollbackStep.Mint(LotId(2), Quantity(1), SinkKind.LAVA),
+            RollbackStep.Mint(LotId(2), Quantity(1), SinkKind.HAZARD),
             RollbackStep.Unmake(
                 listOf(UnmadeOutput(LotId(3), player(1))),
                 listOf(LotContribution(LotId(4), Quantity(9))),
@@ -53,7 +57,7 @@ class RollbackJobPersistenceTest {
         StructureStep.SetBlock(
             at,
             BlockShape(BlockDataKey("minecraft:chest[facing=north]"), BlockExtras.Opaque(byteArrayOf(1, 2, 3))),
-            BlockShape.AIR,
+            TestShapes.AIR,
         ),
         StructureStep.SpawnEntity(
             at,
@@ -74,7 +78,7 @@ class RollbackJobPersistenceTest {
     private val destroy = listOf(
         StructureStep.SetBlock(
             BlockPos(world, 11, 70, -3),
-            BlockShape.AIR,
+            TestShapes.AIR,
             BlockShape(BlockDataKey("minecraft:cobblestone"))
         ),
     )
@@ -237,7 +241,7 @@ class RollbackJobPersistenceTest {
                 StructureStep.SetBlock(
                     BlockPos(world, i, 70, 0),
                     BlockShape(BlockDataKey("minecraft:stone")),
-                    BlockShape.AIR,
+                    TestShapes.AIR,
                 )
             }
 
@@ -275,7 +279,7 @@ class RollbackJobPersistenceTest {
                     StructureStep.SetBlock(
                         BlockPos(world, i and 15, 64 + s * 16 + (i shr 8), (i shr 4) and 15),
                         BlockShape(BlockDataKey("minecraft:stone")),
-                        BlockShape.AIR,
+                        TestShapes.AIR,
                     )
                 }
             }.shuffled(java.util.Random(7).let { rng -> kotlin.random.Random(rng.nextLong()) })
@@ -302,7 +306,7 @@ class RollbackJobPersistenceTest {
             StructureStep.SetBlock(
                 BlockPos(world, i and 15, 64 + (i shr 8), (i shr 4) and 15),
                 BlockShape(BlockDataKey("minecraft:stone")),
-                BlockShape.AIR,
+                TestShapes.AIR,
             )
         }
 
@@ -359,7 +363,7 @@ class RollbackJobPersistenceTest {
     @Test
     fun `the undo stack keeps twenty jobs and forgets the rest entirely`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
-            val depth = com.tracel.engine.rollback.job.RollbackJobRepository.UNDO_DEPTH
+            val depth = RollbackJobRepository.UNDO_DEPTH
             for (i in 1..depth + 5) {
                 stack.jobs.save(
                     RollbackJobRecord(

@@ -27,7 +27,7 @@ object CrashHarness {
 
                 var moved = 0
                 while (moved < TOTAL) {
-                    stack.gate.move(CauseKind.HOPPER, null, System.currentTimeMillis(), diamond, chest, steve, 1)
+                    stack.gate.move(CauseKind.MACHINE, null, System.currentTimeMillis(), diamond, chest, steve, 1)
                     val drained = stack.drain()
                     if (drained == 0) continue
                     moved += drained

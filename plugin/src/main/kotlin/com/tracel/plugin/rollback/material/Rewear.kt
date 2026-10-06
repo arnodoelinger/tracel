@@ -1,8 +1,8 @@
 package com.tracel.plugin.rollback.material
 
-import com.tracel.engine.rollback.involution.InvolutionStep
+import com.tracel.engine.rollback.involution.plan.InvolutionStep
 import com.tracel.engine.rollback.plan.RollbackPlan
-import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.destinationFor
 import com.tracel.engine.wear.WearMark
@@ -147,7 +147,7 @@ private suspend fun MaterialRestorer.rewearAt(
         playerOf(holder.uuid)?.let { rewearIn(it.inventory, wanted, produced) }.orEmpty()
     }
 
-    is HolderId.EnderChest -> withContext(services.schedulers.entity(holder.uuid)) {
+    is HolderId.PlayerStash -> withContext(services.schedulers.entity(holder.uuid)) {
         playerOf(holder.uuid)?.let { rewearIn(it.enderChest, wanted, produced) }.orEmpty()
     }
 

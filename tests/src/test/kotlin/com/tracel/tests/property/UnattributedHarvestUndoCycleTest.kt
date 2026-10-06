@@ -1,12 +1,12 @@
 package com.tracel.tests.property
 
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.involution.InvolutionExecutor
-import com.tracel.engine.rollback.involution.InvolutionPlanner
-import com.tracel.engine.rollback.job.InMemoryRollbackJobRepository
-import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
+import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
+import com.tracel.engine.rollback.job.record.memory.InMemoryRollbackJobRepository
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.id.Quantity

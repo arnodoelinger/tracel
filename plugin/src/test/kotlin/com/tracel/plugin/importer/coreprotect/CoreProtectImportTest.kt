@@ -1,7 +1,8 @@
 package com.tracel.plugin.importer.coreprotect
 
+import com.tracel.plugin.util.AIR
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.event.EventKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -155,7 +156,7 @@ class CoreProtectImportTest {
 
     private fun WorldChange.block() = subject as ChangeSubject.Block
 
-    private fun BlockShape.detail() = (extras as? BlockExtras.Opaque)?.nbt?.toString(Charsets.UTF_8)
+    private fun BlockShape.detail() = (extras as? BlockExtras.Opaque)?.bytes?.toString(Charsets.UTF_8)
 
     @Test
     fun `rows become changes with both sides, and nothing is taken twice`(@TempDir dir: Path) = runTest {
@@ -185,7 +186,7 @@ class CoreProtectImportTest {
                 "a waterlogged block leaves its water"
             )
             assertEquals(stairs, history[0].block().before.data.value)
-            assertEquals(BlockShape.AIR, history[1].block().before, "placed where the row before said nothing was left")
+            assertEquals(AIR, history[1].block().before, "placed where the row before said nothing was left")
             assertEquals(stairs, history[1].block().after.data.value)
             assertEquals(ActionKind.BLOCK_BREAK, history[2].action)
             assertEquals(HolderId.Player(steve), history[2].causedBy)
@@ -296,7 +297,7 @@ class CoreProtectImportTest {
             val pig = store.at(3).single().subject as ChangeSubject.Entity
             assertEquals(
                 "minecraft:pig:baby|tame|Dolly",
-                (pig.before!!.extras as EntityExtras.Opaque).nbt.toString(Charsets.UTF_8)
+                (pig.before!!.extras as EntityExtras.Opaque).bytes.toString(Charsets.UTF_8)
             )
             assertNull(
                 (store.at(4).single().subject as ChangeSubject.Entity).before!!.extras,
@@ -349,7 +350,7 @@ class CoreProtectImportTest {
                 took.flows.single().itemKey.decoration?.hex,
                 "what the item carried is part of what it is"
             )
-            assertEquals(CauseKind.HOPPER, hopper.cause)
+            assertEquals(CauseKind.MACHINE, hopper.cause)
             assertEquals(FlowKind.MINT, hopper.flows.single().kind)
             assertTrue(
                 moved.all { store.transactions.lotsAt(it.seq).isEmpty() },
@@ -410,7 +411,7 @@ class CoreProtectImportTest {
                     HolderId.Player(steve),
                     5_000_000,
                     BlockPos(overworld, 1, 64, 0),
-                    ChangeSubject.Block(BlockShape.AIR, BlockShape(BlockDataKey("minecraft:stone"))),
+                    ChangeSubject.Block(AIR, BlockShape(BlockDataKey("minecraft:stone"))),
                 ),
             )
             val tally = store.import(location).tally

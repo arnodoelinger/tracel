@@ -1,9 +1,9 @@
 package com.tracel.storage.crash
 
-import com.tracel.engine.journal.CrashPoint
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.journal.SimulatedCrash
-import com.tracel.engine.ownership.LeaseAcquisition
+import com.tracel.engine.rollback.journal.crash.CrashPoint
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.crash.SimulatedCrash
+import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget
@@ -30,7 +30,7 @@ class CrashRecoveryTest {
         val root = Stack(dir).use { stack ->
             val lot = stack.ledger.mint(chest, diamond, Quantity(10), stack.counters.nextTxnId())
             stack.ledger.move(chest, steve, diamond, Quantity(10), stack.counters.nextTxnId())
-            stack.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, stack.counters.nextTxnId())
+            stack.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, stack.counters.nextTxnId())
             lot.id
         }
 

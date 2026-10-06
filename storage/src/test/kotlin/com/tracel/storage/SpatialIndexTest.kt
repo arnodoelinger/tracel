@@ -1,8 +1,9 @@
 package com.tracel.storage
 
+import com.tracel.tests.support.TestShapes
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -40,13 +41,13 @@ class SpatialIndexTest {
         griefer,
         at,
         BlockPos(world, x, y, z),
-        ChangeSubject.Block(stone, BlockShape.AIR),
+        ChangeSubject.Block(stone, TestShapes.AIR),
     )
 
     private fun cube(center: Int, radius: Int) = LookupRegion(
         world,
-        minChunkX = (center - radius) shr 4, maxChunkX = (center + radius) shr 4,
-        minChunkZ = (center - radius) shr 4, maxChunkZ = (center + radius) shr 4,
+        minTileX = (center - radius) shr 4, maxTileX = (center + radius) shr 4,
+        minTileZ = (center - radius) shr 4, maxTileZ = (center + radius) shr 4,
         minX = center - radius, maxX = center + radius,
         minY = 64 - radius, maxY = 64 + radius,
         minZ = center - radius, maxZ = center + radius,
@@ -135,7 +136,7 @@ class SpatialIndexTest {
                 LookupFilter(since = now - 3_600_000L, region = cube(4, 8), limit = Int.MAX_VALUE),
             )
             assertEquals(50, matches.size)
-            assertTrue(QueryProbe.read().indexRows <= 54, "the walk ran past maxChunkZ")
+            assertTrue(QueryProbe.read().indexRows <= 54, "the walk ran past maxTileZ")
         }
     }
 

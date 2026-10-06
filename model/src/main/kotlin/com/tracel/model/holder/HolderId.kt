@@ -25,10 +25,10 @@ public sealed interface HolderId {
     /** A player's inventory. */
     public data class Player(val uuid: UUID) : HolderId
 
-    /** A player's Ender Chest inventory. */
-    public data class EnderChest(val uuid: UUID) : HolderId
+    /** A player's private stash, kept apart from their main inventory. */
+    public data class PlayerStash(val uuid: UUID) : HolderId
 
-    /** An entity's inventory, such as a chest boat's cargo. */
+    /** An entity's inventory, such as a cart's cargo. */
     public data class Entity(val uuid: UUID) : HolderId
 
     /** The entity itself, represented as the item it drops when broken. */

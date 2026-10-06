@@ -1,7 +1,7 @@
 package com.tracel.plugin.rollback.structure
 
 import com.tracel.engine.rollback.structure.StructureStep
-import com.tracel.engine.rollback.structure.groupByChunk
+import com.tracel.engine.rollback.structure.space.groupByTile
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.world.worldOf
@@ -51,7 +51,7 @@ internal suspend fun StructureRestorer.restoreSteps(
     }
 
     suspend fun dispatch(steps: List<StructureStep>, round: Int = 0): List<StructureReport> {
-        val groups = groupByChunk(steps) { dispatchAt(it) }
+        val groups = groupByTile(steps) { dispatchAt(it) }
 
         // Not a lock
         val claimed = AtomicIntegerArray(groups.size)

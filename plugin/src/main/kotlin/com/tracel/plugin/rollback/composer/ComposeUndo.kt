@@ -1,10 +1,11 @@
 package com.tracel.plugin.rollback.composer
 
+import com.tracel.plugin.util.isAirLike
 import com.tracel.engine.rollback.involution.InvolutionOutcome
-import com.tracel.engine.rollback.involution.InvolutionPlanner
-import com.tracel.engine.rollback.involution.InvolutionStep
-import com.tracel.engine.rollback.job.RollbackJobRecord
-import com.tracel.engine.rollback.job.RollbackJobRepository
+import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
+import com.tracel.engine.rollback.involution.plan.InvolutionStep
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
+import com.tracel.engine.rollback.job.record.RollbackJobRepository
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.noiseMints
 import com.tracel.engine.rollback.structure.StructureStep

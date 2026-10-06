@@ -1,8 +1,8 @@
 package com.tracel.storage
 
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.flow.FlowLot
@@ -25,7 +25,7 @@ import java.util.*
 class TransactionLogTest {
     private val world = WorldId(UUID(0L, 1L))
 
-    private fun move(seq: Long, from: HolderId, to: HolderId, at: Long, cause: CauseKind = CauseKind.HOPPER) =
+    private fun move(seq: Long, from: HolderId, to: HolderId, at: Long, cause: CauseKind = CauseKind.MACHINE) =
         Transaction(
             TxnId(seq),
             Seq(seq),
@@ -77,7 +77,7 @@ class TransactionLogTest {
                         TxnId(seq),
                         Seq(seq),
                         seq,
-                        CauseKind.HOPPER,
+                        CauseKind.MACHINE,
                         player(1),
                         listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
                         listOf(FlowLot(0, LotId(seq * 10), Quantity(1))),
@@ -188,7 +188,7 @@ class TransactionLogTest {
     fun `a cause filter narrows to that cause`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             for (i in 1L..10L) {
-                val cause = if (i % 3 == 0L) CauseKind.EXPLOSION else CauseKind.HOPPER
+                val cause = if (i % 3 == 0L) CauseKind.EXPLOSION else CauseKind.MACHINE
                 stack.log.append(move(i, block(0, 64, 0), player(1), 1000 + i, cause))
             }
             val explosions = stack.log.query(LookupFilter(causes = setOf(CauseKind.EXPLOSION)))
@@ -207,7 +207,7 @@ class TransactionLogTest {
                     TxnId(1),
                     Seq(1),
                     100,
-                    CauseKind.HOPPER,
+                    CauseKind.MACHINE,
                     null,
                     listOf(Flow(plain, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))
                 ),
@@ -217,7 +217,7 @@ class TransactionLogTest {
                     TxnId(2),
                     Seq(2),
                     200,
-                    CauseKind.HOPPER,
+                    CauseKind.MACHINE,
                     null,
                     listOf(Flow(enchanted, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))
                 ),
@@ -227,7 +227,7 @@ class TransactionLogTest {
                     TxnId(3),
                     Seq(3),
                     300,
-                    CauseKind.HOPPER,
+                    CauseKind.MACHINE,
                     null,
                     listOf(Flow(diamond, Quantity(1), block(0, 0, 0), steve, FlowKind.MOVE))
                 ),
@@ -399,7 +399,7 @@ class TransactionLogTest {
                 for (seq in 1L..100L) {
                     stack.log.append(
                         Transaction(
-                            TxnId(seq), Seq(seq), seq, CauseKind.HOPPER, player(1),
+                            TxnId(seq), Seq(seq), seq, CauseKind.MACHINE, player(1),
                             listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
                             listOf(FlowLot(0, LotId(seq * 10), Quantity(1))),
                         )
@@ -424,7 +424,7 @@ class TransactionLogTest {
                 val lots = if (seq % 3 == 0L) emptyList() else listOf(FlowLot(0, LotId(seq * 10), Quantity(1)))
                 stack.log.append(
                     Transaction(
-                        TxnId(seq), Seq(seq), seq, CauseKind.HOPPER, player(1),
+                        TxnId(seq), Seq(seq), seq, CauseKind.MACHINE, player(1),
                         listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
                         lots,
                     )
@@ -448,7 +448,7 @@ class TransactionLogTest {
                 for (seq in 1L..20_000L) {
                     stack.log.append(
                         Transaction(
-                            TxnId(seq), Seq(seq), seq, CauseKind.HOPPER, player(1),
+                            TxnId(seq), Seq(seq), seq, CauseKind.MACHINE, player(1),
                             listOf(Flow(diamond, Quantity(1), player(1), block(1, 2, 3), FlowKind.MOVE)),
                             listOf(FlowLot(0, LotId(seq * 10), Quantity(1))),
                         )

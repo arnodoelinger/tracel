@@ -1,10 +1,10 @@
 package com.tracel.tests.property
 
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.plan.RollbackPlanner
-import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
@@ -33,13 +33,13 @@ class NoDupeTest {
 
         // 4 of 10 burn in lava — the real material is now 4 less, and the census must honestly show this,
         // not hide it in the accounting.
-        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, world.nextTxn())
         assertEquals(6L, world.ledger.census(diamond), "burning is a real loss, visible in the census")
 
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         val mintStep = plan.steps.filterIsInstance<RollbackStep.Mint>().single()
         assertEquals(4L, mintStep.quantity.raw, "compensation must match exactly what was actually lost")
-        assertEquals(SinkKind.LAVA, mintStep.reason)
+        assertEquals(SinkKind.HAZARD, mintStep.reason)
 
         JournalExecutor(
             RollbackExecutor(world.ledger, world.log, world::nextSeq),
@@ -68,7 +68,7 @@ class NoDupeTest {
         val steve = player(1)
 
         val root = world.ledger.mint(steve, diamond, Quantity(4), world.nextTxn())
-        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, world.nextTxn())
 
         val plan = RollbackPlanner(world.repo, { true }).plan(listOf(root.id))
         JournalExecutor(

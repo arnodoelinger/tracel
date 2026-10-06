@@ -24,7 +24,7 @@ class SnapshotEvictionListener(services: TracelServices) : TracelListener(servic
     @Observes(ignoreCancelled = false)
     fun onQuit(event: PlayerQuitEvent) {
         val uuid = event.player.uniqueId
-        forgetLater(listOf(HolderId.Player(uuid), HolderId.EnderChest(uuid)))
+        forgetLater(listOf(HolderId.Player(uuid), HolderId.PlayerStash(uuid)))
     }
 
     @Observes(ignoreCancelled = false)

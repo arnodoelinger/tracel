@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.composer
 
+import com.tracel.plugin.util.isAirLike
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey

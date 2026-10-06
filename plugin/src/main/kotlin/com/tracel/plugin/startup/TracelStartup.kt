@@ -1,11 +1,11 @@
 package com.tracel.plugin.startup
 
 import com.tracel.platform.Versions
-import com.tracel.engine.capture.releaseFlows
-import com.tracel.engine.journal.JournalExecutor
+import com.tracel.engine.capture.material.flow.releaseFlows
+import com.tracel.engine.rollback.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.involution.InvolutionExecutor
+import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
 import com.tracel.engine.rollback.plan.WorldQuery
@@ -39,7 +39,7 @@ import com.tracel.storage.ports.container.ContainerSlotLog
 import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.job.RollbackJobRepository
 import com.tracel.storage.ports.ledger.ItemForms
-import com.tracel.storage.ports.ledger.LotLeaseRegistry
+import com.tracel.storage.ports.ledger.Leases
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
 import com.tracel.storage.ports.log.TransactionLog
@@ -123,7 +123,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val containerSlots = ContainerSlotLog(storage, counters)
     val wear = WearLog(storage, counters)
     val actors = ActorFacts(storage)
-    val leases = LotLeaseRegistry(storage)
+    val leases = Leases(storage)
     val jobs = RollbackJobRepository(storage)
     val pendingDeliveries = PendingDeliveryRepository(storage, counters)
     val journalExecutor = JournalExecutor(

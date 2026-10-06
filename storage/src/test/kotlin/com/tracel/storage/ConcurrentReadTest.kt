@@ -1,5 +1,6 @@
 package com.tracel.storage
 
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.transaction.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.Quantity
@@ -35,7 +36,7 @@ class ConcurrentReadTest {
                                 // query that walks an index and decodes records.
                                 assertEquals(diamond, stack.repo.lot(lot.id).itemKey)
                                 stack.repo.currentHolderOf(lot.id)
-                                stack.log.query(com.tracel.engine.log.LookupFilter(limit = 16))
+                                stack.log.query(LookupFilter(limit = 16))
                             }
                         }
                     }

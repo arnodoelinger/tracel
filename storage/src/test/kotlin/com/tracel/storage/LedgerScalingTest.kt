@@ -1,6 +1,6 @@
 package com.tracel.storage
 
-import com.tracel.engine.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.JournalExecutor
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
 import com.tracel.engine.rollback.plan.RollbackTarget

@@ -14,6 +14,7 @@ import com.tracel.model.item.ItemKey
  * list of [Flow]s, without needing to know why the change happened.
  */
 public class TransactionBalancer {
+    /** Balances a list of [InventoryDelta]s into a list of [Flow]s. */
     public fun balance(deltas: List<InventoryDelta>): List<Flow> =
         deltas.filter { it.delta != 0L }
             .groupBy { it.itemKey }
@@ -45,9 +46,6 @@ public class TransactionBalancer {
             if (gain.amount > matched) gains.addFirst(gain.copy(amount = gain.amount - matched))
             if (loss.amount > matched) losses.addFirst(loss.copy(amount = loss.amount - matched))
         }
-
-        // What could not be paired is a signal: items appeared or disappeared without a visible source / receiver in
-        // this set of deltas. Each such case becomes an explicit typed "MINT" / "BURN", rather than silently lost.
         for ((holder, amt, fromGap) in gains) {
             val source = SourceKind.UNTRACKED_GAP.takeIf { fromGap } ?: SourceKind.UNATTRIBUTED
             flows += Flow(itemKey, Quantity(amt), HolderId.Source(source), holder, FlowKind.MINT)

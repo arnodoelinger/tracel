@@ -1,7 +1,8 @@
 package com.tracel.plugin.rollback.composer
 
+import com.tracel.plugin.rollback.structure.VanillaWorldRules
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
 import com.tracel.engine.rollback.structure.StructurePlanner
 import com.tracel.engine.rollback.structure.StructureStep
@@ -73,13 +74,13 @@ internal suspend fun RollbackComposer.planRollback(
         .filterNot { it.action == ActionKind.BLOCK_CLICK || it.seq.raw < importedBelow }
 
     // Structure first, then material
-    val outcome = if (!structure) null else StructurePlanner().planAll(paired)
+    val outcome = if (!structure) null else StructurePlanner(VanillaWorldRules).planAll(paired)
     val create = outcome?.create?.inPlaceOrder() ?: emptyList()
     val destroy = outcome?.destroy?.inPlaceOrder() ?: emptyList()
     val keepCargoOn = create.mapNotNullTo(HashSet()) { (it as? StructureStep.SpawnEntity)?.entity }
     val covered = if (!structure) null else placedCovered(create + destroy) + LiveProjectile.holders()
     val materials = if (!material) NO_MATERIAL else planMaterial(txns, keepCargoOn, structure, covered)
-    val vanishedCells = outcome?.airToAir ?: emptySet()
+    val vanishedCells = outcome?.emptyToEmpty ?: emptySet()
     val bornAndGone = outcome?.bornAndGone ?: emptySet()
     val target = materials.target.awayFromAirToAir(vanishedCells).awayFromEntitiesGone(bornAndGone)
     val everyChange = if (!structure || changes.isEmpty()) emptyList() else services.worldLog.query(wide)

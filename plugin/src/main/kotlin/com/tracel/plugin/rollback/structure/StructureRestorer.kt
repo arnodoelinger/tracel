@@ -1,6 +1,6 @@
 package com.tracel.plugin.rollback.structure
 
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.TracelServices

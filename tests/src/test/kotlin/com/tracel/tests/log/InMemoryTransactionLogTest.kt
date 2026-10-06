@@ -1,9 +1,10 @@
 package com.tracel.tests.log
 
+import com.tracel.tests.support.NamespacedNames
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.InMemoryTransactionLog
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.memory.InMemoryTransactionLog
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -27,7 +28,7 @@ import java.util.*
 class InMemoryTransactionLogTest {
     @Test
     fun `an appended transaction round-trips exactly`() = runTest {
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         val txn = Transaction(
@@ -46,12 +47,12 @@ class InMemoryTransactionLogTest {
 
     @Test
     fun `an unknown transaction id is not found`() = runTest {
-        assertNull(InMemoryTransactionLog().find(TxnId(1)))
+        assertNull(InMemoryTransactionLog(NamespacedNames).find(TxnId(1)))
     }
 
     @Test
     fun `the log refuses to append the same transaction id twice`() = runTest {
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val txn = Transaction(TxnId(1), Seq(1), 0L, CauseKind.UNKNOWN, null, emptyList())
         log.append(txn)
 
@@ -60,7 +61,7 @@ class InMemoryTransactionLogTest {
 
     @Test
     fun `query filters by holder, material, cause and time, newest first`() = runTest {
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         val griefer = player(2)
@@ -74,7 +75,7 @@ class InMemoryTransactionLogTest {
             flows = listOf(Flow(diamondBlock, Quantity(1), chest, HolderId.Sink(SinkKind.UNATTRIBUTED), FlowKind.BURN)),
         )
         val txn3 = Transaction(
-            TxnId(3), Seq(3), epochMillis = 3_000L, cause = CauseKind.HOPPER, causedBy = null,
+            TxnId(3), Seq(3), epochMillis = 3_000L, cause = CauseKind.MACHINE, causedBy = null,
             flows = listOf(Flow(diamond, Quantity(2), chest, chest, FlowKind.MOVE)),
         )
         listOf(txn1, txn2, txn3).forEach { log.append(it) }
@@ -96,7 +97,7 @@ class InMemoryTransactionLogTest {
 
     @Test
     fun `a rollback's own transactions are invisible to every query`() = runTest {
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val chest = block(0, 64, 0)
 
@@ -120,7 +121,7 @@ class InMemoryTransactionLogTest {
 
     @Test
     fun `a region filter keeps transactions whose chests sit inside it`() = runTest {
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val world = WorldId(UUID(0L, 1L))
         val here = block(3, 64, 5)
         val there = block(1608, 64, 1608)
@@ -155,7 +156,7 @@ class InMemoryTransactionLogTest {
 
     @Test
     fun `offset pages through newest-first results without skipping or repeating`() = runTest {
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         val txns = (1..5).map { i ->
@@ -163,7 +164,7 @@ class InMemoryTransactionLogTest {
                 TxnId(i.toLong()),
                 Seq(i.toLong()),
                 i * 1_000L,
-                CauseKind.HOPPER,
+                CauseKind.MACHINE,
                 null,
                 listOf(Flow(diamond, Quantity(1), chest, steve, FlowKind.MOVE))
             )
@@ -181,7 +182,7 @@ class InMemoryTransactionLogTest {
 
     @Test
     fun `bookkeeping is findable by id but invisible to lookup`() = runTest {
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         val original = Transaction(

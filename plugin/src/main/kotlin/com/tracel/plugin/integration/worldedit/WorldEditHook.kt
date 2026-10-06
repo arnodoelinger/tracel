@@ -15,7 +15,7 @@ import com.sk89q.worldedit.world.block.BaseBlock
 import com.sk89q.worldedit.world.block.BlockStateHolder
 import com.sk89q.worldedit.world.block.BlockType
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.world.BlockEdit
+import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.item.ItemKey

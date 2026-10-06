@@ -1,6 +1,6 @@
 package com.tracel.tests.rollback
 
-import com.tracel.engine.rollback.structure.groupByChunk
+import com.tracel.engine.rollback.structure.space.groupByTile
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -17,7 +17,7 @@ class ChunkGroupsTest {
     fun `items of one chunk are one group, in the order they came`() {
         val items = listOf(at(overworld, 1, 1), at(overworld, 15, 0), at(overworld, 0, 15))
 
-        assertEquals(listOf(items), groupByChunk(items) { it })
+        assertEquals(listOf(items), groupByTile(items) { it })
     }
 
     @Test
@@ -27,7 +27,7 @@ class ChunkGroupsTest {
         val a2 = at(overworld, 5, 5)
         val c = at(overworld, -1, -1)
 
-        assertEquals(listOf(listOf(a1, a2), listOf(b), listOf(c)), groupByChunk(listOf(a1, b, a2, c)) { it })
+        assertEquals(listOf(listOf(a1, a2), listOf(b), listOf(c)), groupByTile(listOf(a1, b, a2, c)) { it })
     }
 
     @Test
@@ -35,7 +35,7 @@ class ChunkGroupsTest {
         val over = at(overworld, 3, 3)
         val under = at(nether, 3, 3)
 
-        assertEquals(listOf(listOf(over), listOf(under)), groupByChunk(listOf(over, under)) { it })
+        assertEquals(listOf(listOf(over), listOf(under)), groupByTile(listOf(over, under)) { it })
     }
 
     @Test
@@ -43,11 +43,11 @@ class ChunkGroupsTest {
         val below = at(overworld, -1, 0)
         val zero = at(overworld, 0, 0)
 
-        assertEquals(listOf(listOf(below), listOf(zero)), groupByChunk(listOf(below, zero)) { it })
+        assertEquals(listOf(listOf(below), listOf(zero)), groupByTile(listOf(below, zero)) { it })
     }
 
     @Test
     fun `nothing is nothing`() {
-        assertEquals(emptyList<List<BlockPos>>(), groupByChunk(emptyList<BlockPos>()) { it })
+        assertEquals(emptyList<List<BlockPos>>(), groupByTile(emptyList<BlockPos>()) { it })
     }
 }

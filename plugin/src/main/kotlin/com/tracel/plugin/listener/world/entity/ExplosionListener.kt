@@ -1,9 +1,10 @@
 package com.tracel.plugin.listener.world.entity
 
+import com.tracel.plugin.util.AIR
 import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Unstable
-import com.tracel.engine.world.BlockEdit
+import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
@@ -64,13 +65,13 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
 
     private fun explodedCells(state: BlockState): List<BlockEdit> {
         if (state.type.isAir) return emptyList()
-        val out = arrayListOf(BlockEdit(state.block.toBlockPos(), state.toShape(), BlockShape.AIR))
+        val out = arrayListOf(BlockEdit(state.block.toBlockPos(), state.toShape(), AIR))
         val bed = state.blockData as? Bed ?: return out
         val other = bed.clone() as Bed
         other.part = if (bed.part == Bed.Part.HEAD) Bed.Part.FOOT else Bed.Part.HEAD
         val towards = if (bed.part == Bed.Part.HEAD) bed.facing.oppositeFace else bed.facing
         val partner = state.block.getRelative(towards)
-        out += BlockEdit(partner.toBlockPos(), BlockShape(BlockDataKey(other.asString)), BlockShape.AIR)
+        out += BlockEdit(partner.toBlockPos(), BlockShape(BlockDataKey(other.asString)), AIR)
         return out
     }
 
@@ -85,7 +86,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
             cause = CauseKind.EXPLOSION,
             causedBy = causedBy,
             world = WorldId(blocks.first().world.uid),
-            edits = broken.map { BlockEdit(it.toBlockPos(), it.toShape(), BlockShape.AIR) },
+            edits = broken.map { BlockEdit(it.toBlockPos(), it.toShape(), AIR) },
             epochMillis = epochMillis,
         )
         if (tnt.isNotEmpty()) shape.reread(
@@ -140,7 +141,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
             causedBy = causedBy,
             blocks = toWatch.toList(),
             delayTicks = 2L,
-        ) { it.after != BlockShape.AIR }
+        ) { it.after != AIR }
     }
 }
 

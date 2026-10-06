@@ -1,7 +1,7 @@
 package com.tracel.plugin.rollback
 
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.RollbackJobId
 import com.tracel.plugin.rollback.result.outcome.Planned

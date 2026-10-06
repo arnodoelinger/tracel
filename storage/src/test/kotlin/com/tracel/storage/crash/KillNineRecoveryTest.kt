@@ -60,7 +60,7 @@ class KillNineRecoveryTest {
 
             val before = stack.ledger.totalAt(player(1), diamond)?.raw ?: 0L
             stack.gate.move(
-                CauseKind.HOPPER,
+                CauseKind.MACHINE,
                 null,
                 System.currentTimeMillis(),
                 diamond,

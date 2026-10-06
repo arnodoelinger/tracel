@@ -1,12 +1,13 @@
 package com.tracel.tests.property
 
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.involution.InvolutionExecutor
-import com.tracel.engine.rollback.involution.InvolutionPlanner
-import com.tracel.engine.rollback.job.InMemoryRollbackJobRepository
-import com.tracel.engine.rollback.job.RollbackJobRecord
+import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
+import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
+import com.tracel.engine.rollback.job.record.memory.InMemoryRollbackJobRepository
+import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.SinkKind
@@ -33,7 +34,7 @@ class RetractBurnsTheMintTest {
         val older = world.ledger.mint(chest, diamond, Quantity(20), world.nextTxn())
 
         val root = world.ledger.mint(steve, diamond, Quantity(10), world.nextTxn())
-        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, world.nextTxn())
 
         val job = RollbackJobId(1)
         val target = RollbackTarget.Uniform(chest)
@@ -47,7 +48,7 @@ class RetractBurnsTheMintTest {
         )
             .execute(world.acquireLease(job, plan), plan, target)
 
-        val burned = plan.steps.filterIsInstance<com.tracel.engine.rollback.plan.RollbackStep.Mint>().single().lotId
+        val burned = plan.steps.filterIsInstance<RollbackStep.Mint>().single().lotId
         val minted = world.repo.edgesFrom(burned).filterIsInstance<LotEdge.Compensate>().single().child
         assertNotNull(world.repo.placementOf(chest, minted), "the compensation is in the chest")
 

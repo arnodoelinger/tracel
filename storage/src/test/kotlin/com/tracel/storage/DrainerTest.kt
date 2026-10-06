@@ -1,7 +1,7 @@
 package com.tracel.storage
 
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.id.Quantity
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
@@ -30,7 +30,7 @@ class DrainerTest {
     fun `a whole batch of events becomes one unit of work`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             seed(stack, 500)
-            repeat(400) { stack.gate.move(CauseKind.HOPPER, null, 1000L + it, diamond, chest, steve, 1) }
+            repeat(400) { stack.gate.move(CauseKind.MACHINE, null, 1000L + it, diamond, chest, steve, 1) }
 
             val before = stack.storage.engine.stats().writes
             assertEquals(400, stack.drain())
@@ -46,10 +46,10 @@ class DrainerTest {
         Stack(dir).use { stack ->
             seed(stack, 10)
 
-            stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 3)
+            stack.gate.move(CauseKind.MACHINE, null, 1L, diamond, chest, steve, 3)
             // Nothing anywhere holds a diamond block, so this withdrawal cannot be satisfied.
-            stack.gate.move(CauseKind.HOPPER, null, 2L, diamondBlock, chest, steve, 99)
-            stack.gate.move(CauseKind.HOPPER, null, 3L, diamond, chest, steve, 4)
+            stack.gate.move(CauseKind.MACHINE, null, 2L, diamondBlock, chest, steve, 99)
+            stack.gate.move(CauseKind.MACHINE, null, 3L, diamond, chest, steve, 4)
 
             stack.drain()
 
@@ -70,7 +70,7 @@ class DrainerTest {
                 val scope = CoroutineScope(SupervisorJob() + EmptyCoroutineContext)
                 val job: Job = stack.drainer.start(scope)
 
-                repeat(50) { stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1) }
+                repeat(50) { stack.gate.move(CauseKind.MACHINE, null, 1L, diamond, chest, steve, 1) }
                 withTimeout(10_000.milliseconds) {
                     while (stack.drainer.events < 50L) delay(5.milliseconds)
                 }
@@ -80,7 +80,7 @@ class DrainerTest {
                 assertTrue(job.isCancelled, "cancellation has to actually work")
 
                 val settled = stack.drainer.events
-                stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1)
+                stack.gate.move(CauseKind.MACHINE, null, 1L, diamond, chest, steve, 1)
                 delay(100.milliseconds)
                 assertEquals(settled, stack.drainer.events)
                 scope.cancel()
@@ -101,7 +101,7 @@ class DrainerTest {
                         val writer = async {
                             repeat(3_000) {
                                 stack.gate.move(
-                                    CauseKind.HOPPER,
+                                    CauseKind.MACHINE,
                                     null,
                                     System.currentTimeMillis(),
                                     diamond,
@@ -142,11 +142,11 @@ class DrainerTest {
     fun `a captured event reaches the log as a queryable transaction`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             seed(stack, 100)
-            stack.gate.move(CauseKind.HOPPER, steve, 1_700_000_000_000L, diamond, chest, steve, 5)
+            stack.gate.move(CauseKind.MACHINE, steve, 1_700_000_000_000L, diamond, chest, steve, 5)
             stack.drain()
 
             val found = stack.log.query(LookupFilter(holders = setOf(steve)))
-            val move = found.first { it.cause == CauseKind.HOPPER }
+            val move = found.first { it.cause == CauseKind.MACHINE }
             assertEquals(1_700_000_000_000L, move.epochMillis)
             assertEquals(steve, move.causedBy)
             assertEquals(5L, move.flows.single().quantity.raw)
@@ -202,7 +202,7 @@ class DrainerTest {
 
                 val trickled = 20
                 repeat(trickled) {
-                    stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1)
+                    stack.gate.move(CauseKind.MACHINE, null, 1L, diamond, chest, steve, 1)
                     delay(20.milliseconds)
                 }
                 withTimeout(10_000.milliseconds) {

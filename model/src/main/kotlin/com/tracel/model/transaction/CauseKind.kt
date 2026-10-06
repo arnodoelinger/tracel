@@ -4,7 +4,7 @@ package com.tracel.model.transaction
 public enum class CauseKind {
     PLAYER_ACTION,
     EXPLOSION,
-    HOPPER,
+    MACHINE,
     CRAFT,
     BLOCK_BREAK,
     ROLLBACK,

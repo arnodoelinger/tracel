@@ -66,7 +66,7 @@ private val ALIASES: List<ActionAlias> = listOf(
     ),
     ActionAlias(
         names = setOf("container", "item", "inventory"),
-        causes = setOf(CauseKind.PLAYER_ACTION, CauseKind.HOPPER, CauseKind.BLOCK_BREAK, CauseKind.WEAR),
+        causes = setOf(CauseKind.PLAYER_ACTION, CauseKind.MACHINE, CauseKind.BLOCK_BREAK, CauseKind.WEAR),
         half = Half.MATERIAL,
     ),
     ActionAlias(
@@ -121,7 +121,7 @@ object ActionArgument {
                 continue
             }
 
-            val cause = raw.toEnumOrNull<CauseKind>()
+            val cause = if (raw.equals("hopper", ignoreCase = true)) CauseKind.MACHINE else raw.toEnumOrNull<CauseKind>()
             val action = raw.toEnumOrNull<ActionKind>()
             when {
                 action != null -> {

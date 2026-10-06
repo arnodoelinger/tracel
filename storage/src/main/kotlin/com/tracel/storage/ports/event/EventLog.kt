@@ -1,6 +1,6 @@
 package com.tracel.storage.ports.event
 
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
 import com.tracel.model.id.Seq

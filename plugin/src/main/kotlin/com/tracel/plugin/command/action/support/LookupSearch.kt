@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.action.support
 
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.event.EventKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.transaction.Transaction

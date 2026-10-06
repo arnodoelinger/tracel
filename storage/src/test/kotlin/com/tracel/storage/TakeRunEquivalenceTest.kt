@@ -1,18 +1,18 @@
 package com.tracel.storage
 
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.LotRepository
-import com.tracel.engine.ledger.PlacedRuns
-import com.tracel.engine.ledger.Product
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.repository.LotRepository
+import com.tracel.engine.ledger.repository.PlacedRuns
+import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.involution.InvolutionExecutor
+import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.involution.InvolutionOutcome
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
 import com.tracel.engine.rollback.job.RollbackOutcome
 import com.tracel.engine.rollback.plan.RollbackPlan
-import com.tracel.engine.rollback.plan.RollbackStep
+import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.destinationFor
 import com.tracel.model.holder.HolderId
@@ -68,7 +68,7 @@ class TakeRunEquivalenceTest {
                         a,
                         item,
                         Quantity(random.nextLong(1, have + 1)),
-                        SinkKind.LAVA,
+                        SinkKind.HAZARD,
                         stack.counters.nextTxnId()
                     )
                 }

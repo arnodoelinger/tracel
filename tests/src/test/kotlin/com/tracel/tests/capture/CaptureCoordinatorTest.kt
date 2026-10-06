@@ -1,11 +1,12 @@
 package com.tracel.tests.capture
 
+import com.tracel.tests.support.NamespacedNames
 import com.tracel.model.transaction.CauseKind
 import com.tracel.engine.balance.InventoryDelta
-import com.tracel.engine.capture.CaptureCoordinator
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
-import com.tracel.engine.log.InMemoryTransactionLog
+import com.tracel.engine.capture.material.CaptureCoordinator
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
+import com.tracel.engine.log.memory.InMemoryTransactionLog
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -30,7 +31,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a matched move updates the ledger and logs one transaction`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         var nextSeqRaw = 1L
@@ -55,7 +56,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `an unmatched gain mints, and the mint is what gets logged`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
@@ -75,7 +76,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `recordCraft consumes ingredients and produces the output as one transaction`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val stick = ItemKey("minecraft:stick")
         var nextSeqRaw = 1L
@@ -110,7 +111,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a craft carries the place it happened, or no radius query can ever find it`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val stick = ItemKey("minecraft:stick")
         var nextSeqRaw = 1L
@@ -134,7 +135,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `recordDirect bypasses the balancer, using exactly the sink kind the caller chose`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val ground = itemEntity(1)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
@@ -155,7 +156,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `recordDirect with no flows records nothing`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
@@ -168,7 +169,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `an empty diff records nothing - no transaction, no log entry`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         var nextSeqRaw = 1L
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
@@ -181,7 +182,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a capture that cannot fully apply applies none of it, and logs nothing`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         var nextSeqRaw = 1L
@@ -204,7 +205,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `recordDirect refuses a flow set it cannot fully apply, leaving the ledger untouched`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val ground = itemEntity(7)
         val steve = player(1)
         var nextSeqRaw = 1L
@@ -232,7 +233,7 @@ class CaptureCoordinatorTest {
         // The check simulates the flows in order rather than only summing per source, so a
         // legitimate hand-off inside one transaction is not mistaken for an overdraw.
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val chest = block(0, 64, 0)
         val steve = player(1)
         val ground = itemEntity(7)
@@ -257,7 +258,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a move out of a holder the ledger never credited mints the shortfall rather than failing`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val ground = itemEntity(1)
         var nextSeqRaw = 1L
@@ -285,7 +286,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a shortfall at a holder the policy excludes is refused, not minted`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val ground = itemEntity(1)
         var nextSeqRaw = 1L
@@ -305,7 +306,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `without the flag that same move is still refused outright`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val steve = player(1)
         val ground = itemEntity(1)
         var nextSeqRaw = 1L
@@ -321,7 +322,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `a mint and a withdrawal of the same material in one transaction both apply`() = runTest {
         val world = LedgerHarness()
-        val log = InMemoryTransactionLog()
+        val log = InMemoryTransactionLog(NamespacedNames)
         val bush = block(10, 64, 10)
         val steve = player(1)
         var nextSeqRaw = 1L

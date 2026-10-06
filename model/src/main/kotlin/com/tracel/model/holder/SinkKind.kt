@@ -1,8 +1,8 @@
 package com.tracel.model.holder
 
-/** Why a unit left the ledger for good — i.e. where it was burned. */
+/** Why a unit left the ledger for good — i.e. where it was destroyed. */
 public enum class SinkKind {
-    LAVA,
+    HAZARD,
     DESPAWN,
     BURN_FUEL,
     CRAFT_CONSUME,

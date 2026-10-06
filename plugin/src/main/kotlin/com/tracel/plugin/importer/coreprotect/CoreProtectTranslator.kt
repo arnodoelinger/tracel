@@ -1,9 +1,10 @@
 package com.tracel.plugin.importer.coreprotect
 
+import com.tracel.plugin.util.AIR
 import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Unstable
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.event.EventKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
@@ -173,7 +174,7 @@ class CoreProtectTranslator(
     private val plainItems = HashMap<Int, Any>()
     private val standing = HashMap<Int, Standing>()
     private val mobs = LinkedHashMap<UUID, EntityTypeKey>()
-    private val water = platform.blockState("minecraft:water")?.let { BlockShape(BlockDataKey(it)) } ?: BlockShape.AIR
+    private val water = platform.blockState("minecraft:water")?.let { BlockShape(BlockDataKey(it)) } ?: AIR
 
     /** The mob actors met since the last call, for whoever has to tell the store what kind each one is. */
     fun newMobs(): Map<UUID, EntityTypeKey> = LinkedHashMap(mobs).also { mobs.clear() }
@@ -267,10 +268,10 @@ class CoreProtectTranslator(
         val edit = if (row.action == BREAK) {
             // What stood there may know more than the row does: a sign's text comes from another table
             val before = stood?.takeIf { it.data == shape.data && it.extras != null && shape.extras == null } ?: shape
-            BlockEdit(at, before, if (WATERLOGGED in shape.data.value) water else BlockShape.AIR)
+            BlockEdit(at, before, if (WATERLOGGED in shape.data.value) water else AIR)
         } else {
             // Placed over the very thing it is: something was there that nobody wrote down
-            BlockEdit(at, stood?.takeIf { it != shape } ?: BlockShape.AIR, shape)
+            BlockEdit(at, stood?.takeIf { it != shape } ?: AIR, shape)
         }
         if (edit.before == edit.after) {
             tally.skip(Skipped.UNREADABLE)
@@ -504,8 +505,8 @@ class CoreProtectTranslator(
         return when (row.action) {
             ITEM_DROP, ITEM_THROW -> Flow(item, quantity, player, pile(), FlowKind.MOVE)
             ITEM_PICKUP -> Flow(item, quantity, pile(), player, FlowKind.MOVE)
-            ITEM_REMOVE_ENDER -> Flow(item, quantity, HolderId.EnderChest(player.uuid), player, FlowKind.MOVE)
-            ITEM_ADD_ENDER -> Flow(item, quantity, player, HolderId.EnderChest(player.uuid), FlowKind.MOVE)
+            ITEM_REMOVE_ENDER -> Flow(item, quantity, HolderId.PlayerStash(player.uuid), player, FlowKind.MOVE)
+            ITEM_ADD_ENDER -> Flow(item, quantity, player, HolderId.PlayerStash(player.uuid), FlowKind.MOVE)
             ITEM_SHOOT, ITEM_BREAK, ITEM_DESTROY, ITEM_SELL ->
                 Flow(item, quantity, player, HolderId.Sink(SinkKind.UNATTRIBUTED), FlowKind.BURN)
 
@@ -568,7 +569,7 @@ class CoreProtectTranslator(
         }
         val cause = when {
             what in EXPLOSIVE -> CauseKind.EXPLOSION
-            what in MACHINES -> CauseKind.HOPPER
+            what in MACHINES -> CauseKind.MACHINE
             mob != null -> CauseKind.ENTITY_ACTION
             else -> CauseKind.WORLD
         }

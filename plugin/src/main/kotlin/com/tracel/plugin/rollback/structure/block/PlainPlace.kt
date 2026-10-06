@@ -1,5 +1,7 @@
 package com.tracel.plugin.rollback.structure.block
 
+import com.tracel.plugin.util.isAirLike
+import com.tracel.plugin.util.AIR
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.block.BlockDataKey
@@ -28,7 +30,7 @@ internal fun PalettePaste.place(step: StructureStep.SetBlock, force: Boolean, dr
     if (target.data == null) return null
     val targetState = target.stateIn(this) ?: return null
     val expected = PasteShapes.of(step.expected)
-    val expectedAir = expected.air || (expected.data == null && step.expected == BlockShape.AIR)
+    val expectedAir = expected.air || (expected.data == null && step.expected == AIR)
     val expectedState = if (expected.data != null && !expected.air) (expected.stateIn(this) ?: return null) else null
     when (
         placeFast(
@@ -98,7 +100,7 @@ private fun PalettePaste.plan(step: StructureStep.SetBlock, force: Boolean, drif
     if (expectedData != null && !expectedData.material.isAir && expectedState == null) return null
 
     val matchesExpected = when {
-        expectedData == null -> step.expected == BlockShape.AIR && liveAir
+        expectedData == null -> step.expected == AIR && liveAir
         expectedData.material.isAir -> liveAir
         else -> live === expectedState || BlockLikeness.sameEnough(asString(live), step.expected.data.value)
     }

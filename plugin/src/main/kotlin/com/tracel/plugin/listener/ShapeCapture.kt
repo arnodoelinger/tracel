@@ -1,10 +1,11 @@
 package com.tracel.plugin.listener
 
+import com.tracel.plugin.util.AIR
 import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Unstable
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
-import com.tracel.engine.world.EntityChange
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.engine.capture.world.EntityChange
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
@@ -86,7 +87,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
      * Call while the block is still there.
      */
     fun removed(block: Block, cause: CauseKind = CauseKind.WORLD, causedBy: HolderId? = null) =
-        edit(block, block.toShape(), BlockShape.AIR, ActionKind.BLOCK_BREAK, cause, causedBy)
+        edit(block, block.toShape(), AIR, ActionKind.BLOCK_BREAK, cause, causedBy)
 
     /** This cell is becoming [newState]: current shape -> that state's shape. */
     fun became(

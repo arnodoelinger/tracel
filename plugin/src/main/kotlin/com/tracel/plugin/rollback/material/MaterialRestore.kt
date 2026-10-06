@@ -261,7 +261,7 @@ internal fun withholdUnfunded(gives: Map<HolderId, Map<ItemKey, Long>>, short: M
         is HolderId.ItemEntity -> 0
         is HolderId.Entity -> 1
         is HolderId.Block -> 2
-        is HolderId.EnderChest -> 3
+        is HolderId.PlayerStash -> 3
         is HolderId.Player -> 4
         else -> 5
     }

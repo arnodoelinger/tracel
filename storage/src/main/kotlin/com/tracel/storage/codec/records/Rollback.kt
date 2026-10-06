@@ -1,8 +1,8 @@
 package com.tracel.storage.codec.records
 
-import com.tracel.engine.rollback.plan.LotContribution
-import com.tracel.engine.rollback.plan.RollbackStep
-import com.tracel.engine.rollback.plan.UnmadeOutput
+import com.tracel.engine.rollback.plan.step.LotContribution
+import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.plan.step.UnmadeOutput
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind

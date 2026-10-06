@@ -1,13 +1,13 @@
 package com.tracel.storage.ports.log
 
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
 import com.tracel.model.id.*
-import com.tracel.model.item.namesMaterial
+import com.tracel.storage.util.namesMaterial
 import com.tracel.model.log.LogKind
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos

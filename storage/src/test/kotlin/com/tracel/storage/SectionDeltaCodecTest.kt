@@ -203,7 +203,7 @@ class SectionDeltaCodecTest {
         assertEquals(both, decoded)
         assertEquals(boat, decoded.vehicle)
         assertEquals(knot, decoded.leashHolder)
-        assertEquals(12, decoded.opaque?.nbt?.size)
+        assertEquals(12, decoded.opaque?.bytes?.size)
     }
 
     @Test

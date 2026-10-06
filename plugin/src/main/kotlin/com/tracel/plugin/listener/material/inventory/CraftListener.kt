@@ -3,8 +3,8 @@ package com.tracel.plugin.listener.material.inventory
 import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
-import com.tracel.engine.ledger.Ingredient
-import com.tracel.engine.ledger.Product
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId

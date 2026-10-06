@@ -1,10 +1,11 @@
 package com.tracel.storage
 
+import com.tracel.tests.support.TestShapes
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.log.LookupRegion
-import com.tracel.engine.world.BlockEdit
-import com.tracel.engine.world.BlockEdits
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
+import com.tracel.engine.world.edit.BlockEdit
+import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -54,7 +55,7 @@ class WorldLogTest {
         by,
         epochMillis,
         pos,
-        ChangeSubject.Block(before, BlockShape.AIR),
+        ChangeSubject.Block(before, TestShapes.AIR),
     )
 
     @Test
@@ -71,7 +72,7 @@ class WorldLogTest {
                 player(9),
                 1_700_000_000_000L,
                 at(-30_000_000, -64, 30_000_000),
-                ChangeSubject.Block(sign, BlockShape.AIR),
+                ChangeSubject.Block(sign, TestShapes.AIR),
             )
             stack.worldLog.append(change)
 
@@ -99,7 +100,7 @@ class WorldLogTest {
             stack.worldLog.append(broke(2, at(300, 70, 5), epochMillis = 200))
             stack.worldLog.append(broke(3, at(6, 70, 6), epochMillis = 300))
 
-            val nearby = LookupRegion(world, minChunkX = 0, maxChunkX = 0, minChunkZ = 0, maxChunkZ = 0)
+            val nearby = LookupRegion(world, minTileX = 0, maxTileX = 0, minTileZ = 0, maxTileZ = 0)
             assertEquals(
                 listOf(3L, 1L),
                 stack.worldLog.query(LookupFilter(region = nearby)).map { it.seq.raw },
@@ -139,7 +140,7 @@ class WorldLogTest {
             stack.worldLog.append(broke(3, at(6, 70, 6), by = player(2)))
 
             val nearby = LookupRegion(
-                world, minChunkX = 0, maxChunkX = 0, minChunkZ = 0, maxChunkZ = 0,
+                world, minTileX = 0, maxTileX = 0, minTileZ = 0, maxTileZ = 0,
                 minX = 0, maxX = 10, minY = 60, maxY = 80, minZ = 0, maxZ = 10,
             )
             assertEquals(
@@ -193,7 +194,7 @@ class WorldLogTest {
             val steve = player(1)
             stack.worldLog.append(broke(1, at(1, 70, 1), by = steve, epochMillis = 1_000))
             val region = LookupRegion(
-                world, minChunkX = 0, maxChunkX = 0, minChunkZ = 0, maxChunkZ = 0,
+                world, minTileX = 0, maxTileX = 0, minTileZ = 0, maxTileZ = 0,
                 minX = 0, maxX = 16, minY = 60, maxY = 80, minZ = 0, maxZ = 16,
             )
             val (worlds, _) = stack.worldLog.queryTogether(
@@ -291,7 +292,7 @@ class WorldLogTest {
             stack.worldLog.append(
                 WorldChange(
                     Seq(2), ActionKind.BLOCK_PLACE, CauseKind.PLAYER_ACTION, player(1), 2, at(2, 70, 2),
-                    ChangeSubject.Block(BlockShape.AIR, stone),
+                    ChangeSubject.Block(TestShapes.AIR, stone),
                 )
             )
 
@@ -358,13 +359,13 @@ class WorldLogTest {
             stack.worldLog.append(
                 WorldChange(
                     Seq(2), ActionKind.BLOCK_PLACE, CauseKind.ROLLBACK, steve, 200, at(1, 70, 1),
-                    ChangeSubject.Block(BlockShape.AIR, stone),
+                    ChangeSubject.Block(TestShapes.AIR, stone),
                 )
             )
             stack.worldLog.append(
                 WorldChange(
                     Seq(3), ActionKind.BLOCK_BREAK, CauseKind.INVOLUTION, steve, 300, at(1, 70, 1),
-                    ChangeSubject.Block(stone, BlockShape.AIR),
+                    ChangeSubject.Block(stone, TestShapes.AIR),
                 )
             )
 
@@ -468,7 +469,7 @@ class WorldLogTest {
                         BlockEdit(
                             BlockPos(world, 1, 2, 3),
                             BlockShape(BlockDataKey("minecraft:stone")),
-                            BlockShape.AIR
+                            TestShapes.AIR
                         )
                     ),
                 )
@@ -488,7 +489,7 @@ class WorldLogTest {
                         BlockEdit(
                             BlockPos(world, 1, 2, 3),
                             BlockShape(BlockDataKey("minecraft:dirt")),
-                            BlockShape.AIR
+                            TestShapes.AIR
                         )
                     ),
                 )
@@ -542,7 +543,7 @@ class WorldLogTest {
                     )
                 )
 
-                val region = LookupRegion(world, minChunkX = 0, maxChunkX = 3, minChunkZ = 0, maxChunkZ = 2)
+                val region = LookupRegion(world, minTileX = 0, maxTileX = 3, minTileZ = 0, maxTileZ = 2)
                 val batched = stack.worldLog.query(LookupFilter(region = region, limit = Int.MAX_VALUE))
                 val oneAtATime = stack.worldLog.query(LookupFilter(region = region, limit = 255))
 
@@ -567,7 +568,7 @@ class WorldLogTest {
                 if (!far) inside++
             }
 
-            val region = LookupRegion(world, minChunkX = 0, maxChunkX = 3, minChunkZ = 0, maxChunkZ = 0)
+            val region = LookupRegion(world, minTileX = 0, maxTileX = 3, minTileZ = 0, maxTileZ = 0)
             val found = stack.worldLog.query(LookupFilter(region = region, limit = Int.MAX_VALUE))
 
             assertEquals(inside, found.size, "sparse or dense, a query returns the same rows")
@@ -582,7 +583,7 @@ class WorldLogTest {
                 stack.worldLog.append(broke((cz + 10).toLong(), at(0, 70, cz * 16), epochMillis = (cz + 10).toLong()))
             }
 
-            val region = LookupRegion(world, minChunkX = -300, maxChunkX = 300, minChunkZ = -2, maxChunkZ = 3)
+            val region = LookupRegion(world, minTileX = -300, maxTileX = 300, minTileZ = -2, maxTileZ = 3)
             val found = stack.worldLog.query(LookupFilter(region = region, limit = Int.MAX_VALUE))
 
             assertEquals(
@@ -609,7 +610,7 @@ class WorldLogTest {
             stack.worldLog.append(
                 WorldChange(
                     Seq(41), ActionKind.BLOCK_BREAK, CauseKind.PLAYER_ACTION, player(2), 41L,
-                    at(6, 70, 6), ChangeSubject.Block(sign, BlockShape.AIR),
+                    at(6, 70, 6), ChangeSubject.Block(sign, TestShapes.AIR),
                 )
             )
             stack.worldLog.append(

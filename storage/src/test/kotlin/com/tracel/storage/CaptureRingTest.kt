@@ -21,7 +21,7 @@ class CaptureRingTest {
 
     private suspend fun warm(stack: Stack) {
         stack.ledger.mint(chest, diamond, com.tracel.model.id.Quantity(10_000_000), stack.counters.nextTxnId())
-        stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1)
+        stack.gate.move(CauseKind.MACHINE, null, 1L, diamond, chest, steve, 1)
         stack.drain()
     }
 
@@ -31,7 +31,7 @@ class CaptureRingTest {
             warm(stack)
             val before = stack.ledger.totalAt(steve, diamond)?.raw ?: 0L
 
-            assertTrue(stack.gate.move(CauseKind.HOPPER, null, 5L, diamond, chest, steve, 7))
+            assertTrue(stack.gate.move(CauseKind.MACHINE, null, 5L, diamond, chest, steve, 7))
             assertEquals(1, stack.drain())
             assertEquals(before + 7, stack.ledger.totalAt(steve, diamond)?.raw)
         }
@@ -41,7 +41,7 @@ class CaptureRingTest {
     fun `a release resolves what the holder actually had, on the storage thread`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             warm(stack)
-            stack.gate.move(CauseKind.HOPPER, null, 5L, diamond, chest, steve, 20)
+            stack.gate.move(CauseKind.MACHINE, null, 5L, diamond, chest, steve, 20)
             stack.drain()
 
             assertTrue(stack.gate.release(CauseKind.WORLD, null, 6L, steve, chest))
@@ -55,7 +55,7 @@ class CaptureRingTest {
         TracelStorage.open(dir, ringSlots = 16, overflowSlots = 0).use { storage ->
             val gate = com.tracel.storage.capture.CaptureGate(storage.ring)
             var accepted = 0
-            repeat(100) { if (gate.move(CauseKind.HOPPER, null, it.toLong(), diamond, chest, steve, 1)) accepted++ }
+            repeat(100) { if (gate.move(CauseKind.MACHINE, null, it.toLong(), diamond, chest, steve, 1)) accepted++ }
 
             assertEquals(5, accepted, "16 slots hold five three-slot events")
             assertEquals(95L, gate.dropped, "every refusal is counted, none of them waited")
@@ -76,7 +76,7 @@ class CaptureRingTest {
                     start.await()
                     repeat(each) { i ->
                         stack.gate.move(
-                            CauseKind.HOPPER,
+                            CauseKind.MACHINE,
                             null,
                             (p * each + i).toLong(),
                             diamond,
@@ -118,9 +118,9 @@ class CaptureRingTest {
             var allocated = -1L
             val worker = Thread {
                 val id = Thread.currentThread().threadId()
-                repeat(2_000) { stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1) }
+                repeat(2_000) { stack.gate.move(CauseKind.MACHINE, null, 1L, diamond, chest, steve, 1) }
                 val before = threads.getThreadAllocatedBytes(id)
-                repeat(10_000) { stack.gate.move(CauseKind.HOPPER, null, 1L, diamond, chest, steve, 1) }
+                repeat(10_000) { stack.gate.move(CauseKind.MACHINE, null, 1L, diamond, chest, steve, 1) }
                 allocated = threads.getThreadAllocatedBytes(id) - before
             }
             worker.start()

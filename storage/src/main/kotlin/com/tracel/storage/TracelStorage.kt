@@ -1,7 +1,7 @@
 package com.tracel.storage
 
 import com.tracel.annotations.Unstable
-import com.tracel.engine.ownership.SingleWriterGuard
+import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.capture.CaptureRing
 import com.tracel.storage.codec.History

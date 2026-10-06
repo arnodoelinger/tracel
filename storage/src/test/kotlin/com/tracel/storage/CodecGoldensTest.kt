@@ -27,7 +27,7 @@ class CodecGoldensTest {
     fun `CauseKind ordinals are what is already on disk`() {
         assertEquals(
             listOf(
-                "PLAYER_ACTION", "EXPLOSION", "HOPPER", "CRAFT", "BLOCK_BREAK", "ROLLBACK",
+                "PLAYER_ACTION", "EXPLOSION", "MACHINE", "CRAFT", "BLOCK_BREAK", "ROLLBACK",
                 "INVOLUTION", "ENTITY_ACTION", "WORLD", "PLUGIN", "UNKNOWN", "WEAR", "PROJECTILE",
             ),
             CauseKind.entries.map { it.name },
@@ -62,7 +62,7 @@ class CodecGoldensTest {
     fun `SinkKind and SourceKind ordinals are what is already on disk`() {
         assertEquals(
             listOf(
-                "LAVA", "DESPAWN", "BURN_FUEL", "CRAFT_CONSUME", "COMMAND", "ROLLBACK_BURN",
+                "HAZARD", "DESPAWN", "BURN_FUEL", "CRAFT_CONSUME", "COMMAND", "ROLLBACK_BURN",
                 "UNTRACKED_GAP", "UNATTRIBUTED", "CREATIVE",
             ),
             SinkKind.entries.map { it.name },
@@ -139,7 +139,7 @@ class CodecGoldensTest {
     fun `a block holder packs to 29 bytes, not sixty of ASCII`() {
         assertEquals(29, Packed.holder(HolderId.Block(WorldId(UUID(1, 2)), 1, 2, 3)).size)
         assertEquals(17, Packed.holder(HolderId.Player(UUID(1, 2))).size)
-        assertEquals(2, Packed.holder(HolderId.Sink(SinkKind.LAVA)).size)
+        assertEquals(2, Packed.holder(HolderId.Sink(SinkKind.HAZARD)).size)
     }
 
     @Test

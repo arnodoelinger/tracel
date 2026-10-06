@@ -1,12 +1,13 @@
 package com.tracel.plugin.command.presenter
 
+import com.tracel.plugin.util.isAirLike
 import com.tracel.model.transaction.CauseKind
 import com.tracel.annotations.Unstable
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.item.namesMaterial
+import com.tracel.storage.util.namesMaterial
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos

@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.engine.log.LookupFilter
+import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.args.ParsedLookupArgs

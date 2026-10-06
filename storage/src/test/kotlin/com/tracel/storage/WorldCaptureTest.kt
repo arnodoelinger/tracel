@@ -1,8 +1,9 @@
 package com.tracel.storage
 
+import com.tracel.tests.support.TestShapes
 import com.tracel.model.transaction.CauseKind
-import com.tracel.engine.log.LookupFilter
-import com.tracel.engine.world.BlockEdit
+import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.model.id.Quantity
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.ActionKind
@@ -26,7 +27,7 @@ class WorldCaptureTest {
     private val stone = BlockShape(BlockDataKey("minecraft:stone"))
     private val steve = player(1)
 
-    private fun broke(x: Int, y: Int, z: Int) = BlockEdit(BlockPos(world, x, y, z), stone, BlockShape.AIR)
+    private fun broke(x: Int, y: Int, z: Int) = BlockEdit(BlockPos(world, x, y, z), stone, TestShapes.AIR)
 
     @Test
     fun `a block edit crosses the ring and lands in the world log`(@TempDir dir: Path) = runTest {
@@ -35,7 +36,7 @@ class WorldCaptureTest {
             assertTrue(
                 stack.gate.blocks(
                     CauseKind.PLAYER_ACTION, ActionKind.BLOCK_BREAK, steve, 1_700_000_000_000L, world,
-                    listOf(BlockEdit(at, stone, BlockShape.AIR)),
+                    listOf(BlockEdit(at, stone, TestShapes.AIR)),
                 )
             )
             stack.drain()
@@ -84,7 +85,7 @@ class WorldCaptureTest {
                 assertFalse(
                     stack.gate.blocks(
                         CauseKind.PLAYER_ACTION, ActionKind.BLOCK_BREAK, steve, 1L, world,
-                        listOf(BlockEdit(BlockPos(world, 0, 0, 0), sign, BlockShape.AIR)),
+                        listOf(BlockEdit(BlockPos(world, 0, 0, 0), sign, TestShapes.AIR)),
                     ),
                     "a variable-length shape does not fit a 24-byte slot and must say so",
                 )
@@ -101,7 +102,7 @@ class WorldCaptureTest {
 
             stack.gate.blocks(
                 CauseKind.BLOCK_BREAK, ActionKind.BLOCK_BREAK, steve, 10L, world,
-                listOf(BlockEdit(at, BlockShape(BlockDataKey("minecraft:chest[facing=north]")), BlockShape.AIR)),
+                listOf(BlockEdit(at, BlockShape(BlockDataKey("minecraft:chest[facing=north]")), TestShapes.AIR)),
             )
             stack.gate.move(CauseKind.BLOCK_BREAK, steve, 11L, diamond, block(4, 64, 4), steve, 3)
             stack.drain()

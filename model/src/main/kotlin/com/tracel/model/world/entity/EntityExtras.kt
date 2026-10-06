@@ -5,15 +5,15 @@ import com.tracel.model.world.block.BlockExtras
 import java.util.*
 
 /**
- * An entity's structural detail like frame rotation, armor stand pose, painting art, for example.
+ * An entity's structural detail like rotation, pose, artwork, for example.
  *
  * @see [BlockExtras].
  */
 public sealed interface EntityExtras {
-    public class Opaque(public val nbt: ByteArray) : EntityExtras {
-        override fun equals(other: Any?): Boolean = other is Opaque && nbt.contentEquals(other.nbt)
-        override fun hashCode(): Int = nbt.contentHashCode()
-        override fun toString(): String = "Opaque(${nbt.size} bytes)"
+    public class Opaque(public val bytes: ByteArray) : EntityExtras {
+        override fun equals(other: Any?): Boolean = other is Opaque && bytes.contentEquals(other.bytes)
+        override fun hashCode(): Int = bytes.contentHashCode()
+        override fun toString(): String = "Opaque(${bytes.size} bytes)"
     }
 
     /**

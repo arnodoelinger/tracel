@@ -1,6 +1,7 @@
 package com.tracel.plugin.rollback.structure.fluid
 
-import com.tracel.engine.log.LookupRegion
+import com.tracel.plugin.util.AIR
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.id.WorldId
 import com.tracel.model.world.BlockPos
@@ -21,7 +22,7 @@ class FluidFreezeTest {
     private val water = BlockShape(BlockDataKey("minecraft:water[level=3]"))
     private val nobody: suspend (List<BlockPos>) -> Unit = {}
 
-    private fun set(x: Int, y: Int, z: Int) = StructureStep.SetBlock(BlockPos(world, x, y, z), BlockShape.AIR, water)
+    private fun set(x: Int, y: Int, z: Int) = StructureStep.SetBlock(BlockPos(world, x, y, z), AIR, water)
 
     private val area = LookupRegion(world, 0, 1, 0, 1, minX = 0, maxX = 31, minZ = 0, maxZ = 31)
 

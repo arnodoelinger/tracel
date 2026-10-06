@@ -1,9 +1,9 @@
 package com.tracel.tests.property
 
-import com.tracel.engine.journal.CrashPoint
-import com.tracel.engine.journal.InMemoryJournal
-import com.tracel.engine.journal.JournalExecutor
-import com.tracel.engine.journal.SimulatedCrash
+import com.tracel.engine.rollback.journal.crash.CrashPoint
+import com.tracel.engine.rollback.journal.memory.InMemoryJournal
+import com.tracel.engine.rollback.journal.JournalExecutor
+import com.tracel.engine.rollback.journal.crash.SimulatedCrash
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.rollback.apply.RollbackExecutor
 import com.tracel.engine.rollback.plan.RollbackPlanner
@@ -31,7 +31,7 @@ class CrashSafetyTest {
         val steve = player(1)
         val root = world.ledger.mint(chest, diamond, Quantity(10), world.nextTxn())
         world.ledger.move(chest, steve, diamond, Quantity(10), world.nextTxn())
-        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.LAVA, world.nextTxn())
+        world.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, world.nextTxn())
         return Scenario(world, chest, root.id)
     }
 
