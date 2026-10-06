@@ -9,7 +9,6 @@ import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
-import com.tracel.model.item.Quantity
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
@@ -28,9 +27,9 @@ class CrashRecoveryTest {
         val steve = player(1)
 
         val root = Stack(dir).use { stack ->
-            val lot = stack.ledger.mint(chest, diamond, Quantity(10), stack.counters.nextTxnId())
-            stack.ledger.move(chest, steve, diamond, Quantity(10), stack.counters.nextTxnId())
-            stack.ledger.burn(steve, diamond, Quantity(4), SinkKind.HAZARD, stack.counters.nextTxnId())
+            val lot = stack.mint(chest, diamond, 10)
+            stack.move(chest, steve, diamond, 10)
+            stack.burn(steve, diamond, 4, SinkKind.HAZARD)
             lot.id
         }
 
@@ -73,8 +72,8 @@ class CrashRecoveryTest {
         val steve = player(1)
 
         Stack(dir).use { stack ->
-            val root = stack.ledger.mint(chest, diamond, Quantity(10), stack.counters.nextTxnId())
-            stack.ledger.move(chest, steve, diamond, Quantity(6), stack.counters.nextTxnId())
+            val root = stack.mint(chest, diamond, 10)
+            stack.move(chest, steve, diamond, 6)
 
             val plan = RollbackPlanner(stack.repo, { true }).plan(listOf(root.id))
             val executor = JournalExecutor(

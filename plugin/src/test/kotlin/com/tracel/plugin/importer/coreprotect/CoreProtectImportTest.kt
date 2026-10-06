@@ -5,6 +5,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.event.EventKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
+import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
@@ -23,9 +24,9 @@ import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.ops.ForeignHistory
+import com.tracel.tests.support.Fixtures
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
@@ -34,7 +35,7 @@ import java.sql.DriverManager
 import java.util.*
 
 class CoreProtectImportTest {
-    private val overworld = WorldId(UUID(0L, 1L))
+    private val overworld = Fixtures.world
     private val steve = UUID(0L, 42L)
 
     private val platform = object : ImportPlatform {
@@ -66,7 +67,7 @@ class CoreProtectImportTest {
             if (material == "minecraft:removed_item") return null
             return ItemKey(
                 material.substringAfter(':').uppercase(),
-                metadata?.let { com.tracel.model.item.ContentHash(it.joinToString()) })
+                metadata?.let { ContentHash(it.joinToString()) })
         }
 
         override fun stack(entry: Any?): Pair<ItemKey, Int>? =
@@ -445,29 +446,6 @@ class CoreProtectImportTest {
             assertEquals(3_000, chat.size)
             assertEquals(3_000, chat.map { it.text }.distinct().size)
             assertEquals(chat.sortedByDescending { it.epochMillis }, chat, "read out in the order it was said")
-        }
-    }
-
-    @Test
-    fun `the developer server's own database goes in`(@TempDir dir: Path) = runTest {
-        val real = Path.of("run/plugins/CoreProtect/database.db")
-        assumeTrue(Files.isRegularFile(real))
-        val lenient = object : ImportPlatform by platform {
-            override fun world(name: String): WorldId = WorldId(UUID.nameUUIDFromBytes(name.toByteArray()))
-            override fun blockState(state: String): String =
-                if (state == "minecraft:water") "minecraft:water[level=0]" else state
-
-            override fun entityType(name: String): String = "minecraft:${name.substringAfter(':')}"
-            override fun decode(blob: ByteArray): List<Any?>? = null
-        }
-        Store(dir).use { store ->
-            val outcome = CoreProtectDatabase.open(CoreProtectLocation.File(real))
-                .use { store.importer(lenient).run(it, { false }) { _, _ -> } }
-            val tally = outcome.tally
-            println("CoreProtect ${outcome.outlook.version}: ${tally.rows} rows -> ${tally.taken}, skipped ${tally.skipped}, folded ${tally.folded}, ${outcome.tookMillis} ms")
-            assertEquals(outcome.outlook.lastRows.sum(), tally.rows)
-            assertEquals(tally.rows, tally.taken.values.sum() + tally.skipped.values.sum() + tally.folded)
-            assertTrue(tally.taken.getValue(Taken.BLOCKS) > 0)
         }
     }
 

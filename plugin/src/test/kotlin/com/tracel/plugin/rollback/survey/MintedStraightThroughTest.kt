@@ -8,9 +8,10 @@ import com.tracel.model.holder.SourceKind
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.log.Seq
+import com.tracel.model.lot.LotId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.transaction.TxnId
-import com.tracel.model.world.WorldId
+import com.tracel.tests.support.Fixtures.block
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -22,7 +23,7 @@ class MintedStraightThroughTest {
     private val steve = HolderId.Player(UUID(0L, 2L))
     private val worldgen = HolderId.Source(SourceKind.WORLDGEN)
     private val nowhere = HolderId.Source(SourceKind.UNATTRIBUTED)
-    private val chest = HolderId.Block(WorldId(UUID(0L, 1L)), 0, 64, 0)
+    private val chest = block(0, 64, 0)
     private val porkchop = ItemKey("PORKCHOP", null)
     private val saddle = ItemKey("SADDLE", null)
 
@@ -37,20 +38,20 @@ class MintedStraightThroughTest {
 
     @Test
     fun `rooting a death drop at the source destroys it instead of spilling it`() {
-        val lot = com.tracel.model.lot.LotId(1)
+        val lot = LotId(1)
         val txn = txn(
             flow(porkchop, 2, worldgen, pig, FlowKind.MINT),
             flow(porkchop, 2, pig, ground, FlowKind.MOVE),
         )
         val passedThrough = txn.mintedStraightThrough()
-        val roots = mutableMapOf<com.tracel.model.lot.LotId, HolderId>()
-        for (flow in txn.flows) roots.rootedAt(lot, passedThrough[flow.source] ?: flow.source)
+        val roots = mutableMapOf<LotId, HolderId>()
+        for ((_, _, source) in txn.flows) roots.rootedAt(lot, passedThrough[source] ?: source)
         assertEquals(worldgen, roots[lot], "the meat came from nowhere and goes back to nowhere")
     }
 
     @Test
     fun `a death drop picked up or tossed again is still rooted at its mint`() {
-        val lot = com.tracel.model.lot.LotId(1)
+        val lot = LotId(1)
         val pile2 = HolderId.ItemEntity(UUID(5L, 5L))
         val kill = txn(
             flow(porkchop, 2, worldgen, pig, FlowKind.MINT),
@@ -58,10 +59,10 @@ class MintedStraightThroughTest {
         )
         val pickup = txn(flow(porkchop, 2, ground, steve, FlowKind.MOVE))
         val toss = txn(flow(porkchop, 2, steve, pile2, FlowKind.MOVE))
-        val roots = mutableMapOf<com.tracel.model.lot.LotId, HolderId>()
+        val roots = mutableMapOf<LotId, HolderId>()
         for (txn in listOf(toss, pickup, kill)) {
             val passedThrough = txn.mintedStraightThrough()
-            for (flow in txn.flows) roots.rootedByFlow(lot, flow.source, passedThrough)
+            for ((_, _, source) in txn.flows) roots.rootedByFlow(lot, source, passedThrough)
         }
         assertEquals(
             worldgen,

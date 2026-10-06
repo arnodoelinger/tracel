@@ -4,6 +4,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.world.ActionKind
 import com.tracel.plugin.command.args.ActionArgument
 import com.tracel.plugin.command.args.LookupScope
+import com.tracel.plugin.command.args.RollbackArgument
 import com.tracel.plugin.command.args.parseLookupArgs
 import com.tracel.plugin.command.args.suggestLookupToken
 import com.tracel.plugin.i18n.Messages
@@ -40,7 +41,7 @@ class LookupFlagsTest {
         assertEquals(LookupScope.CurrentBlock, parseLookupArgs(listOf("s:block"), NOW).scope)
         assertEquals("world_nether", parseLookupArgs(listOf("s:world_nether"), NOW).world)
         assertEquals(
-            0, com.tracel.plugin.command.args.RollbackArgument.missingBounds(
+            0, RollbackArgument.missingBounds(
                 parseLookupArgs(listOf("t:10m", "s:2c"), NOW)
             ).size
         )
@@ -56,7 +57,7 @@ class LookupFlagsTest {
     @Test
     fun `a rollback needs both a time and a scope`() {
         fun missing(vararg flags: String) =
-            com.tracel.plugin.command.args.RollbackArgument.missingBounds(parseLookupArgs(flags.toList(), NOW))
+            RollbackArgument.missingBounds(parseLookupArgs(flags.toList(), NOW))
 
         assertEquals(2, missing().size)
         assertEquals(1, missing("t:10m").size)

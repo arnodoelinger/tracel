@@ -7,9 +7,10 @@ import com.tracel.plugin.util.regionKey
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
+import java.util.UUID
 
-private val WORLD = WorldId(java.util.UUID(0L, 1L))
-private val OTHER_WORLD = WorldId(java.util.UUID(0L, 9L))
+private val WORLD = WorldId(UUID(0L, 1L))
+private val OTHER_WORLD = WorldId(UUID(0L, 9L))
 
 class ChunksTest {
     @Test
@@ -29,7 +30,7 @@ class ChunksTest {
 
     @Test
     fun `a holder with no coordinates is its own group`() {
-        val entity = HolderId.Entity(java.util.UUID(0L, 2L))
+        val entity = HolderId.Entity(UUID(0L, 2L))
         assertEquals(entity, entity.regionKey())
         assertEquals(
             HolderId.Block(WORLD, 1, 70, 2).regionKey(),

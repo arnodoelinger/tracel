@@ -6,7 +6,7 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.lot.LotId
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.WorldId
+import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -14,7 +14,7 @@ import java.util.*
 
 class RootedAtTest {
     private val lot = LotId(1)
-    private val world = WorldId(UUID(0L, 1L))
+    private val world = Fixtures.world
     private val frame = HolderId.Entity(UUID(7L, 7L))
     private val chest = HolderId.Block(world, 0, 64, 0)
     private val steve = HolderId.Player(UUID(0L, 2L))

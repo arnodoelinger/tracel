@@ -9,6 +9,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.plugin.util.AIR
+import com.tracel.tests.support.Fixtures
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -17,7 +18,7 @@ import org.junit.jupiter.api.Test
 import java.util.*
 
 class FluidFreezeTest {
-    private val world = WorldId(UUID(0L, 1L))
+    private val world = Fixtures.world
     private val elsewhere = WorldId(UUID(0L, 2L))
     private val water = BlockShape(BlockDataKey("minecraft:water[level=3]"))
     private val nobody: suspend (List<BlockPos>) -> Unit = {}

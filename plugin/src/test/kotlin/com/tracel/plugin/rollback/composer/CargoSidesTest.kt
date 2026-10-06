@@ -2,7 +2,7 @@ package com.tracel.plugin.rollback.composer
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.model.world.WorldId
+import com.tracel.tests.support.Fixtures.block
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.*
@@ -11,7 +11,7 @@ class CargoSidesTest {
     private val frame = UUID(7L, 7L)
     private val stand = UUID(8L, 8L)
     private val sword = ItemKey("DIAMOND_SWORD", null)
-    private val chest = HolderId.Block(WorldId(UUID(0L, 1L)), 0, 64, 0)
+    private val chest = block(0, 64, 0)
 
     @Test
     fun `a hull being filled is fed by the ledger and comes back stripped`() {

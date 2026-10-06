@@ -2,6 +2,7 @@ package com.tracel.storage.crash
 
 import com.tracel.model.cause.CauseKind
 import com.tracel.storage.support.Stack
+import com.tracel.tests.support.Fixtures
 import com.tracel.tests.support.Fixtures.diamond
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
@@ -64,7 +65,7 @@ class KillNineRecoveryTest {
                 null,
                 System.currentTimeMillis(),
                 diamond,
-                com.tracel.tests.support.Fixtures.block(0, 64, 0),
+                Fixtures.block(0, 64, 0),
                 player(1),
                 1,
             )

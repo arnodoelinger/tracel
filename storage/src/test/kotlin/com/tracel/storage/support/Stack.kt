@@ -2,8 +2,13 @@ package com.tracel.storage.support
 
 import com.tracel.engine.capture.material.CaptureCoordinator
 import com.tracel.engine.capture.material.flow.releaseFlows
-import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.capture.world.WorldCaptureCoordinator
+import com.tracel.engine.ledger.LotLedger
+import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.SinkKind
+import com.tracel.model.item.ItemKey
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.Lot
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.CaptureRing
@@ -21,6 +26,7 @@ import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import java.nio.file.Path
+
 
 class Stack(
     path: Path,
@@ -57,6 +63,17 @@ class Stack(
         },
         worldSink = { edits -> worldCapture.record(edits) },
     )
+
+    suspend fun mint(at: HolderId, item: ItemKey, amount: Long): Lot =
+        ledger.mint(at, item, Quantity(amount), counters.nextTxnId())
+
+    suspend fun move(from: HolderId, to: HolderId, item: ItemKey, amount: Long) {
+        ledger.move(from, to, item, Quantity(amount), counters.nextTxnId())
+    }
+
+    suspend fun burn(at: HolderId, item: ItemKey, amount: Long, reason: SinkKind = SinkKind.HAZARD) {
+        ledger.burn(at, item, Quantity(amount), reason, counters.nextTxnId())
+    }
 
     suspend fun drain(): Int {
         var total = 0

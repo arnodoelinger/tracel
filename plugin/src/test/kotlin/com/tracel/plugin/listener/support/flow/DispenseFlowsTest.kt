@@ -5,15 +5,15 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.item.ItemKey
-import com.tracel.model.world.WorldId
 import com.tracel.plugin.listener.support.drop.BlockDrop
+import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.*
 
 class DispenseFlowsTest {
-    private val world = WorldId(UUID(0L, 1L))
+    private val world = Fixtures.world
     private val dispenser = HolderId.Block(world, 10, 64, 10)
     private val diamond = ItemKey("minecraft:diamond")
     private val arrow = ItemKey("minecraft:arrow")

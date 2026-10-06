@@ -1,10 +1,10 @@
 package com.tracel.plugin.integration.worldedit
 
 import com.tracel.model.world.ActionKind
-import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.util.AIR
+import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test
 import java.util.*
 
 class EditBufferTest {
-    private val buffer = EditBuffer(WorldId(UUID(0L, 1L)))
+    private val buffer = EditBuffer(Fixtures.world)
     private val stone = BlockShape(BlockDataKey("minecraft:stone"))
     private val dirt = BlockShape(BlockDataKey("minecraft:dirt"))
 

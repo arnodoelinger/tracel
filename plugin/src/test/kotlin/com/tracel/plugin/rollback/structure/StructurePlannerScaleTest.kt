@@ -14,6 +14,7 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.util.AIR
 import com.tracel.plugin.util.isAirLike
+import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -21,7 +22,7 @@ import org.junit.jupiter.api.Test
 import java.util.*
 
 class StructurePlannerScaleTest {
-    private val overworld = WorldId(UUID(0L, 1L))
+    private val overworld = Fixtures.world
     private val nether = WorldId(UUID(0L, 2L))
     private val steve = HolderId.Player(UUID(0L, 1L))
 

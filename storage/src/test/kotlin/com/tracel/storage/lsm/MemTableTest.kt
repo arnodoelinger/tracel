@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm
 
+import com.tracel.storage.ffm.Bytes
 import com.tracel.storage.ffm.SegmentCompare
 import com.tracel.storage.lsm.write.MemTable
 import org.junit.jupiter.api.Assertions.*
@@ -54,7 +55,7 @@ class MemTableTest {
                             value,
                             ByteArray(held.byteSize().toInt()) {
                                 held.get(
-                                    com.tracel.storage.ffm.Bytes.I8,
+                                    Bytes.I8,
                                     it.toLong()
                                 )
                             })
@@ -84,7 +85,7 @@ class MemTableTest {
                 val key = table.segment.let { segment ->
                     ByteArray(table.keyLength(node)) {
                         segment.get(
-                            com.tracel.storage.ffm.Bytes.I8,
+                            Bytes.I8,
                             table.keyOffset(node) + it
                         )
                     }

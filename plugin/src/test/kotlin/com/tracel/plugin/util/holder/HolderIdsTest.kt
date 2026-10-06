@@ -11,9 +11,10 @@ import com.tracel.plugin.util.entityUuid
 import com.tracel.plugin.util.namedByEntity
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.util.UUID
 
-private val WORLD = WorldId(java.util.UUID(0L, 1L))
-private val WHO = java.util.UUID(0L, 2L)
+private val WORLD = WorldId(UUID(0L, 1L))
+private val WHO = UUID(0L, 2L)
 
 class HolderIdsTest {
     @Test

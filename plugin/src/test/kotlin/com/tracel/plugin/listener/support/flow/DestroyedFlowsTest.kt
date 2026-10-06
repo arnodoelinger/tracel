@@ -1,17 +1,16 @@
 package com.tracel.plugin.listener.support.flow
 
 import com.tracel.model.flow.FlowKind
-import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
-import com.tracel.model.world.WorldId
+import com.tracel.tests.support.Fixtures.block
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.*
 
 class DestroyedFlowsTest {
-    private val chest = HolderId.Block(WorldId(UUID(0L, 1L)), 10, 64, 10)
+    private val chest = block(10, 64, 10)
     private val diamond = ItemKey("minecraft:diamond")
     private val gold = ItemKey("minecraft:gold_ingot")
 
