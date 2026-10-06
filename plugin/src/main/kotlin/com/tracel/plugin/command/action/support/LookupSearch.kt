@@ -5,12 +5,14 @@ import com.tracel.model.event.EventKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.action.support.LookupSearch.Companion.WINDOW
-import com.tracel.plugin.command.args.ParsedLookupArgs
+import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.presenter.Actors
-import com.tracel.plugin.command.presenter.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.LookupPresenter
+import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
+import com.tracel.plugin.command.presenter.line.LineStack
+import com.tracel.plugin.command.presenter.line.LoggedLine
+import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -25,14 +27,14 @@ internal class LookupSearch(
     events: Set<EventKind> = emptySet(),
 ) {
     /** What the sender sees of the page asked for. */
-    class View(val page: Int, val rows: List<ChangeLinePresenter.Stack>, val total: Int)
+    class View(val page: Int, val rows: List<LineStack>, val total: Int)
 
     val complete: Boolean get() = (world?.done ?: true) && (txns?.done ?: true) && (said?.done ?: true)
 
     private val lock = Mutex()
-    private val stacks = ArrayList<ChangeLinePresenter.Stack>()
-    private val byKey = HashMap<Any, ChangeLinePresenter.Stack>()
-    private val halves = HashMap<Pair<Any, Long>, ChangeLinePresenter.Stack>()
+    private val stacks = ArrayList<LineStack>()
+    private val byKey = HashMap<Any, LineStack>()
+    private val halves = HashMap<Pair<Any, Long>, LineStack>()
     private val visitNewest = HashMap<Long, Long>()
     private val actors = Actors(services.actors)
     private val rolled = HashMap<Long, Long>()
@@ -67,13 +69,13 @@ internal class LookupSearch(
     }
 
     /** Every line of the search, in the order the pages show them. */
-    suspend fun all(): List<ChangeLinePresenter.Stack> = lock.withLock {
+    suspend fun all(): List<LineStack> = lock.withLock {
         drain()
         ordered()
     }
 
-    private fun ordered(): List<ChangeLinePresenter.Stack> = stacks.sortedWith(
-        compareByDescending<ChangeLinePresenter.Stack> { it.group }.thenComparator { a, b ->
+    private fun ordered(): List<LineStack> = stacks.sortedWith(
+        compareByDescending<LineStack> { it.group }.thenComparator { a, b ->
             if (a.first.visit != null && a.first.visit == b.first.visit) a.oldest.compareTo(b.oldest) else 0
         },
     )
@@ -117,21 +119,21 @@ internal class LookupSearch(
         ChangeLinePresenter.logged(transaction, parsed.item, parsed.natural, actors, rolled).forEach(::stack)
     }
 
-    private fun stack(line: ChangeLinePresenter.Logged) {
+    private fun stack(line: LoggedLine) {
         if (parsed.each) {
             val waiting = if (line.pairs) halves.remove(line.key to line.millis) else null
             if (waiting != null && waiting.first.counted != line.counted) {
                 waiting.add(line)
                 return
             }
-            val own = ChangeLinePresenter.Stack(line)
+            val own = LineStack(line)
             if (line.pairs) halves[line.key to line.millis] = own
             stacks += own
             return
         }
         val existing = byKey[line.key]
         if (existing != null && (line.visit != null || existing.oldest - line.millis <= GAP_MILLIS)) existing.add(line)
-        else ChangeLinePresenter.Stack(line).also {
+        else LineStack(line).also {
             line.visit?.let { visit -> it.group = visitNewest.getOrPut(visit) { line.millis } }
             byKey[line.key] = it
             stacks += it

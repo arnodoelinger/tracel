@@ -15,7 +15,6 @@ import java.util.logging.Logger
 class StorageUnit(
     private val snapshot: EngineSnapshot,
     val batch: MutationBatch,
-    val ownerThread: Thread,
 ) : AutoCloseable {
     private var onCommit: ArrayList<() -> Unit>? = null
     private var onAbort: ArrayList<() -> Unit>? = null

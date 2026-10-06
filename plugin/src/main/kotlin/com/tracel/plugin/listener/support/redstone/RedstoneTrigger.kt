@@ -4,13 +4,13 @@ import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.util.ExplosionOrigin
-import com.tracel.plugin.util.toExplosionOrigin
-import org.bukkit.Location
-import org.bukkit.World
+import com.tracel.plugin.adapter.world.toExplosionOrigin
+import com.tracel.plugin.util.geometry.ExplosionOrigin
 import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import org.bukkit.Location
+import org.bukkit.World
 
 @Unstable
 class RedstoneTrigger {

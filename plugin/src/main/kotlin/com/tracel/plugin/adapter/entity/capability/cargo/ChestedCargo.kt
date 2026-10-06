@@ -1,6 +1,6 @@
 package com.tracel.plugin.adapter.entity.capability.cargo
 
-import org.bukkit.Material.CHEST
+import com.tracel.plugin.specifics.entity.MOUNT_CHEST
 import org.bukkit.entity.ChestedHorse
 import org.bukkit.entity.Entity
 import org.bukkit.inventory.ItemStack
@@ -15,7 +15,7 @@ internal object ChestedCargo : CargoSurface {
     override fun matches(entity: Entity): Boolean = entity is ChestedHorse
 
     override fun collect(entity: Entity, add: (ItemStack?) -> Unit) {
-        if ((entity as ChestedHorse).isCarryingChest) add(ItemStack(CHEST))
+        if ((entity as ChestedHorse).isCarryingChest) add(ItemStack(MOUNT_CHEST))
     }
 
     override fun empty(entity: Entity) {

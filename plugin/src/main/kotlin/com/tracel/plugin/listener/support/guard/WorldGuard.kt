@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.support.guard
 
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringMap
 
 private const val WRITTEN_TTL_MS = 1_000L
 private const val WRITTEN_KEPT = 1 shl 20

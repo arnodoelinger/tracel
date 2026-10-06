@@ -1,44 +1,17 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.plugin.AutoPurgeSettings
-import com.tracel.plugin.command.action.shortSpan
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.status.DiskLevel
-import com.tracel.plugin.status.Health
-import com.tracel.plugin.status.RollbackSize
 import com.tracel.engine.store.PurgeCategory
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.JoinConfiguration
-import net.kyori.adventure.text.event.HoverEvent
+import com.tracel.plugin.command.action.shortSpan
+import com.tracel.plugin.config.AutoPurgeSettings
+import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.status.rollback.RollbackSize
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
-
-/** What `/tracel status` reads off the plugin, before it is turned into lines. */
-internal class StatusSnapshot(
-    val nowMillis: Long,
-    val blockRows: Long,
-    val itemRows: Long,
-    val eventRows: Long,
-    val oldestMillis: Long?,
-    val databaseBytes: Long,
-    val diskFree: Long,
-    val diskTotal: Long,
-    val queued: Int,
-    val writesPerSecond: Double?,
-    val rollbacks: List<Long>,
-    val purge: AutoPurgeSettings,
-    val lastPurgeMillis: Long?,
-    val lagMillis: Long?,
-    val lagBeyondProbe: Boolean,
-    val mspt: Double?,
-    val forwardCompatible: Boolean,
-    val format: String,
-) {
-    val disk: DiskLevel get() = DiskLevel.of(diskFree, diskTotal)
-    val health: Health get() = Health.of(forwardCompatible, mspt, lagMillis, disk)
-}
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.JoinConfiguration
+import net.kyori.adventure.text.event.HoverEvent
 
 /** The lines of `/tracel status`. */
 internal object StatusPresenter {

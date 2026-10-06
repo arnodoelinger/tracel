@@ -1,10 +1,10 @@
 package com.tracel.plugin.adapter.entity.special
 
 import com.tracel.annotations.Unstable
+import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.HumanEntity
-import java.util.*
 
 /**
  * Entity on a shoulder (like parrots on vanilla).

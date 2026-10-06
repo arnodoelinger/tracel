@@ -10,11 +10,13 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.result.outcome.Planned
-import com.tracel.plugin.rollback.structure.VanillaWorldRules
 import com.tracel.plugin.rollback.survey.*
-import com.tracel.plugin.util.chunkKey
-import kotlinx.coroutines.delay
+import com.tracel.plugin.rollback.survey.rooting.awayFromAirToAir
+import com.tracel.plugin.rollback.survey.rooting.awayFromEntitiesGone
+import com.tracel.plugin.specifics.world.VanillaWorldRules
+import com.tracel.plugin.util.geometry.chunkKey
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.delay
 
 internal const val FULL_FLUSH_SECONDS = 60
 

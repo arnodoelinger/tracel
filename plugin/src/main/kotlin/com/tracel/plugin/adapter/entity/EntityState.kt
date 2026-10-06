@@ -3,11 +3,11 @@ package com.tracel.plugin.adapter.entity
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.entity.EntityExtras
 import com.tracel.plugin.adapter.entity.capability.state.InPlaceStates
+import java.util.logging.Level
+import java.util.logging.Logger
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.entity.Entity
-import java.util.logging.Level
-import java.util.logging.Logger
 
 private val logger = Logger.getLogger("EntityState")
 

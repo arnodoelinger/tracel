@@ -7,35 +7,17 @@ import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.support.flow.flowsFor
 import com.tracel.plugin.listener.support.flow.worldgenMintFlows
-import kotlinx.coroutines.*
-import org.bukkit.World
-import org.bukkit.block.Block
+import com.tracel.plugin.services.TracelServices
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.*
 
 private val logger = Logger.getLogger("BlockReleaseQueue")
-
-/**
- * Block release.
- *
- * One emptying, located in the world — death drops use the same path and are not blocks.
- */
-data class BlockRelease(
-    val holder: HolderId,
-    val world: World,
-    val x: Int,
-    val y: Int,
-    val z: Int,
-    val contents: Map<ItemKey, Long>? = null,
-) {
-    constructor(holder: HolderId, block: Block) : this(holder, block.world, block.x, block.y, block.z)
-}
 
 /**
  * Batches block empties so claim windows, ledger reads, and vanilla drops become one story.

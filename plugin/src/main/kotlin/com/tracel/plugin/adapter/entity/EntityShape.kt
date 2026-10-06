@@ -2,17 +2,19 @@ package com.tracel.plugin.adapter.entity
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.OpaqueBytes
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.*
+import com.tracel.plugin.adapter.entity.link.leashedTo
+import com.tracel.plugin.adapter.entity.link.ridingOn
 import com.tracel.plugin.adapter.entity.special.FallingBlockAdapter
-import com.tracel.plugin.util.Warnings
-import com.tracel.model.world.OpaqueBytes
+import com.tracel.plugin.util.log.Warnings
 import io.papermc.paper.entity.EntitySerializationFlag
+import java.util.logging.Level
+import java.util.logging.Logger
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
-import java.util.logging.Level
-import java.util.logging.Logger
 
 private val logger = Logger.getLogger("EntityShapes")
 
@@ -89,4 +91,3 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
     logger.log(Level.FINE, "entity ${entity.type} could not be captured in full", it)
     null
 }
-

@@ -4,14 +4,14 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.plugin.adapter.block.BlockDataCache
 import io.papermc.paper.math.Position
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.block.data.BlockData
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * What a player is shown of a rollback, and nothing anybody else sees.

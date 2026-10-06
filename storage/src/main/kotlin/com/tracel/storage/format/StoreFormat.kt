@@ -75,7 +75,7 @@ object StoreFormat {
         migrations: List<Migration> = MIGRATIONS,
     ): FormatOutcome {
         val engine = storage.engine
-        val (stored, empty) = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+        val (stored, empty) = StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
             unit.get(Keys.formatVersion())?.let(::decode) to !unit.scan(ByteArray(0)).use { it.next() }
         }
 
@@ -118,7 +118,7 @@ object StoreFormat {
 
     private fun commit(storage: TracelStorage, version: FormatVersion, step: (StorageUnit) -> Unit) {
         val engine = storage.engine
-        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+        StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
             step(unit)
             unit.put(Keys.formatVersion(), encode(version))
             engine.write(unit.batch, durable = true)

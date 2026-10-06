@@ -1,11 +1,10 @@
 package com.tracel.plugin.util.whereabouts
 
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.util.EntityWhereabouts
 import com.tracel.tests.support.Fixtures
+import java.util.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import java.util.*
 
 class EntityWhereaboutsTest {
     private val world = Fixtures.world

@@ -19,7 +19,7 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
         var oldest = Long.MAX_VALUE
         var newest = Long.MIN_VALUE
         val bytes = storage.engine.stats().liveBytes
-        StorageUnit(storage.engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+        StorageUnit(storage.engine.snapshot(), MutationBatch()).use { unit ->
             unit.eachRow(ByteArray(0)) { cursor ->
                 total++
                 val key = cursor.key()

@@ -1,11 +1,11 @@
 package com.tracel.plugin.rollback.composer
 
-import com.tracel.plugin.util.isAirLike
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.containerBlockNamed
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.isAirLike
 import java.util.*
 
 /** Hulls the ledger will fill. */

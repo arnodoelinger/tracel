@@ -13,10 +13,14 @@ import com.tracel.model.lot.LotEdge
 import com.tracel.model.lot.LotId
 import com.tracel.model.transaction.Transaction
 import com.tracel.plugin.rollback.composer.RollbackComposer
-import com.tracel.plugin.util.namedByEntity
+import com.tracel.plugin.rollback.survey.rooting.inheritMintedBurns
+import com.tracel.plugin.rollback.survey.rooting.mintedStraightThrough
+import com.tracel.plugin.rollback.survey.rooting.pairedGapMints
+import com.tracel.plugin.rollback.survey.rooting.rootedByFlow
+import com.tracel.plugin.util.holder.namedByEntity
+import java.util.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import java.util.*
 
 /**
  * Turns the windowed transactions into a [MaterialSurvey]: where every lot roots,
@@ -32,8 +36,8 @@ internal suspend fun RollbackComposer.planMaterial(
     // Census candidates from the log + current holders, before the graph walk. Asking after
     // planning serialized a Folia hop behind the walk and then walked twice.
     val candidates = HashSet<HolderId>()
-    for (txn in txns) {
-        for ((_, _, source, destination) in txn.flows) {
+    for ((_, _, _, _, _, flows) in txns) {
+        for ((_, _, source, destination) in flows) {
             if (source.namedByEntity()) candidates += source
             if (destination.namedByEntity()) candidates += destination
         }

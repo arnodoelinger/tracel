@@ -11,9 +11,9 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.TracelServices
-import com.tracel.plugin.util.AIR
-import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.AIR
+import com.tracel.plugin.util.log.Warnings
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger

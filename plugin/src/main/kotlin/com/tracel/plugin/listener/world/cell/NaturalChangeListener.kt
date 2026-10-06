@@ -8,13 +8,15 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DragonEggCell
-import com.tracel.plugin.util.ExpiringSet
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.makesBubbles
+import com.tracel.plugin.util.concurrent.ExpiringSet
+import java.util.*
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
@@ -25,7 +27,6 @@ import org.bukkit.event.block.*
 import org.bukkit.event.weather.LightningStrikeEvent
 import org.bukkit.event.world.PortalCreateEvent
 import org.bukkit.event.world.StructureGrowEvent
-import java.util.*
 
 /** World-caused shape edits. */
 @Unstable
@@ -138,14 +139,14 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
                 listOf(block)
             )
         }
-        if (block.type in BUBBLE_MAKERS || event.blockReplacedState.type in BUBBLE_MAKERS) {
+        if (block.type.makesBubbles() || event.blockReplacedState.type.makesBubbles()) {
             bubbleColumn(block, HolderId.Player(event.player.uniqueId))
         }
     }
 
     @Observes
     fun onBreakUnderWater(event: BlockBreakEvent) {
-        if (event.block.type in BUBBLE_MAKERS) bubbleColumn(event.block, HolderId.Player(event.player.uniqueId))
+        if (event.block.type.makesBubbles()) bubbleColumn(event.block, HolderId.Player(event.player.uniqueId))
     }
 
     private fun bubbleColumn(base: Block, by: HolderId) {
@@ -189,8 +190,6 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     }
 
     private companion object {
-        val BUBBLE_MAKERS = setOf(Material.SOUL_SAND, Material.MAGMA_BLOCK)
-
         const val MAX_BUBBLE_COLUMN = 64
         const val BUBBLE_DELAY_TICKS = 5L
         const val LIGHTNING_REACH = 27

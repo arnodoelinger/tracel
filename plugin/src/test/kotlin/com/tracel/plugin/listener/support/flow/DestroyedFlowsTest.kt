@@ -7,7 +7,6 @@ import com.tracel.tests.support.Fixtures.block
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.util.*
 
 class DestroyedFlowsTest {
     private val chest = block(10, 64, 10)

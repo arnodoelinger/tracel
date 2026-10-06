@@ -16,7 +16,13 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
-import com.tracel.plugin.util.AIR
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectDatabase
+import com.tracel.plugin.importer.coreprotect.source.CoreProtectLocation
+import com.tracel.plugin.importer.coreprotect.tally.Skipped
+import com.tracel.plugin.importer.coreprotect.tally.Taken
+import com.tracel.plugin.importer.coreprotect.translate.BlockDetail
+import com.tracel.plugin.importer.coreprotect.translate.ImportPlatform
+import com.tracel.plugin.specifics.block.AIR
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.storage.ports.event.EventLog
@@ -25,14 +31,14 @@ import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.ports.ops.ForeignHistory
 import com.tracel.tests.support.Fixtures
-import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
 import java.util.*
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 class CoreProtectImportTest {
     private val overworld = Fixtures.world

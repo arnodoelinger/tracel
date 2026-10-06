@@ -1,13 +1,14 @@
 package com.tracel.plugin.metrics
 
-import com.tracel.plugin.DEFAULT_PASTE_URL
-import com.tracel.engine.store.StoreSync
-import com.tracel.engine.store.StoreSettings
-import com.tracel.plugin.Settings
-import com.tracel.plugin.TracelServices
-import com.tracel.plugin.integration.worldedit.WorldEditSupport
-import com.tracel.plugin.status.DiskLevel
 import com.tracel.engine.store.StoreReport
+import com.tracel.engine.store.StoreSettings
+import com.tracel.engine.store.StoreSync
+import com.tracel.plugin.config.DEFAULT_PASTE_URL
+import com.tracel.plugin.config.Settings
+import com.tracel.plugin.integration.worldedit.WorldEditSupport
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.status.disk.DiskLevel
+import java.util.concurrent.atomic.AtomicLong
 import org.bstats.bukkit.Metrics
 import org.bstats.charts.AdvancedPie
 import org.bstats.charts.SimplePie
@@ -15,7 +16,6 @@ import org.bstats.charts.SingleLineChart
 import org.bstats.json.JsonObjectBuilder
 import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * bStats` charts.

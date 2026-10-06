@@ -12,10 +12,11 @@ import com.tracel.model.world.WorldChange
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.util.AIR
+import com.tracel.plugin.specifics.block.AIR
+import com.tracel.plugin.specifics.world.VanillaWorldRules
+import java.util.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import java.util.*
 
 class PairedBlockPlanTest {
     private val world = WorldId(UUID(0L, 0L))

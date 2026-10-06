@@ -8,14 +8,14 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.plugin.util.AIR
+import com.tracel.plugin.specifics.block.AIR
 import com.tracel.tests.support.Fixtures
+import java.util.*
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.util.*
 
 class FluidFreezeTest {
     private val world = Fixtures.world

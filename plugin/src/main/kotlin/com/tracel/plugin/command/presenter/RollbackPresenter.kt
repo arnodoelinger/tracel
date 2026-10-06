@@ -1,17 +1,17 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.plugin.util.isAirLike
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
+import com.tracel.plugin.specifics.block.isAirLike
+import java.util.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.command.CommandSender
-import java.util.*
 
 object RollbackPresenter {
     private const val INSTANT_MILLIS = 300L

@@ -2,9 +2,9 @@ package com.tracel.plugin.listener.support.cell
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.util.ExpiringMap
-import org.bukkit.block.Block
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import java.util.*
+import org.bukkit.block.Block
 
 /** Who lit a fire, carried along as it spreads, so the house it burns down is theirs to roll back. */
 internal object FireCell {

@@ -1,9 +1,9 @@
 package com.tracel.plugin.adapter.block
 
 import com.tracel.model.world.block.BlockDataKey
+import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Bukkit
 import org.bukkit.block.data.BlockData
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Caches parsed block states.

@@ -3,8 +3,8 @@ package com.tracel.plugin.listener.session
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.annotations.Unstable
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.event.Event
 import org.bukkit.event.block.Action
 import org.bukkit.event.player.PlayerInteractEvent

@@ -1,6 +1,5 @@
 package com.tracel.plugin.rollback.survey
 
-import com.tracel.plugin.rollback.structure.structuralPartnerOf
 import com.tracel.annotations.Unstable
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
@@ -9,6 +8,7 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.rollback.composer.RollbackComposer
+import com.tracel.plugin.rollback.structure.structuralPartnerOf
 import java.util.*
 
 /** Mobs that leave blocks behind them as they walk. */

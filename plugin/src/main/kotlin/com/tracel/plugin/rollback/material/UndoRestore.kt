@@ -6,10 +6,11 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
-import com.tracel.plugin.rollback.material.holder.spawnReturnedDrops
-import com.tracel.plugin.rollback.material.item.formsFor
+import com.tracel.plugin.adapter.rollback.material.SAMPLED_FAILURES
+import com.tracel.plugin.adapter.rollback.material.holder.spawnReturnedDrops
+import com.tracel.plugin.adapter.rollback.material.item.formsFor
+import com.tracel.plugin.adapter.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.material.spill.Spill
-import com.tracel.plugin.rollback.material.spill.recordSpills
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue

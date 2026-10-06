@@ -2,7 +2,7 @@ package com.tracel.plugin.adapter.item
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.item.ItemKey
-import org.bukkit.Material
+import com.tracel.plugin.specifics.item.carriesItems
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BundleMeta
 import org.bukkit.inventory.meta.CrossbowMeta
@@ -17,7 +17,7 @@ private const val MAX_NESTING = 8
  * bundle read as diamonds burned and a new bundle minted, and a rollback of the theft left the thief
  * the bundle with every diamond still in it.
  */
-fun ItemStack.canCarry(): Boolean = type == Material.CROSSBOW || type.name.endsWith("BUNDLE")
+fun ItemStack.canCarry(): Boolean = type.carriesItems()
 
 /** What this stack holds inside it, one level deep. Empty for anything that holds nothing. */
 fun ItemStack.carried(): List<ItemStack> {

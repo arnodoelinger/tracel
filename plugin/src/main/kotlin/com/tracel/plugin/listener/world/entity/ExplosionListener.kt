@@ -9,13 +9,13 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.*
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.entity.explosionActor
-import com.tracel.plugin.util.AIR
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.AIR
 import org.bukkit.ExplosionResult
 import org.bukkit.Material
 import org.bukkit.block.Block

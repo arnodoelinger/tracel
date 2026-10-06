@@ -1,5 +1,8 @@
 package com.tracel.plugin.adapter.entity.kind
 
+import com.tracel.plugin.specifics.entity.kind
+import com.tracel.plugin.specifics.entity.shouldLogRemoval
+import com.tracel.plugin.specifics.entity.shouldLogSpawn
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason
 import org.bukkit.event.entity.EntityRemoveEvent
 import org.junit.jupiter.api.Assertions.*

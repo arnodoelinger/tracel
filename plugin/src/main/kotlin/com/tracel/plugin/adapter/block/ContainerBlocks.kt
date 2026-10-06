@@ -1,9 +1,9 @@
 package com.tracel.plugin.adapter.block
 
+import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.Material
 import org.bukkit.block.Campfire
 import org.bukkit.inventory.InventoryHolder
-import java.util.concurrent.ConcurrentHashMap
 
 private val holdsItems = ConcurrentHashMap<String, Boolean>()
 

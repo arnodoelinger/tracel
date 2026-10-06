@@ -3,13 +3,13 @@ package com.tracel.plugin.integration.worldedit
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.util.AIR
+import com.tracel.plugin.specifics.block.AIR
 import com.tracel.tests.support.Fixtures
+import java.util.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.util.*
 
 class EditBufferTest {
     private val buffer = EditBuffer(Fixtures.world)

@@ -5,7 +5,7 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.util.isAirLike
+import com.tracel.plugin.specifics.block.isAirLike
 
 /**
  * What one `WorldEdit` session has written so far, waiting to be logged.

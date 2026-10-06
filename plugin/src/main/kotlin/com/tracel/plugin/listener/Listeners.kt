@@ -1,6 +1,5 @@
 package com.tracel.plugin.listener
 
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.material.inventory.CraftListener
 import com.tracel.plugin.listener.material.inventory.HandMutationListener
 import com.tracel.plugin.listener.material.inventory.InventoryClickListener
@@ -20,6 +19,7 @@ import com.tracel.plugin.listener.world.cell.*
 import com.tracel.plugin.listener.world.entity.EntityLifecycleListener
 import com.tracel.plugin.listener.world.entity.ExplosionListener
 import com.tracel.plugin.listener.world.entity.RedstoneListener
+import com.tracel.plugin.services.TracelServices
 
 /** Listener registration list. A kind of history that is turned off in the config loses its listeners. */
 internal fun listenersOf(services: TracelServices): List<TracelListener> {

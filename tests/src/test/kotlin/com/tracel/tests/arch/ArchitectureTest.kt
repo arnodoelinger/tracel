@@ -237,12 +237,26 @@ class ArchitectureTest {
         }
     }
 
+    // A layer is its decisions in `rollback` and its hands on the world in `adapter/rollback`
     private fun rollbackLayer(layer: String) = Konsist.scopeFromModule("plugin")
         .files
-        .filter { "/src/main/kotlin/com/tracel/plugin/rollback/$layer/" in it.path }
+        .filter { Regex("""/src/main/kotlin/com/tracel/plugin/(adapter/)?rollback/$layer/""").containsMatchIn(it.path) }
 
     private fun importsRollback(text: String, vararg layers: String) = layers.any { layer ->
-        Regex("""^import com\.tracel\.plugin\.rollback\.$layer\.""", RegexOption.MULTILINE).containsMatchIn(text)
+        Regex("""^import com\.tracel\.plugin\.(adapter\.)?rollback\.$layer\.""", RegexOption.MULTILINE)
+            .containsMatchIn(text)
+    }
+
+    @Test
+    fun `rollback imports no server API`() {
+        val server = Regex(
+            """^import (static )?(org\.bukkit|io\.papermc|com\.destroystokyo|net\.kyori|co\.aikar)\.""",
+            RegexOption.MULTILINE,
+        )
+        Konsist.scopeFromModule("plugin")
+            .files
+            .filter { "/src/main/kotlin/com/tracel/plugin/rollback/" in it.path }
+            .assertFalse(testName = "rollback imports the server API") { server.containsMatchIn(it.text) }
     }
 
     @Test
@@ -276,6 +290,7 @@ class ArchitectureTest {
         Konsist.scopeFromModule("plugin")
             .files
             .filter { "/src/main/kotlin/" in it.path && "/com/tracel/plugin/rollback/" !in it.path }
+            .filterNot { "/com/tracel/plugin/adapter/rollback/" in it.path }
             .filterNot { it.name == "TracelServices" }
             .assertFalse(testName = "rollback internals leak out") { importsRollback(it.text, "structure", "planning") }
     }

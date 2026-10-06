@@ -7,11 +7,12 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
+import com.tracel.plugin.adapter.rollback.material.rewear
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.RestorationReport
-import kotlinx.coroutines.CompletableDeferred
 import java.util.*
+import kotlinx.coroutines.CompletableDeferred
 
 /** Transaction-log half as composition sees it: make the world agree with what the ledger already did. */
 interface MaterialHalf {

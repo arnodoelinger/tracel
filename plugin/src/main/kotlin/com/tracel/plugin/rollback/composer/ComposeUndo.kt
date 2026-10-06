@@ -5,13 +5,13 @@ import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
 import com.tracel.engine.rollback.involution.plan.InvolutionStep
 import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.job.record.RollbackJobRepository
-import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.noiseMints
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
+import com.tracel.plugin.adapter.rollback.structure.redstone.redstoneCells
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
@@ -20,14 +20,12 @@ import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.rollback.structure.redstone.redstoneCells
-import com.tracel.plugin.util.blockPos
-import com.tracel.plugin.util.isAirLike
+import com.tracel.plugin.specifics.block.isAirLike
+import java.util.*
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import java.util.*
-import kotlin.coroutines.cancellation.CancellationException
 
 internal const val MAX_STACKED_JOBS = RollbackJobRepository.UNDO_DEPTH
 
@@ -231,23 +229,4 @@ private suspend fun RollbackComposer.undoFrozen(
             UndoResult.NotFound
         }
     }
-}
-
-/** Records the position of an entity being spawned during the rollback process. */
-internal fun RollbackComposer.rememberHull(step: StructureStep.SpawnEntity) {
-    services.whereabouts.remember(step.entity, HolderId.Block(step.at.world, step.at.x, step.at.y, step.at.z))
-}
-
-private fun RollbackJobRecord.touches(): Set<Any> = buildSet {
-    for (step in create + destroy) add(step.at)
-    for (holder in plan.holders) touch(holder)
-    when (val target = target) {
-        is RollbackTarget.Uniform -> touch(target.holder)
-        is RollbackTarget.PerRoot -> for (holder in target.byRoot.values) touch(holder)
-    }
-}
-
-private fun MutableSet<Any>.touch(holder: HolderId) {
-    if (holder is HolderId.Source || holder is HolderId.Sink || holder is HolderId.Escrow) return
-    add(holder.blockPos() ?: holder)
 }

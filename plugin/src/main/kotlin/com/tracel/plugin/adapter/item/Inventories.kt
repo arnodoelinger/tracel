@@ -4,7 +4,8 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.WorldId
-import org.bukkit.Material
+import com.tracel.plugin.specifics.entity.MOUNT_CHEST
+import com.tracel.plugin.specifics.inventory.TransientMenu
 import org.bukkit.entity.ChestedHorse
 import org.bukkit.entity.Entity
 import org.bukkit.entity.HumanEntity
@@ -14,7 +15,7 @@ import org.bukkit.inventory.CraftingInventory
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 
-private val CHEST_KEY: ItemKey = ItemStack(Material.CHEST).toItemKey()
+private val CHEST_KEY: ItemKey = ItemStack(MOUNT_CHEST).toItemKey()
 
 /**
  * Ledger account that owns this inventory.
@@ -88,21 +89,8 @@ fun Player.heldTotals(): Map<ItemKey, Long> {
     return totals
 }
 
-// Input slots of the menus whose contents go back to the player on close; the rest is a result preview
-private val TRANSIENT_INPUTS: Map<InventoryType, IntRange> = mapOf(
-    InventoryType.ANVIL to 0..1,
-    InventoryType.GRINDSTONE to 0..1,
-    InventoryType.STONECUTTER to 0..0,
-    InventoryType.SMITHING to 0..2,
-    InventoryType.LOOM to 0..2,
-    InventoryType.CARTOGRAPHY to 0..1,
-    InventoryType.ENCHANTING to 0..1,
-    InventoryType.BEACON to 0..0,
-    InventoryType.MERCHANT to 0..1,
-)
-
 /** The input slots of a menu [transientInputs] reads, or `null` for an inventory that is somebody's own. */
-fun Inventory.transientInputSlots(): IntRange? = TRANSIENT_INPUTS[type]
+fun Inventory.transientInputSlots(): IntRange? = TransientMenu.inputsOf(type)
 
 /**
  * What sits in the input slots of a menu nobody owns but the player using it.
@@ -110,7 +98,7 @@ fun Inventory.transientInputSlots(): IntRange? = TRANSIENT_INPUTS[type]
  * @return `null` for an inventory that is somebody's own.
  */
 fun Inventory.transientInputs(): Map<ItemKey, Long>? {
-    val inputs = TRANSIENT_INPUTS[type] ?: return null
+    val inputs = TransientMenu.inputsOf(type) ?: return null
     val totals = mutableMapOf<ItemKey, Long>()
     for (slot in inputs) {
         if (slot >= size) break

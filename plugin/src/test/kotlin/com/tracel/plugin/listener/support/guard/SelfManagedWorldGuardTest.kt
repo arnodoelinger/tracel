@@ -5,7 +5,6 @@ import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.util.*
 
 class SelfManagedWorldGuardTest {
     @Test

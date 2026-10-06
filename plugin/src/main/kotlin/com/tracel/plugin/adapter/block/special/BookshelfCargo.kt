@@ -6,8 +6,8 @@ import com.tracel.plugin.adapter.block.capability.cargo.CargoSurface
 import org.bukkit.block.Block
 import org.bukkit.block.BlockState
 import org.bukkit.block.ChiseledBookshelf
-import org.bukkit.inventory.ItemStack
 import org.bukkit.block.data.type.ChiseledBookshelf as ChiseledBookshelfData
+import org.bukkit.inventory.ItemStack
 
 /**
  * Chiseled bookshelf cargo.
@@ -21,6 +21,7 @@ internal object BookshelfCargo : CargoSurface {
         return BookshelfHeld(state)
     }
 
+    /** Sync bookshelf cargo. */
     @Suppress("UsePropertyAccessSyntax")
     fun sync(block: Block) {
         val state = runCatching { block.getState(false) }.getOrNull() as? ChiseledBookshelf ?: return

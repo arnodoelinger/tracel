@@ -76,7 +76,7 @@ class TracelStorage private constructor(
         val open = currentCoroutineContext()[OpenUnit]
         if (open != null) return block()
         return withContext(readers) {
-            StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+            StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
                 withContext(OpenUnit(unit, Thread.currentThread(), readOnly = true)) { block() }
             }
         }
@@ -110,7 +110,7 @@ class TracelStorage private constructor(
 
     /** Re-reads interned ids after the store was replaced under them. Call inside [alone]. */
     fun reloadInterning() {
-        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::reload)
+        StorageUnit(engine.snapshot(), MutationBatch()).use(interning::reload)
         replaced.forEach { it() }
     }
 
@@ -145,12 +145,12 @@ class TracelStorage private constructor(
     }
 
     private suspend fun <T> readOnly(block: StorageUnit.() -> T): T = withContext(readers) {
-        StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(block)
+        StorageUnit(engine.snapshot(), MutationBatch()).use(block)
     }
 
     private suspend fun <T> unit(block: StorageUnit.() -> T): T = lock.withLock {
         withContext(dispatcher) {
-            val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
+            val open = StorageUnit(engine.snapshot(), MutationBatch())
             open.use {
                 val result = try {
                     withContext(OpenUnit(open, Thread.currentThread())) { open.block() }.also {
@@ -169,7 +169,7 @@ class TracelStorage private constructor(
 
     private suspend fun <T> suspendingUnit(block: suspend () -> T): T = lock.withLock {
         withContext(dispatcher) {
-            val open = StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread())
+            val open = StorageUnit(engine.snapshot(), MutationBatch())
             open.use {
                 val result = try {
                     withContext(OpenUnit(open, Thread.currentThread())) { block() }.also {
@@ -220,7 +220,7 @@ class TracelStorage private constructor(
             val engine = engineFactory(path)
             val executor = Executors.newSingleThreadScheduledExecutor { runnable -> Thread(runnable, "Tracel-Storage") }
             val interning = Interning()
-            StorageUnit(engine.snapshot(), MutationBatch(), Thread.currentThread()).use(interning::restore)
+            StorageUnit(engine.snapshot(), MutationBatch()).use(interning::restore)
 
             // These threads only ever decode records already in memory or in a
             // mapped file; more of them than cores buys queueing, not throughput.

@@ -1,18 +1,12 @@
 package com.tracel.plugin.listener.support.entity
 
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.TracelServices
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.*
 import org.bukkit.entity.minecart.ExplosiveMinecart
 import org.bukkit.event.entity.EntityExplodeEvent
 
 private const val MAX_IGNITION_CHAIN_DEPTH = 16
-
-/** Whether it's a blast source, i.e. a source of explosion damage. */
-fun Entity?.isBlastSource(): Boolean = when (this) {
-    is Explosive, is Creeper, is EnderCrystal, is Ghast -> true
-    else -> false
-}
 
 /**
  * Shared blast actor.

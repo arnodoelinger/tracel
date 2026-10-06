@@ -5,7 +5,7 @@ import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
-import com.tracel.plugin.util.worldId
+import com.tracel.plugin.util.holder.worldId
 
 /**
  * Preflight worlds.

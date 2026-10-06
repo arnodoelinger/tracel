@@ -8,11 +8,11 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.adapter.rollback.structure.redstone.redstoneCells
 import com.tracel.plugin.rollback.result.outcome.*
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import kotlinx.coroutines.launch
 
 @Unstable

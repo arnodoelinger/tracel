@@ -1,82 +1,69 @@
 package com.tracel.plugin.startup
 
-import com.tracel.platform.Versions
 import com.tracel.engine.capture.material.flow.releaseFlows
-import com.tracel.engine.rollback.journal.JournalExecutor
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.rollback.apply.RollbackExecutor
-import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
 import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
+import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
+import com.tracel.engine.rollback.journal.JournalExecutor
 import com.tracel.engine.rollback.plan.WorldQuery
+import com.tracel.platform.Versions
 import com.tracel.plugin.TracelPlugin
-import com.tracel.plugin.TracelServices
+import com.tracel.plugin.actor.ActorWrites
+import com.tracel.plugin.actor.EntityKinds
+import com.tracel.plugin.actor.PlayerModes
+import com.tracel.plugin.actor.PlayerSessions
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.adapter.world.playerIsOnline
-import com.tracel.plugin.command.TracelCommand
-import com.tracel.plugin.command.args.ScopeLimits
-import com.tracel.plugin.setup.SetupListener
-import com.tracel.plugin.setup.SetupState
-import com.tracel.plugin.command.suggest.support.CommandOrderListener
+import com.tracel.plugin.command.args.scope.ScopeLimits
+import com.tracel.plugin.command.suggest.order.CommandOrderListener
+import com.tracel.plugin.command.tree.TracelCommand
+import com.tracel.plugin.config.migrate.FileVersions
+import com.tracel.plugin.config.migrate.TomlMigrator
+import com.tracel.plugin.config.read.readSettings
 import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.integration.worldedit.WorldEditAttachListener
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
-import com.tracel.plugin.listener.registerObserved
 import com.tracel.plugin.listener.listenersOf
+import com.tracel.plugin.listener.registerObserved
 import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
-import com.tracel.plugin.mode.ActorWrites
-import com.tracel.plugin.mode.EntityKinds
-import com.tracel.plugin.mode.PlayerModes
-import com.tracel.plugin.mode.PlayerSessions
-import com.tracel.plugin.readSettings
+import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.metrics.TracelMetrics
 import com.tracel.plugin.scheduler.TracelSchedulers
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.setup.SetupListener
+import com.tracel.plugin.setup.SetupState
 import com.tracel.plugin.startup.version.MinecraftVersion
+import com.tracel.plugin.status.disk.DiskGuard
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.ports.world.GroundPositions
-import com.tracel.storage.ports.ops.ForeignHistory
-import com.tracel.storage.ports.log.RolledBack
-import com.tracel.storage.ports.ops.StoreAdmin
-import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.Drainer
 import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.storage.ports.container.ContainerSlotLog
+import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.ports.job.Journal
 import com.tracel.storage.ports.job.RollbackJobRepository
 import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.Leases
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
+import com.tracel.storage.ports.log.RolledBack
 import com.tracel.storage.ports.log.TransactionLog
-import com.tracel.storage.format.StoreFormat
-import com.tracel.storage.ports.ops.InterruptedImport
 import com.tracel.storage.ports.log.WorldLog
 import com.tracel.storage.ports.ops.Counters
+import com.tracel.storage.ports.ops.ForeignHistory
+import com.tracel.storage.ports.ops.StoreAdmin
 import com.tracel.storage.ports.wear.WearLog
-import com.tracel.plugin.migrate.FileVersions
-import com.tracel.plugin.migrate.TomlMigrator
-import com.tracel.plugin.status.DiskGuard
+import com.tracel.storage.ports.world.GroundPositions
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
-import kotlinx.coroutines.*
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.*
 import org.bukkit.Bukkit
 import org.tomlj.Toml
-import com.tracel.plugin.metrics.Telemetry
-import com.tracel.plugin.metrics.TracelMetrics
 
 private const val LAST_CAPTURE_WAIT_MILLIS = 500L
 private const val WRITE_RATE_SAMPLE_MILLIS = 5_000L
-
-/** Wired plugin after a successful [enable]. */
-internal class TracelRuntime(
-    val store: StoreAdmin,
-    val services: TracelServices,
-    val drain: Job,
-    val entityDrain: Job,
-    val formDrain: Job,
-    val releaseDrain: Job,
-    val lastCaptures: suspend () -> Unit,
-)
 
 /** Run startup sequence. */
 internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
@@ -308,16 +295,4 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     plugin.logger.info("Tracel ${plugin.pluginMeta.version} enabled.")
 
     return TracelRuntime(admin, services, drain, entityDrain, formDrain, releaseDrain, lastCaptures)
-}
-
-private fun migrateStore(plugin: TracelPlugin, storage: TracelStorage) {
-    val outcome = StoreFormat.ensure(storage)
-    if (outcome.migrated) plugin.logger.info("Migrated the database from format ${outcome.from} to ${outcome.to}.")
-}
-
-private fun resumeImport(plugin: TracelPlugin, storage: TracelStorage) {
-    val pending = InterruptedImport.pending(storage) ?: return
-    plugin.logger.info("Finishing the import of ${pending.file}, which was cut short.")
-    InterruptedImport.resume(storage)
-    plugin.logger.info("Import finished.")
 }

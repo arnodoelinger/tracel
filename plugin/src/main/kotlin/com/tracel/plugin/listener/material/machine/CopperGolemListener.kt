@@ -5,20 +5,20 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.item.addTo
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.concurrent.ExpiringMap
+import java.util.*
 import org.bukkit.Bukkit
 import org.bukkit.GameEvent
 import org.bukkit.block.Block
 import org.bukkit.block.Container
 import org.bukkit.entity.CopperGolem
 import org.bukkit.event.world.GenericGameEvent
-import java.util.*
 
 /** Copper golems moving items in and out of chests. */
 @Unstable

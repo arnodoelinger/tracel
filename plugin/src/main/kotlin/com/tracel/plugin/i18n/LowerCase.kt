@@ -1,5 +1,7 @@
 package com.tracel.plugin.i18n
 
+import java.text.MessageFormat
+import java.util.*
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TranslatableComponent
@@ -7,8 +9,6 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator
 import net.kyori.adventure.translation.Translator
 import net.kyori.adventure.util.TriState
-import java.text.MessageFormat
-import java.util.*
 
 /**
  * Answers the keys that [lower] builds: the text of the key behind them, in the reader's language, with the

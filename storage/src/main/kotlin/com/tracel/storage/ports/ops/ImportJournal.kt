@@ -46,7 +46,7 @@ data class ImportProgress(val file: String, val size: Long, val rows: Long, val 
 object InterruptedImport {
     /** The import this database is in the middle of, or `null` if it is not. */
     fun pending(storage: TracelStorage): ImportProgress? =
-        StorageUnit(storage.engine.snapshot(), MutationBatch(), Thread.currentThread()).use { unit ->
+        StorageUnit(storage.engine.snapshot(), MutationBatch()).use { unit ->
             unit.get(Keys.importProgress())?.let { value ->
                 ImportProgress.decode(ByteArray(value.byteSize().toInt()).also { out ->
                     java.lang.foreign.MemorySegment.ofArray(out).copyFrom(value)

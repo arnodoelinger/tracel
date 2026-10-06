@@ -3,12 +3,11 @@ package com.tracel.plugin.rollback.structure
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.util.AIR
+import com.tracel.plugin.specifics.block.AIR
 import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
-import java.util.*
 
 class StructurePairingTest {
     private val world = Fixtures.world

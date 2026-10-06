@@ -7,15 +7,15 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.adapter.item.toHolderId
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
+import java.util.concurrent.ConcurrentHashMap
 import org.bukkit.block.Crafter
 import org.bukkit.event.inventory.InventoryMoveItemEvent
 import org.bukkit.inventory.Inventory
-import java.util.concurrent.ConcurrentHashMap
 
 /** Hopper transfer listener. */
 class HopperListener(services: TracelServices) : TracelListener(services) {

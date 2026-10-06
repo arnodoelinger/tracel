@@ -1,11 +1,9 @@
 package com.tracel.plugin.util.concurrent
 
-import com.tracel.plugin.util.ExpiringMap
-import com.tracel.plugin.util.ExpiringSet
+import java.util.concurrent.TimeUnit
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
-import java.util.concurrent.TimeUnit
 
 private const val TTL = 30_000L
 

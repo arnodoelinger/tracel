@@ -3,12 +3,13 @@ package com.tracel.plugin.rollback.structure
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.TracelServices
+import com.tracel.plugin.adapter.rollback.structure.fluid.settleWritten
+import com.tracel.plugin.adapter.rollback.structure.fluid.wakeCells
+import com.tracel.plugin.adapter.rollback.structure.redstone.wakeRedstoneAt
+import com.tracel.plugin.adapter.rollback.structure.restoreSteps
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.StructureReport
-import com.tracel.plugin.rollback.structure.fluid.settleWritten
-import com.tracel.plugin.rollback.structure.fluid.wakeCells
-import com.tracel.plugin.rollback.structure.redstone.wakeRedstoneAt
+import com.tracel.plugin.services.TracelServices
 import java.util.logging.Logger
 
 /**

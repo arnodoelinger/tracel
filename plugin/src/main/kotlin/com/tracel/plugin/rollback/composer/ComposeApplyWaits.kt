@@ -7,16 +7,16 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
+import com.tracel.plugin.adapter.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.census.EntityCensus
-import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.util.isAirLike
-import kotlinx.coroutines.*
+import com.tracel.plugin.specifics.block.isAirLike
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.*
 
 /** What the first wait left behind. */
 internal class FirstWait(

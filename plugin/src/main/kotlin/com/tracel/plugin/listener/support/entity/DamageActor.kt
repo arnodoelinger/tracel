@@ -3,8 +3,8 @@ package com.tracel.plugin.listener.support.entity
 import com.tracel.annotations.Unstable
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.listener.support.cell.ColumnCell
+import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile

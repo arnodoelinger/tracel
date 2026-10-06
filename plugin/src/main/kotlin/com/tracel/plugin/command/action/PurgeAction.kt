@@ -1,18 +1,20 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.model.world.WorldId
-import com.tracel.engine.store.PurgeSummary
-import com.tracel.engine.store.PurgeSpec
-import com.tracel.engine.store.PurgeReport
-import com.tracel.engine.store.PurgeFilter
 import com.tracel.engine.store.PurgeCategory
-import com.tracel.plugin.TracelServices
+import com.tracel.engine.store.PurgeFilter
+import com.tracel.engine.store.PurgeReport
+import com.tracel.engine.store.PurgeSpec
+import com.tracel.engine.store.PurgeSummary
+import com.tracel.model.world.WorldId
+import com.tracel.plugin.adapter.command.resolvePlayerUuid
 import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.command.action.ExportAction.Companion.records
-import com.tracel.plugin.command.args.PurgeArgs
-import com.tracel.plugin.command.args.PurgeArgument
+import com.tracel.plugin.command.args.purge.PurgeArgs
+import com.tracel.plugin.command.args.purge.PurgeArgument
 import com.tracel.plugin.i18n.*
-import com.tracel.plugin.util.resolvePlayerUuid
+import com.tracel.plugin.services.TracelServices
+import java.util.*
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -21,8 +23,6 @@ import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import java.util.*
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * `/tracel data purge`: takes history out of the database, all of it or only what the filters name.

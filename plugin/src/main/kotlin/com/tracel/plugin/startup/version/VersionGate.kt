@@ -1,6 +1,6 @@
 package com.tracel.plugin.startup.version
 
-import com.tracel.plugin.util.fail
+import com.tracel.plugin.adapter.server.fail
 import io.github.z4kn4fein.semver.toVersionOrNull
 import org.bukkit.plugin.Plugin
 
@@ -15,11 +15,9 @@ data class MinecraftVersion(val major: Int, val minor: Int) : Comparable<Minecra
         val oldest get() = SUPPORTED_VERSIONS.min()
         val newest get() = SUPPORTED_VERSIONS.max()
 
-        /** Parse Minecraft version. */
         fun parse(raw: String): MinecraftVersion? =
             raw.toVersionOrNull(strict = false)?.let { MinecraftVersion(it.major, it.minor) }
 
-        /** Check if the version is supported. */
         fun check(raw: String, plugin: Plugin): Boolean {
             val version = parse(raw) ?: fail(
                 plugin,

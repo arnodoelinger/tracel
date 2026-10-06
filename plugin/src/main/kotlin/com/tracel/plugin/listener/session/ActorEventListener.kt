@@ -5,10 +5,12 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.TracelServices
+import com.tracel.model.world.BlockPos
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.services.TracelServices
 import io.papermc.paper.event.player.AsyncChatEvent
+import java.util.Locale
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.entity.FallingBlock
@@ -16,8 +18,6 @@ import org.bukkit.entity.FishHook
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile
 import org.bukkit.event.entity.EntityDamageByEntityEvent
-import java.util.Locale
-import com.tracel.model.world.BlockPos
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.entity.ProjectileLaunchEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent

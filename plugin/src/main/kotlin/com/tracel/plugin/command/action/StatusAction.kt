@@ -1,13 +1,13 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.plugin.TracelServices
 import com.tracel.plugin.command.presenter.StatusPresenter
 import com.tracel.plugin.command.presenter.StatusSnapshot
 import com.tracel.plugin.i18n.failed
 import com.tracel.plugin.i18n.say
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.i18n.unexpected
-import com.tracel.plugin.status.LAG_PROBE_MILLIS
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.status.health.LAG_PROBE_MILLIS
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

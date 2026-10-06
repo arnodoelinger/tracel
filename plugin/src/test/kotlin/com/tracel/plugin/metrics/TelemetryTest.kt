@@ -1,7 +1,7 @@
 package com.tracel.plugin.metrics
 
-import com.tracel.plugin.command.args.LookupScope
-import com.tracel.plugin.command.args.ParsedLookupArgs
+import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
+import com.tracel.plugin.command.args.scope.LookupScope
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

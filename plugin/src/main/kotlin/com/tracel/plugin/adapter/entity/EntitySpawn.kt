@@ -2,19 +2,23 @@ package com.tracel.plugin.adapter.entity
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.entity.*
+import com.tracel.plugin.adapter.block.toBlockFace
+import com.tracel.plugin.adapter.entity.link.EntityAliases
+import com.tracel.plugin.adapter.entity.link.applyLeash
+import com.tracel.plugin.adapter.entity.link.applyVehicle
 import com.tracel.plugin.adapter.entity.special.FallingBlockAdapter
 import com.tracel.plugin.adapter.entity.special.LeashKnotAdapter
 import com.tracel.plugin.adapter.entity.special.ShoulderAdapter
 import com.tracel.plugin.adapter.entity.special.ZombieConversion
-import com.tracel.plugin.util.Warnings
-import com.tracel.plugin.util.anchorPoint
-import com.tracel.plugin.util.facingFromPose
+import com.tracel.plugin.util.geometry.anchorPoint
+import com.tracel.plugin.util.geometry.facingFromPose
+import com.tracel.plugin.util.log.Warnings
+import java.util.*
+import java.util.logging.Logger
 import org.bukkit.*
 import org.bukkit.attribute.Attribute
 import org.bukkit.entity.*
 import org.bukkit.util.BoundingBox
-import java.util.*
-import java.util.logging.Logger
 
 private val logger = Logger.getLogger("EntitySpawn")
 
@@ -62,7 +66,7 @@ private fun EntityShape.putHullBack(
         }
         self.setRotation(yaw, pitch)
         if (self is Hanging) {
-            runCatching { self.setFacingDirection(facingFromPose(yaw, pitch), true) }
+            runCatching { self.setFacingDirection(facingFromPose(yaw, pitch).toBlockFace(), true) }
         }
         applyShapeInPlace(self, extras.opaque)
         return self
@@ -139,7 +143,7 @@ private fun place(entity: Entity, loc: Location): Boolean {
     if (!ok) return false
     runCatching { entity.setRotation(loc.yaw, loc.pitch) }
     if (entity is Hanging) {
-        runCatching { entity.setFacingDirection(facingFromPose(loc.yaw, loc.pitch), true) }
+        runCatching { entity.setFacingDirection(facingFromPose(loc.yaw, loc.pitch).toBlockFace(), true) }
     }
     return entity.isInWorld
 }
@@ -163,7 +167,7 @@ private fun EntityShape.spawnByType(world: World, loc: Location): Entity? {
     return runCatching {
         world.spawn(loc, cls) { entity ->
             if (entity is Hanging) {
-                runCatching { entity.setFacingDirection(facingFromPose(yaw, pitch), true) }
+                runCatching { entity.setFacingDirection(facingFromPose(yaw, pitch).toBlockFace(), true) }
             }
         }
     }.getOrElse {
@@ -171,4 +175,3 @@ private fun EntityShape.spawnByType(world: World, loc: Location): Entity? {
         null
     }
 }
-

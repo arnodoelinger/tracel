@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.structure.entity
 
+import com.tracel.plugin.adapter.rollback.structure.entity.despawn
 import java.util.*
 
 /** Despawn status. */
