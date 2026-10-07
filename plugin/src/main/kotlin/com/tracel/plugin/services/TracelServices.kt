@@ -136,7 +136,10 @@ class TracelServices(
     var autoPurge: Job? = null,
 
     @Volatile
-    var worldEdit: AutoCloseable? = null
+    var worldEdit: AutoCloseable? = null,
+
+    @Volatile
+    var luckPerms: AutoCloseable? = null
 ) : UnitOfWork by unit {
     val purging: AtomicBoolean = AtomicBoolean(false)
 

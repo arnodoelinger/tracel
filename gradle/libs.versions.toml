@@ -18,6 +18,7 @@ paper = "26.1.2.build.74-stable"
 runPaper = "3.1.0"
 fawe = "2.15.3"
 bstats = "3.2.1"
+luckperms = "5.4"
 
 [libraries]
 build-kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -40,6 +41,7 @@ sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 fawe-core = { module = "com.fastasyncworldedit:FastAsyncWorldEdit-Core", version.ref = "fawe" }
 bstats = { module = "org.bstats:bstats-bukkit", version.ref = "bstats" }
+luckperms-api = { module = "net.luckperms:api", version.ref = "luckperms" }
 
 [plugins]
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

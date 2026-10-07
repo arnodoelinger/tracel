@@ -24,6 +24,7 @@ import com.tracel.plugin.config.migrate.TomlMigrator
 import com.tracel.plugin.config.read.readSettings
 import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.command.permission.CommandGuard
+import com.tracel.plugin.integration.luckperms.LuckPermsSupport
 import com.tracel.plugin.integration.worldedit.WorldEditAttachListener
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
 import com.tracel.plugin.listener.listenersOf
@@ -287,6 +288,8 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         WorldEditSupport.attach(services)
         registerObserved(WorldEditAttachListener(services), plugin)
     }
+
+    LuckPermsSupport.attach(services)
 
     if (setup.pending) {
         registerObserved(SetupListener(services, setup), plugin)
