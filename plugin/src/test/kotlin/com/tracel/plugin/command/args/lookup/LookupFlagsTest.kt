@@ -96,6 +96,11 @@ class LookupFlagsTest {
     }
 
     @Test
+    fun `world is the long name of w`() {
+        assertEquals("nether", parseLookupArgs(listOf("world:nether"), NOW).world)
+    }
+
+    @Test
     fun `scope naming a world lands in the world field, not the radius`() {
         val parsed = parseLookupArgs(listOf("scope:the_end"), NOW)
         assertNull(parsed.scope)

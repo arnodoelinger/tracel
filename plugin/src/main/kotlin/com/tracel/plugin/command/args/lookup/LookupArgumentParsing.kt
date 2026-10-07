@@ -32,6 +32,11 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Value("block:", { r, v -> r.copy(item = v) }, { it.blockNames }),
     LookupArgument.Multi("action:", { it.actions }, { r, v -> r.copy(actions = v) }, { it.causeNames }),
     LookupArgument.Parsed(
+        "world:",
+        { v, _ -> v.takeIf(String::isNotBlank) },
+        { r, v -> r.copy(world = v) },
+        { it.worldNames }),
+    LookupArgument.Parsed(
         "scope:",
         { v, _ -> ScopeArgument.parse(v) },
         { r, v -> r.withScope(v) },

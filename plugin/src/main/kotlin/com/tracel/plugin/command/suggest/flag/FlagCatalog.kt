@@ -99,7 +99,7 @@ internal val FLAGS: List<FlagToken> = listOf(
         profiles = BOTH
     ),
     FlagToken(
-        aliases = listOf("w:"),
+        aliases = listOf("w:", "world:"),
         tooltip = "world",
         kind = FlagKind.VALUE,
         group = FlagGroup.WORLD,
