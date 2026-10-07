@@ -22,7 +22,7 @@ internal fun LiteralArgumentBuilder<CommandSourceStack>.playerBranch(actions: Co
     val store = actions.store
     val player = actions.player
     literal("player", tr("command.player")) {
-        requiresPermission(Permission.LOOKUP)
+        requiresPermission(Permission.PLAYER)
         executesCommand { ctx -> ctx.source.sender.usage("player") }
         argument("player", StringArgumentType.word()) {
             suggests(PlayerNameSuggest)

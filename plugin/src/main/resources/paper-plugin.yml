@@ -7,6 +7,34 @@ website: https://github.com/arnodoelinger/Tracel
 api-version: '26.1'
 load: POSTWORLD
 folia-supported: true
+permissions:
+  tracel.lookup:
+    description: Use lookup and teleport to its results.
+    default: op
+  tracel.inspect:
+    description: Use the block inspector.
+    default: true
+  tracel.near:
+    description: Use near.
+    default: true
+  tracel.player:
+    description: Use player.
+    default: op
+  tracel.preset:
+    description: Create and use your own presets.
+    default: true
+  tracel.preset.global:
+    description: Share presets with everyone and change server presets.
+    default: op
+  tracel.rollback:
+    description: Roll back and undo rollbacks.
+    default: op
+  tracel.status:
+    description: Show the status panel.
+    default: op
+  tracel.data:
+    description: Export, import, migrate and purge history.
+    default: op
 dependencies:
   server:
     WorldEdit:

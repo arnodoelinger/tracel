@@ -19,7 +19,7 @@ internal fun LiteralArgumentBuilder<CommandSourceStack>.nearBranch(actions: Comm
     val lookup = actions.lookup
     val store = actions.store
     literal("near", tr("command.near")) {
-        requiresPermission(Permission.LOOKUP)
+        requiresPermission(Permission.NEAR)
         executesCommand { ctx -> runNear(ctx.source.sender, emptyList(), store, lookup) }
         argument("flags", StringArgumentType.greedyString()) {
             suggests(LookupSuggest)

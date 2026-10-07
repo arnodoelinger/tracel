@@ -86,6 +86,7 @@
   "common": {
     "usage": "Please use \"/tracel <command> \\<params>\"",
     "busy": "Another job is running... Wait for it to finish",
+    "no_permission": "You don't have permission to use this command",
     "invalid": "<token> is not a valid argument — see suggestions to see what is allowed",
     "nothing": "there's nothing we can do",
     "label": {

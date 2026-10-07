@@ -6,13 +6,13 @@ import org.bukkit.permissions.Permissible
 enum class Permission(val node: String) {
     LOOKUP("tracel.lookup"),
     INSPECT("tracel.inspect"),
-    ROLLBACK("tracel.rollback"),
+    NEAR("tracel.near"),
+    PLAYER("tracel.player"),
     PRESET("tracel.preset"),
     PRESET_GLOBAL("tracel.preset.global"),
+    ROLLBACK("tracel.rollback"),
     STATUS("tracel.status"),
-    EXPORT("tracel.export"),
-    PURGE("tracel.purge"),
-    SETUP("tracel.setup"),
+    DATA("tracel.data"),
 }
 
 /** Whether this sender holds [permission]. */

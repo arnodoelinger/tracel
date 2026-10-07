@@ -12,9 +12,9 @@ internal enum class HelpTopic(val permission: Permission, val key: String) {
     LOOKUP(Permission.LOOKUP, "lookup"),
     INSPECT(Permission.INSPECT, "inspect"),
     ROLLBACK(Permission.ROLLBACK, "rollback"),
-    NEAR(Permission.LOOKUP, "near"),
-    PLAYER(Permission.LOOKUP, "player"),
+    NEAR(Permission.NEAR, "near"),
+    PLAYER(Permission.PLAYER, "player"),
     PRESET(Permission.PRESET, "preset"),
     STATUS(Permission.STATUS, "status"),
-    DATA(Permission.EXPORT, "data"),
+    DATA(Permission.DATA, "data"),
 }

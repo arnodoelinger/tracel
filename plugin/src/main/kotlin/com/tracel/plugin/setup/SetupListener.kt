@@ -18,7 +18,7 @@ internal class SetupListener(private val services: TracelServices, private val s
     @Observes
     fun onJoin(event: PlayerJoinEvent) {
         val player = event.player
-        if (!state.pending || !player.has(Permission.SETUP)) return
+        if (!state.pending || !player.has(Permission.DATA)) return
         player.scheduler.runDelayed(services.plugin, { if (state.pending) wizard.open(player) }, null, SHOW_AFTER_TICKS)
     }
 }

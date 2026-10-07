@@ -7,7 +7,6 @@ import com.tracel.plugin.command.brigadier.executesCommand
 import com.tracel.plugin.command.brigadier.literal
 import com.tracel.plugin.command.brigadier.requiresPermission
 import com.tracel.plugin.command.permission.Permission
-import com.tracel.plugin.command.permission.has
 import com.tracel.plugin.command.suggest.ExportSuggest
 import com.tracel.plugin.command.suggest.PurgeSuggest
 import com.tracel.plugin.command.tree.CommandActions
@@ -24,11 +23,10 @@ internal fun LiteralArgumentBuilder<CommandSourceStack>.dataBranch(actions: Comm
     val purge = actions.purge
     val services = actions.services
     literal("data", tr("command.data")) {
-        requires { it.sender.has(Permission.EXPORT) || it.sender.has(Permission.PURGE) }
+        requiresPermission(Permission.DATA)
         executesCommand { ctx -> ctx.source.sender.usage("data") }
 
         literal("export", tr("command.export")) {
-            requiresPermission(Permission.EXPORT)
             executesCommand { ctx -> export.confirmExport(ctx.source.sender) }
             literal("#confirm", tr("command.export_confirm")) {
                 executesCommand { ctx -> export.executeExport(ctx.source.sender) }
@@ -39,7 +37,6 @@ internal fun LiteralArgumentBuilder<CommandSourceStack>.dataBranch(actions: Comm
         }
 
         literal("import", tr("command.import")) {
-            requiresPermission(Permission.EXPORT)
             executesCommand { ctx -> ctx.source.sender.usage("data import") }
             literal("#stop", tr("command.import_stop")) {
                 executesCommand { ctx -> import.stop(ctx.source.sender) }
@@ -62,7 +59,6 @@ internal fun LiteralArgumentBuilder<CommandSourceStack>.dataBranch(actions: Comm
         }
 
         literal("migrate", tr("command.migrate")) {
-            requiresPermission(Permission.EXPORT)
             executesCommand { ctx -> ctx.source.sender.usage("data migrate") }
             literal("coreprotect", tr("command.migrate_coreprotect")) {
                 executesCommand { ctx -> coreProtect.preview(ctx.source.sender) }
@@ -76,7 +72,6 @@ internal fun LiteralArgumentBuilder<CommandSourceStack>.dataBranch(actions: Comm
         }
 
         literal("purge", tr("command.purge")) {
-            requiresPermission(Permission.PURGE)
             executesCommand { ctx -> purge.execute(ctx.source.sender, emptyList()) }
             argument("filters", StringArgumentType.greedyString()) {
                 suggests(PurgeSuggest)

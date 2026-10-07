@@ -23,6 +23,7 @@ import com.tracel.plugin.config.migrate.FileVersions
 import com.tracel.plugin.config.migrate.TomlMigrator
 import com.tracel.plugin.config.read.readSettings
 import com.tracel.plugin.i18n.Messages
+import com.tracel.plugin.command.permission.CommandGuard
 import com.tracel.plugin.integration.worldedit.WorldEditAttachListener
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
 import com.tracel.plugin.listener.listenersOf
@@ -260,6 +261,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         }
     }
     registerObserved(CommandOrderListener(), plugin)
+    registerObserved(CommandGuard(), plugin)
     registerObserved(entityKinds, plugin)
     val actorWrites = ActorWrites(services.scope)
     val modes = PlayerModes(actorWrites, actors)
