@@ -16,7 +16,9 @@
 - Flags and presets for lookups and rollbacks
 - `Paper` and `Folia` support (26.1–26.3)
 - `WorldEdit` and `FAWE` integration
+- `LuckPerms` integration
 - English and Russian language support
+- Wiki
 
 ## Server
 
