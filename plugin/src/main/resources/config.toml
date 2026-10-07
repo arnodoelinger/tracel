@@ -39,6 +39,16 @@ keep-items = "90d"
 keep-containers = "90d"
 keep-events = "90d"
 
+[paste]
+# Where "Export" uploads lookup results (a privatebin.net server)
+paste-url = "https://privatebin.net"
+
+# How long an uploaded paste stays online, e.g., 1day, 3day, 1week
+paste-expire = "3day"
+
+# If true, a paste is deleted the first time someone opens it
+paste-burn = false
+
 [advanced]
 # How often Tracel forces pending history to disk
 # "every-batch" = saves every commit safely before continuing
