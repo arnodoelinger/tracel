@@ -16,5 +16,6 @@ internal data class Settings(
     val logging: LoggingSettings = LoggingSettings(),
     val governor: GovernorSettings = GovernorSettings(),
     val paste: PasteSettings = PasteSettings(),
+    val updates: UpdateSettings = UpdateSettings(),
     val autoPurge: AutoPurgeSettings = AutoPurgeSettings(),
 )

@@ -17,6 +17,7 @@
 - `Paper` and `Folia` support (26.1–26.3)
 - `WorldEdit` and `FAWE` integration
 - `LuckPerms` integration
+- Update notifications (can be turned off)
 - English and Russian language support
 - Wiki
 

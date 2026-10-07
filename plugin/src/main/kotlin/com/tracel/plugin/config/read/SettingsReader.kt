@@ -27,6 +27,7 @@ internal fun readSettings(
     paste: TomlTable? = null,
     purge: TomlTable? = null,
     logging: TomlTable? = null,
+    updates: TomlTable? = null,
 ): Settings {
     val defaults = StoreSettings()
 
@@ -90,6 +91,8 @@ internal fun readSettings(
     }
     val pasteBurn = paste.setting("paste", "paste-burn", false, complain) { it as? Boolean }
 
+    val checkUpdates = updates.setting("updates", "check", true, complain) { it as? Boolean }
+
     val autoPurge = purge.setting("purge", "auto-purge", false, complain) { it as? Boolean }
     val purgeInterval = purge.setting("purge", "interval", DEFAULT_PURGE_INTERVAL_MILLIS, complain) {
         TimeArgument.parseDuration(it.toString().trim().lowercase())
@@ -115,6 +118,7 @@ internal fun readSettings(
         logging = LoggingSettings(logBlocks, logItems, logEntities, logEvents, logWorldEdit),
         governor = GovernorSettings(minNanos = minTickTime * NANOS_PER_MILLI, maxNanos = maxTickTime * NANOS_PER_MILLI),
         paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
+        updates = UpdateSettings(checkUpdates),
         autoPurge = AutoPurgeSettings(autoPurge, purgeInterval, keep),
     )
 }

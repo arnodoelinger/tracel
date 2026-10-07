@@ -208,4 +208,10 @@ class SettingsTest {
         assertFalse(readSettings(advanced = null, logging = Toml.parse("worldedit = false")).logging.worldEdit)
         assertTrue(readSettings(advanced = null, logging = Toml.parse("worldedit = true")).logging.worldEdit)
     }
+
+    @Test
+    fun `updates are checked unless the config says otherwise`() {
+        assertTrue(readSettings(advanced = null).updates.check)
+        assertFalse(readSettings(advanced = null, updates = Toml.parse("check = false")).updates.check)
+    }
 }

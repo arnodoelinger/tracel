@@ -1,5 +1,14 @@
 {
   "prefix": "<gray>T | ",
+  "update": {
+    "title": "Доступна новая версия Tracel <version>",
+    "ran": "<gray>Сейчас стоит</gray>: <version>",
+    "advice": "<gray>Рекомендация</gray>: обновить плагин",
+    "download": "<green>[→ Скачать]</green>",
+    "download_hover": "<white>Открыть .jar на GitHub</white>",
+    "news": "<aqua>[☰ Что нового]</aqua>",
+    "news_hover": "<white>Открыть описание релиза на GitHub</white>"
+  },
   "setup": {
     "title": "Добро пожаловать в настройку Tracel",
     "button": {

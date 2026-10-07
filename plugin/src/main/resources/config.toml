@@ -49,6 +49,10 @@ paste-expire = "3day"
 # If true, a paste is deleted the first time someone opens it
 paste-burn = false
 
+[updates]
+# Look for a newer Tracel version
+check = true
+
 [advanced]
 # How often Tracel forces pending history to disk
 # "every-batch" = saves every commit safely before continuing
