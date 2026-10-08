@@ -226,7 +226,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Publish to Hangar
-        run: ./gradlew :plugin:publishPluginPublicationToHangar --no-daemon
+        run: ./gradlew :plugin:publishPluginPublicationToHangar --no-daemon --no-configuration-cache
         env:
           HANGAR_API_TOKEN: ${{ secrets.HANGAR_API_TOKEN }}
           HANGAR_CHANNEL: ${{ needs.build.outputs.is_preview == 'true' && 'Snapshot' || 'Release' }}
