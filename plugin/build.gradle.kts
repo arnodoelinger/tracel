@@ -38,10 +38,6 @@ tasks {
         relocate("org.tomlj", "com.tracel.shaded.tomlj")
         relocate("org.bstats", "com.tracel.shaded.bstats")
         mergeServiceFiles()
-
-        exclude("aix/**", "freebsd/i386/**", "win/x86/**")
-        exclude("linux/i386/**", "linux/loongarch64/**", "linux/mips64/**")
-        exclude("linux/ppc64/**", "linux/ppc64le/**", "linux/riscv64/**", "linux/s390x/**")
     }
 
     build {
@@ -84,12 +80,12 @@ hangarPublish {
     publications.register("plugin") {
         version.set(project.version.toString())
         id.set("Tracel")
-        channel.set(providers.environmentVariable("HANGAR_CHANNEL").orElse("Snapshot"))
+        channel.set(providers.environmentVariable("HANGAR_CHANNEL").orElse("Release"))
         changelog.set(providers.environmentVariable("CHANGELOG_FILE").map { file(it).readText() }.orElse(""))
         apiKey.set(providers.environmentVariable("HANGAR_API_TOKEN"))
         platforms {
             register(Platforms.PAPER) {
-                jar.set(tasks.shadowJar.flatMap { it.archiveFile })
+                url.set("https://github.com/arnodoelinger/tracel/releases/download/v${project.version}/Tracel-${project.version}.jar")
                 platformVersions.set(listOf("26.1", "26.1.1", "26.1.2", "26.2", "26.3"))
                 dependencies {
                     url("WorldEdit", "https://enginehub.org/worldedit") { required.set(false) }

@@ -146,10 +146,6 @@ jobs:
           if unrelocated:
               raise SystemExit(f"{jar} bundles unrelocated libraries: {unrelocated}.")
 
-          size_mb = jar.stat().st_size / 1024 / 1024
-          if size_mb >= 15:
-              raise SystemExit(f"{jar} is {size_mb:.1f} MB, Hangar takes less than 15 MB.")
-
           with ZipFile(jar) as zip_file:
               descriptor = zip_file.read("paper-plugin.yml").decode("utf-8")
           if f"version: '{version}'" not in descriptor:
