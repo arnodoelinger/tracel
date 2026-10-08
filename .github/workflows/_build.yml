@@ -1,7 +1,7 @@
 name: Build
 
 # Reusable build pipeline: assembles the plugin .jar, then runs the tests and the
-# architecture checks. Called by ci.yml (every push / PR).
+# architecture checks. Called by ci.yml (every push / PR) and release.yml (version tags).
 on:
   workflow_call:
     outputs:
@@ -15,6 +15,8 @@ on:
         value: ${{ jobs.metadata.outputs.is_preview }}
       is_release:
         value: ${{ jobs.metadata.outputs.is_release }}
+      is_publishable:
+        value: ${{ jobs.metadata.outputs.is_publishable }}
 
 permissions:
   contents: read
@@ -30,6 +32,7 @@ jobs:
       is_dev: ${{ steps.get_version.outputs.is_dev }}
       is_preview: ${{ steps.get_version.outputs.is_preview }}
       is_release: ${{ steps.get_version.outputs.is_release }}
+      is_publishable: ${{ steps.get_version.outputs.is_publishable }}
 
     steps:
       - name: Checkout repository
@@ -67,6 +70,12 @@ jobs:
             echo "is_preview=false" >> $GITHUB_OUTPUT
             echo "is_release=false" >> $GITHUB_OUTPUT
             echo "pretty_version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
+          if [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+)*(-preview\.[0-9]+)?$ ]]; then
+            echo "is_publishable=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_publishable=false" >> $GITHUB_OUTPUT
           fi
 
   build:

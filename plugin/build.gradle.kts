@@ -1,7 +1,10 @@
+import io.papermc.hangarpublishplugin.model.Platforms
+
 plugins {
     id("tracel.kotlin-conventions")
     alias(libs.plugins.shadow)
     alias(libs.plugins.run.paper)
+    alias(libs.plugins.hangar.publish)
     alias(libs.plugins.ksp)
 }
 
@@ -70,5 +73,26 @@ tasks {
 runPaper {
     folia {
         registerTask()
+    }
+}
+
+hangarPublish {
+    publications.register("plugin") {
+        version.set(project.version.toString())
+        id.set("Tracel")
+        channel.set(providers.environmentVariable("HANGAR_CHANNEL").orElse("Snapshot"))
+        changelog.set(providers.environmentVariable("CHANGELOG_FILE").map { file(it).readText() }.orElse(""))
+        apiKey.set(providers.environmentVariable("HANGAR_API_TOKEN"))
+        platforms {
+            register(Platforms.PAPER) {
+                jar.set(tasks.shadowJar.flatMap { it.archiveFile })
+                platformVersions.set(listOf("26.1", "26.1.1", "26.1.2", "26.2", "26.3"))
+                dependencies {
+                    url("WorldEdit", "https://enginehub.org/worldedit") { required.set(false) }
+                    url("FastAsyncWorldEdit", "https://www.spigotmc.org/resources/13932/") { required.set(false) }
+                    url("LuckPerms", "https://luckperms.net") { required.set(false) }
+                }
+            }
+        }
     }
 }
