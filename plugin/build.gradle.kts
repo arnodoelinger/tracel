@@ -38,6 +38,10 @@ tasks {
         relocate("org.tomlj", "com.tracel.shaded.tomlj")
         relocate("org.bstats", "com.tracel.shaded.bstats")
         mergeServiceFiles()
+
+        exclude("aix/**", "freebsd/i386/**", "win/x86/**")
+        exclude("linux/i386/**", "linux/loongarch64/**", "linux/mips64/**")
+        exclude("linux/ppc64/**", "linux/ppc64le/**", "linux/riscv64/**", "linux/s390x/**")
     }
 
     build {
