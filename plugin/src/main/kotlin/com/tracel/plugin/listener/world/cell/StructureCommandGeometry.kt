@@ -9,7 +9,7 @@ import org.bukkit.util.BoundingBox
 /** Vanilla refuses `/fill` and `/clone` past this; capturing more would log a no-op. */
 @Suppress("DEPRECATION")
 internal fun World.blockModificationLimit(): Int =
-    getGameRuleValue(GameRules.MAX_BLOCK_MODIFICATIONS) // TODO: elvis?
+    getGameRuleValue(GameRules.MAX_BLOCK_MODIFICATIONS)
 
 /** Inclusive block AABB; max is exclusive, same as [BoundingBox.of] for two blocks. */
 internal fun blockBox(from: ParsedBlockPos, to: ParsedBlockPos): BoundingBox =

@@ -37,7 +37,7 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
     @Observes
     @Unstable
     fun onCommand(event: PlayerCommandPreprocessEvent) {
-        record(EventKind.COMMAND, event.player, redacted(event.message)) // TODO: improve secret logic
+        record(EventKind.COMMAND, event.player, redacted(event.message))
     }
 
     @Observes

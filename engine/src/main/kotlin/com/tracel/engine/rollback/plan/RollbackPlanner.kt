@@ -38,10 +38,13 @@ public class RollbackPlanner(
     private val intoCache = mutableMapOf<LotId, List<LotEdge>>()
     private val lotCache = mutableMapOf<LotId, Lot>()
     private val holderCache = mutableMapOf<LotId, HolderId>()
+    private val placedLots = mutableSetOf<LotId>()
+
+    private var trial: Trial? = null
+
+    private val sharedOut = HashMap<LotId, MutableSet<LotId>>()
 
     public val placedAndUnreachable: Int get() = placedLots.size
-
-    private val placedLots = mutableSetOf<LotId>()
 
     private companion object {
         const val MAX_RUN = 4096
@@ -54,6 +57,7 @@ public class RollbackPlanner(
      * rollback steps without changing the ledger.
      */
     public suspend fun plan(rootLots: List<LotId>): RollbackPlan = repo.reading {
+        trial = null
         unmakeSteps.clear()
         sharedOut.clear()
         placedLots.clear()
@@ -75,8 +79,6 @@ public class RollbackPlanner(
 
         var frontier = walked.distinct()
         while (frontier.isNotEmpty()) {
-            // TODO: changes here can silently make valid rollback targets unreachable,
-            //  needs a proper fix
             edgeCache.putAll(repo.edgesFromAll(frontier.filter { it !in edgeCache }))
             val next = ArrayList<LotId>()
             for (id in frontier) {
@@ -197,7 +199,11 @@ public class RollbackPlanner(
 
     private suspend fun resolve(lotId: LotId, depth: Int): ResolvedLocation {
         val known = resolved.getOrPut(lotId) { arrayOfNulls(maxTransformDepth + 1) }
-        return known[depth] ?: locate(lotId, depth).also { known[depth] = it }
+        known[depth]?.let { return it }
+        val at = locate(lotId, depth)
+        known[depth] = at
+        trial?.slots?.add(lotId to depth)
+        return at
     }
 
     /**
@@ -232,7 +238,6 @@ public class RollbackPlanner(
         // and the older edge points at an output that no longer exists.
         val transforms = edges.filterIsInstance<LotEdge.Transform>()
         if (transforms.isNotEmpty()) {
-            // TODO: replace the depth limit with cycle-safe transform resolution or smth like that
             if (depth >= maxTransformDepth) {
                 val lot = lotOf(lotId)
                 return ResolvedLocation.Holder(lotId, HolderId.Sink(SinkKind.UNTRACKED_GAP), lot.quantity)
@@ -295,7 +300,7 @@ public class RollbackPlanner(
         val holder = holderCache[lotId] ?: return ResolvedLocation.Gone(lotId)
         // Standing in the world as itself
         if (holder.isPlacedThing() && !holder.reclaimedByStructure()) {
-            placedLots += lotId
+            if (placedLots.add(lotId)) trial?.placed?.add(lotId)
             return ResolvedLocation.Gone(lotId)
         }
         return ResolvedLocation.Holder(lotId, holder, lot.quantity)
@@ -350,12 +355,11 @@ public class RollbackPlanner(
      * @return the surviving output pieces when the craft can safely be unmade, or `null` when the
      * caller must fall back to resolving the pieces individually.
      */
-    // TODO: dangerous; make it better in future
     private suspend fun wholeOutput(
         output: LotId,
         split: ResolvedLocation.Split,
         depth: Int,
-    ): List<UnmadeOutput>? {
+    ): List<UnmadeOutput>? = guess {
         val pieces = ArrayList<UnmadeOutput>()
         val frontier = ArrayDeque(split.children)
         val seen = HashSet<LotId>()
@@ -365,7 +369,7 @@ public class RollbackPlanner(
             if (!seen.add(child)) continue
             when (val at = resolve(child, depth)) {
                 is ResolvedLocation.Holder -> {
-                    if (!at.holder.isReclaimable()) return null
+                    if (!at.holder.isReclaimable()) return@guess null
                     pieces += UnmadeOutput(at.lotId, at.holder)
                     // What sits there now. A piece resolved through a further craft is not placed at all,
                     // and an unmake destroys that whole lot.
@@ -377,18 +381,49 @@ public class RollbackPlanner(
                 }
 
                 is ResolvedLocation.Split -> frontier += at.children
-                is ResolvedLocation.Settled, is ResolvedLocation.Gone -> return null
+                is ResolvedLocation.Settled, is ResolvedLocation.Gone -> return@guess null
             }
         }
-        if (pieces.isEmpty()) return null
-        if (pieces.any { it.holder != pieces.first().holder }) return null
+        if (pieces.isEmpty()) return@guess null
+        if (pieces.any { it.holder != pieces.first().holder }) return@guess null
 
-        // TODO: add more regression tests for partially lost crafted outputs
-        if (covered != lotOf(output).quantity.raw) return null
-        return pieces
+        if (covered != lotOf(output).quantity.raw) return@guess null
+        pieces
     }
 
-    private val sharedOut = HashMap<LotId, MutableSet<LotId>>()
+    private class Trial {
+        val slots = ArrayList<Pair<LotId, Int>>()
+        val unmakes = ArrayList<TxnId>()
+        val placed = ArrayList<LotId>()
+        val claims = ArrayList<Pair<LotId, LotId>>()
+
+        fun absorb(inner: Trial) {
+            slots += inner.slots
+            unmakes += inner.unmakes
+            placed += inner.placed
+            claims += inner.claims
+        }
+    }
+
+    private suspend fun <T : Any> guess(block: suspend () -> T?): T? {
+        val outer = trial
+        val mine = Trial()
+        trial = mine
+        val result = try {
+            block()
+        } finally {
+            trial = outer
+        }
+        if (result != null) {
+            outer?.absorb(mine)
+            return result
+        }
+        for ((lot, depth) in mine.slots) resolved[lot]?.set(depth, null)
+        for (txn in mine.unmakes) unmakeSteps.remove(txn)
+        placedLots.removeAll(mine.placed.toSet())
+        for ((out, piece) in mine.claims) sharedOut[out]?.remove(piece)
+        return null
+    }
 
     private fun shareOf(transform: LotEdge.Transform, split: ResolvedLocation.Split): ResolvedLocation {
         val inputs = intoCache[transform.child].orEmpty().filterIsInstance<LotEdge.Transform>()
@@ -404,33 +439,23 @@ public class RollbackPlanner(
             val size = lotCache[piece]?.quantity?.raw ?: continue
             if (size > owed) continue
             taken += piece
+            trial?.claims?.add(transform.child to piece)
             mine += piece
             owed -= size
         }
         return ResolvedLocation.Split(mine)
     }
 
-    /**
-     * Adds an [RollbackStep.Unmake] for a craft if one has not already been registered.
-     *
-     * All transform edges belonging to the same crafting transaction share one unmake step, so
-     * the craft is undone as a single operation rather than as unrelated output pieces.
-     */
     private fun registerUnmake(transform: LotEdge.Transform, outputs: List<UnmadeOutput>) {
-        unmakeSteps.getOrPut(transform.craftedBy) {
-            val inputs = intoCache[transform.child].orEmpty()
-                .filterIsInstance<LotEdge.Transform>()
-                .map { LotContribution(it.parent, it.quantity) }
+        if (transform.craftedBy in unmakeSteps) return
+        val inputs = intoCache[transform.child].orEmpty()
+            .filterIsInstance<LotEdge.Transform>()
+            .map { LotContribution(it.parent, it.quantity) }
+        unmakeSteps[transform.craftedBy] =
             RollbackStep.Unmake(outputs, inputs, transform.craftedBy, outputs.first().holder)
-        }
+        trial?.unmakes?.add(transform.craftedBy)
     }
 
-    /**
-     * Converts a resolved holder into the rollback action needed to recover its material.
-     *
-     * Real holders produce [RollbackStep.Take]. Sinks and vanished holders cannot provide the
-     * original material, so they require compensation instead.
-     */
     private fun actionFor(location: ResolvedLocation.Holder): RollbackStep {
         val (lotId, holder, quantity) = location
         if (holder in vanished) return RollbackStep.Mint(lotId, quantity, SinkKind.UNTRACKED_GAP)

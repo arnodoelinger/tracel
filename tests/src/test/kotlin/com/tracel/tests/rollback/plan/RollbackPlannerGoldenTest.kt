@@ -1,5 +1,7 @@
 package com.tracel.tests.rollback.plan
 
+import com.tracel.engine.ledger.craft.Ingredient
+import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackPlanner
 import com.tracel.engine.rollback.plan.RollbackTarget
@@ -175,6 +177,45 @@ class RollbackPlannerGoldenTest {
         apply(world, plan)
         assertEquals(emptyMap<ItemKey, Quantity>(), world.ledger.totalsAt(chest))
         assertEquals(emptyMap<ItemKey, Quantity>(), world.ledger.totalsAt(steve))
+    }
+
+    @Test
+    fun `a rejected whole output does not unmake a craft outside the share`() = runTest {
+        val world = LedgerHarness()
+        val coal = ItemKey("minecraft:coal")
+        val torch = ItemKey("minecraft:torch")
+        val lantern = ItemKey("minecraft:lantern")
+        val root = world.ledger.mint(steve, log, Quantity(2), world.nextTxn())
+        world.ledger.mint(steve, coal, Quantity(6), world.nextTxn())
+        world.ledger.craft(
+            listOf(Ingredient(steve, log, Quantity(2)), Ingredient(steve, coal, Quantity(6))),
+            Product(steve, torch, Quantity(8)),
+            world.nextTxn(),
+        )
+        world.ledger.move(steve, alex, torch, Quantity(2), world.nextTxn())
+        world.craft(steve, torch, 6, lantern, 1)
+
+        val plan = world.planner().plan(listOf(root.id))
+
+        golden(plan, listOf(take(4, 2, alex)), mapOf(LotId(4) to root.id))
+    }
+
+    @Test
+    fun `a whole output with a crafted piece is still unmade as one`() = runTest {
+        val world = LedgerHarness()
+        val root = world.ledger.mint(steve, log, Quantity(4), world.nextTxn())
+        world.craft(steve, log, 4, planks, 16)
+        world.craft(steve, planks, 8, table, 1)
+
+        val plan = world.planner().plan(listOf(root.id))
+
+        assertEquals(2, plan.steps.count { it is RollbackStep.Unmake })
+        assertEquals(listOf(take(1, 4, steve)), plan.steps.filterIsInstance<RollbackStep.Take>())
+        apply(world, plan)
+        assertEquals(mapOf(log to Quantity(4)), world.ledger.totalsAt(chest))
+        assertEquals(emptyMap<ItemKey, Quantity>(), world.ledger.totalsAt(steve))
+        assertEquals(0L, world.ledger.census(planks))
+        assertEquals(0L, world.ledger.census(table))
     }
 
     private fun golden(plan: RollbackPlan, steps: List<RollbackStep>, rootOf: Map<LotId, LotId>) {
