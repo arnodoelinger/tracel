@@ -31,7 +31,6 @@ import kotlin.math.min
  * Everything it knows is one immutable [RepositoryState]. A write builds the next state and publishes it whole, so
  * readers on any thread see either the old picture or the new one, never a half.
  */
-// TODO: refactor ts
 @SingleWriter
 @RunsOn(ThreadContext.STORAGE)
 public class InMemoryLotRepository : LotRepository, UnitOfWork {
@@ -417,5 +416,4 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         if (map.isNullOrEmpty()) return emptyList()
         return map.values.toList()
     }
-
 }

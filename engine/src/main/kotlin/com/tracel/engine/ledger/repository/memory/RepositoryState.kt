@@ -30,8 +30,8 @@ internal data class RepositoryState(
     val holdersOf: PersistentMap<ItemKey, PersistentSet<HolderId>> = persistentHashMapOf(),
 ) {
     /**
-     * The account of [holder] and [itemKey], or `null` if either was never interned and so nothing was ever placed
-     * there.
+     * The account of [holder] and [itemKey], or `null` if either was never interned and so
+     * nothing was ever placed there.
      */
     fun keyOrNull(holder: HolderId, itemKey: ItemKey): AccountKey? {
         val h = internedHolders[holder] ?: return null
@@ -69,15 +69,18 @@ internal data class RepositoryState(
         )
     }
 
-    /** Forgets the edge from [parent] to [child] in both directions, dropping a lot's map once it has no edges left. */
+    /**
+     * Forgets the edge from [parent] to [child] in both directions, dropping a lot's map once it
+     * has no edges left.
+     */
     fun removeEdge(parent: LotId, child: LotId): RepositoryState = copy(
         edgesByParent = dropNested(edgesByParent, parent, child),
         edgesByChild = dropNested(edgesByChild, child, parent),
     )
 
     /**
-     * Puts [entry] in its account's queue at the place its sequence number gives, and keeps [byLot], the account total
-     * and the indexes in step.
+     * Puts [entry] in its account's queue at the place its sequence number gives, and keeps [byLot],
+     * the account total and the indexes in step.
      */
     fun putPlacement(entry: AccountLot): RepositoryState {
         val interned = intern(entry.holder, entry.lot.itemKey)
@@ -92,7 +95,8 @@ internal data class RepositoryState(
     }
 
     /**
-     * Takes [lotId] out of [holder]'s queue and everything derived from it; unchanged if the lot is not placed there.
+     * Takes [lotId] out of [holder]'s queue and everything derived from it;
+     * unchanged if the lot is not placed there.
      */
     fun unplace(holder: HolderId, lotId: LotId): RepositoryState {
         val entry = byLot[lotId]?.takeIf { it.holder == holder } ?: return this
@@ -133,8 +137,8 @@ internal data class RepositoryState(
     }
 
     /**
-     * Every entry of every queue that [keys] name, each key turned into an account by [account]; empty when there are
-     * none.
+     * Every entry of every queue that [keys] name, each key turned into an account by [account];
+     * empty when there are none.
      */
     fun <T> collectPlacements(keys: PersistentSet<T>?, account: (T) -> AccountKey?): List<AccountLot> {
         if (keys.isNullOrEmpty()) return emptyList()

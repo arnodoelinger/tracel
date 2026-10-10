@@ -1,16 +1,17 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.rollback.composer.warmForPreview
 import com.tracel.plugin.command.args.action.ActionFilter
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.rollback.FilterResult
+import com.tracel.plugin.command.action.support.actor
+import com.tracel.plugin.command.action.support.askedAboutEntities
+import com.tracel.plugin.command.action.support.rescuing
+import com.tracel.plugin.command.action.support.underGate
 import com.tracel.plugin.command.args.rollback.RollbackArgument
 import com.tracel.plugin.command.highlight.Highlights
 import com.tracel.plugin.command.presenter.RollbackPresenter
-import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
 import com.tracel.plugin.command.presenter.RollbackPresenter.resurrections
-import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.metrics.Telemetry
 import com.tracel.plugin.rollback.composer.FULL_FLUSH_SECONDS
@@ -19,7 +20,6 @@ import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.services.TracelServices
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
@@ -30,11 +30,7 @@ import kotlin.time.Duration.Companion.milliseconds
 /** How long planning may run before the player is told it has started. */
 private const val PLANNING_NOTICE_MILLIS = 2_000L
 
-/** Whose undo stack a job lands on: a player's own, or the console's. */
-internal fun CommandSender.actor(): HolderId? = (this as? Player)?.let { HolderId.Player(it.uniqueId) }
-
 /** Action responsible for orchestrating rollback operations, retries, and previews. */
-// TODO: improve this in future
 class RollbackAction internal constructor(
     private val services: TracelServices,
     private val highlights: Highlights? = null,
@@ -83,39 +79,32 @@ class RollbackAction internal constructor(
                 )
             }
 
-            is FilterResult.Ok -> if (!services.composite.claimGate()) {
-                sender.send("common.busy")
-            } else services.scope.launch {
+            is FilterResult.Ok -> services.underGate(sender) {
                 Telemetry.flags(Telemetry.ROLLBACK_FLAGS, parsed)
                 if (!parsed.preview) Telemetry.rollbackReach(parsed)
-                try {
-                    services.purgeGate.awaitSlice()
-                    services.composite.holdingStill(filter.filter.region) { rollbackFiltered(sender, parsed, filter) }
-                } finally {
-                    services.composite.releaseGate()
-                }
+                services.composite.holdingStill(filter.filter.region) { rollbackFiltered(sender, parsed, filter) }
             }
         }
     }
 
     private suspend fun rollbackFiltered(sender: CommandSender, parsed: ParsedLookupArgs, filter: FilterResult.Ok) {
         val replan: suspend () -> Planned? = {
-            try {
+            rescuing(
+                onFailure = { failure ->
+                    Telemetry.rollback("plan failed")
+                    RollbackPresenter.refused(
+                        sender,
+                        tr("rollback.reason.plan_failed", "reason" to unexpected(failure)),
+                        tr("rollback.hint.again")
+                    )
+                    null
+                },
+            ) {
                 services.composite.plan(
                     filter.filter,
                     structure = !parsed.materialOnly && filter.actions.structural,
                     material = !parsed.structureOnly && filter.actions.material,
                 )
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                Telemetry.rollback("plan failed")
-                RollbackPresenter.refused(
-                    sender,
-                    tr("rollback.reason.plan_failed", "reason" to unexpected(failure)),
-                    tr("rollback.hint.again")
-                )
-                null
             }
         }
 
@@ -148,8 +137,11 @@ class RollbackAction internal constructor(
             } else 0
             RollbackPresenter.preview(sender, planned, halves, ghosts, GHOST_SECONDS)
             services.scope.launch { warmForPreview(services, planned) }
-        } else if (!askedAboutEntities(sender, planned, parsed.confirmed)) {
-            runRollback(sender, planned, halves, parsed.strict, replan)
+        } else {
+            val asked = services.askedAboutEntities(sender, parsed.confirmed) {
+                planned.composite.create.resurrections()
+            }
+            if (!asked) runRollback(sender, planned, halves, parsed.strict, replan)
         }
     }
 
@@ -181,14 +173,14 @@ class RollbackAction internal constructor(
                 sender.send("rollback.nothing", "halves" to halves)
                 return
             }
-            val outcome = try {
+            val outcome = rescuing(
+                onFailure = { failure ->
+                    Telemetry.rollback("failed")
+                    RollbackPresenter.refused(sender, Component.text(unexpected(failure)), tr("rollback.hint.again"))
+                    return
+                },
+            ) {
                 services.composite.apply(attempt.copy(by = sender.actor()), strict)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                Telemetry.rollback("failed")
-                RollbackPresenter.refused(sender, Component.text(unexpected(failure)), tr("rollback.hint.again"))
-                return
             }
             when (outcome) {
                 is RollbackResult.Done -> {
@@ -210,12 +202,8 @@ class RollbackAction internal constructor(
                     Telemetry.rollback("unreachable")
                     RollbackPresenter.refused(
                         sender,
-                        tr(
-                            "rollback.reason.unreachable",
-                            "holder" to ChangeLinePresenter.holder(outcome.holder),
-                            "reason" to outcome.reason
-                        ),
-                        tr("rollback.hint.unreachable")
+                        RollbackPresenter.unreachable(outcome),
+                        tr("rollback.hint.unreachable"),
                     )
                     return
                 }
@@ -235,21 +223,5 @@ class RollbackAction internal constructor(
             tr("rollback.reason.stale", "attempts" to STALE_ATTEMPTS),
             tr("rollback.hint.stale")
         )
-    }
-
-    private fun askedAboutEntities(sender: CommandSender, planned: Planned, confirmed: Boolean): Boolean {
-        if (confirmed) return false
-        val spawns = planned.composite.create.resurrections()
-        if (spawns.size <= services.entityRestoreLimit) return false
-        sender.needed(
-            info = tr(
-                "rollback.entities",
-                "count" to spawns.size,
-                "mostly" to mostly(spawns),
-                "limit" to services.entityRestoreLimit
-            ),
-            hint = confirmHint(),
-        )
-        return true
     }
 }

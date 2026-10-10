@@ -1,10 +1,12 @@
 package com.tracel.plugin.command.presenter
 
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
+import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.specifics.block.isAirLike
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -22,6 +24,13 @@ object RollbackPresenter {
     /** A rollback that did not start or did not finish, told like every other failure: why, and what to do. */
     fun refused(sender: CommandSender, reason: Component, hint: Component) =
         sender.failed("rollback.failed", reason, hint)
+
+    /** Why a rollback or an undo stopped at a holder it could not reach. */
+    fun unreachable(outcome: Unreachable): Component = tr(
+        "rollback.reason.unreachable",
+        "holder" to ChangeLinePresenter.holder(outcome.holder),
+        "reason" to outcome.reason,
+    )
 
     /** A preview of what a rollback would do, with a link to apply it. */
     fun preview(sender: CommandSender, planned: Planned, halves: Component, ghosts: Int, ghostSeconds: Int) {
