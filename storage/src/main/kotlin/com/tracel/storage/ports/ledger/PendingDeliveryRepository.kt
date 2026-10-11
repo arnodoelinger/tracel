@@ -16,12 +16,6 @@ class PendingDeliveryRepository(
     private val storage: TracelStorage,
     private val counters: Counters,
 ) : PendingDeliveryRepositoryPort {
-    /**
-     * Queues every entry in [deltas] for [player] as one durable batch.
-     *
-     * A crash partway through a multi-item-key restore must not leave some of it queued and the
-     * rest silently owed to nobody, which is why this is one unit of work and not a loop of them.
-     */
     override suspend fun enqueueAll(
         player: UUID,
         deltas: Map<ItemKey, Long>,
@@ -46,7 +40,6 @@ class PendingDeliveryRepository(
         }
     }
 
-    /** Atomically reads and deletes every entry owed to [player], in one unit of work. */
     override suspend fun claimFor(player: UUID): List<PendingDelivery> = storage.write {
         val out = ArrayList<PendingDelivery>()
         val keys = ArrayList<ByteArray>()

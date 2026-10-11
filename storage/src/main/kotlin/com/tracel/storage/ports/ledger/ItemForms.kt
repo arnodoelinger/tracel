@@ -24,7 +24,6 @@ import com.tracel.engine.ledger.ItemForms as ItemFormsPort
  * number — the same sword enchanted the same way is the same row however many people own one.
  */
 class ItemForms(private val storage: TracelStorage) : ItemFormsPort {
-    /** The same for a whole batch, as one commit. */
     override suspend fun rememberAll(forms: Map<ContentHash, ByteArray>) {
         if (forms.isEmpty()) return
         storage.write {
@@ -35,7 +34,6 @@ class ItemForms(private val storage: TracelStorage) : ItemFormsPort {
         }
     }
 
-    /** The serialized item behind [hash], or null if this store never saw one. */
     override suspend fun find(hash: ContentHash): ByteArray? = storage.read {
         get(Keys.itemForm(hash.digest()))?.toArray(JAVA_BYTE)
     }

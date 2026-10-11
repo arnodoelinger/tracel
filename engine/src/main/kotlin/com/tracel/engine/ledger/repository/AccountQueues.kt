@@ -30,9 +30,7 @@ public interface AccountQueues {
         txn: TxnId,
     ): List<LotPortion>
 
-    /**
-     * Same FIFO consume as [takeFifo], handed to several destinations in [owed] order, one pass.
-     */
+    /** Same FIFO consume as [takeFifo], handed to several destinations in [owed] order. */
     @Consume
     public suspend fun drainFifo(
         holder: HolderId,

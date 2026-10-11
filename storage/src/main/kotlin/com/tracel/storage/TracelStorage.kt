@@ -135,7 +135,6 @@ class TracelStorage private constructor(
         return finished
     }
 
-    /** Closes the storage and releases all associated resources. */
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         engine.close()

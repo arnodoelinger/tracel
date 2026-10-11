@@ -7,7 +7,6 @@ package com.tracel.engine.ledger.repository.memory
 @JvmInline
 internal value class AccountKey(val raw: Long) {
     companion object {
-        /** The key of the account that [holder] and [item], both interned numbers, name. */
         fun pack(holder: Int, item: Int): AccountKey =
             AccountKey((holder.toLong() shl 32) or (item.toLong() and 0xFFFF_FFFFL))
     }

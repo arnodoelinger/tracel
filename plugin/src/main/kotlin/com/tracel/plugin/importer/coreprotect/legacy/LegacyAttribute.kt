@@ -35,6 +35,5 @@ internal enum class LegacyAttribute : LegacyRegistry {
     HORSE_JUMP_STRENGTH,
     ZOMBIE_SPAWN_REINFORCEMENTS;
 
-    /** `GENERIC_MAX_HEALTH` was `minecraft:max_health`: the word before the first underscore was only a group. */
     override val key: String get() = "minecraft:${name.substringAfter('_').lowercase()}"
 }

@@ -41,10 +41,6 @@ import com.tracel.engine.world.WorldLog as WorldLogPort
 class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     private val interning: Interning get() = storage.interning
 
-    /**
-     * Appends a single change to the log and all its indexes. The log is append-only, so a change
-     * at a sequence number that already exists is an error.
-     */
     override suspend fun append(change: WorldChange) {
         storage.write {
             val seq = change.seq.raw
@@ -113,18 +109,6 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         }
     }
 
-    /**
-     * Groups one event's edits by chunk section and writes the dense ones as a single record.
-     *
-     * A blast is one cause, one actor and one instant across thirty thousand blocks. Filing it a
-     * block at a time wrote that same answer thirty thousand times over four families and left
-     * thirty thousand rows in the spatial index for the next rollback to walk. Grouped, a section
-     * is one record and one index row, and the blocks inside it cost about two bytes each.
-     *
-     * Sparse leftovers still go one at a time: below [SECTION_DELTA_FROM] a delta's fixed header
-     * costs more than the records it would replace, and a player placing one block is not an
-     * event worth a palette.
-     */
     override suspend fun appendAll(edits: BlockEdits, nextSeqRange: suspend (Int) -> Seq): Int {
         val real = edits.edits.filter { it.before != it.after }
         if (real.isEmpty()) return 0
@@ -353,13 +337,6 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 ((z shr 4).toLong() and 0x3FFFFF shl 20) or
                 ((y shr 4).toLong() and 0xFFFFF)
 
-    /**
-     * Two families answer this: the per-coordinate one, and the per-section one that the deltas
-     * write. Both come out newest first on their own, so the two are merged rather than sorted.
-     *
-     * A delta names a section, not a block, so each one found has to be asked whether it touched
-     * this coordinate — a bit test — and only then unpacked.
-     */
     override suspend fun at(pos: BlockPos, limit: Int): List<WorldChange> = storage.read {
         val worldId = interning.findWorldId(this, pos.world) ?: return@read emptyList()
         val single = ArrayList<WorldChange>(limit.coerceAtMost(INITIAL_CAPACITY))
@@ -502,7 +479,6 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         (slot[0] as List<WorldChange>) to (slot[1] as List<com.tracel.model.transaction.Transaction>)
     }
 
-    /** The main query, which is the same as [queryTogether] but without the transaction side. */
     override suspend fun query(filter: LookupFilter): List<WorldChange> = storage.read {
         val ids = interning.idsFor(this, filter)
         if (ids.matchesNothing) return@read emptyList()

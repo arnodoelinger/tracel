@@ -23,7 +23,6 @@ import com.tracel.engine.capture.CaptureGate as CaptureGatePort
 class CaptureGate(private val ring: CaptureRing) : CaptureGatePort {
     val dropped: Long get() = ring.dropped
 
-    /** A quantity of one item key moving between two holders. The whole hot path, in one call. */
     override fun move(
         cause: CauseKind,
         causedBy: HolderId?,
@@ -55,7 +54,6 @@ class CaptureGate(private val ring: CaptureRing) : CaptureGatePort {
         return true
     }
 
-    /** One unbalanced delta — a mint or a burn the balancer will pair against a source or a sink. */
     override fun single(
         cause: CauseKind,
         causedBy: HolderId?,
@@ -84,7 +82,6 @@ class CaptureGate(private val ring: CaptureRing) : CaptureGatePort {
         return true
     }
 
-    /** A diff's worth of deltas. The list is the caller's; nothing here keeps a reference to it. */
     override fun many(cause: CauseKind, causedBy: HolderId?, epochMillis: Long, deltas: List<InventoryDelta>): Boolean {
         if (deltas.isEmpty()) return true
         if (deltas.size > CaptureRing.MAX_DELTAS) return false
@@ -110,13 +107,6 @@ class CaptureGate(private val ring: CaptureRing) : CaptureGatePort {
         return true
     }
 
-    /**
-     * Block edits that happened together — the world log's hot path.
-     *
-     * Only takes edits whose shapes carry no extras, because a sign's text is variable-length and
-     * a ring slot is 24 bytes. Returns `false` for anything else so the caller knows to go the
-     * slow way round rather than quietly losing it.
-     */
     override fun blocks(
         cause: CauseKind,
         action: ActionKind,
@@ -170,13 +160,10 @@ class CaptureGate(private val ring: CaptureRing) : CaptureGatePort {
         return true
     }
 
-    /** Block edits the ring cannot carry. */
     override fun parkedBlocks(edits: BlockEdits): Boolean = ring.park(edits.cause, edits.epochMillis, edits)
 
-    /** Item deltas that carry a place. */
     override fun parkedDeltas(placed: PlacedDeltas): Boolean = ring.park(placed.cause, placed.epochMillis, placed)
 
-    /** Everything [from] held went to [to] — see [CaptureRing.release]. */
     override fun release(
         cause: CauseKind,
         causedBy: HolderId?,

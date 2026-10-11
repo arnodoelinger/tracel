@@ -42,7 +42,6 @@ import com.tracel.engine.log.TransactionLog as TransactionLogPort
 class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
     private val interning: Interning get() = storage.interning
 
-    /** Appends [transaction] to the log, and indexes it for search. */
     override suspend fun append(transaction: Transaction) {
         storage.write {
             check(get(Keys.txnById(transaction.id.raw)) == null) {
@@ -118,13 +117,11 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         }
     }
 
-    /** @return the transaction with [id], or null if it doesn't exist. */
     override suspend fun find(id: TxnId): Transaction? = storage.read {
         val seq = get(Keys.txnById(id.raw))?.let(Records::asLong) ?: return@read null
         get(Keys.txn(seq))?.let { decode(this, seq, it) }
     }
 
-    /** @return the transaction at [seq], or null if it doesn't exist. */
     override suspend fun lotsAt(seq: Seq): List<FlowLot> = storage.read {
         val out = ArrayList<FlowLot>()
         eachRow(Keys.txnLotPrefix(seq.raw)) { cursor ->
@@ -137,7 +134,6 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         out
     }
 
-    /** @return the lots at every `seq` in [seqs], newest first. */
     override suspend fun lotsAtAll(seqs: List<Seq>): Map<Seq, List<FlowLot>> = storage.read {
         val loaded = loadLots(this, LongArray(seqs.size) { i -> seqs[i].raw })
         val out = HashMap<Seq, List<FlowLot>>(loaded.size)
@@ -186,7 +182,6 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         return out
     }
 
-    /** @return the transactions that match [filter], newest first. */
     override suspend fun query(filter: LookupFilter): List<Transaction> = storage.read {
         val ids = interning.idsFor(this, filter)
         if (ids.matchesNothing) return@read emptyList()

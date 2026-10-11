@@ -29,13 +29,10 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         storage.afterReplace(::forget)
     }
 
-    /** @return a new transaction ID. */
     override suspend fun nextTxnId(): TxnId = TxnId(next(TXN))
 
-    /** @return a new sequence number. */
     override suspend fun nextSeq(): Seq = Seq(next(SEQ)).also { issued.incrementAndGet() }
 
-    /** @return a new range of sequence numbers. */
     override suspend fun nextSeqRange(count: Int): Seq {
         require(count > 0) { "a range of $count sequences is not a range" }
         if (count == 1) return nextSeq()
@@ -45,13 +42,8 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     /** @return a new lot ID. */
     suspend fun nextLotId(): LotId = LotId(next(LOT))
 
-    /** @return a new FIFO sequence number. */
-    suspend fun nextFifoSeq(): Seq = Seq(next(PLACEMENT))
-
-    /** @return a new rollback job ID. */
     override suspend fun nextRollbackJobId(): RollbackJobId = RollbackJobId(next(ROLLBACK_JOB))
 
-    /** @return a new pending delivery ID. */
     suspend fun nextPendingDeliveryId(): Long = next(PENDING_DELIVERY)
 
     /** @return a new lot ID. */
@@ -63,7 +55,6 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     /** @return a new pack ID, inside [unit]. */
     fun nextPackIdOn(unit: StorageUnit): Long = nextOn(unit, PACK)
 
-    /** @return a new sequence number. */
     override suspend fun peekTxnId(): Long {
         lock.lock()
         val cached = try {

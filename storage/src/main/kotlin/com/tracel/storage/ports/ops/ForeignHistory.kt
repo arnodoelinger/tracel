@@ -33,7 +33,6 @@ class ForeignHistory(
     private val events: EventLog,
     private val counters: Counters,
 ) : ForeignHistoryPort {
-    /** Makes sure there is room below our own history, and says how much of [source] is already in. */
     override suspend fun room(source: Long): ImportRoom = storage.write {
         val seqKey = Keys.counter(Counters.SEQ)
         val own = get(seqKey)?.let(Records::asLong)
@@ -52,12 +51,6 @@ class ForeignHistory(
         ImportRoom(ownSince, get(Keys.importMark(source))?.let(::mark))
     }
 
-    /**
-     * Files [records] in the order given, and notes that [source] was read up to [rows]. Both land together:
-     * a crash leaves the mark at whatever really is in the store, so the next run takes it from there.
-     *
-     * @return how many records were written
-     */
     override suspend fun append(source: Long, rows: List<Long>, records: List<ForeignRecord>): Int = storage.batched {
         var next = storage.read { nextImportSeq() }
         val firstTxn =
@@ -119,19 +112,11 @@ class ForeignHistory(
         written
     }
 
-    /**
-     * The sequence number below which every record was imported, or `0` if nothing here could have been.
-     *
-     * Imported history is read and never rolled back because of fundamental differences between other plugins
-     * and `Tracel`. For example, `CoreProtect` does not know about lots and it doesn't have ledger transactions, so
-     * it's impossible to know what to leave alone when rolling back a block change.
-     */
     override suspend fun importedBelow(): Long = storage.read {
         val own = get(Keys.counter(Counters.SEQ))?.let(Records::asLong) ?: Counters.SEQ_BASE
         if (own >= Counters.SEQ_BASE) Counters.SEQ_BASE else 0L
     }
 
-    /** Says what kind of mob [entity] is, for an actor that is known by its type alone. */
     override suspend fun noteKind(entity: UUID, kind: EntityTypeKey) {
         storage.write {
             val id = storage.interning.internHolder(this, HolderId.Entity(entity))

@@ -14,7 +14,6 @@ import com.tracel.engine.world.GroundPositions as GroundPositionsPort
  * final position so a rollback can drop it back in the right place.
  */
 class GroundPositions(private val storage: TracelStorage) : GroundPositionsPort {
-    /** Saves the final ground position of multiple dropped items. */
     override suspend fun rememberAll(positions: Map<HolderId.ItemEntity, HolderId.Block>) {
         if (positions.isEmpty()) return
         storage.write {
@@ -26,7 +25,6 @@ class GroundPositions(private val storage: TracelStorage) : GroundPositionsPort 
         }
     }
 
-    /** Returns where [item] was last seen on the ground. */
     override suspend fun find(item: HolderId.ItemEntity): HolderId.Block? = storage.read {
         val itemId = storage.interning.findHolderId(this, item) ?: return@read null
         val record = get(Keys.groundAt(itemId)) ?: return@read null

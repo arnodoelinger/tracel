@@ -11,7 +11,6 @@ import com.tracel.engine.log.RolledBack as RolledBackPort
 
 /** Which log records a rollback took back, and when. */
 class RolledBack(private val storage: TracelStorage) : RolledBackPort {
-    /** Notes that job [job] took back [seqs] at [millis]. */
     override suspend fun mark(job: Long, seqs: LongArray, millis: Long) {
         var from = 0
         while (from < seqs.size) {
@@ -29,7 +28,6 @@ class RolledBack(private val storage: TracelStorage) : RolledBackPort {
         }
     }
 
-    /** Forgets what job [job] took back: its rollback was undone. */
     override suspend fun restore(job: Long) {
         do {
             val done = storage.write {
@@ -47,7 +45,6 @@ class RolledBack(private val storage: TracelStorage) : RolledBackPort {
         } while (!done)
     }
 
-    /** When each of [seqs] was taken back, for those that were. */
     override suspend fun of(seqs: Collection<Long>): Map<Long, Long> {
         if (seqs.isEmpty()) return emptyMap()
         return storage.read {

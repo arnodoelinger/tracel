@@ -20,7 +20,6 @@ public class InMemoryContainerSlotLog : ContainerSlotLog {
     private val seq = AtomicLong(0)
     private val byHolder = ConcurrentHashMap<HolderId, ConcurrentSkipListMap<Long, Entry>>()
 
-    /** The layout that was recorded at [epochMillis]. */
     private data class Entry(val epochMillis: Long, val slots: List<ContainerSlotEntry>)
 
     override suspend fun record(holder: HolderId, epochMillis: Long, slots: List<ContainerSlotEntry>) {
@@ -42,7 +41,6 @@ public class InMemoryContainerSlotLog : ContainerSlotLog {
     }
 
     private companion object {
-        /** Turns a sequence into a key that sorts newest first. */
         fun descKey(seq: Long): Long = Long.MAX_VALUE - seq
     }
 }

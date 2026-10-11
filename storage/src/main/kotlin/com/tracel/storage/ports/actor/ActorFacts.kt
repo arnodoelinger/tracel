@@ -18,7 +18,6 @@ import com.tracel.engine.actor.ActorFacts as ActorFactsPort
  * timeline, one row per switch.
  */
 class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
-    /** Notes that [player] was in [mode] from [millis] on, unless that is the mode they were already in. */
     override suspend fun noteMode(player: UUID, mode: Int, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
@@ -29,7 +28,6 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
         }
     }
 
-    /** Notes that [player] opened a container at [millis]; the visit stays open until [closeVisit]. */
     override suspend fun openVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
@@ -37,7 +35,6 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
         }
     }
 
-    /** Notes that [player] let go of the container they had open, if they had one. */
     override suspend fun closeVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: return@write
@@ -48,7 +45,6 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
         }
     }
 
-    /** The container visits of each of [players]; a player with none is left out. */
     override suspend fun visitsOf(players: Collection<UUID>): Map<UUID, VisitTimeline> {
         if (players.isEmpty()) return emptyMap()
         return storage.read {
@@ -66,7 +62,6 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
         }
     }
 
-    /** The mode of each of [players] over time; a player with no rows is left out. */
     override suspend fun modesOf(players: Collection<UUID>): Map<UUID, ModeTimeline> {
         if (players.isEmpty()) return emptyMap()
         return storage.read {
@@ -84,7 +79,6 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
         }
     }
 
-    /** The type of each of [entities] that was written down; the rest are left out. */
     override suspend fun kindsOf(entities: Collection<UUID>): Map<UUID, EntityTypeKey> {
         if (entities.isEmpty()) return emptyMap()
         return storage.read {

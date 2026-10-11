@@ -59,12 +59,6 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         }
     }
 
-    /** Publishes [next] and counts the change. */
-    private fun commit(next: RepositoryState) {
-        state.set(next)
-        changes.incrementAndGet()
-    }
-
     override suspend fun createLot(itemKey: ItemKey, quantity: Quantity, createdBy: TxnId): Lot {
         writer.checkIn()
         val lot = Lot(LotId(nextLotId.getAndIncrement()), itemKey, quantity, createdBy)
@@ -297,6 +291,11 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
             holderOf = s.holderOf.removing(retiredLotId).putting(newLotId, holder),
         )
         commit(s.addRemaining(key, remaining.raw - old.remaining.raw))
+    }
+
+    private fun commit(next: RepositoryState) {
+        state.set(next)
+        changes.incrementAndGet()
     }
 
     /**

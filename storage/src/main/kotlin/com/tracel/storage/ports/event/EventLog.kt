@@ -25,7 +25,6 @@ import com.tracel.engine.event.EventLog as EventLogPort
 class EventLog(private val storage: TracelStorage) : EventLogPort {
     private val interning: Interning get() = storage.interning
 
-    /** Appends [event]. The log is append-only, so a sequence number that is taken is an error. */
     override suspend fun append(event: ActorEvent) {
         storage.write {
             val seq = event.seq.raw
@@ -49,10 +48,6 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
         }
     }
 
-    /**
-     * The events of [kinds] that [filter] lets through, newest first. Only who, when and where are asked of the
-     * filter: an event is not a block or an item, and a filter that names one matches no event.
-     */
     override suspend fun query(filter: LookupFilter, kinds: Set<EventKind>): List<ActorEvent> = storage.read {
         if (kinds.isEmpty() || filter.material != null || filter.blockMaterials.isNotEmpty()) return@read emptyList()
         val holderIds = filter.holders.map { interning.findHolderId(this, it) ?: return@map null }
