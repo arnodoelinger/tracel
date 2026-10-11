@@ -29,7 +29,7 @@ internal class UpdateChecker(private val services: TracelServices) {
                     val found = ReleaseFeed.newerThan(current)
                     if (found != null && found.version != available?.version) {
                         services.plugin.logger.info(
-                            "Update available: $running → ${found.version} — ${found.page}"
+                            "Update available: $running -> ${found.version}; ${found.page}"
                         )
                     }
                     available = found
