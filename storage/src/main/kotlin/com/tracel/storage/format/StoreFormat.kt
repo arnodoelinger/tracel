@@ -8,6 +8,8 @@ import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.records.recordBytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.putI32
+import com.tracel.storage.format.migrations.RolledSets
+import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
 import java.lang.foreign.MemorySegment
 
@@ -24,10 +26,17 @@ data class FormatVersion(val major: Int, val minor: Int) : Comparable<FormatVers
     override fun toString(): String = "$major.$minor"
 }
 
-/** One step from [from] to the next minor version, [to]. */
+/**
+ * One step from [from] to the next minor version, [to].
+ *
+ * @property groundwork what is too much for one commit, done in commits of its own before [run]. A crash in the
+ * middle leaves the database at [from] and the work half done, so it has to be right to do again from there
+ * @property run the rest, which lands together with the new version
+ */
 class Migration(
     val from: FormatVersion,
     val to: FormatVersion,
+    val groundwork: (KeyValueEngine) -> Unit = { },
     val run: (StorageUnit) -> Unit,
 ) {
     init {
@@ -63,7 +72,7 @@ object StoreFormat {
     val LEGACY = FormatVersion(1, 0)
 
     /** Every step there is, in no particular order. Add one for each bump of [CURRENT]'s minor. */
-    val MIGRATIONS: List<Migration> = emptyList()
+    val MIGRATIONS: List<Migration> = listOf(RolledSets.STEP)
 
     /**
      * Brings [storage] to [current], or throws [StoreFormatException] if that cannot be done.
@@ -109,6 +118,7 @@ object StoreFormat {
         while (at < current) {
             val step = migrations.firstOrNull { it.from == at }
                 ?: throw StoreFormatException("This Tracel has no way to bring a format $at database up to $current.")
+            step.groundwork(storage.engine)
             commit(storage, step.to, step.run)
             at = step.to
         }

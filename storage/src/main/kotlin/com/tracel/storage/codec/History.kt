@@ -50,7 +50,7 @@ object History {
     fun pointRead(tag: Int): Boolean = when (tag.toByte()) {
         Keys.ACTOR, Keys.ITEM, Keys.TIME, Keys.SPATIAL, Keys.TXN_LOT,
         Keys.WCHG_AT, Keys.WCHG_AT_SECTION, Keys.WCHG_ENTITY,
-        Keys.EVENT_ACTOR, Keys.EVENT_TIME, Keys.ROLLED_JOB,
+        Keys.EVENT_ACTOR, Keys.EVENT_TIME, Keys.ROLLED_JOB, Keys.ROLLED_SET_JOB,
             -> false
 
         else -> true

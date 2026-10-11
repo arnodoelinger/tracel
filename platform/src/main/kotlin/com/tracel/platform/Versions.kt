@@ -26,7 +26,7 @@ public object Versions {
          *
          * Bump it together with a migration in `StoreFormat.MIGRATIONS`.
          */
-        public const val DB_MINOR: Int = 0
+        public const val DB_MINOR: Int = 1
 
         /**
          * The first byte of every record in the logs.

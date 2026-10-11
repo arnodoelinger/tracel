@@ -57,10 +57,12 @@ import com.tracel.storage.spi.EngineCursor
  * | 2D   | `evt / seq`                                                        | packed event         | retention            |
  * | 2E   | `evtActor / holderId / ~epochMillis / ~seq`                        | —                    | range, newest first  |
  * | 2F   | `evtTime / ~epochMillis / ~seq`                                    | —                    | range, newest first  |
- * | 30   | `rolled / seq`                                                     | jobId, epochMillis   | point                |
- * | 31   | `rolledJob / jobId / seq`                                          | —                    | prefix               |
+ * | 30   | retired: per-seq `rolled`                                          |                      |                      |
+ * | 31   | retired: per-seq `rolledJob`                                       |                      |                      |
  * | 32   | `meta / 0`                                                         | format major, minor  | point                |
  *       | `meta / 1`                                                         | import in progress   | point                |
+ * | 33   | `rolledSet / seqBucket / jobId`                                    | epochMillis, seqs    | point + prefix       |
+ * | 34   | `rolledSetJob / jobId / seqBucket`                                 | —                    | prefix               |
  */
 object Keys {
     fun tagName(tag: Byte): String = when (tag) {
@@ -112,6 +114,8 @@ object Keys {
         ROLLED -> "rolled"
         ROLLED_JOB -> "rolledJob"
         META -> "meta"
+        ROLLED_SET -> "rolledSet"
+        ROLLED_SET_JOB -> "rolledSetJob"
         else -> "tag%02x".format(tag.toInt() and 0xff)
     }
 
@@ -165,6 +169,8 @@ object Keys {
     const val ROLLED: Byte = 0x30
     const val ROLLED_JOB: Byte = 0x31
     const val META: Byte = 0x32
+    const val ROLLED_SET: Byte = 0x33
+    const val ROLLED_SET_JOB: Byte = 0x34
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -265,12 +271,8 @@ object Keys {
 
     fun lease(lotId: Long): ByteArray = KeyWriter(9).tag(LEASE).u64(lotId).done()
 
-    fun leasePrefix(): ByteArray = KeyWriter(1).tag(LEASE).done()
-
     fun leaseJob(jobId: Long, lotId: Long): ByteArray =
         KeyWriter(17).tag(LEASE_JOB).u64(jobId).u64(lotId).done()
-
-    fun leaseJobPrefix(jobId: Long): ByteArray = KeyWriter(9).tag(LEASE_JOB).u64(jobId).done()
 
     fun leaseSet(jobId: Long): ByteArray = KeyWriter(9).tag(LEASE_SET).u64(jobId).done()
 
@@ -370,11 +372,15 @@ object Keys {
 
     fun importProgress(): ByteArray = KeyWriter(2).tag(META).u8(1).done()
 
-    fun rolled(seq: Long): ByteArray = KeyWriter(9).tag(ROLLED).u64(seq).done()
+    fun rolledSet(bucket: Long, jobId: Long): ByteArray =
+        KeyWriter(17).tag(ROLLED_SET).u64(bucket).u64(jobId).done()
 
-    fun rolledJob(jobId: Long, seq: Long): ByteArray = KeyWriter(17).tag(ROLLED_JOB).u64(jobId).u64(seq).done()
+    fun rolledSetPrefix(bucket: Long): ByteArray = KeyWriter(9).tag(ROLLED_SET).u64(bucket).done()
 
-    fun rolledJobPrefix(jobId: Long): ByteArray = KeyWriter(9).tag(ROLLED_JOB).u64(jobId).done()
+    fun rolledSetJob(jobId: Long, bucket: Long): ByteArray =
+        KeyWriter(17).tag(ROLLED_SET_JOB).u64(jobId).u64(bucket).done()
+
+    fun rolledSetJobPrefix(jobId: Long): ByteArray = KeyWriter(9).tag(ROLLED_SET_JOB).u64(jobId).done()
 
     fun event(seq: Long): ByteArray = KeyWriter(9).tag(EVENT).u64(seq).done()
 
@@ -456,6 +462,8 @@ object Keys {
         ROLLED,
         ROLLED_JOB,
         META,
+        ROLLED_SET,
+        ROLLED_SET_JOB,
     )
 }
 
