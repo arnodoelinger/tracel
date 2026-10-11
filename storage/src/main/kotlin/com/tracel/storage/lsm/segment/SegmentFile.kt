@@ -26,6 +26,7 @@ import java.nio.file.Path
  * ```
  * data   -> repeated block:
  *           [u32 uncompressed][u32 flags|payload][payload]
+ *           payload, uncompressed: the records, then [u32 offset] per restart, then [u32 restarts]
  * index  -> [u32 keyLen][internal key][u64 blockOffset]  ... one per block
  * bloom  -> [u32 bitCount][u32 hashCount][bits]
  * footer -> 52 bytes, at EOF
@@ -37,8 +38,11 @@ object SegmentFile {
     val MAGIC = "TSEG".toByteArray(Charsets.US_ASCII)
 
     const val VERSION = Versions.Format.SEGMENT
+    const val OLDEST_VERSION = 1
+    const val RESTARTS_SINCE = 2
+    const val RESTART_INTERVAL = 32
     const val FOOTER_BYTES = 40
-    const val BLOCK_TARGET = 4096
+    const val BLOCK_TARGET = 32 * 1024
     const val FLAG_ZSTD = 1 shl 31
     const val PAYLOAD_MASK = 0x7FFFFFFF
     const val FLUSH_ZSTD_LEVEL = 5
@@ -52,7 +56,11 @@ object SegmentFile {
         private val path: Path,
         expectedEntries: Int,
         private val zstdLevel: Int = FLUSH_ZSTD_LEVEL,
+        private val blockTarget: Int = BLOCK_TARGET,
+        private val version: Int = VERSION,
     ) : AutoCloseable {
+        private val tabled = version >= RESTARTS_SINCE
+
         private val file = java.io.FileOutputStream(path.toFile())
         private val out: OutputStream = BufferedOutputStream(file, 1 shl 16)
         private val bloom = BloomBuilder(expectedEntries.coerceAtLeast(1))
@@ -64,9 +72,12 @@ object SegmentFile {
         private var indexUsed = 0
 
         private val header = ByteArray(16)
-        private var block = ByteArray(BLOCK_TARGET + 512)
+        private var block = ByteArray(blockTarget + 512)
         private var blockUsed = 0
+        private var blockEntries = 0
         private var blockFirstKey: ByteArray? = null
+        private var restarts = IntArray(64)
+        private var restartCount = 0
 
         private var dataBytes = 0L
         private var count = 0
@@ -77,8 +88,13 @@ object SegmentFile {
         /** Adds a key / value pair to the segment. The key must be greater than the last one added. */
         fun add(internalKey: ByteArray, value: ByteArray?) {
             require(internalKey.size <= 0xFFFF) { "internal key ${internalKey.size} does not fit a u16 length" }
-            if (blockUsed >= BLOCK_TARGET) flushBlock()
-            val restart = blockUsed == 0
+            if (blockUsed >= blockTarget) flushBlock()
+            val first = blockUsed == 0
+            val restart = if (tabled) blockEntries % RESTART_INTERVAL == 0 else first
+            if (restart && tabled) {
+                if (restartCount == restarts.size) restarts = restarts.copyOf(restartCount shl 1)
+                restarts[restartCount++] = blockUsed
+            }
             val shared = if (restart) 0 else sharedPrefix(lastKey, lastKeyLength, internalKey)
             val unshared = internalKey.size - shared
             val valueLength = value?.size ?: -1
@@ -92,7 +108,8 @@ object SegmentFile {
             System.arraycopy(internalKey, shared, block, blockUsed + headerAt, unshared)
             if (value != null) System.arraycopy(value, 0, block, blockUsed + headerAt + unshared, value.size)
             blockUsed += payload
-            if (restart) blockFirstKey = internalKey.copyOf()
+            blockEntries++
+            if (first) blockFirstKey = internalKey.copyOf()
             count++
             bloom.add(internalKey, internalKey.size - InternalKey.TRAILER_BYTES)
             if (firstKey == null) firstKey = internalKey
@@ -122,7 +139,7 @@ object SegmentFile {
             footer.putLong(bloomOffset)
             footer.putInt(bloomBytes.toInt())
             footer.putLong(count.toLong())
-            footer.putInt(VERSION)
+            footer.putInt(version)
             footer.put(MAGIC)
             out.write(footer.array())
             out.flush()
@@ -150,8 +167,16 @@ object SegmentFile {
             if (blockUsed == 0) return
             val first = blockFirstKey ?: error("a non-empty block has no first key")
             stageIndex(first, dataBytes)
+            if (tabled) {
+                ensureBlock(restartCount * 4 + 4)
+                for (i in 0 until restartCount) LE_INT.set(block, blockUsed + i * 4, restarts[i])
+                LE_INT.set(block, blockUsed + restartCount * 4, restartCount)
+                blockUsed += restartCount * 4 + 4
+            }
             writeBlock(block, blockUsed)
             blockUsed = 0
+            blockEntries = 0
+            restartCount = 0
             blockFirstKey = null
         }
 
@@ -212,7 +237,9 @@ object SegmentFile {
         }
 
         val version = segment.i32(footerAt + FOOTER_BYTES - 8)
-        require(version == VERSION) { "$path is segment v$version, this build reads v$VERSION" }
+        require(version in OLDEST_VERSION..VERSION) {
+            "$path is segment v$version, this build reads v$OLDEST_VERSION to v$VERSION"
+        }
 
         val indexOffset = segment.i64(footerAt)
         val indexBytes = segment.i32(footerAt + 8)
@@ -248,6 +275,7 @@ object SegmentFile {
             dataEnd = indexOffset,
             bloom = if (bloomBytes > 0) Bloom(segment, bloomOffset) else null,
             cache = cache,
+            restarts = version >= RESTARTS_SINCE,
         )
     }
 }
@@ -288,6 +316,7 @@ class SegmentReader internal constructor(
     private val dataEnd: Long,
     private val bloom: Bloom?,
     private val cache: BlockCache,
+    val restarts: Boolean,
 ) : AutoCloseable {
     private val firstUserKey: ByteArray = meta.firstKey.copyOf(maxOf(0, meta.firstKey.size - InternalKey.TRAILER_BYTES))
     private val lastUserKey: ByteArray = meta.lastKey.copyOf(maxOf(0, meta.lastKey.size - InternalKey.TRAILER_BYTES))

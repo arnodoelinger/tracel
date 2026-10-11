@@ -3,7 +3,7 @@ package com.tracel.storage.lsm.segment
 import com.github.benmanes.caffeine.cache.Caffeine
 
 /**
- * Uncompressed 4 KiB-class blocks, keyed by segment id and file offset.
+ * Uncompressed blocks, keyed by segment ID and file offset.
  *
  * The capture path never touches this. Point gets and scans hit the same blocks over and over
  * (running totals, a chunk prefix).

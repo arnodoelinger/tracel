@@ -36,7 +36,7 @@ public object Versions {
         public const val RECORD: Byte = 1
 
         /** Segment file version. */
-        public const val SEGMENT: Int = 1
+        public const val SEGMENT: Int = 2
 
         /** The manifest version that lists segments and logs. */
         public const val MANIFEST: Int = 1

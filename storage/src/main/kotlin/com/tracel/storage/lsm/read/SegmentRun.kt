@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm.read
 
+import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i8
 import com.tracel.storage.ffm.SegmentCompare
 import com.tracel.storage.lsm.InternalKey
@@ -15,6 +16,8 @@ internal class SegmentRun(private val reader: SegmentReader) : Run() {
     private var data: MemorySegment = MemorySegment.NULL
     private var fileOff = 0L
     private var blockEnd = 0L
+    private var restartsAt = 0L
+    private var restartCount = 0
     private var at = 0L
     private var headerBytes = 0
     private var unshared = 0
@@ -28,6 +31,7 @@ internal class SegmentRun(private val reader: SegmentReader) : Run() {
             valid = false
             return
         }
+        if (restartCount > 0) at = restartBefore(internalKey, length)
         keyLength = 0
         while (true) {
             if (at >= blockEnd && !openBlock(reader.nextBlock(fileOff))) {
@@ -71,9 +75,37 @@ internal class SegmentRun(private val reader: SegmentReader) : Run() {
         if (raw.isEmpty()) return false
         fileOff = offset
         data = MemorySegment.ofArray(raw)
-        blockEnd = raw.size.toLong()
+        if (reader.restarts) {
+            restartCount = data.i32(raw.size - 4L)
+            restartsAt = raw.size - 4L - restartCount * 4L
+            blockEnd = restartsAt
+        } else {
+            restartCount = 0
+            blockEnd = raw.size.toLong()
+        }
         at = 0
         return true
+    }
+
+    private fun restartBefore(internalKey: ByteArray, length: Int): Long {
+        var low = 0
+        var high = restartCount - 1
+        var found = 0L
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            val record = data.i32(restartsAt + mid * 4L).toLong()
+            var cursor = record + 1
+            val unsharedPacked = Varints.read(data, cursor)
+            cursor += Varints.sizeOf(unsharedPacked)
+            cursor += Varints.sizeOf(Varints.read(data, cursor))
+            if (SegmentCompare.compare(data, cursor, Varints.valueOf(unsharedPacked), internalKey, length) <= 0) {
+                found = record
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return found
     }
 
     private fun decode() {
