@@ -51,7 +51,7 @@ import kotlin.concurrent.withLock
  */
 class LsmEngine(
     private val directory: Path,
-    private val config: LsmConfig = LsmConfig(),
+    internal val config: LsmConfig = LsmConfig(),
 ) : KeyValueEngine {
     override val name: String = "lsm"
 

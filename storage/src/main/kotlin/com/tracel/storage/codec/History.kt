@@ -43,7 +43,20 @@ object History {
         else -> -1L
     }
 
-    /** The settings an engine needs to keep history in windows. */
+    /**
+     * Whether rows with this [tag] are ever read by exact key. The ones named here are indexes, only ever walked by
+     * prefix, and they are half the rows of a store: a filter over them is bytes nobody reads.
+     */
+    fun pointRead(tag: Int): Boolean = when (tag.toByte()) {
+        Keys.ACTOR, Keys.ITEM, Keys.TIME, Keys.SPATIAL, Keys.TXN_LOT,
+        Keys.WCHG_AT, Keys.WCHG_AT_SECTION, Keys.WCHG_ENTITY,
+        Keys.EVENT_ACTOR, Keys.EVENT_TIME, Keys.ROLLED_JOB,
+            -> false
+
+        else -> true
+    }
+
+    /** The settings an engine needs to keep history in windows and index rows out of the filters. */
     fun configured(config: LsmConfig): LsmConfig =
-        config.copy(classifier = classifier)
+        config.copy(classifier = classifier, pointRead = ::pointRead)
 }

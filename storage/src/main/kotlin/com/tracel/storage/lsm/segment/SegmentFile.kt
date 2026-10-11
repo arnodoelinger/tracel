@@ -58,12 +58,15 @@ object SegmentFile {
         private val zstdLevel: Int = FLUSH_ZSTD_LEVEL,
         private val blockTarget: Int = BLOCK_TARGET,
         private val version: Int = VERSION,
+        private val pointRead: (keyTag: Int) -> Boolean = { true },
     ) : AutoCloseable {
         private val tabled = version >= RESTARTS_SINCE
 
         private val file = java.io.FileOutputStream(path.toFile())
         private val out: OutputStream = BufferedOutputStream(file, 1 shl 16)
         private val bloom = BloomBuilder(expectedEntries.coerceAtLeast(1))
+        private var lastTag = -1
+        private var lastTagRead = true
 
         // The index is staged as the bytes it will become, not as a list of arrays to be
         // re-encoded at the end. Two ArrayLists meant one boxed Long and one retained key
@@ -111,7 +114,13 @@ object SegmentFile {
             blockEntries++
             if (first) blockFirstKey = internalKey.copyOf()
             count++
-            bloom.add(internalKey, internalKey.size - InternalKey.TRAILER_BYTES)
+            val keyLength = internalKey.size - InternalKey.TRAILER_BYTES
+            val tag = if (keyLength == 0) -1 else internalKey[0].toInt() and 0xFF
+            if (tag != lastTag) {
+                lastTag = tag
+                lastTagRead = pointRead(tag)
+            }
+            if (lastTagRead) bloom.add(internalKey, keyLength)
             if (firstKey == null) firstKey = internalKey
             if (lastKey.size < internalKey.size) lastKey = internalKey.copyOf()
             else System.arraycopy(internalKey, 0, lastKey, 0, internalKey.size)
@@ -421,15 +430,25 @@ class SegmentReader internal constructor(
     }
 }
 
-/** Builds the blocked bloom filter [Bloom] reads. */
+/**
+ * Builds the blocked bloom filter [Bloom] reads.
+ *
+ * It keeps the hashes and sizes the filter at the end, by the keys it was really given: a segment of index rows
+ * gives it none, and a guess made up front would leave a filter of zeros on disk.
+ */
 class BloomBuilder(expectedEntries: Int) {
-    private val blocks =
-        ((expectedEntries.toLong() * Bloom.BITS_PER_KEY + 511) / 512).coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
-    private val words = LongArray(blocks shl 3)
+    private var hashes = LongArray(expectedEntries.coerceIn(16, 1 shl 16))
+    private var count = 0
+    private var blocks = 1
+    private var words = LongArray(0)
 
-    /** Adds a key to the filter. The key is hashed and the appropriate bits are set. */
+    /** Adds a key to the filter. */
     fun add(key: ByteArray, length: Int) {
-        val hash = Bloom.hash(key, length)
+        if (count == hashes.size) hashes = hashes.copyOf(count + (count shr 1))
+        hashes[count++] = Bloom.hash(key, length)
+    }
+
+    private fun set(hash: Long) {
         val base = (((hash ushr 32) * blocks) ushr 32).toInt() shl 3
         val w = words
         w[base] = w[base] or (1L shl ((hash * Bloom.SALT_0) ushr 58).toInt())
@@ -442,8 +461,12 @@ class BloomBuilder(expectedEntries: Int) {
         w[base + 7] = w[base + 7] or (1L shl ((hash * Bloom.SALT_7) ushr 58).toInt())
     }
 
-    /** Writes the filter to [out] and returns the number of bytes written. */
+    /** Writes the filter to [out] and returns the number of bytes written: none at all without a key. */
     fun writeTo(out: OutputStream): Long {
+        if (count == 0) return 0L
+        blocks = ((count.toLong() * Bloom.BITS_PER_KEY + 511) / 512).coerceIn(1L, (Int.MAX_VALUE shr 3).toLong()).toInt()
+        words = LongArray(blocks shl 3)
+        for (i in 0 until count) set(hashes[i])
         val buffer = ByteBuffer.allocate(8 + words.size * 8).order(ByteOrder.LITTLE_ENDIAN)
         buffer.putInt(blocks shl 9)
         buffer.putInt(Bloom.LANES)

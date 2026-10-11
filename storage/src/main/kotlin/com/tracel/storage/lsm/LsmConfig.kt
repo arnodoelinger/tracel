@@ -16,6 +16,9 @@ val WALL_CLOCK: () -> Long = { System.currentTimeMillis() }
  * @property windowFanout how many segments one window piles up before they are merged into one
  * @property stateBlockBytes how much a block of state holds before it is compressed and closed
  * @property historyBlockBytes the same for a block of history
+ * @property pointRead whether keys with this first byte are ever asked for by exact key. The rest stay out of the
+ * segment filters, and a get of one goes past the filter rather than trust it, so a wrong answer here costs time
+ * and never a row
  */
 data class LsmConfig(
     val memtableBytes: Long = 16L * 1024 * 1024,
@@ -29,6 +32,7 @@ data class LsmConfig(
     val clock: () -> Long = WALL_CLOCK,
     val stateBlockBytes: Int = SegmentFile.BLOCK_TARGET,
     val historyBlockBytes: Int = SegmentFile.BLOCK_TARGET,
+    val pointRead: (keyTag: Int) -> Boolean = { true },
 ) {
     /** The number of segments that can pile up at [level] before a compaction is needed. */
     fun fanout(level: Int): Int = if (level == 0) level0Fanout else deeperFanout

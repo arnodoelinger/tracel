@@ -20,8 +20,7 @@ internal class SegmentWriter(
     /**
      * Merges [runs] into segment [id] at [level] and opens it for reading.
      *
-     * [expectedEntries] only sizes the writer's filter up front; being wrong costs a little space,
-     * not correctness.
+     * [expectedEntries] is a hint for the writer's buffers, nothing more.
      */
     fun write(
         runs: Array<Run>,
@@ -40,7 +39,7 @@ internal class SegmentWriter(
         val flush = runs.all { it is MemTableRun }
         val zstdLevel = if (flush) SegmentFile.FLUSH_ZSTD_LEVEL else SegmentFile.COMPACTION_ZSTD_LEVEL
         val blockBytes = if (category == 0) config.stateBlockBytes else config.historyBlockBytes
-        val meta = SegmentFile.Writer(path, expectedEntries, zstdLevel, blockBytes).use { writer ->
+        val meta = SegmentFile.Writer(path, expectedEntries, zstdLevel, blockBytes, pointRead = config.pointRead).use { writer ->
             var lastKey: ByteArray? = null
             var keptBelowHorizon = false
             while (true) {

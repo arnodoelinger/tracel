@@ -34,8 +34,9 @@ internal class LsmSnapshot(
         }
 
         val target = InternalKey.seekTarget(key)
+        val filtered = engine.config.pointRead(if (key.isEmpty()) -1 else key[0].toInt() and 0xFF)
         for (segment in pinned.orderedSegments) {
-            if (!segment.inRange(key) || !segment.mightContain(key)) continue
+            if (!segment.inRange(key) || (filtered && !segment.mightContain(key))) continue
             val run = SegmentRun(segment)
             run.seek(target, target.size)
             // Versions of one key sit together, newest first. Walk past the ones this reader is
