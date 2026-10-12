@@ -15,6 +15,13 @@ internal object NamePresenter {
     /** A kind of entity. */
     fun entity(id: String): Component = named(id, entity = true)
 
+    /** A potion effect. */
+    fun effect(id: String): Component {
+        val key = NamespacedKey.fromString(id.lowercase())
+        val translation = key?.let { runCatching { Registry.MOB_EFFECT.get(it)?.translationKey() }.getOrNull() }
+        return if (translation != null) Component.translatable(translation) else Component.text(pretty(id))
+    }
+
     /** E.g. `minecraft:large_fern` -> `Large Fern`; what is left when the server cannot name it. */
     fun pretty(id: String): String =
         id.substringAfter(':').lowercase().split('_').filter(String::isNotEmpty)

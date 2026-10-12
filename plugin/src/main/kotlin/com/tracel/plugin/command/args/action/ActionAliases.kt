@@ -63,7 +63,12 @@ internal val ALIASES: List<ActionAlias> = listOf(
         causes = setOf(CauseKind.CRAFT),
         half = Half.MATERIAL,
     ),
-    ActionAlias(names = setOf("click"), actions = setOf(ActionKind.BLOCK_CLICK), half = Half.STRUCTURE),
+    ActionAlias(
+        names = setOf("click"),
+        actions = setOf(ActionKind.BLOCK_CLICK),
+        events = setOf(EventKind.CLICK),
+        half = Half.STRUCTURE,
+    ),
     ActionAlias(names = setOf("grow"), actions = setOf(ActionKind.BLOCK_GROW), half = Half.STRUCTURE),
     ActionAlias(names = setOf("chat"), events = setOf(EventKind.CHAT), half = Half.EVENT),
     ActionAlias(names = setOf("command"), events = setOf(EventKind.COMMAND), half = Half.EVENT),
@@ -73,6 +78,8 @@ internal val ALIASES: List<ActionAlias> = listOf(
     ActionAlias(names = setOf("death"), events = setOf(EventKind.DEATH), half = Half.EVENT),
     ActionAlias(names = setOf("shoot", "launch"), events = setOf(EventKind.SHOOT), half = Half.EVENT),
     ActionAlias(names = setOf("hit", "damage"), events = setOf(EventKind.HIT), half = Half.EVENT),
+    ActionAlias(names = setOf("set", "tune"), events = setOf(EventKind.SET), half = Half.EVENT),
+    ActionAlias(names = setOf("pull", "fish"), events = setOf(EventKind.PULL), half = Half.EVENT),
     ActionAlias(names = setOf("projectile"), causes = setOf(CauseKind.PROJECTILE), half = Half.BOTH),
     ActionAlias(
         names = setOf("explosion"),

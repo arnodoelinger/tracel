@@ -188,6 +188,7 @@
       "refresh": "<white>Run this search again</white>",
       "export": "<white>Export these results</white>"
     },
+    "none": "none",
     "verb": {
       "ate": "Ate",
       "withered": "Withered",
@@ -254,6 +255,8 @@
       "left": "Left",
       "shot": "Launched",
       "hit": "Hit",
+      "set": "Set",
+      "pulled": "Pulled",
       "died": "Was killed by"
     },
     "mode": {

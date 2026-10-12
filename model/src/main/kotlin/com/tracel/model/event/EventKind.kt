@@ -9,4 +9,7 @@ public enum class EventKind {
     DEATH,
     SHOOT,
     HIT,
+    CLICK,
+    SET,
+    PULL,
 }

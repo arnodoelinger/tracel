@@ -40,6 +40,8 @@ import java.util.*
 internal object ChangeLinePresenter {
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
     private val HIT = Regex("""^(.+?)(?: with (\S+))? \(([\d.]+) hp\)$""")
+    private val BEACON = Regex("""^beacon (\S+) (\S+)$""")
+    private val COMPASS = Regex("""^compass (\S+)$""")
 
     private enum class Half { FIRST, SECOND }
 
@@ -119,16 +121,21 @@ internal object ChangeLinePresenter {
             EventKind.DEATH -> "died"
             EventKind.SHOOT -> "shot"
             EventKind.HIT -> "hit"
+            EventKind.CLICK -> "clicked"
+            EventKind.SET -> "set"
+            EventKind.PULL -> "pulled"
         }
         val raw = event.text.orEmpty()
         val text = when (event.kind) {
-            EventKind.SHOOT -> NamePresenter.pretty(raw)
+            EventKind.SHOOT, EventKind.PULL -> NamePresenter.pretty(raw)
             EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).text } ?: raw
             else -> raw
         }
         val shown: Component = when (event.kind) {
-            EventKind.SHOOT -> NamePresenter.entity(raw)
+            EventKind.SHOOT, EventKind.PULL -> NamePresenter.entity(raw)
             EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).row } ?: Component.text(raw)
+            EventKind.CLICK -> NamePresenter.of(raw)
+            EventKind.SET -> setting(raw)
             else -> Component.text(raw)
         }
         return LoggedLine(
@@ -329,6 +336,27 @@ internal object ChangeLinePresenter {
 
     /** @return the position string for the given coordinates. */
     fun at(x: Int, y: Int, z: Int): String = "$x, $y, $z"
+
+    private fun setting(raw: String): Component {
+        fun effect(id: String) = if (id == "none") tr("lookup.none") else NamePresenter.effect(id)
+        BEACON.matchEntire(raw)?.let { found ->
+            val (primary, secondary) = found.destructured
+            return Component.empty()
+                .append(NamePresenter.of("beacon"))
+                .append(Component.text(": "))
+                .append(effect(primary))
+                .append(Component.text(", "))
+                .append(effect(secondary))
+        }
+        COMPASS.matchEntire(raw)?.let { found ->
+            val (target) = found.destructured
+            return Component.empty()
+                .append(NamePresenter.of("compass"))
+                .append(Component.text(": "))
+                .append(NamePresenter.of(target))
+        }
+        return Component.text(raw)
+    }
 
     private class Blow(val text: String, val row: Component, val tip: Component)
 
