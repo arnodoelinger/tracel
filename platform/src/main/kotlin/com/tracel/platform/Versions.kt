@@ -60,8 +60,8 @@ public object Versions {
         /**
          * Releases `Tracel` has been tested on, as (major, minor). Patch versions are covered.
          *
-         * The oldest is also the `api-version` in `paper-plugin.yml`, the Paper API the plugin is
-         * built against, and the version `runServer` starts.
+         * The oldest is also the `api-version` in `paper-plugin.yml` and the Paper API the plugin is
+         * built against. The newest is the version `runServer` starts.
          */
         public val SUPPORTED: List<Pair<Int, Int>> = listOf(
             26 to 1,

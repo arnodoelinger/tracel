@@ -11,6 +11,10 @@ class VersionsConsistencyTest {
         .minWith(compareBy({ it.first }, { it.second }))
         .let { (major, minor) -> "$major.$minor" }
 
+    private val newest = Versions.Minecraft.SUPPORTED
+        .maxWith(compareBy({ it.first }, { it.second }))
+        .let { (major, minor) -> "$major.$minor" }
+
     private fun root(): Path = generateSequence(Path.of("").toAbsolutePath()) { it.parent }
         .first { Files.exists(it.resolve("settings.gradle.kts")) }
 
@@ -19,10 +23,13 @@ class VersionsConsistencyTest {
         return Regex(pattern).find(text)?.groupValues?.get(1) ?: error("$file has no match for $pattern")
     }
 
-    private fun assertOldest(file: String, found: String, exact: Boolean) {
-        val agrees = if (exact) found == oldest else found == oldest || found.startsWith("$oldest.")
-        assertTrue(agrees, "$file says Minecraft $found, but the oldest in Versions.Minecraft.SUPPORTED is $oldest")
+    private fun assertAgrees(file: String, found: String, expected: String, which: String, exact: Boolean) {
+        val agrees = if (exact) found == expected else found == expected || found.startsWith("$expected.")
+        assertTrue(agrees, "$file says Minecraft $found, but the $which in Versions.Minecraft.SUPPORTED is $expected")
     }
+
+    private fun assertOldest(file: String, found: String, exact: Boolean) =
+        assertAgrees(file, found, oldest, "oldest", exact)
 
     @Test
     fun `paper-plugin api-version is the oldest supported release`() {
@@ -31,9 +38,9 @@ class VersionsConsistencyTest {
     }
 
     @Test
-    fun `the development server runs the oldest supported release`() {
+    fun `the development server runs the newest supported release`() {
         val found = valueIn("plugin/build.gradle.kts", """minecraftVersion\("([^"]+)"\)""")
-        assertOldest("plugin/build.gradle.kts", found, exact = false)
+        assertAgrees("plugin/build.gradle.kts", found, newest, "newest", exact = false)
     }
 
     @Test
