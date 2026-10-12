@@ -42,6 +42,8 @@ internal object ChangeLinePresenter {
     private val HIT = Regex("""^(.+?)(?: with (\S+))? \(([\d.]+) hp\)$""")
     private val BEACON = Regex("""^beacon (\S+) (\S+)$""")
     private val COMPASS = Regex("""^compass (\S+)$""")
+    private val TRADE = Regex("""^(\S+) x(\d+) for (.+) with (\S+)$""")
+    private val PRICE = Regex("""^(\S+) x(\d+)$""")
 
     private enum class Half { FIRST, SECOND }
 
@@ -124,17 +126,25 @@ internal object ChangeLinePresenter {
             EventKind.CLICK -> "clicked"
             EventKind.SET -> "set"
             EventKind.PULL -> "pulled"
+            EventKind.PUSH -> "pushed"
+            EventKind.SLEEP -> "slept"
+            EventKind.TRADE -> "traded"
+            EventKind.TELEPORT -> "teleported"
         }
         val raw = event.text.orEmpty()
         val text = when (event.kind) {
-            EventKind.SHOOT, EventKind.PULL -> NamePresenter.pretty(raw)
+            EventKind.SHOOT, EventKind.PULL, EventKind.PUSH -> NamePresenter.pretty(raw)
             EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).text } ?: raw
+            EventKind.SLEEP -> NamePresenter.pretty(raw)
+            EventKind.TELEPORT -> NamePresenter.pretty(raw)
+            EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).text } ?: raw
             else -> raw
         }
         val shown: Component = when (event.kind) {
-            EventKind.SHOOT, EventKind.PULL -> NamePresenter.entity(raw)
+            EventKind.SHOOT, EventKind.PULL, EventKind.PUSH -> NamePresenter.entity(raw)
             EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).row } ?: Component.text(raw)
-            EventKind.CLICK -> NamePresenter.of(raw)
+            EventKind.CLICK, EventKind.SLEEP -> NamePresenter.of(raw)
+            EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).row } ?: Component.text(raw)
             EventKind.SET -> setting(raw)
             else -> Component.text(raw)
         }
@@ -359,6 +369,32 @@ internal object ChangeLinePresenter {
     }
 
     private class Blow(val text: String, val row: Component, val tip: Component)
+
+    private class Deal(val text: String, val row: Component)
+
+    private fun deal(found: MatchResult): Deal {
+        val (item, amount, price, trader) = found.destructured
+        val paid = price.split(", ").mapNotNull(PRICE::matchEntire)
+        val text = buildString {
+            append(NamePresenter.pretty(item)).append(" x").append(amount).append(" for ")
+            append(paid.joinToString(", ") { "${NamePresenter.pretty(it.groupValues[1])} x${it.groupValues[2]}" })
+            append(" with ").append(NamePresenter.pretty(trader))
+        }
+        var row = Component.empty()
+            .append(NamePresenter.of(item))
+            .append(Component.text(" x$amount "))
+            .append(tr("lookup.deal.for"))
+            .append(Component.space())
+        paid.forEachIndexed { index, part ->
+            if (index > 0) row = row.append(Component.text(", "))
+            row = row.append(NamePresenter.of(part.groupValues[1])).append(Component.text(" x${part.groupValues[2]}"))
+        }
+        row = row.append(Component.space())
+            .append(tr("lookup.deal.with"))
+            .append(Component.space())
+            .append(NamePresenter.entity(trader))
+        return Deal(text, row)
+    }
 
     private fun hit(found: MatchResult): Blow {
         val (victim, projectile, hp) = found.destructured

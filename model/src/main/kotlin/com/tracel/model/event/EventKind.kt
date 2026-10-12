@@ -12,4 +12,8 @@ public enum class EventKind {
     CLICK,
     SET,
     PULL,
+    PUSH,
+    SLEEP,
+    TRADE,
+    TELEPORT,
 }

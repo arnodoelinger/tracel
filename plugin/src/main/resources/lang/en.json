@@ -189,6 +189,10 @@
       "export": "<white>Export these results</white>"
     },
     "none": "none",
+    "deal": {
+      "for": "for",
+      "with": "with"
+    },
     "verb": {
       "ate": "Ate",
       "withered": "Withered",
@@ -257,6 +261,10 @@
       "hit": "Hit",
       "set": "Set",
       "pulled": "Pulled",
+      "pushed": "Pushed",
+      "slept": "Slept in",
+      "traded": "Traded",
+      "teleported": "Teleported",
       "died": "Was killed by"
     },
     "mode": {
@@ -719,6 +727,12 @@
       "quit": "Players leaving",
       "hit": "Hits and damage dealt",
       "shoot": "Projectiles launched",
+      "set": "Beacons and compasses set",
+      "pull": "Things pulled in by fishing",
+      "push": "Minecarts pushed",
+      "sleep": "Beds slept in",
+      "trade": "Trades with villagers",
+      "teleport": "Teleports",
       "projectile": "Damage done by projectiles",
       "death": "Player deaths"
     },

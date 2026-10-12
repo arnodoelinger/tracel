@@ -6,11 +6,15 @@ import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.listener.support.entity.HitActor
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import io.papermc.paper.event.player.AsyncChatEvent
+import io.papermc.paper.event.player.PlayerTradeEvent
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -20,19 +24,25 @@ import org.bukkit.block.data.type.Bed
 import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.FishHook
 import org.bukkit.entity.Item
+import org.bukkit.entity.Minecart
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile
+import org.bukkit.entity.minecart.ExplosiveMinecart
 import org.bukkit.event.block.Action
 import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.entity.ProjectileLaunchEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryType
+import org.bukkit.event.player.PlayerBedEnterEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerFishEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import org.bukkit.event.player.PlayerTeleportEvent
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause
+import org.bukkit.event.vehicle.VehicleEntityCollisionEvent
 import org.bukkit.inventory.EquipmentSlot
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -40,12 +50,15 @@ import java.util.concurrent.ConcurrentHashMap
 private class BeaconSession(val block: Block, val before: Pair<String?, String?>)
 
 /**
- * The event log: what players say and type, when they come and go, how they die, and what they shoot.
+ * The event log: what players say and type, when they come and go, how they die, what they shoot,
+ * where they sleep, trade and teleport, and which carts they push.
  *
  * Nothing here is ever rolled back.
  */
 class ActorEventListener(services: TracelServices) : TracelListener(services) {
     private val beaconBefore = ConcurrentHashMap<UUID, BeaconSession>()
+
+    private val pushed = ExpiringMap<Pair<UUID, UUID>, Boolean>(PUSH_QUIET_MILLIS, 4_096)
 
     @Observes
     fun onChat(event: AsyncChatEvent) =
@@ -141,6 +154,53 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         record(EventKind.PULL, event.player, what, caught.toBlockPos())
     }
 
+    @Observes
+    fun onPush(event: VehicleEntityCollisionEvent) {
+        val cart = event.vehicle as? Minecart ?: return
+        val player = event.entity as? Player ?: return
+        if (cart.velocity.lengthSquared() > PUSHED_SPEED_SQ) return
+        if (cart is ExplosiveMinecart) HitActor.hit(cart, HolderId.Player(player.uniqueId))
+        if (!pushed.putIfAbsent(player.uniqueId to cart.uniqueId, true)) return
+        record(EventKind.PUSH, player, cart.type.key.key, cart.toBlockPos())
+    }
+
+    @Observes
+    fun onSleep(event: PlayerBedEnterEvent) {
+        if (event.bedEnterResult != PlayerBedEnterEvent.BedEnterResult.OK) return
+        record(EventKind.SLEEP, event.player, event.bed.type.key.key, event.bed.toBlockPos())
+    }
+
+    @Observes
+    fun onTrade(event: PlayerTradeEvent) {
+        val result = event.trade.result
+        val price = event.trade.ingredients
+            .filter { !it.type.isAir }
+            .joinToString(", ") { "${it.type.key.key} x${it.amount}" }
+        val trader = event.villager
+        record(
+            EventKind.TRADE,
+            event.player,
+            "${result.type.key.key} x${result.amount} for $price with ${trader.type.key.key}",
+            trader.toBlockPos(),
+        )
+    }
+
+    @Observes
+    fun onTeleport(event: PlayerTeleportEvent) {
+        if (event.cause !in TELEPORTS) return
+        val to = event.to
+        val world = to.world ?: return
+        val from = event.from
+        val sameSpot = from.blockX == to.blockX && from.blockY == to.blockY && from.blockZ == to.blockZ
+        if (from.world == world && sameSpot) return
+        record(
+            EventKind.TELEPORT,
+            event.player,
+            event.cause.name.lowercase(Locale.ROOT),
+            BlockPos(WorldId(world.uid), to.blockX, to.blockY, to.blockZ),
+        )
+    }
+
     private fun effects(block: Block): Pair<String?, String?> {
         val beacon = block.getState(false) as? Beacon ?: return null to null
         return beacon.primaryEffect?.type?.key?.key to beacon.secondaryEffect?.type?.key?.key
@@ -172,5 +232,18 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
 
     private companion object {
         val SECRET = Regex("pass(word|wd|phrase)?|\\bpin\\b|secret|token", RegexOption.IGNORE_CASE)
+
+        const val PUSH_QUIET_MILLIS = 10_000L
+        const val PUSHED_SPEED_SQ = 0.04
+
+        @Suppress("REMOVAL")
+        val TELEPORTS = setOf(
+            TeleportCause.COMMAND,
+            TeleportCause.ENDER_PEARL,
+            TeleportCause.CHORUS_FRUIT,
+            TeleportCause.NETHER_PORTAL,
+            TeleportCause.END_PORTAL,
+            TeleportCause.END_GATEWAY,
+        )
     }
 }

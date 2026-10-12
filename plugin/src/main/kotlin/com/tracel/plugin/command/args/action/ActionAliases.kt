@@ -80,6 +80,10 @@ internal val ALIASES: List<ActionAlias> = listOf(
     ActionAlias(names = setOf("hit", "damage"), events = setOf(EventKind.HIT), half = Half.EVENT),
     ActionAlias(names = setOf("set", "tune"), events = setOf(EventKind.SET), half = Half.EVENT),
     ActionAlias(names = setOf("pull", "fish"), events = setOf(EventKind.PULL), half = Half.EVENT),
+    ActionAlias(names = setOf("push"), events = setOf(EventKind.PUSH), half = Half.EVENT),
+    ActionAlias(names = setOf("sleep"), events = setOf(EventKind.SLEEP), half = Half.EVENT),
+    ActionAlias(names = setOf("trade"), events = setOf(EventKind.TRADE), half = Half.EVENT),
+    ActionAlias(names = setOf("teleport"), events = setOf(EventKind.TELEPORT), half = Half.EVENT),
     ActionAlias(names = setOf("projectile"), causes = setOf(CauseKind.PROJECTILE), half = Half.BOTH),
     ActionAlias(
         names = setOf("explosion"),
