@@ -23,7 +23,7 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
     LookupArgument.Flag("#strict") { it.copy(strict = true) },
     LookupArgument.Flag("#confirm") { it.copy(confirmed = true) },
     LookupArgument.Flag("#each") { it.copy(each = true) },
-    LookupArgument.Flag("#world") { it.copy(natural = true) },
+    LookupArgument.Flag("#natural") { it.copy(natural = true) },
     LookupArgument.Flag("#all") { it.copy(natural = true, all = true) },
     LookupArgument.Flag("#wide") { it.copy(horizontalOnly = true) },
 

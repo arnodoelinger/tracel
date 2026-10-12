@@ -727,6 +727,7 @@
       "quit": "Players leaving",
       "hit": "Hits and damage dealt",
       "shoot": "Projectiles launched",
+      "natural": "Everything the world did on its own",
       "set": "Beacons and compasses set",
       "pull": "Things pulled in by fishing",
       "push": "Minecarts pushed",

@@ -57,7 +57,7 @@ internal val FLAGS: List<FlagToken> = listOf(
         profiles = setOf(FlagProfile.LOOKUP)
     ),
     FlagToken(
-        aliases = listOf("#world"),
+        aliases = listOf("#natural"),
         tooltip = "natural",
         kind = FlagKind.SWITCH,
         group = FlagGroup.NATURAL,
