@@ -15,7 +15,7 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 private const val FEED = "https://api.github.com/repos/arnodoelinger/Tracel/releases?per_page=20"
-private const val MODRINTH = "https://modrinth.com/plugin/tracel/versions"
+private const val MODRINTH = "https://modrinth.com/plugin/tracel"
 
 private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
 
