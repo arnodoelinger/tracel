@@ -41,9 +41,18 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
         .filter { other -> services.jobs.find(other)?.touches()?.any { it in mine } ?: false }
     if (newer.isNotEmpty()) return UndoResult.OutOfOrder(job, newer)
 
-    val takeAway = record.create.map { it.inverse() }
+    val takeAwayAll = record.create.map { it.inverse() }
 
     val materialSteps = InvolutionPlanner(services.repo).plan(record)
+    val noise = record.plan.noiseMints()
+    val undoDeltas = materialHalf.deltasForUndo(materialSteps, noise)
+
+    // Taking a hull or container away that still holds items would destroy them, or leave both it and its item. So it
+    // stays: the undo takes back what the rollback gave it and leaves what was put in since, which is theirs. Counted
+    // as the ledger will: folded noise mints leave the books too, not only the world
+    val bookDeltas = if (noise.isEmpty()) undoDeltas else materialHalf.deltasForUndo(materialSteps, emptySet())
+    val holding = services.leftHolding(takeAwayAll, bookDeltas)
+    val (staying, takeAway) = takeAwayAll.partition { it.cargoHolders()?.second in holding }
 
     // A placed hull the ledger cannot give its item back to (the player used it since) stays gone: bringing it back
     // beside the item would be a copy
@@ -70,25 +79,14 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
                 it.at,
                 "its item is no longer where the rollback left it, so it was not brought back"
             )
+        } + staying.map {
+            SkippedStep(it.at, "it holds items that were put in after the rollback, so it stays where it is")
         },
     )
 
     when (val preflight = structureHalf.preflight(putBack + takeAway)) {
         is Unreachable -> return preflight
         PreflightResult.Ok -> Unit
-    }
-    val noise = record.plan.noiseMints()
-    val undoDeltas = materialHalf.deltasForUndo(materialSteps, noise)
-
-    // Taking a hull or container away that still holds items would destroy them, or leave both it and its item.
-    // Counted as the ledger will: folded noise mints leave the books too, not only the world.
-    val bookDeltas = if (noise.isEmpty()) undoDeltas else materialHalf.deltasForUndo(materialSteps, emptySet())
-    val stuck = services.leftHolding(takeAway, bookDeltas).firstOrNull()
-    if (stuck != null) {
-        return Unreachable(
-            stuck,
-            "what the rollback put back now holds items that were put in after it; take them out first",
-        )
     }
     when (val preflight = materialHalf.preflight(undoDeltas)) {
         is Unreachable -> return preflight

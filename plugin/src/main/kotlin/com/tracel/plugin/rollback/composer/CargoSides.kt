@@ -34,26 +34,27 @@ internal suspend fun TracelServices.heldByLedger(uuids: Collection<UUID>): Set<U
     return held
 }
 
+/** The holder the ledger books this step's hull or container under, and the placed one a job's plan names it by. */
+internal fun StructureStep.cargoHolders(): Pair<HolderId, HolderId>? = when {
+    this is StructureStep.RemoveEntity -> HolderId.Entity(entity) to HolderId.PlacedEntity(entity)
+
+    this is StructureStep.SetBlock && target.isAirLike && !expected.isAirLike &&
+            containerBlockNamed(expected.data.value) ->
+        HolderId.Block(at.world, at.x, at.y, at.z) to HolderId.PlacedBlock(at.world, at.x, at.y, at.z)
+
+    else -> null
+}
+
 /**
  * Hulls and containers among [steps] that will still hold booked items once the withdrawals and deliveries in
- * [deltas] have run, so removing them is refused, or would destroy what is left in them.
+ * [deltas] have run: removing them would destroy what is left in them. Named as the job's plan names them.
  */
 internal suspend fun TracelServices.leftHolding(
     steps: List<StructureStep>,
     deltas: Map<HolderId, Map<ItemKey, Long>>,
 ): Set<HolderId> {
     val cargo = LinkedHashMap<HolderId, HolderId>()
-    for (step in steps) {
-        when {
-            step is StructureStep.RemoveEntity -> cargo[HolderId.Entity(step.entity)] =
-                HolderId.PlacedEntity(step.entity)
-
-            step is StructureStep.SetBlock && step.target.isAirLike && !step.expected.isAirLike &&
-                    containerBlockNamed(step.expected.data.value) ->
-                cargo[HolderId.Block(step.at.world, step.at.x, step.at.y, step.at.z)] =
-                    HolderId.PlacedBlock(step.at.world, step.at.x, step.at.y, step.at.z)
-        }
-    }
+    for (step in steps) step.cargoHolders()?.let { (holder, placed) -> cargo[holder] = placed }
     if (cargo.isEmpty()) return emptySet()
     val left = HashSet<HolderId>()
     atomically {
