@@ -5,9 +5,9 @@
     "ran": "<gray>You ran</gray>: <version>",
     "advice": "<gray>Recommendation</gray>: update the plugin",
     "download": "<green>[→ Download]</green>",
-    "download_hover": "<white>Open the .jar on GitHub</white>",
+    "download_hover": "<white>Open the download page on Modrinth</white>",
     "news": "<aqua>[☰ What's new]</aqua>",
-    "news_hover": "<white>Open the release notes on GitHub</white>"
+    "news_hover": "<white>Open the release notes on Modrinth</white>"
   },
   "setup": {
     "title": "Welcome to Tracel",

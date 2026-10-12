@@ -6,9 +6,8 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 class ReleaseFeedTest {
-    private fun release(tag: String, pre: Boolean = false, draft: Boolean = false, jar: Boolean = true) = """
-        {"tag_name":"$tag","draft":$draft,"prerelease":$pre,"html_url":"https://example.test/$tag",
-         "assets":[${if (jar) """{"name":"Tracel-$tag.jar","browser_download_url":"https://example.test/$tag.jar"}""" else ""}]}
+    private fun release(tag: String, pre: Boolean = false, draft: Boolean = false) = """
+        {"tag_name":"$tag","draft":$draft,"prerelease":$pre}
     """.trimIndent()
 
     private fun feed(vararg releases: String) = releases.joinToString(",", "[", "]")
@@ -17,8 +16,8 @@ class ReleaseFeedTest {
     fun `newest release beats the running one`() {
         val found = ReleaseFeed.newest(feed(release("v1.1.0"), release("v1.2.0")), "1.0.0".toVersion())
         assertEquals("1.2.0".toVersion(), found?.version)
-        assertEquals("https://example.test/v1.2.0.jar", found?.download)
-        assertEquals("https://example.test/v1.2.0", found?.page)
+        assertEquals("https://modrinth.com/plugin/tracel/version/1.2.0", found?.page)
+        assertEquals(found?.page, found?.download)
     }
 
     @Test
@@ -42,11 +41,5 @@ class ReleaseFeedTest {
         val body = feed(release("v2.0.0", draft = true), release("nightly"))
         assertNull(ReleaseFeed.newest(body, "1.0.0".toVersion()))
         assertNull(ReleaseFeed.newest("not json", "1.0.0".toVersion()))
-    }
-
-    @Test
-    fun `a release without a jar links to its page`() {
-        val found = ReleaseFeed.newest(feed(release("v1.1.0", jar = false)), "1.0.0".toVersion())
-        assertEquals(found?.page, found?.download)
     }
 }

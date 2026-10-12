@@ -15,6 +15,7 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 private const val FEED = "https://api.github.com/repos/arnodoelinger/Tracel/releases?per_page=20"
+private const val MODRINTH = "https://modrinth.com/plugin/tracel/versions"
 
 private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
 
@@ -49,12 +50,8 @@ internal object ReleaseFeed {
                 val version = json["tag_name"]?.asString?.removePrefix("v")?.toVersionOrNull(strict = false)
                     ?: return@mapNotNull null
                 if (version.isPreRelease && !current.isPreRelease) return@mapNotNull null
-                val page = json["html_url"]?.asString ?: return@mapNotNull null
-                val jar = json["assets"]?.asJsonArray
-                    ?.map { it.asJsonObject }
-                    ?.firstOrNull { it["name"]?.asString?.endsWith(".jar") == true }
-                    ?.get("browser_download_url")?.asString
-                Release(version, page, jar ?: page)
+                val page = "$MODRINTH/version/$version"
+                Release(version, page, page)
             }
             .filter { it.version > current }
             .maxByOrNull { it.version }
