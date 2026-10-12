@@ -25,8 +25,10 @@ import com.tracel.plugin.config.read.readSettings
 import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.command.permission.CommandGuard
 import com.tracel.plugin.integration.luckperms.LuckPermsSupport
+import com.tracel.plugin.integration.update.DevBuildListener
 import com.tracel.plugin.integration.update.UpdateChecker
 import com.tracel.plugin.integration.update.UpdateListener
+import com.tracel.plugin.integration.update.isDevelopmentBuild
 import com.tracel.plugin.integration.worldedit.WorldEditAttachListener
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
 import com.tracel.plugin.listener.listenersOf
@@ -293,6 +295,10 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     }
 
     LuckPermsSupport.attach(services)
+
+    if (isDevelopmentBuild(plugin.pluginMeta.version)) {
+        registerObserved(DevBuildListener(plugin.pluginMeta.version, plugin), plugin)
+    }
 
     if (settings.updates.check) {
         val updates = UpdateChecker(services)

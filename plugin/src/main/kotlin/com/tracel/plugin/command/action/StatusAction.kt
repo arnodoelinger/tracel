@@ -6,6 +6,7 @@ import com.tracel.plugin.i18n.failed
 import com.tracel.plugin.i18n.say
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.i18n.unexpected
+import com.tracel.plugin.integration.update.isDevelopmentBuild
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.status.health.LAG_PROBE_MILLIS
 import kotlinx.coroutines.*
@@ -19,7 +20,7 @@ class StatusAction(private val services: TracelServices) {
     fun execute(sender: CommandSender) {
         services.scope.launch {
             try {
-                sender.say(StatusPresenter.render(read()))
+                sender.say(StatusPresenter.render(read(), isDevelopmentBuild(services.plugin.pluginMeta.version)))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {

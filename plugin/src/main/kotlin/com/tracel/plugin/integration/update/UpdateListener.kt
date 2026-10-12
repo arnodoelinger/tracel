@@ -13,7 +13,6 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.plugin.Plugin
 
-/** How long to wait before telling a joining operator, so it is not lost in the join spam. */
 private const val SHOW_AFTER_TICKS = 40L
 
 /** Tells operators who join that a newer `Tracel` is out. */

@@ -19,6 +19,12 @@ private const val MODRINTH = "https://modrinth.com/plugin/tracel"
 
 private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
 
+/** A build made from the source tree, ahead of every release it is named after: there is nothing to update to. */
+internal fun Version.isDevelopment(): Boolean = preRelease?.startsWith("dev", ignoreCase = true) == true
+
+/** Whether [version], as `plugin.yml` names it, is a development build. */
+internal fun isDevelopmentBuild(version: String): Boolean = version.toVersionOrNull(strict = false)?.isDevelopment() == true
+
 /** The releases `GitHub` lists for `Tracel`. */
 internal object ReleaseFeed {
     /**

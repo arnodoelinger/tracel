@@ -4,6 +4,7 @@ import com.tracel.engine.store.PurgeCategory
 import com.tracel.plugin.command.action.shortSpan
 import com.tracel.plugin.config.AutoPurgeSettings
 import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.status.health.Health
 import com.tracel.plugin.status.rollback.RollbackSize
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -18,7 +19,7 @@ internal object StatusPresenter {
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
     /** The whole status, one line per fact. */
-    fun render(status: StatusSnapshot): Component = Component.join(
+    fun render(status: StatusSnapshot, development: Boolean = false): Component = Component.join(
         JoinConfiguration.newlines(),
         buildList {
             add(tr("status.title"))
@@ -35,7 +36,7 @@ internal object StatusPresenter {
             add(load(status))
             add(rollbacks(status))
             add(Component.empty())
-            add(state(status))
+            add(state(status, development))
         },
     )
 
@@ -107,8 +108,12 @@ internal object StatusPresenter {
         )
     }
 
-    private fun state(status: StatusSnapshot): Component {
+    private fun state(status: StatusSnapshot, development: Boolean): Component {
         val health = status.health
+        if (development && health == Health.OK) {
+            val word = tr("status.health.dev")
+            return tr("status.state", "state" to word.hoverEvent(HoverEvent.showText(tr("status.hover.dev"))))
+        }
         val lag = status.lagMillis?.let { millis ->
             if (status.lagBeyondProbe) ">" + shortSpan(millis) else shortSpan(millis)
         } ?: ""

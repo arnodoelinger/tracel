@@ -7,7 +7,9 @@
     "download": "<green>[→ Скачать]</green>",
     "download_hover": "<white>Открыть страницу загрузки на Modrinth</white>",
     "news": "<aqua>[☰ Что нового]</aqua>",
-    "news_hover": "<white>Открыть описание релиза на Modrinth</white>"
+    "news_hover": "<white>Открыть описание релиза на Modrinth</white>",
+    "dev_title": "Tracel <version> — сборка для разработчиков",
+    "dev_advice": "<gray>Имейте в виду</gray>: возможны ошибки и недоделанные фичи"
   },
   "setup": {
     "title": "Добро пожаловать в настройку Tracel",
@@ -561,6 +563,7 @@
       "huge": "гигантский"
     },
     "health": {
+      "dev": "<gold>сборка для разработчиков</gold>",
       "ok": "<green>в норме</green>",
       "forward": "<aqua>режим обратной совместимости</aqua>",
       "load": "<yellow>в условиях высокой нагрузки</yellow>",
@@ -569,6 +572,7 @@
       "critical_disk": "<red>критически мало места на диске</red>"
     },
     "hover": {
+      "dev": "<white>Это сборка для разработчиков. Возможны ошибки и недоделанные фичи</white>",
       "purge_interval": "<gray>Ищет старую историю каждые</gray> <white><interval></white>",
       "purge_keep": "<gray><category></gray>: <white><keep></white>",
       "ok": "<white>Всё отлично</white>",

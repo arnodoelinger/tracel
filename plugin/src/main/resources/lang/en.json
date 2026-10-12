@@ -7,7 +7,9 @@
     "download": "<green>[→ Download]</green>",
     "download_hover": "<white>Open the download page on Modrinth</white>",
     "news": "<aqua>[☰ What's new]</aqua>",
-    "news_hover": "<white>Open the release notes on Modrinth</white>"
+    "news_hover": "<white>Open the release notes on Modrinth</white>",
+    "dev_title": "Tracel <version> is a development build",
+    "dev_advice": "<gray>Expect</gray>: bugs and unfinished things"
   },
   "setup": {
     "title": "Welcome to Tracel",
@@ -561,6 +563,7 @@
       "huge": "gigantic"
     },
     "health": {
+      "dev": "<gold>development build</gold>",
       "ok": "<green>OK</green>",
       "forward": "<aqua>forward-compatibility</aqua>",
       "load": "<yellow>high load</yellow>",
@@ -569,6 +572,7 @@
       "critical_disk": "<red>critically low disk space</red>"
     },
     "hover": {
+      "dev": "<white>This is a development build. Expect bugs and unfinished features</white>",
       "purge_interval": "<gray>Looks for old history every</gray> <white><interval></white>",
       "purge_keep": "<gray><category></gray>: <white><keep></white>",
       "ok": "<white>Everything is working excellent</white>",

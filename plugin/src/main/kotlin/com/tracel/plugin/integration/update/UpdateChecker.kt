@@ -23,6 +23,7 @@ internal class UpdateChecker(private val services: TracelServices) {
     /** Starts the periodic check. A server whose version cannot be read has nothing to compare, so it does not start. */
     fun start() {
         val current = running.toVersionOrNull(strict = false) ?: return
+        if (current.isDevelopment()) return
         services.scope.launch {
             while (isActive) {
                 try {
