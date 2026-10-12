@@ -115,7 +115,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = if (egg) DragonEggCell.lastAt(event.block)
         else ColumnCell.fluidPlayerAt(event.block) ?: ColumnCell.fluidPlayerAt(event.toBlock)
         if (by != null && !egg) ColumnCell.rememberFluidAround(by, event.toBlock, 1, refresh = false)
-        val cause = if (by != null) CauseKind.PLAYER_ACTION else flowing(event.block)
+        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.FLUID
         val causedBy = by?.let { HolderId.Player(it) }
         if (egg) shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, listOf(event.block, event.toBlock))
         else shape.flowed(event.toBlock, cause, causedBy)
@@ -126,7 +126,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = ColumnCell.fluidPlayerAt(event.block)
         shape.flowed(
             event.block,
-            if (by != null) CauseKind.PLAYER_ACTION else flowing(event.block),
+            if (by != null) CauseKind.PLAYER_ACTION else CauseKind.FLUID,
             by?.let { HolderId.Player(it) },
         )
     }
@@ -181,8 +181,6 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     fun onLightningSpawn(event: EntityAddToWorldEvent) {
         (event.entity as? LightningStrike)?.let(::struck)
     }
-
-    private fun flowing(block: Block): CauseKind = if (block.type == Material.LAVA) CauseKind.LAVA else CauseKind.WATER
 
     private val seenBolts = ExpiringSet<UUID>(BOLT_SEEN_MS)
 

@@ -209,7 +209,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         }
         val natural = when (event.cause) {
             BlockIgniteEvent.IgniteCause.LIGHTNING -> CauseKind.LIGHTNING
-            BlockIgniteEvent.IgniteCause.LAVA -> CauseKind.LAVA
+            BlockIgniteEvent.IgniteCause.LAVA -> CauseKind.FIRE
             BlockIgniteEvent.IgniteCause.SPREAD -> FireCell.originAt(event.ignitingBlock) ?: CauseKind.FIRE
             else -> CauseKind.NATURAL
         }

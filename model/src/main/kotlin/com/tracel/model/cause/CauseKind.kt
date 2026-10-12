@@ -17,8 +17,7 @@ public enum class CauseKind {
     PROJECTILE,
     LIGHTNING,
     FIRE,
-    LAVA,
-    WATER,
+    FLUID,
     GROWTH;
 
     /**
@@ -36,8 +35,7 @@ public enum class CauseKind {
             NATURAL,
             LIGHTNING,
             FIRE,
-            LAVA,
-            WATER,
+            FLUID,
             GROWTH,
         )
     }
