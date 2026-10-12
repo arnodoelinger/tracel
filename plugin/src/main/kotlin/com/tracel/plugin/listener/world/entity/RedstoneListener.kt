@@ -5,6 +5,7 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.specifics.block.blastsWhenUsed
 import com.tracel.plugin.specifics.block.canPrimeTnt
 import com.tracel.plugin.specifics.block.isButtonOrLever
 import com.tracel.plugin.specifics.block.isPressurePlate
@@ -23,6 +24,8 @@ import org.bukkit.event.player.PlayerInteractEvent
  *
  * Records press and flint-and-steel creeper ignition for TNT / creeper explosion
  * attribution too.
+ *
+ * A bed or an anchor clicked in the wrong world goes off as a press does.
  */
 @Unstable
 class RedstoneListener(services: TracelServices) : TracelListener(services) {
@@ -41,7 +44,7 @@ class RedstoneListener(services: TracelServices) : TracelListener(services) {
     fun onPlayerInteract(event: PlayerInteractEvent) {
         val block = event.clickedBlock ?: return
         val isPress = when (event.action) {
-            Action.RIGHT_CLICK_BLOCK -> block.type.isButtonOrLever()
+            Action.RIGHT_CLICK_BLOCK -> block.type.isButtonOrLever() || block.type.blastsWhenUsed()
             Action.PHYSICAL -> block.type.isPressurePlate()
             else -> false
         }

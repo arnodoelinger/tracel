@@ -21,6 +21,9 @@ internal enum class TntPrimer(override val material: Material?) : GameMaterial {
 /** Whether a player presses this by clicking it. */
 internal fun Material.isButtonOrLever(): Boolean = this == Material.LEVER || name.endsWith("_BUTTON")
 
+/** Whether clicking this can blow it up: a bed outside the overworld, an anchor outside the nether. */
+internal fun Material.blastsWhenUsed(): Boolean = name.endsWith("_BED") || this == Material.RESPAWN_ANCHOR
+
 /** Whether this is pressed by standing on it. */
 internal fun Material.isPressurePlate(): Boolean = name.endsWith("_PRESSURE_PLATE")
 

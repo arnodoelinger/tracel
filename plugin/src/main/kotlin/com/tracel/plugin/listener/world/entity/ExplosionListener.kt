@@ -48,7 +48,9 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
     fun onBlockExplode(event: BlockExplodeEvent) {
         if (!event.explosionResult.destroys()) return
         val exploded = event.explodedBlockState
-        val by = ColumnCell.playerAt(exploded.block)?.let(HolderId::Player)
+        val block = exploded.block
+        val by = ColumnCell.playerAt(block)?.let(HolderId::Player)
+            ?: services.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
         val self = explodedCells(exploded)
         if (self.isNotEmpty()) {
             shape.edits(
