@@ -49,7 +49,7 @@ internal object ChangeLinePresenter {
 
     /** Creates a component representing the change. */
     fun of(change: WorldChange, actors: Actors = Actors.NONE): Component {
-        val who = change.causedBy?.let { holder(it, actors) } ?: Component.text(change.cause.name.lowercase())
+        val who = change.causedBy?.let { holder(it, actors) } ?: Component.text(NamePresenter.pretty(change.cause.name))
         val at = at(change.at.x, change.at.y, change.at.z)
         return when (val subject = change.subject) {
             is ChangeSubject.Block -> {
@@ -136,6 +136,7 @@ internal object ChangeLinePresenter {
             EventKind.SHOOT, EventKind.PULL, EventKind.PUSH -> NamePresenter.pretty(raw)
             EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).text } ?: raw
             EventKind.SLEEP -> NamePresenter.pretty(raw)
+            EventKind.DEATH -> capitalized(raw)
             EventKind.TELEPORT -> NamePresenter.pretty(raw)
             EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).text } ?: raw
             else -> raw
@@ -145,6 +146,7 @@ internal object ChangeLinePresenter {
             EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).row } ?: Component.text(raw)
             EventKind.CLICK, EventKind.SLEEP -> NamePresenter.of(raw)
             EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).row } ?: Component.text(raw)
+            EventKind.DEATH -> Component.text(capitalized(raw))
             EventKind.SET -> setting(raw)
             else -> Component.text(raw)
         }
@@ -368,6 +370,9 @@ internal object ChangeLinePresenter {
         return Component.text(raw)
     }
 
+    private fun capitalized(raw: String): String =
+        raw.split(' ').joinToString(" ") { word -> word.replaceFirstChar(Char::uppercase) }
+
     private class Blow(val text: String, val row: Component, val tip: Component)
 
     private class Deal(val text: String, val row: Component)
@@ -432,7 +437,7 @@ internal object ChangeLinePresenter {
             val name = Component.text(playerName(player.uuid))
             if (cause == CauseKind.PROJECTILE) Component.textOfChildren(name, lower("common.via.projectile")) else name
         }
-            ?: by?.let { holder(it, actors) } ?: Component.text(cause.name.lowercase())
+            ?: by?.let { holder(it, actors) } ?: Component.text(NamePresenter.pretty(cause.name))
 
     private fun quantity(total: Long, item: Component): Component =
         Component.textOfChildren(Component.text(total), Component.space(), item)
