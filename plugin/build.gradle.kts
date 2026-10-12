@@ -51,13 +51,11 @@ tasks {
         }
     }
 
-    // Developer server on the lowest supported platform version, so anything that only
-    // exists in 26.2 fails here rather than in production.
     runServer {
-        minecraftVersion("26.1.2")
+        minecraftVersion("26.3")
         jvmArgs(
-            "-Xms6G",
-            "-Xmx6G",
+            "-Xms4G",
+            "-Xmx4G",
             "-XX:+UseG1GC",
             "-XX:+ParallelRefProcEnabled",
             "-XX:MaxGCPauseMillis=200",
