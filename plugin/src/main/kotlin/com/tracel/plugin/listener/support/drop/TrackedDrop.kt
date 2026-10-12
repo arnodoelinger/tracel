@@ -92,7 +92,7 @@ fun TracelServices.releaseAsTrackedDrops(
                 val flows = releaseFlows(holder, believed, release, spawned)
                 val (mints, rest) = flows.partition { it.kind == FlowKind.MINT }
                 atomically {
-                    if (mints.isNotEmpty()) capture.recordDirect(mints, epochMillis - 1, CauseKind.WORLD, null, where)
+                    if (mints.isNotEmpty()) capture.recordDirect(mints, epochMillis - 1, CauseKind.NATURAL, null, where)
                     if (rest.isNotEmpty()) capture.recordDirect(rest, epochMillis, cause, causedBy, where)
                 }
             }
@@ -168,5 +168,5 @@ private suspend fun TracelServices.mintUnseen(
     if (shortfall.isEmpty()) return
 
     for ((itemKey, amount) in shortfall) differ.adjust(holder, itemKey, amount)
-    capture.recordDirect(worldgenMintFlows(shortfall, holder), epochMillis - 1, CauseKind.WORLD, null, where)
+    capture.recordDirect(worldgenMintFlows(shortfall, holder), epochMillis - 1, CauseKind.NATURAL, null, where)
 }

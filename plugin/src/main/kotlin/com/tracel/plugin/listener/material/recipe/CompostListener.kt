@@ -26,9 +26,9 @@ class CompostListener(services: TracelServices) : TracelListener(services) {
         val item = event.item
         if (item.type.isAir || item.amount <= 0) return
         val block = event.block
-        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.WORLD, null, listOf(block))
+        shape.reread(ActionKind.BLOCK_CHANGE, CauseKind.NATURAL, null, listOf(block))
         material.moved(
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             itemKey = item.toItemKey(),
             from = block.toHolderId(),

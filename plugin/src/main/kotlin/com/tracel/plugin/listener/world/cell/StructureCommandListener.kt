@@ -66,7 +66,7 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
         handle(
             body = body,
             causedBy = null,
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             origin = null,
             world = world
         )

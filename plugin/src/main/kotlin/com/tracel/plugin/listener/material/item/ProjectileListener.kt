@@ -135,7 +135,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
         LiveProjectile.remove(projectile.uniqueId)
         services.groundWhereabouts.remember(projectile)
         material.released(
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             from = projectile.toPlacedEntityId(),
             to = HolderId.Sink(SinkKind.UNATTRIBUTED),

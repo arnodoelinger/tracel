@@ -12,7 +12,7 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.server.RemoteServerCommandEvent
 import org.bukkit.event.server.ServerCommandEvent
 
-/** `/give`, `/clear`, `/item`: listener. */
+/** `/give`, `/clear`, `/item` listener. */
 class GapCommandListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onPlayerCommand(event: PlayerCommandPreprocessEvent) = touched(event.message.removePrefix("/"))
@@ -39,7 +39,7 @@ class GapCommandListener(services: TracelServices) : TracelListener(services) {
                 material.reconcile(
                     listOf(player.inventory),
                     player,
-                    CauseKind.WORLD,
+                    CauseKind.NATURAL,
                     anonymous = true
                 )
             }

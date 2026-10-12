@@ -42,7 +42,7 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
         val quantity = item.amount.toLong()
 
         val by = services.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
-        val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+        val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
 
         val facing = (block.blockData as? Directional)?.facing
         if (by != null && facing != null && item.type.name.endsWith("_SPAWN_EGG")) DispenseCell.fired(

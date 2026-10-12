@@ -393,7 +393,7 @@ class CoreProtectImportTest {
             assertEquals("minecraft:tnt", ActorFacts(store.storage).kindsOf(listOf(tnt.uuid))[tnt.uuid]?.value)
 
             val lava = store.at(50).single()
-            assertEquals(CauseKind.WORLD, lava.cause)
+            assertEquals(CauseKind.NATURAL, lava.cause)
             assertNull(lava.causedBy)
         }
     }

@@ -35,7 +35,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     fun onForm(event: BlockFormEvent) {
         if (event is BlockSpreadEvent || event is EntityBlockFormEvent) return
         val by = ColumnCell.fluidPlayerAt(event.block)?.let(HolderId::Player)
-        shape.became(event.block, event.newState, if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD, by)
+        shape.became(event.block, event.newState, if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL, by)
     }
 
     @Observes
@@ -70,7 +70,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         if (event.isFromBonemeal) return
         shape.edits(
             action = ActionKind.BLOCK_CHANGE,
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             world = WorldId(event.world.uid),
             edits = event.blocks.map { BlockEdit(it.toBlockPos(), it.block.toShape(), it.toShape()) },
@@ -82,7 +82,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = event.player?.let { HolderId.Player(it.uniqueId) }
         shape.edits(
             action = ActionKind.BLOCK_GROW,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by,
             world = WorldId(event.block.world.uid),
             edits = event.blocks.map { BlockEdit(it.toBlockPos(), it.block.toShape(), it.toShape()) },
@@ -94,7 +94,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = (event.entity as? Player)?.let { HolderId.Player(it.uniqueId) }
         shape.reread(
             action = ActionKind.BLOCK_PLACE,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by,
             blocks = event.blocks.map { it.block },
         )
@@ -106,7 +106,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = if (egg) DragonEggCell.lastAt(event.block)
         else ColumnCell.fluidPlayerAt(event.block) ?: ColumnCell.fluidPlayerAt(event.toBlock)
         if (by != null && !egg) ColumnCell.rememberFluidAround(by, event.toBlock, 1, refresh = false)
-        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
         val causedBy = by?.let { HolderId.Player(it) }
         if (egg) shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, listOf(event.block, event.toBlock))
         else shape.flowed(event.toBlock, cause, causedBy)
@@ -117,7 +117,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = ColumnCell.fluidPlayerAt(event.block)
         shape.flowed(
             event.block,
-            if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             by?.let { HolderId.Player(it) },
         )
     }
@@ -182,7 +182,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         for (dx in -1..1) for (dy in -2..0) for (dz in -1..1) near += hit.getRelative(dx, dy, dz)
         shape.reread(
             ActionKind.BLOCK_CHANGE,
-            CauseKind.WORLD,
+            CauseKind.NATURAL,
             null,
             near,
             delayTicks = LIGHTNING_SETTLE_TICKS

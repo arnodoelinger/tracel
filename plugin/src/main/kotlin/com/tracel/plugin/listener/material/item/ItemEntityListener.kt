@@ -194,7 +194,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             )
         } else {
             for ((key, amount) in stack.totalsOf(qty)) material.single(
-                CauseKind.WORLD,
+                CauseKind.NATURAL,
                 null,
                 key,
                 groundHolder,
@@ -218,7 +218,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
                 val loc = spawnedAt
                 val claimed = services.blockDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, qty, groundHolder)
                 val unclaimed = qty - claimed
-                if (unclaimed > 0) material.single(CauseKind.WORLD, null, itemKey, groundHolder, unclaimed, epochMillis)
+                if (unclaimed > 0) material.single(CauseKind.NATURAL, null, itemKey, groundHolder, unclaimed, epochMillis)
             } finally {
                 services.blockReleases.claimed(window)
             }
@@ -239,7 +239,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             val taken = (item.itemStack.amount - event.remaining).toLong()
             if (taken > 0) {
                 movedStack(
-                    CauseKind.WORLD,
+                    CauseKind.NATURAL,
                     null,
                     item.itemStack,
                     taken,
@@ -287,7 +287,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         // Coordinate only needed when the pile is gone; dying is rarer than spawn
         services.groundWhereabouts.remember(event.entity)
         material.released(
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             from = HolderId.ItemEntity(event.entity.uniqueId),
             to = HolderId.Sink(SinkKind.DESPAWN),
@@ -308,7 +308,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         services.selfManagedSpawns.forget(event.entity.uniqueId)
         services.groundWhereabouts.remember(event.entity)
         material.released(
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             from = HolderId.ItemEntity(event.entity.uniqueId),
             to = HolderId.ItemEntity(event.target.uniqueId),
@@ -389,7 +389,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         if (!input.type.isAir && input.amount > 0) {
             material.adjust(holder, input.toItemKey(), -input.amount.toLong())
             material.moved(
-                cause = CauseKind.WORLD,
+                cause = CauseKind.NATURAL,
                 causedBy = null,
                 itemKey = input.toItemKey(),
                 from = holder,
@@ -401,7 +401,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         if (outcome.isEmpty()) return
         material.releasing(
             releases = listOf(BlockRelease(holder, at.world, at.blockX, at.blockY, at.blockZ, outcome)),
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             at = piglin.toBlockPos(),
         )
@@ -422,7 +422,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         if (restoring) return
         val sink = sinkFor(event.cause) ?: return
         material.released(
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             from = HolderId.ItemEntity(item.uniqueId),
             to = HolderId.Sink(sink)

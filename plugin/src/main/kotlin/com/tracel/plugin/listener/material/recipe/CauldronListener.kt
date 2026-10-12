@@ -20,7 +20,7 @@ class CauldronListener(services: TracelServices) : TracelListener(services) {
         val player = event.entity as? Player
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
-            cause = if (player != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (player != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = player?.let { HolderId.Player(it.uniqueId) },
             blocks = listOf(event.block),
         )

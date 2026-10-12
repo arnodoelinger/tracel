@@ -114,7 +114,7 @@ class MaterialCapture internal constructor(private val services: TracelServices)
                 services.capture.recordDirect(
                     worldgenMintFlows(shortfall, holder),
                     System.currentTimeMillis(),
-                    CauseKind.WORLD,
+                    CauseKind.NATURAL,
                     null,
                     at
                 )

@@ -142,10 +142,10 @@ class CaptureCoordinatorTest {
 
         val flow = Flow(diamond, Quantity(5), ground, HolderId.Sink(SinkKind.DESPAWN), FlowKind.BURN)
         val transaction =
-            coordinator.recordDirect(listOf(flow), epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
+            coordinator.recordDirect(listOf(flow), epochMillis = 1_000L, cause = CauseKind.NATURAL, causedBy = null)
 
         checkNotNull(transaction)
-        assertEquals(CauseKind.WORLD, transaction.cause)
+        assertEquals(CauseKind.NATURAL, transaction.cause)
         assertEquals(flow, transaction.flows.single())
         assertEquals(0L, world.ledger.totalAt(ground, diamond)?.raw ?: 0L)
         assertEquals(transaction, log.find(transaction.id))
@@ -159,7 +159,7 @@ class CaptureCoordinatorTest {
         val coordinator = CaptureCoordinator(world.ledger, log, world::nextTxn) { Seq(nextSeqRaw++) }
 
         val transaction =
-            coordinator.recordDirect(emptyList(), epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
+            coordinator.recordDirect(emptyList(), epochMillis = 1_000L, cause = CauseKind.NATURAL, causedBy = null)
 
         assertNull(transaction)
     }
@@ -215,7 +215,7 @@ class CaptureCoordinatorTest {
         )
 
         assertThrows<IllegalStateException> {
-            coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
+            coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.NATURAL, causedBy = null)
         }
 
         assertEquals(2L, world.ledger.totalAt(ground, diamond)?.raw, "the ground item keeps everything it had")
@@ -241,7 +241,7 @@ class CaptureCoordinatorTest {
         )
 
         val transaction =
-            coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.WORLD, causedBy = null)
+            coordinator.recordDirect(flows, epochMillis = 1_000L, cause = CauseKind.NATURAL, causedBy = null)
 
         checkNotNull(transaction)
         assertEquals(5L, world.ledger.totalAt(ground, diamond)?.raw)

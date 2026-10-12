@@ -46,7 +46,7 @@ class CaptureRingTest {
             stack.gate.move(CauseKind.MACHINE, null, 5L, diamond, chest, steve, 20)
             stack.drain()
 
-            assertTrue(stack.gate.release(CauseKind.WORLD, null, 6L, steve, chest))
+            assertTrue(stack.gate.release(CauseKind.NATURAL, null, 6L, steve, chest))
             assertEquals(1, stack.drain())
             assertEquals(null, stack.ledger.totalAt(steve, diamond), "everything Steve held moved back")
         }

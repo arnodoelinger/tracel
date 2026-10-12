@@ -101,5 +101,5 @@ class MintedStraightThroughTest {
         Flow(item, Quantity(amount), from, to, kind)
 
     private fun txn(vararg flows: Flow) =
-        Transaction(TxnId(1), Seq(1), 0L, CauseKind.WORLD, null, flows.toList())
+        Transaction(TxnId(1), Seq(1), 0L, CauseKind.NATURAL, null, flows.toList())
 }

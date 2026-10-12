@@ -97,7 +97,7 @@ class HarvestListener(services: TracelServices) : TracelListener(services) {
             holder = HolderId.Entity(entity.uniqueId),
             world = at.world, x = at.blockX, y = at.blockY, z = at.blockZ,
             drops = event.drops,
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             at = entity.toBlockPos(),
         )

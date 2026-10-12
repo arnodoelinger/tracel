@@ -27,7 +27,7 @@ class LootCaptureListener(services: TracelServices) : TracelListener(services) {
         material.minted(
             totals = totals,
             into = holder,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by,
             at = at,
         )
@@ -41,7 +41,7 @@ class LootCaptureListener(services: TracelServices) : TracelListener(services) {
         val by = event.player?.let { HolderId.Player(it.uniqueId) }
         material.releasing(
             releases = listOf(BlockRelease(block.toHolderId(), block.world, block.x, block.y, block.z, totals)),
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by,
             at = block.toBlockPos(),
         )

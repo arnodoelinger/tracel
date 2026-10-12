@@ -76,7 +76,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         before: BlockShape,
         after: BlockShape,
         action: ActionKind = ActionKind.BLOCK_CHANGE,
-        cause: CauseKind = CauseKind.WORLD,
+        cause: CauseKind = CauseKind.NATURAL,
         causedBy: HolderId? = null,
         epochMillis: Long = System.currentTimeMillis(),
     ) = edits(
@@ -89,14 +89,14 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
      *
      * Call while the block is still there.
      */
-    fun removed(block: Block, cause: CauseKind = CauseKind.WORLD, causedBy: HolderId? = null) =
+    fun removed(block: Block, cause: CauseKind = CauseKind.NATURAL, causedBy: HolderId? = null) =
         edit(block, block.toShape(), AIR, ActionKind.BLOCK_BREAK, cause, causedBy)
 
     /** This cell is becoming [newState]: current shape -> that state's shape. */
     fun became(
         block: Block,
         newState: BlockState,
-        cause: CauseKind = CauseKind.WORLD,
+        cause: CauseKind = CauseKind.NATURAL,
         causedBy: HolderId? = null,
     ) = edit(block, block.toShape(), newState.toShape(), ActionKind.BLOCK_CHANGE, cause, causedBy)
 

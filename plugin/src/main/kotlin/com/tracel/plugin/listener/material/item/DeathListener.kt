@@ -58,7 +58,7 @@ class DeathListener(services: TracelServices) : TracelListener(services) {
                     at.blockZ
                 )
             ),
-            cause = if (killer != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (killer != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = killer,
             at = entity.toBlockPos(),
         )

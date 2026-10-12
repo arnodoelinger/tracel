@@ -192,7 +192,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
                     if (unseen.isNotEmpty()) services.capture.recordDirect(
                         worldgenMintFlows(unseen, release.holder),
                         batch.epochMillis - 1,
-                        CauseKind.WORLD,
+                        CauseKind.NATURAL,
                         null,
                         batch.at
                     )
@@ -209,7 +209,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
                     if (mints.isNotEmpty()) services.capture.recordDirect(
                         mints,
                         batch.epochMillis - 1,
-                        CauseKind.WORLD,
+                        CauseKind.NATURAL,
                         null,
                         batch.at
                     )

@@ -488,7 +488,7 @@ class CoreProtectTranslator(
             what in EXPLOSIVE -> CauseKind.EXPLOSION
             what in MACHINES -> CauseKind.MACHINE
             mob != null -> CauseKind.ENTITY_ACTION
-            else -> CauseKind.WORLD
+            else -> CauseKind.NATURAL
         }
         return Actor(cause, by)
     }

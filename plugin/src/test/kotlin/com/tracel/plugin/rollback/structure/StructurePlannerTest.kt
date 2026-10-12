@@ -433,11 +433,11 @@ class StructurePlannerTest {
                 ChangeSubject.Entity(boat, hull.type, hull, null),
             ),
             WorldChange(
-                Seq(2), ActionKind.ENTITY_CHANGE, CauseKind.WORLD, null, 2, here,
+                Seq(2), ActionKind.ENTITY_CHANGE, CauseKind.NATURAL, null, 2, here,
                 ChangeSubject.Entity(first, firstShape.type, seated(firstShape), firstShape),
             ),
             WorldChange(
-                Seq(3), ActionKind.ENTITY_CHANGE, CauseKind.WORLD, null, 3, here,
+                Seq(3), ActionKind.ENTITY_CHANGE, CauseKind.NATURAL, null, 3, here,
                 ChangeSubject.Entity(second, secondShape.type, seated(secondShape), secondShape),
             ),
         )

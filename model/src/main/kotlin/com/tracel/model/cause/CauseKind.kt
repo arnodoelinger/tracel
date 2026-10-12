@@ -10,7 +10,7 @@ public enum class CauseKind {
     ROLLBACK,
     INVOLUTION,
     ENTITY_ACTION,
-    WORLD,
+    NATURAL,
     PLUGIN,
     UNKNOWN,
     WEAR,

@@ -555,7 +555,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         shape.entity(
             EntityChange(
                 action = ActionKind.ENTITY_SPAWN,
-                cause = CauseKind.WORLD,
+                cause = CauseKind.NATURAL,
                 causedBy = null,
                 epochMillis = System.currentTimeMillis() - lived * MILLIS_PER_TICK,
                 at = looks.blockPos(entity.world.uid),
@@ -572,7 +572,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val before = entity.toShape()
         val at = entity.toBlockPos()
         val epochMillis = System.currentTimeMillis()
-        val cause = why ?: if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+        val cause = why ?: if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
         later(entity) {
             val after = entity.toShape()
             if (before == after) return@later
@@ -633,7 +633,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         }
         val now = System.currentTimeMillis()
         val resolvedCause = cause
-            ?: if (causedBy != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+            ?: if (causedBy != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
         shape.entity(
             EntityChange(
                 action = action,

@@ -67,7 +67,7 @@ class WorldCaptureTest {
     fun `a block that did not actually change is not written down`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             stack.gate.blocks(
-                CauseKind.WORLD, ActionKind.BLOCK_CHANGE, null, 1L, world,
+                CauseKind.NATURAL, ActionKind.BLOCK_CHANGE, null, 1L, world,
                 listOf(BlockEdit(BlockPos(world, 1, 1, 1), stone, stone)),
             )
             stack.drain()

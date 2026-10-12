@@ -38,7 +38,7 @@ internal fun TracelServices.damageBlame(event: EntityDamageEvent): DamageBlame {
         return DamageBlame(who, if (blast) CauseKind.EXPLOSION else causeFor(who))
     }
     // Environmental damage has no damager; the column is the only actor we have
-    if (event.cause !in ENVIRONMENTAL) return DamageBlame(null, CauseKind.WORLD)
+    if (event.cause !in ENVIRONMENTAL) return DamageBlame(null, CauseKind.NATURAL)
     val who = ColumnCell.playerWhoDisturbed(event.entity)?.let(HolderId::Player)
     return DamageBlame(who, causeFor(who))
 }
@@ -57,7 +57,7 @@ private fun TracelServices.attackerOf(damager: Entity?): HolderId? = when (damag
         ?: HolderId.Entity(damager.uniqueId)
 }
 
-private fun causeFor(who: HolderId?) = if (who == null) CauseKind.WORLD else CauseKind.PLAYER_ACTION
+private fun causeFor(who: HolderId?) = if (who == null) CauseKind.NATURAL else CauseKind.PLAYER_ACTION
 
 private val ENVIRONMENTAL = setOf(
     EntityDamageEvent.DamageCause.FIRE,

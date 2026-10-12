@@ -132,7 +132,7 @@ class LookupAction(private val services: TracelServices) {
             blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
             causes = actions.causes,
             excludedCauses = if (parsed.natural || "world" in parsed.actions.map(String::lowercase)) emptySet() else setOf(
-                CauseKind.WORLD
+                CauseKind.NATURAL
             ),
             worldCauses = actions.worldCauses,
             actions = actions.actions,

@@ -91,7 +91,7 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
         val by = ColumnCell.fluidPlayerAt(event.source) ?: ColumnCell.fluidPlayerAt(block)
         material.releasing(
             releases = releases,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by?.let(HolderId::Player),
             at = block.toBlockPos(),
             epochMillis = epochMillis
@@ -105,7 +105,7 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
         ReleasedCell.claim(block)
         material.releasing(
             releases = listOf(BlockRelease(block.toPlacedBlockId(), block)),
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             at = block.toBlockPos(),
         )
@@ -125,7 +125,7 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
         if (block.cargoSlots() != null) releases += BlockRelease(block.toHolderId(), block)
         material.releasing(
             releases = releases,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by?.let(HolderId::Player),
             at = block.toBlockPos(),
         )

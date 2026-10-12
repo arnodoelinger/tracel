@@ -37,7 +37,7 @@ class SmeltListener(services: TracelServices) : TracelListener(services) {
     fun onCook(event: BlockCookEvent) = afterTick(event.block, CauseKind.CRAFT)
 
     @Observes
-    fun onBurn(event: FurnaceBurnEvent) = afterTick(event.block, CauseKind.WORLD)
+    fun onBurn(event: FurnaceBurnEvent) = afterTick(event.block, CauseKind.NATURAL)
 
     @Observes
     fun onBrew(event: BrewEvent) = afterTick(event.block, CauseKind.CRAFT)

@@ -32,7 +32,7 @@ class PistonListener(services: TracelServices) : TracelListener(services) {
         val facing = (piston.blockData as? Directional)?.facing ?: direction
         val touched = blocks + blocks.map { it.getRelative(direction) } + piston + piston.getRelative(facing)
         val by = services.redstoneTriggers.recentPressNear(piston.world, piston.x, piston.y, piston.z)
-        val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+        val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
         shape.reread(ActionKind.BLOCK_CHANGE, cause, by, touched.distinct(), delayTicks = PISTON_SETTLE_TICKS) {
             !it.after.isMovingPiston()
         }

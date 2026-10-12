@@ -128,7 +128,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         by?.let { FireCell.lit(event.block, it) }
         shape.removed(
             block = event.block,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by?.let(HolderId::Player)
         )
     }
@@ -138,7 +138,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         val by = ColumnCell.fluidPlayerAt(event.source) ?: ColumnCell.fluidPlayerAt(event.block)
         shape.removed(
             block = event.block,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by?.let(HolderId::Player)
         )
     }
@@ -151,7 +151,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             before = event.block.toShape(),
             after = BlockShape(BlockDataKey(event.newState.asString)),
             action = ActionKind.BLOCK_BREAK,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by?.let(HolderId::Player),
         )
     }
@@ -165,7 +165,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         val target = event.block.getRelative(facing)
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
-            cause = CauseKind.WORLD,
+            cause = CauseKind.NATURAL,
             causedBy = null,
             blocks = listOf(target)
         )
@@ -208,9 +208,9 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             shooter != null -> CauseKind.PROJECTILE
             player != null -> CauseKind.PLAYER_ACTION
             event.cause == BlockIgniteEvent.IgniteCause.SPREAD || event.cause == BlockIgniteEvent.IgniteCause.LAVA ->
-                if (FireCell.at(event.ignitingBlock) != null || event.ignitingBlock?.let { ColumnCell.fluidPlayerAt(it) } != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+                if (FireCell.at(event.ignitingBlock) != null || event.ignitingBlock?.let { ColumnCell.fluidPlayerAt(it) } != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
 
-            else -> CauseKind.WORLD
+            else -> CauseKind.NATURAL
         }
         val lighter = player
             ?: (igniter as? Player)?.uniqueId
@@ -257,7 +257,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     fun onSpongeAbsorb(event: SpongeAbsorbEvent) {
         val touched = (event.blocks.map { it.block } + event.block).distinct()
         val by = ColumnCell.playerAt(event.block)?.let(HolderId::Player)
-        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD
+        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
             cause = cause,
@@ -281,7 +281,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         shape.became(
             block = event.block,
             newState = event.newState,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             causedBy = by?.let { HolderId.Player(it) },
         )
     }
@@ -334,7 +334,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     private fun afterTick(block: Block, action: ActionKind, player: UUID?) =
         shape.reread(
             action,
-            if (player != null) CauseKind.PLAYER_ACTION else CauseKind.WORLD,
+            if (player != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
             player?.let(HolderId::Player),
             listOf(block),
         )
