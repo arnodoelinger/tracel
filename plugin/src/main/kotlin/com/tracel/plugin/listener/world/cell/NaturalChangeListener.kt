@@ -13,6 +13,7 @@ import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DragonEggCell
+import com.tracel.plugin.listener.support.cell.FireCell
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.specifics.block.makesBubbles
 import com.tracel.plugin.util.concurrent.ExpiringSet
@@ -56,12 +57,20 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
     }
 
     @Observes
-    fun onSpread(event: BlockSpreadEvent) = shape.became(event.block, event.newState)
+    fun onSpread(event: BlockSpreadEvent) {
+        val fire = event.newState.type == Material.FIRE || event.newState.type == Material.SOUL_FIRE
+        val cause = when {
+            !fire -> CauseKind.GROWTH
+            FireCell.at(event.source) != null -> CauseKind.NATURAL
+            else -> FireCell.originAt(event.source) ?: CauseKind.FIRE
+        }
+        shape.became(event.block, event.newState, cause)
+    }
 
     @Observes
     fun onGrow(event: BlockGrowEvent) {
         if (event is BlockFormEvent) return
-        shape.became(event.block, event.newState)
+        shape.became(event.block, event.newState, CauseKind.GROWTH)
     }
 
     @Observes
@@ -70,7 +79,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         if (event.isFromBonemeal) return
         shape.edits(
             action = ActionKind.BLOCK_CHANGE,
-            cause = CauseKind.NATURAL,
+            cause = CauseKind.GROWTH,
             causedBy = null,
             world = WorldId(event.world.uid),
             edits = event.blocks.map { BlockEdit(it.toBlockPos(), it.block.toShape(), it.toShape()) },
@@ -82,7 +91,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = event.player?.let { HolderId.Player(it.uniqueId) }
         shape.edits(
             action = ActionKind.BLOCK_GROW,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.GROWTH,
             causedBy = by,
             world = WorldId(event.block.world.uid),
             edits = event.blocks.map { BlockEdit(it.toBlockPos(), it.block.toShape(), it.toShape()) },
@@ -106,7 +115,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = if (egg) DragonEggCell.lastAt(event.block)
         else ColumnCell.fluidPlayerAt(event.block) ?: ColumnCell.fluidPlayerAt(event.toBlock)
         if (by != null && !egg) ColumnCell.rememberFluidAround(by, event.toBlock, 1, refresh = false)
-        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
+        val cause = if (by != null) CauseKind.PLAYER_ACTION else flowing(event.block)
         val causedBy = by?.let { HolderId.Player(it) }
         if (egg) shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, listOf(event.block, event.toBlock))
         else shape.flowed(event.toBlock, cause, causedBy)
@@ -117,7 +126,7 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val by = ColumnCell.fluidPlayerAt(event.block)
         shape.flowed(
             event.block,
-            if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            if (by != null) CauseKind.PLAYER_ACTION else flowing(event.block),
             by?.let { HolderId.Player(it) },
         )
     }
@@ -173,6 +182,8 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         (event.entity as? LightningStrike)?.let(::struck)
     }
 
+    private fun flowing(block: Block): CauseKind = if (block.type == Material.LAVA) CauseKind.LAVA else CauseKind.WATER
+
     private val seenBolts = ExpiringSet<UUID>(BOLT_SEEN_MS)
 
     private fun struck(bolt: LightningStrike) {
@@ -180,10 +191,11 @@ class NaturalChangeListener(services: TracelServices) : TracelListener(services)
         val hit = bolt.location.block
         val near = ArrayList<Block>(LIGHTNING_REACH)
         for (dx in -1..1) for (dy in -2..0) for (dz in -1..1) near += hit.getRelative(dx, dy, dz)
+        val summoner = bolt.causingPlayer?.uniqueId?.let(HolderId::Player)
         shape.reread(
             ActionKind.BLOCK_CHANGE,
-            CauseKind.NATURAL,
-            null,
+            if (summoner != null) CauseKind.PLAYER_ACTION else CauseKind.LIGHTNING,
+            summoner,
             near,
             delayTicks = LIGHTNING_SETTLE_TICKS
         ) { it.before != it.after }

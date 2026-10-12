@@ -32,6 +32,7 @@ import org.bukkit.block.BlockFace
 import org.bukkit.block.data.Directional
 import org.bukkit.block.data.Waterlogged
 import org.bukkit.entity.FallingBlock
+import org.bukkit.entity.LightningStrike
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile
 import org.bukkit.event.block.*
@@ -126,9 +127,11 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     fun onBurn(event: BlockBurnEvent) {
         val by = FireCell.at(event.ignitingBlock) ?: FireCell.at(event.block)
         by?.let { FireCell.lit(event.block, it) }
+        val natural = FireCell.originAt(event.ignitingBlock) ?: FireCell.originAt(event.block) ?: CauseKind.FIRE
+        if (by == null) FireCell.litBy(event.block, natural)
         shape.removed(
             block = event.block,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = if (by != null) CauseKind.PLAYER_ACTION else natural,
             causedBy = by?.let(HolderId::Player)
         )
     }
@@ -194,7 +197,8 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     fun onIgnite(event: BlockIgniteEvent) {
         val igniter = event.ignitingEntity
         val shooter = ((igniter as? Projectile)?.shooter as? Player)?.uniqueId
-        val player = event.player?.uniqueId ?: shooter
+        val summoner = (igniter as? LightningStrike)?.causingPlayer?.uniqueId
+        val player = event.player?.uniqueId ?: shooter ?: summoner
         val explosion = when (event.cause) {
             BlockIgniteEvent.IgniteCause.FIREBALL,
             BlockIgniteEvent.IgniteCause.EXPLOSION,
@@ -203,15 +207,22 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
 
             else -> false
         }
+        val natural = when (event.cause) {
+            BlockIgniteEvent.IgniteCause.LIGHTNING -> CauseKind.LIGHTNING
+            BlockIgniteEvent.IgniteCause.LAVA -> CauseKind.LAVA
+            BlockIgniteEvent.IgniteCause.SPREAD -> FireCell.originAt(event.ignitingBlock) ?: CauseKind.FIRE
+            else -> CauseKind.NATURAL
+        }
+        val carried = event.cause == BlockIgniteEvent.IgniteCause.SPREAD || event.cause == BlockIgniteEvent.IgniteCause.LAVA
         val cause = when {
             explosion -> CauseKind.EXPLOSION
             shooter != null -> CauseKind.PROJECTILE
             player != null -> CauseKind.PLAYER_ACTION
-            event.cause == BlockIgniteEvent.IgniteCause.SPREAD || event.cause == BlockIgniteEvent.IgniteCause.LAVA ->
-                if (FireCell.at(event.ignitingBlock) != null || event.ignitingBlock?.let { ColumnCell.fluidPlayerAt(it) } != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
-
-            else -> CauseKind.NATURAL
+            carried && FireCell.at(event.ignitingBlock) != null -> CauseKind.PLAYER_ACTION
+            carried && event.ignitingBlock?.let { ColumnCell.fluidPlayerAt(it) } != null -> CauseKind.PLAYER_ACTION
+            else -> natural
         }
+        if (cause != CauseKind.NATURAL && cause in CauseKind.NATURAL_CAUSES) FireCell.litBy(event.block, cause)
         val lighter = player
             ?: (igniter as? Player)?.uniqueId
             ?: FireCell.at(event.ignitingBlock).takeIf { event.cause == BlockIgniteEvent.IgniteCause.SPREAD }

@@ -26,6 +26,7 @@ class CodecGoldensTest {
             listOf(
                 "PLAYER_ACTION", "EXPLOSION", "MACHINE", "CRAFT", "BLOCK_BREAK", "ROLLBACK",
                 "INVOLUTION", "ENTITY_ACTION", "NATURAL", "PLUGIN", "UNKNOWN", "WEAR", "PROJECTILE",
+                "LIGHTNING", "FIRE", "LAVA", "WATER", "GROWTH",
             ),
             CauseKind.entries.map { it.name },
         )
