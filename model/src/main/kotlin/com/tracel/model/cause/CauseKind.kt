@@ -18,7 +18,10 @@ public enum class CauseKind {
     LIGHTNING,
     FIRE,
     FLUID,
-    GROWTH;
+    GROWTH,
+    HOPPER,
+    DISPENSER,
+    DROPPER;
 
     /**
      * Rollback and undo bookkeeping. The job record is the reversible layer; lookup must not treat

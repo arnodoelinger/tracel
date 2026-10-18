@@ -41,7 +41,6 @@ import com.tracel.plugin.importer.coreprotect.codes.ItemAction.ITEM_REMOVE_ENDER
 import com.tracel.plugin.importer.coreprotect.codes.ItemAction.ITEM_SELL
 import com.tracel.plugin.importer.coreprotect.codes.ItemAction.ITEM_SHOOT
 import com.tracel.plugin.importer.coreprotect.codes.ItemAction.ITEM_THROW
-import com.tracel.plugin.importer.coreprotect.codes.MACHINES
 import com.tracel.plugin.importer.coreprotect.codes.MOB_ALIASES
 import com.tracel.plugin.importer.coreprotect.codes.SessionAction.LOGIN
 import com.tracel.plugin.importer.coreprotect.codes.SignAction.SIGN_BEFORE
@@ -486,7 +485,9 @@ class CoreProtectTranslator(
         }
         val cause = when {
             what in EXPLOSIVE -> CauseKind.EXPLOSION
-            what in MACHINES -> CauseKind.MACHINE
+            what == "hopper" -> CauseKind.HOPPER
+            what == "dropper" -> CauseKind.DROPPER
+            what == "dispenser" -> CauseKind.DISPENSER
             mob != null -> CauseKind.ENTITY_ACTION
             else -> CauseKind.NATURAL
         }

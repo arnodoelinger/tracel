@@ -436,8 +436,13 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
             ?: byEntity?.let { services.explosionActor(it) }
             ?: if (explosion) services.redstoneTriggers.recentExplosionNear(event.entity.location) else null
         val cause = if (explosion) CauseKind.EXPLOSION else if (shooter != null) CauseKind.PROJECTILE else null
-        if (who != null || cause != null) removedBy.put(event.entity.uniqueId, Blame(who, cause))
-        record(ActionKind.ENTITY_REMOVE, event.entity, who, after = false, cause = cause)
+        val dispensed = if (who == null && cause == null) {
+            services.redstoneTriggers.recentDispenseNear(event.entity.location)
+        } else null
+        val by = who ?: dispensed
+        val why = cause ?: if (dispensed != null) CauseKind.DISPENSER else null
+        if (by != null || why != null) removedBy.put(event.entity.uniqueId, Blame(by, why))
+        record(ActionKind.ENTITY_REMOVE, event.entity, by, after = false, cause = why)
     }
 
     @Observes

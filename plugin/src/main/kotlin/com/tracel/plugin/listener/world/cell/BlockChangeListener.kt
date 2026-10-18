@@ -11,6 +11,7 @@ import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.block.toBlockPos
+import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.block.toPlacedBlockId
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.listener.TracelListener
@@ -166,10 +167,13 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         if (!type.isBucket()) return
         val facing = (event.block.blockData as? Directional)?.facing ?: return
         val target = event.block.getRelative(facing)
+        val block = event.block
+        val by = services.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
+            ?: block.toHolderId()
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
-            cause = CauseKind.NATURAL,
-            causedBy = null,
+            cause = CauseKind.DISPENSER,
+            causedBy = by,
             blocks = listOf(target)
         )
     }

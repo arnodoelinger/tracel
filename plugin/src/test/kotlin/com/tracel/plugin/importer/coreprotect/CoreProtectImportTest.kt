@@ -353,7 +353,7 @@ class CoreProtectImportTest {
                 took.flows.single().itemKey.decoration?.hex,
                 "what the item carried is part of what it is"
             )
-            assertEquals(CauseKind.MACHINE, hopper.cause)
+            assertEquals(CauseKind.HOPPER, hopper.cause)
             assertEquals(FlowKind.MINT, hopper.flows.single().kind)
             assertTrue(
                 moved.all { store.transactions.lotsAt(it.seq).isEmpty() },

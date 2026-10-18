@@ -124,7 +124,11 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             // Same PlacedEntity lot
             services.selfManagedSpawns.track(item.uniqueId)
             material.positioned(
-                cause = if (hull.by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
+                cause = when (hull.by) {
+                    is HolderId.Player -> CauseKind.PLAYER_ACTION
+                    is HolderId.Block -> CauseKind.DISPENSER
+                    else -> CauseKind.ENTITY_ACTION
+                },
                 causedBy = hull.by,
                 at = item.location,
                 deltas = listOf(InventoryDelta(hull.holder, itemKey, -qty), InventoryDelta(groundHolder, itemKey, qty)),
@@ -339,7 +343,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             val taken = before - remaining
             if (taken <= 0L) return@later
             for ((key, amount) in stack.totalsOf(taken)) material.adjust(destination, key, amount)
-            movedStack(CauseKind.MACHINE, null, stack, taken, HolderId.ItemEntity(item.uniqueId), destination)
+            movedStack(CauseKind.HOPPER, null, stack, taken, HolderId.ItemEntity(item.uniqueId), destination)
         }
     }
 

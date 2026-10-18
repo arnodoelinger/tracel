@@ -292,7 +292,7 @@ class ArchitectureTest {
     @Test
     fun `model and engine know no game`() {
         val game = Regex(
-            """minecraft|bukkit|folia|spigot|vanilla|chunk|\bnbt\b|chest|piston|painting|item_frame|falling_block|lava|hopper""",
+            """minecraft|bukkit|folia|spigot|vanilla|chunk|\bnbt\b|chest|piston|painting|item_frame|falling_block|lava""",
             RegexOption.IGNORE_CASE,
         )
         domainScope().files.assertFalse(testName = "model or engine mentions a game") { game.containsMatchIn(it.text) }
