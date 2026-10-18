@@ -15,6 +15,7 @@ import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.concurrent.ExpiringMap
 import io.papermc.paper.event.player.AsyncChatEvent
 import io.papermc.paper.event.player.PlayerTradeEvent
+import kotlin.math.roundToLong
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -23,7 +24,9 @@ import org.bukkit.block.Block
 import org.bukkit.block.data.type.Bed
 import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.FishHook
+import org.bukkit.entity.ItemFrame
 import org.bukkit.entity.Item
+import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Minecart
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile
@@ -34,9 +37,11 @@ import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.entity.ProjectileLaunchEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryType
+import org.bukkit.event.player.PlayerArmorStandManipulateEvent
 import org.bukkit.event.player.PlayerBedEnterEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerFishEvent
+import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
@@ -101,11 +106,18 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         val damager = event.damager
         val victim = event.entity
         val shooter = (damager as? Projectile)?.shooter as? Player
-        val attacker = shooter ?: (damager as? Player)?.takeIf { victim is Player } ?: return
+        if (victim is ItemFrame && damager is Player && !victim.item.type.isAir) {
+            record(EventKind.SET, damager, "frame took ${victim.item.type.key.key}", victim.toBlockPos())
+            return
+        }
+        val attacker = shooter ?: (damager as? Player)?.takeIf { victim is LivingEntity } ?: return
+        if (victim !is Player && !services.logEntityDamage) return
         val victimName = (victim as? Player)?.let { "@${it.name}" } ?: victim.type.key.key
         val how = if (shooter != null) " with ${damager.type.key.key}" else ""
         val hp = "%.1f".format(Locale.ROOT, event.finalDamage)
-        record(EventKind.HIT, attacker, "$victimName$how ($hp hp)", victim.toBlockPos())
+        val left = (victim as? LivingEntity)?.let { maxOf(0.0, it.health - event.finalDamage) }
+            ?.let { ", ${"%.1f".format(Locale.ROOT, (it * 2).roundToLong() / 2.0)} left" }.orEmpty()
+        record(EventKind.HIT, attacker, "$victimName$how ($hp hp$left)", victim.toBlockPos())
     }
 
     @Observes
@@ -152,6 +164,29 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         val caught = event.caught ?: return
         val what = (caught as? Item)?.itemStack?.type?.key?.key ?: caught.type.key.key
         record(EventKind.PULL, event.player, what, caught.toBlockPos())
+    }
+
+    @Observes
+    fun onStand(event: PlayerArmorStandManipulateEvent) {
+        val put = event.playerItem.type.takeUnless { it.isAir }?.key?.key ?: "none"
+        val took = event.armorStandItem.type.takeUnless { it.isAir }?.key?.key ?: "none"
+        if (put == "none" && took == "none") return
+        val slot = event.slot.name.lowercase(Locale.ROOT)
+        record(EventKind.SET, event.player, "stand $slot $put $took", event.rightClicked.toBlockPos())
+    }
+
+    @Observes
+    fun onFrameUse(event: PlayerInteractEntityEvent) {
+        val frame = event.rightClicked as? ItemFrame ?: return
+        val inside = frame.item.type.takeUnless { it.isAir }?.key?.key
+        if (inside != null) {
+            if (event.hand == EquipmentSlot.HAND) {
+                record(EventKind.SET, event.player, "frame rotated $inside", frame.toBlockPos())
+            }
+            return
+        }
+        val held = event.player.inventory.getItem(event.hand).type.takeUnless { it.isAir }?.key?.key ?: return
+        record(EventKind.SET, event.player, "frame put $held", frame.toBlockPos())
     }
 
     @Observes
