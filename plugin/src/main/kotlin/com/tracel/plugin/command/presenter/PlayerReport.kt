@@ -7,6 +7,8 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.block.BlockShape
+import com.tracel.plugin.command.presenter.line.TransitionPresenter
+import com.tracel.plugin.specifics.block.isAirLike
 import java.util.*
 
 /** What one player did in a window, counted. */
@@ -84,7 +86,19 @@ internal data class PlayerReport(
                         (subject as? ChangeSubject.Block)?.before?.let { broken.merge(it.name(), 1, Int::plus) }
                     }
 
-                    ActionKind.BLOCK_CHANGE, ActionKind.BLOCK_GROW -> change++
+                    ActionKind.BLOCK_CHANGE, ActionKind.BLOCK_GROW -> {
+                        val block = subject as? ChangeSubject.Block
+                        val byEntity = causedBy is HolderId.Entity
+                        if (action == ActionKind.BLOCK_CHANGE && block != null && !block.after.isAirLike &&
+                            TransitionPresenter.of(block.before.data.value, block.after.data.value, byEntity) == null &&
+                            block.before != block.after
+                        ) {
+                            place++
+                            placed.merge(block.after.name(), 1, Int::plus)
+                        } else {
+                            change++
+                        }
+                    }
                     ActionKind.SIGN_EDIT -> signs++
                     ActionKind.ENTITY_SPAWN -> spawned++
                     ActionKind.ENTITY_REMOVE -> {

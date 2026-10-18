@@ -20,6 +20,7 @@ data class ParsedLookupArgs(
     val strict: Boolean = false,
     val confirmed: Boolean = false,
     val natural: Boolean = false,
+    val turnings: Boolean = false,
     val all: Boolean = false,
     val each: Boolean = false,
     val page: Int = 1,
