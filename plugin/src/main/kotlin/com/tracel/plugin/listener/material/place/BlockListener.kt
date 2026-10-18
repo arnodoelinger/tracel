@@ -5,10 +5,12 @@ import com.tracel.annotations.Observes
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.adapter.block.cargoSlots
+import com.tracel.plugin.adapter.block.snapshot
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.block.toHolderId
 import com.tracel.plugin.adapter.block.toPlacedBlockId
 import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.ReleasedCell
@@ -18,6 +20,7 @@ import com.tracel.plugin.listener.support.flow.CREATIVE_SOURCE
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
 import io.papermc.paper.event.block.BlockBreakBlockEvent
+import org.bukkit.block.ShulkerBox
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.event.block.LeavesDecayEvent
@@ -44,6 +47,20 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
             to = placedHolder,
             quantity = 1L,
         )
+
+        val placed = event.blockPlaced
+        if (placed.state is ShulkerBox) {
+            val carried = placed.cargoSlots()?.snapshot()?.toItemTotals().orEmpty()
+            if (carried.isNotEmpty()) {
+                material.seedOnOpen(
+                    placed.toHolderId(),
+                    carried,
+                    placed.toBlockPos(),
+                    cause = CauseKind.PLAYER_ACTION,
+                    causedBy = playerHolder,
+                )
+            }
+        }
     }
 
     /** Block break. */

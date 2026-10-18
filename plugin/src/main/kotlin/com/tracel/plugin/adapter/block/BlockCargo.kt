@@ -19,7 +19,6 @@ interface CargoSlots {
 
 /** Live cargo on this block, or `null`. */
 fun Block.cargoSlots(): CargoSlots? {
-    if (!type.mayHaveBlockEntity(this)) return null
     return CargoSurfaces.of(getState(false))
 }
 
@@ -64,7 +63,6 @@ fun Block.container(): Container? {
 
 /** @return whether this block has cargo. */
 fun Block.cargoTotals(): Map<ItemKey, Long>? {
-    if (!type.mayHaveBlockEntity(this)) return null
     val slots = CargoSurfaces.of(getState(false)) ?: return null
     return (0 until slots.size).map { slots.get(it) }.toItemTotals()
 }
