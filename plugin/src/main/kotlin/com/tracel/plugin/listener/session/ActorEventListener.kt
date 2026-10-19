@@ -28,6 +28,7 @@ import org.bukkit.entity.ItemFrame
 import org.bukkit.entity.Item
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Minecart
+import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import org.bukkit.entity.Projectile
 import org.bukkit.entity.minecart.ExplosiveMinecart
@@ -107,7 +108,7 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         val victim = event.entity
         val shooter = (damager as? Projectile)?.shooter as? Player
         if (victim is ItemFrame && damager is Player && !victim.item.type.isAir) {
-            record(EventKind.SET, damager, "frame took ${victim.item.type.key.key}", victim.toBlockPos())
+            record(EventKind.SET, damager, "frame took ${victim.item.type.key.key}", victim.toBlockPos(), victim)
             return
         }
         val attacker = shooter ?: (damager as? Player)?.takeIf { victim is LivingEntity } ?: return
@@ -117,7 +118,7 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         val hp = "%.1f".format(Locale.ROOT, event.finalDamage)
         val left = (victim as? LivingEntity)?.let { maxOf(0.0, it.health - event.finalDamage) }
             ?.let { ", ${"%.1f".format(Locale.ROOT, (it * 2).roundToLong() / 2.0)} left" }.orEmpty()
-        record(EventKind.HIT, attacker, "$victimName$how ($hp hp$left)", victim.toBlockPos())
+        record(EventKind.HIT, attacker, "$victimName$how ($hp hp$left)", victim.toBlockPos(), victim)
     }
 
     @Observes
@@ -248,7 +249,7 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         return "/$label ***"
     }
 
-    private fun record(kind: EventKind, player: Player, text: String?, where: BlockPos? = null) {
+    private fun record(kind: EventKind, player: Player, text: String?, where: BlockPos? = null, about: Entity? = null) {
         val at = where ?: runCatching { player.toBlockPos() }.getOrNull()
         val millis = System.currentTimeMillis()
         owing {
@@ -259,7 +260,8 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
                     HolderId.Player(player.uniqueId),
                     millis,
                     at,
-                    text
+                    text,
+                    about?.uniqueId,
                 )
             )
         }

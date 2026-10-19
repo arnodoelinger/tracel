@@ -21,6 +21,7 @@ internal class LookupSearch(
     private val services: TracelServices,
     private val filter: LookupFilter,
     val parsed: ParsedLookupArgs,
+    private val eventFilter: LookupFilter,
     blocks: Boolean,
     items: Boolean,
     val flushed: Boolean,
@@ -56,7 +57,7 @@ internal class LookupSearch(
     }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
 
     private val said = if (events.isNotEmpty()) Cursor({ until, limit ->
-        services.reading { services.events.query(filter.copy(until = until, limit = limit), events) }
+        services.reading { services.events.query(eventFilter.copy(until = until, limit = limit), events) }
             .also { found -> actors.learn(found.map { it.by }) }
     }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
 

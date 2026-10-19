@@ -48,7 +48,9 @@ class InspectListener(services: TracelServices) : TracelListener(services) {
     fun onUseEntity(event: PlayerInteractEntityEvent) {
         if (!event.player.inspecting()) return
         event.isCancelled = true
-        if (event.hand == EquipmentSlot.HAND) services.lookup.inspect(event.player, event.rightClicked.location.block)
+        if (event.hand != EquipmentSlot.HAND) return
+        val entity = event.rightClicked
+        services.lookup.inspect(event.player, entity.location.block, entity)
     }
 
     @Observes(priority = Priority.LOWEST, ignoreCancelled = false)
@@ -66,7 +68,7 @@ class InspectListener(services: TracelServices) : TracelListener(services) {
         val player = event.damager as? Player ?: return
         if (!player.inspecting()) return
         event.isCancelled = true
-        services.lookup.inspect(player, event.entity.location.block)
+        services.lookup.inspect(player, event.entity.location.block, event.entity)
     }
 
     @Observes(priority = Priority.LOWEST, ignoreCancelled = false)

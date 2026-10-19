@@ -45,6 +45,7 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
             })
             if (byId != 0) put(Keys.eventActor(byId, event.epochMillis, seq), NONE)
             put(Keys.eventTime(event.epochMillis, seq), NONE)
+            event.entity?.let { put(Keys.eventEntity(it, seq), NONE) }
         }
     }
 
@@ -53,8 +54,8 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
         val holderIds = filter.holders.map { interning.findHolderId(this, it) ?: return@map null }
         if (filter.holders.isNotEmpty() && holderIds.all { it == null }) return@read emptyList()
         val excluded = filter.excludedHolders.mapNotNullTo(HashSet()) { interning.findHolderId(this, it) }
-        val worldId =
-            (filter.region?.world ?: filter.world)?.let { interning.findWorldId(this, it) ?: return@read emptyList() }
+        val worldId = (filter.region?.world ?: filter.world)?.takeIf { filter.entity == null }
+            ?.let { interning.findWorldId(this, it) ?: return@read emptyList() }
         val until = filter.until ?: Long.MAX_VALUE
         val want = filter.offset.toLong() + filter.limit
 
@@ -82,7 +83,20 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
             }
         }
 
-        if (filter.holders.isEmpty()) {
+        val entity = filter.entity
+        if (entity != null) {
+            val prefix = Keys.eventEntityPrefix(entity)
+            scan(prefix, prefix).use { cursor ->
+                while (cursor.next()) {
+                    val seq = Keys.invert(cursor.keyU64(17))
+                    val record = get(Keys.event(seq)) ?: continue
+                    if (record.i64(EPOCH) !in (filter.since ?: Long.MIN_VALUE)..until) continue
+                    if (EventKind.entries[record.i8(KIND).toInt()] !in kinds) continue
+                    found += decode(this, seq, record)
+                }
+            }
+            found.sortWith(compareByDescending<ActorEvent> { it.epochMillis }.thenByDescending { it.seq })
+        } else if (filter.holders.isEmpty()) {
             walk(Keys.tagPrefix(Keys.EVENT_TIME), Keys.eventTimeFrom(until), 1)
         } else {
             for (id in holderIds.filterNotNull()) walk(Keys.eventActorPrefix(id), Keys.eventActorFrom(id, until), 5)

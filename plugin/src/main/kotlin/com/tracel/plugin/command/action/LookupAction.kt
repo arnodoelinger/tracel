@@ -29,6 +29,7 @@ import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.block.Block
 import org.bukkit.command.CommandSender
+import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
@@ -87,7 +88,7 @@ class LookupAction(private val services: TracelServices) {
     }
 
     /** What the inspector shows for a click on [block]: the lookup of that one block, pages and all. */
-    fun inspect(sender: CommandSender, block: Block) {
+    fun inspect(sender: CommandSender, block: Block, entity: Entity? = null) {
         val world = WorldId(block.world.uid)
         val region = LookupRegion(
             world,
@@ -96,7 +97,10 @@ class LookupAction(private val services: TracelServices) {
         )
         val filter = LookupFilter(region = region, world = world, limit = Int.MAX_VALUE)
         val parsed = ParsedLookupArgs(anchor = block.location, command = "lookup block", all = true, turnings = true)
-        runLookup(sender, filter, parsed, ActionArgument.parse(emptySet()), EventKind.entries.toSet() - INSPECT_HIDDEN)
+        val events = entity?.let { LookupFilter(world = world, entity = it.uniqueId, limit = Int.MAX_VALUE) } ?: filter
+        runLookup(
+            sender, filter, parsed, ActionArgument.parse(emptySet()), EventKind.entries.toSet() - INSPECT_HIDDEN, events,
+        )
     }
 
     /** Executes lookup. */
@@ -174,12 +178,14 @@ class LookupAction(private val services: TracelServices) {
         parsed: ParsedLookupArgs,
         actions: ActionFilter,
         kinds: Set<EventKind>? = null,
+        eventFilter: LookupFilter = filter,
     ) {
         services.scope.launch {
             val flushed = services.flushCapture()
             val search = LookupSearch(
                 services = services,
                 filter = filter,
+                eventFilter = eventFilter,
                 parsed = parsed,
                 blocks = actions.structural && !parsed.materialOnly,
                 items = actions.material && !parsed.structureOnly,

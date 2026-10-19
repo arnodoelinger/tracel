@@ -111,6 +111,7 @@ object Keys {
         EVENT -> "evt"
         EVENT_ACTOR -> "evtActor"
         EVENT_TIME -> "evtTime"
+        EVENT_ENTITY -> "evtEntity"
         ROLLED -> "rolled"
         ROLLED_JOB -> "rolledJob"
         META -> "meta"
@@ -171,6 +172,7 @@ object Keys {
     const val META: Byte = 0x32
     const val ROLLED_SET: Byte = 0x33
     const val ROLLED_SET_JOB: Byte = 0x34
+    const val EVENT_ENTITY: Byte = 0x35
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -395,6 +397,13 @@ object Keys {
     fun eventTime(epochMillis: Long, seq: Long): ByteArray =
         KeyWriter(17).tag(EVENT_TIME).u64(invert(epochMillis)).u64(invert(seq)).done()
 
+    fun eventEntity(entity: java.util.UUID, seq: Long): ByteArray =
+        KeyWriter(25).tag(EVENT_ENTITY).u64(entity.mostSignificantBits).u64(entity.leastSignificantBits)
+            .u64(invert(seq)).done()
+
+    fun eventEntityPrefix(entity: java.util.UUID): ByteArray =
+        KeyWriter(17).tag(EVENT_ENTITY).u64(entity.mostSignificantBits).u64(entity.leastSignificantBits).done()
+
     fun eventTimeFrom(untilMillis: Long): ByteArray = KeyWriter(9).tag(EVENT_TIME).u64(invert(untilMillis)).done()
 
     fun rbRecent(jobId: Long): ByteArray = KeyWriter(9).tag(RB_RECENT).u64(invert(jobId)).done()
@@ -459,6 +468,7 @@ object Keys {
         EVENT,
         EVENT_ACTOR,
         EVENT_TIME,
+        EVENT_ENTITY,
         ROLLED,
         ROLLED_JOB,
         META,

@@ -22,7 +22,7 @@ object History {
         Keys.WCHG, Keys.WCHG_AT, Keys.WCHG_AT_SECTION, Keys.WCHG_ENTITY -> BLOCKS
         Keys.TXN, Keys.TXN_BY_ID, Keys.ITEM, Keys.TXN_LOT -> ITEMS
         Keys.CONTAINER_SLOT, Keys.ACTOR_VISIT -> CONTAINERS
-        Keys.EVENT, Keys.EVENT_ACTOR, Keys.EVENT_TIME -> EVENTS
+        Keys.EVENT, Keys.EVENT_ACTOR, Keys.EVENT_TIME, Keys.EVENT_ENTITY -> EVENTS
         Keys.ACTOR, Keys.TIME, Keys.SPATIAL -> when (valueFirst) {
             LogKind.WORLD.ordinal -> BLOCKS
             LogKind.TRANSACTION.ordinal -> ITEMS
@@ -38,6 +38,7 @@ object History {
         Keys.TXN_BY_ID -> value?.let(Records::asLong) ?: -1L
         Keys.WCHG_AT, Keys.WCHG_AT_SECTION, Keys.WCHG_ENTITY,
         Keys.ACTOR, Keys.ITEM, Keys.TIME, Keys.SPATIAL, Keys.EVENT_ACTOR, Keys.EVENT_TIME,
+        Keys.EVENT_ENTITY,
             -> Keys.invert(KeyReader.u64(key, key.size - 8))
 
         else -> -1L
@@ -50,7 +51,7 @@ object History {
     fun pointRead(tag: Int): Boolean = when (tag.toByte()) {
         Keys.ACTOR, Keys.ITEM, Keys.TIME, Keys.SPATIAL, Keys.TXN_LOT,
         Keys.WCHG_AT, Keys.WCHG_AT_SECTION, Keys.WCHG_ENTITY,
-        Keys.EVENT_ACTOR, Keys.EVENT_TIME, Keys.ROLLED_JOB, Keys.ROLLED_SET_JOB,
+        Keys.EVENT_ACTOR, Keys.EVENT_TIME, Keys.EVENT_ENTITY, Keys.ROLLED_JOB, Keys.ROLLED_SET_JOB,
             -> false
 
         else -> true

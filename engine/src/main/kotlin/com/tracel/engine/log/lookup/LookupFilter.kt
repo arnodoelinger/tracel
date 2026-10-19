@@ -6,6 +6,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
+import java.util.UUID
 
 /**
  * One question for the [TransactionLog] and the [WorldLog] alike. Every field that is set narrows the answer; a filter
@@ -24,6 +25,7 @@ public data class LookupFilter(
     public val until: Long? = null,
     public val region: LookupRegion? = null,
     public val world: WorldId? = null,
+    public val entity: UUID? = null,
     public val limit: Int = 100,
     public val offset: Int = 0,
 ) {
