@@ -49,4 +49,11 @@ public sealed interface HolderId {
 
     /** Items leaving the ledger permanently. */
     public data class Sink(public val kind: SinkKind) : HolderId
+
+    /**
+     * Another plugin acting through the API, by its name.
+     *
+     * Holds nothing; it only ever causes.
+     */
+    public data class Plugin(public val name: String) : HolderId
 }

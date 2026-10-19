@@ -671,7 +671,8 @@
     "block": "блок <x>, <y>, <z>",
     "player": "игрок <name>",
     "entity_gone": "сущность",
-    "placed_entity": "поставленная сущность <uuid>"
+    "placed_entity": "поставленная сущность <uuid>",
+    "plugin": "<name> (плагин)"
   },
   "command": {
     "lookup": "Просмотр истории мира",

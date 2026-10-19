@@ -35,6 +35,7 @@ import java.util.*
  * | Holder: PlacedEntity / EnderChest       | `8` / `9` / 17        | `+0` tag (u8)               | `+1` entity UUID (i64 + i64)                                                                      |
  * | Holder: Escrow                          | `5` / 9               | `+0` tag (u8)               | `+1` jobId (i64)                                                                                  |
  * | Holder: Source / Sink                   | `6` / `7` / 2         | `+0` tag (u8)               | `+1` kind ordinal (u8)                                                                            |
+ * | Holder: Plugin                          | `10` / `3 + N`        | `+0` tag (u8)               | `+1` length (u16 BE) / `+3` name (UTF-8)                                                          |
  * | WorldId                                 | —       / 16          | `+0` world UUID (i64 + i64) | —                                                                                                 |
  * | ItemKey                                 | —       / `4 + M + D` | `+0` materialLen (u16 BE)   | `+2` material (UTF-8) / `+2+M` decorationLen (u16 BE) / `+4+M` decoration (UTF-8)                 |
  * | BlockDataKey / EntityTypeKey            | —       / `2 + N`     | `+0` length (u16 BE)        | `+2` text (UTF-8)                                                                                 |
@@ -50,6 +51,7 @@ object Packed {
     private const val SINK: Byte = 7
     private const val PLACED_ENTITY: Byte = 8
     private const val ENDER_CHEST: Byte = 9
+    private const val PLUGIN: Byte = 10
 
     /**
      * Encodes a [HolderId] into its compact fixed-size binary representation.
@@ -72,6 +74,7 @@ object Packed {
 
         is HolderId.Source -> byteArrayOf(SOURCE, holder.kind.ordinal.toByte())
         is HolderId.Sink -> byteArrayOf(SINK, holder.kind.ordinal.toByte())
+        is HolderId.Plugin -> byteArrayOf(PLUGIN) + text(holder.name)
     }
 
     /**
@@ -92,6 +95,7 @@ object Packed {
         ESCROW -> HolderId.Escrow(RollbackJobId(v.i64(1)))
         SOURCE -> HolderId.Source(SourceKind.entries[v.i8(1).toInt()])
         SINK -> HolderId.Sink(SinkKind.entries[v.i8(1).toInt()])
+        PLUGIN -> HolderId.Plugin(decodeText(v.asSlice(1)))
         else -> error("unrecognized holder tag: $tag")
     }
 

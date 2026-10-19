@@ -74,7 +74,8 @@ class CodecGoldensTest {
                 "WORLDGEN",
                 "ROLLBACK_MINT",
                 "UNTRACKED_GAP",
-                "UNATTRIBUTED"
+                "UNATTRIBUTED",
+                "PLUGIN",
             ),
             SourceKind.entries.map { it.name },
         )

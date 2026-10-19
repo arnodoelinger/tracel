@@ -143,6 +143,7 @@ internal object ChangeLinePresenter {
             EventKind.SLEEP -> "slept"
             EventKind.TRADE -> "traded"
             EventKind.TELEPORT -> "teleported"
+            EventKind.CUSTOM -> "did"
         }
         val raw = event.text.orEmpty()
         val text = when (event.kind) {
@@ -357,6 +358,7 @@ internal object ChangeLinePresenter {
         is HolderId.Player -> tr("holder.player", "name" to playerName(holder.uuid))
         is HolderId.Entity -> entity(holder.uuid, actors)
         is HolderId.PlacedEntity -> tr("holder.placed_entity", "uuid" to holder.uuid)
+        is HolderId.Plugin -> tr("holder.plugin", "name" to holder.name)
         else -> Component.text(holder.toString())
     }
 

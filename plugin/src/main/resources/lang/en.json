@@ -671,7 +671,8 @@
     "block": "block <x>, <y>, <z>",
     "player": "player <name>",
     "entity_gone": "entity",
-    "placed_entity": "placed entity <uuid>"
+    "placed_entity": "placed entity <uuid>",
+    "plugin": "<name> (plugin)"
   },
   "command": {
     "lookup": "Browse world history",
