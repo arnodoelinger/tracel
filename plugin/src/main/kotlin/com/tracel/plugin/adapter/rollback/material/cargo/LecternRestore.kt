@@ -50,6 +50,7 @@ internal fun MaterialRestorer.applyLectern(
             when {
                 held == null -> moves.short(itemKey, -delta)
                 held.matches(itemKey) -> {
+                    LecternPages.left(lectern.block.toBlockPos(), lectern.page)
                     inventory.setItem(0, null)
                     if (-delta > 1) moves.short(itemKey, -delta - 1)
                 }

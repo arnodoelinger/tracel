@@ -16,6 +16,7 @@ import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.flow.CREATIVE_SOURCE
+import com.tracel.plugin.listener.support.flow.creativeGains
 import com.tracel.plugin.listener.support.cell.DragonEggCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.services.TracelServices
@@ -47,7 +48,7 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
     private val beforeEntity = ConcurrentHashMap<UUID, Pair<Block, BlockShape>>()
     private val discInHand = ConcurrentHashMap<UUID, ItemStack>()
     private val cargoScheduled = ConcurrentHashMap.newKeySet<String>()
-    private val shelfBefore = ConcurrentHashMap<UUID, Map<ItemKey, Long>>()
+    private val cargoBefore = ConcurrentHashMap<UUID, Map<ItemKey, Long>>()
     private val placedBlocks = ExpiringSet<BlockPos>(1000L)
 
     @Observes(priority = Priority.MONITOR, ignoreCancelled = true)
@@ -84,7 +85,9 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
             discInHand[event.player.uniqueId] = held.clone()
         }
         before[event.player.uniqueId] = block to block.toShape()
-        if (block.type == Material.CHISELED_BOOKSHELF) shelfBefore[event.player.uniqueId] = block.cargoTotals().orEmpty()
+        if (event.action == Action.RIGHT_CLICK_BLOCK && block.mayHaveTile()) {
+            block.cargoTotals()?.let { cargoBefore[event.player.uniqueId] = it }
+        }
     }
 
     @Observes(ignoreCancelled = false)
@@ -97,7 +100,7 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
         }
         val player = event.player
         val snapshot = before.remove(player.uniqueId)
-        val shelfBeforeClick = shelfBefore.remove(player.uniqueId)
+        val cargoBeforeClick = cargoBefore.remove(player.uniqueId)
         val state = block.getState(false)
         val cargo = event.action == Action.RIGHT_CLICK_BLOCK &&
                 (state is TileStateInventoryHolder || state is Campfire)
@@ -121,7 +124,7 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
             )
             later(block.location) { services.differ.rebaseline(holder, emptyMap()) }
         } else if (cargo) {
-            queueCargo(player, block, shelfBeforeClick)
+            queueCargo(player, block, cargoBeforeClick)
         }
         val partner = (block.blockData as? Bisected)?.let { half ->
             block.getRelative(if (half.half == Bisected.Half.TOP) BlockFace.DOWN else BlockFace.UP)
@@ -175,9 +178,7 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
             val holder = block.toHolderId()
             runCatching { block.cargoSlots() }.getOrNull()?.let { material.captureSlotLayout(holder, it) }
             val after = totalsOf(block, discInHand[player.uniqueId])
-            val gained = before?.let { prior ->
-                after.mapNotNull { (itemKey, qty) -> (qty - (prior[itemKey] ?: 0L)).takeIf { it > 0L }?.let { itemKey to it } }
-            }.orEmpty()
+            val gained = before?.let { creativeGains(it, after) }.orEmpty()
             val creative = player.gameMode == GameMode.CREATIVE && gained.isNotEmpty()
             val causedBy = HolderId.Player(player.uniqueId)
             if (creative) {

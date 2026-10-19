@@ -8,7 +8,6 @@ import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.lectern.LecternPages
 import com.tracel.plugin.listener.world.entity.ExplosionListener
 import com.tracel.plugin.services.TracelServices
-import org.bukkit.block.Lectern
 import org.bukkit.block.ShulkerBox
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.player.PlayerTakeLecternBookEvent
@@ -26,7 +25,6 @@ class ContainerListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onBreak(event: BlockBreakEvent) {
-        (event.block.getState(false) as? Lectern)?.let { LecternPages.left(event.block.toBlockPos(), it.page) }
         if (event.block.state is ShulkerBox) {
             packShulker(event)
             return

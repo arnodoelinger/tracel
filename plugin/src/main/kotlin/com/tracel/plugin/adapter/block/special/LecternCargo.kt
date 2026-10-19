@@ -3,6 +3,8 @@ package com.tracel.plugin.adapter.block.special
 import com.tracel.annotations.Unstable
 import com.tracel.plugin.adapter.block.CargoSlots
 import com.tracel.plugin.adapter.block.capability.cargo.CargoSurface
+import com.tracel.plugin.adapter.block.toBlockPos
+import com.tracel.plugin.listener.support.lectern.LecternPages
 import org.bukkit.block.BlockState
 import org.bukkit.block.Lectern
 import org.bukkit.inventory.ItemStack
@@ -32,9 +34,11 @@ private class LecternHeld(private val lectern: Lectern) : CargoSlots {
 
     override fun set(slot: Int, stack: ItemStack?) {
         if (slot != 0) return
+        val book = stack != null && !stack.isEmpty && !stack.type.isAir
+        if (!book && lectern.isPlaced) LecternPages.left(lectern.toBlockPos(), lectern.page)
         lectern.inventory.setItem(0, stack ?: ItemStack.empty())
         val data = lectern.blockData as? LecternData ?: return
-        data.setHasBook(stack != null && !stack.isEmpty && !stack.type.isAir)
+        data.setHasBook(book)
         lectern.blockData = data
         if (lectern.isPlaced) runCatching { lectern.update(true, false) }
     }
