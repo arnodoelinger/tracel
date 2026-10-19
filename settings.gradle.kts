@@ -21,6 +21,7 @@ dependencyResolutionManagement {
 }
 
 include(
+    "api",
     "model",
     "engine",
     "platform",

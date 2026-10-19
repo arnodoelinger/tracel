@@ -5,6 +5,7 @@ import com.tracel.engine.store.StoreFormatException
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.adapter.server.killServer
 import com.tracel.plugin.adapter.server.serverIsStopping
+import com.tracel.plugin.api.TracelBackend
 import com.tracel.plugin.i18n.Messages
 import com.tracel.plugin.metrics.Telemetry
 import com.tracel.plugin.metrics.TracelMetrics
@@ -23,10 +24,11 @@ import java.util.logging.Level
  */
 class TracelPlugin : JavaPlugin() {
     private var runtime: TracelRuntime? = null
+    private var api: TracelBackend? = null
 
     override fun onEnable() {
-        try {
-            runtime = enableTracel(this)
+        val enabled = try {
+            enableTracel(this)
         } catch (failure: Throwable) {
             if (failure is CriticalDiskSpace || failure is StoreFormatException || failure is ImportInterrupted) logger.severe(
                 failure.message
@@ -35,9 +37,13 @@ class TracelPlugin : JavaPlugin() {
             killServer(this)
             throw failure
         }
+        runtime = enabled
+        api = TracelBackend(this, enabled.services).also { it.open() }
     }
 
     override fun onDisable() {
+        stopping(logger, "addons") { api?.close() }
+        api = null
         Messages.unload()
         stopping(logger, "metrics") { TracelMetrics.stop() }
         val run = runtime
