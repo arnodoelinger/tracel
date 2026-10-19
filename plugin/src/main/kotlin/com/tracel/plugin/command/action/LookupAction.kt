@@ -41,6 +41,13 @@ class LookupAction(private val services: TracelServices) {
 
     private companion object {
         const val MAX_LINES = 50_000
+
+        val INSPECT_HIDDEN = setOf(
+            EventKind.CHAT,
+            EventKind.COMMAND,
+            EventKind.JOIN,
+            EventKind.QUIT,
+        )
     }
 
     /** The command and the place of the sender's last search, for a refresh. */
@@ -88,8 +95,8 @@ class LookupAction(private val services: TracelServices) {
             block.x, block.x, block.y, block.y, block.z, block.z,
         )
         val filter = LookupFilter(region = region, world = world, limit = Int.MAX_VALUE)
-        val parsed = ParsedLookupArgs(anchor = block.location, command = "lookup block")
-        runLookup(sender, filter, parsed, ActionArgument.parse(emptySet()))
+        val parsed = ParsedLookupArgs(anchor = block.location, command = "lookup block", all = true, turnings = true)
+        runLookup(sender, filter, parsed, ActionArgument.parse(emptySet()), EventKind.entries.toSet() - INSPECT_HIDDEN)
     }
 
     /** Executes lookup. */
@@ -166,6 +173,7 @@ class LookupAction(private val services: TracelServices) {
         filter: LookupFilter,
         parsed: ParsedLookupArgs,
         actions: ActionFilter,
+        kinds: Set<EventKind>? = null,
     ) {
         services.scope.launch {
             val flushed = services.flushCapture()
@@ -176,7 +184,7 @@ class LookupAction(private val services: TracelServices) {
                 blocks = actions.structural && !parsed.materialOnly,
                 items = actions.material && !parsed.structureOnly,
                 flushed = flushed,
-                events = if (parsed.all && parsed.actions.isEmpty()) EventKind.entries.toSet() else actions.events,
+                events = kinds ?: if (parsed.all && parsed.actions.isEmpty()) EventKind.entries.toSet() else actions.events,
             )
             searches[key(sender)] = search
             show(sender, search, parsed.page)

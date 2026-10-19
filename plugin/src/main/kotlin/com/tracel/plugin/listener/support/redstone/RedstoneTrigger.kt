@@ -25,6 +25,7 @@ class RedstoneTrigger {
         .maximumSize(1_000)
         .build()
     private val detonations = CopyOnWriteArrayList<Detonation>()
+    private val dispenses = CopyOnWriteArrayList<Detonation>()
 
     fun recordPress(world: World, x: Int, y: Int, z: Int, causedBy: HolderId) {
         presses.put(BlockKey(world.uid, x, y, z), causedBy)
@@ -48,6 +49,27 @@ class RedstoneTrigger {
         val origin = location.toExplosionOrigin() ?: return
         detonations.add(Detonation(origin, causedBy, now))
         detonations.removeIf { now - it.atMillis > EXPLOSION_CHAIN_WINDOW_MILLIS }
+    }
+
+    /** A dispenser went off at [location], on account of [causedBy]: whoever pressed it, or the dispenser itself. */
+    fun recordDispense(location: Location, causedBy: HolderId) {
+        val now = System.currentTimeMillis()
+        val origin = location.toExplosionOrigin() ?: return
+        dispenses.add(Detonation(origin, causedBy, now))
+        dispenses.removeIf { now - it.atMillis > DISPENSE_WINDOW_MILLIS }
+    }
+
+    /** Who a dispenser's output near [location] is to be put down to: its flow, its shot, what it let loose. */
+    fun recentDispenseNear(location: Location): HolderId? {
+        val world = location.world ?: return null
+        val now = System.currentTimeMillis()
+        val radiusSq = DISPENSE_RADIUS * DISPENSE_RADIUS
+        return dispenses
+            .asSequence()
+            .filter { it.origin.world == world.uid && now - it.atMillis <= DISPENSE_WINDOW_MILLIS }
+            .filter { distanceSq(it, location) <= radiusSq }
+            .maxByOrNull { it.atMillis }
+            ?.causedBy
     }
 
     fun recentExplosionNear(location: Location): HolderId? {
@@ -76,6 +98,8 @@ class RedstoneTrigger {
         const val IGNITION_WINDOW_MILLIS = 30_000L
         const val EXPLOSION_CHAIN_WINDOW_MILLIS = 3_000L
         const val EXPLOSION_CHAIN_RADIUS = 6.0
+        const val DISPENSE_WINDOW_MILLIS = 10_000L
+        const val DISPENSE_RADIUS = 8.0
         val NEIGHBOR_OFFSETS = listOf(
             Triple(0, 0, 0),
             Triple(1, 0, 0), Triple(-1, 0, 0),

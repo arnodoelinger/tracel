@@ -191,6 +191,23 @@
       "export": "<white>Export these results</white>"
     },
     "none": "none",
+    "edit": {
+      "put": "put <item> on <slot>",
+      "took": "took <item> from <slot>",
+      "frame_put": "put <item> in",
+      "frame_took": "took <item> out",
+      "frame_rotated": "turned <item>"
+    },
+    "slot": {
+      "head": "head",
+      "chest": "chest",
+      "legs": "legs",
+      "feet": "feet",
+      "hand": "main hand",
+      "off_hand": "off hand",
+      "body": "body",
+      "saddle": "saddle"
+    },
     "deal": {
       "for": "for",
       "with": "with"
@@ -263,6 +280,8 @@
       "hit": "Hit",
       "set": "Set",
       "pulled": "Pulled",
+      "blown": "Blew up",
+      "transferred": "Transferred",
       "pushed": "Pushed",
       "slept": "Slept in",
       "traded": "Traded",

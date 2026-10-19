@@ -35,23 +35,20 @@ internal object ItemPresenter {
     }
 
     /** Creates an [Act] instance based on the provided flow information and conditions. */
-    fun of(flow: Flow, everything: Boolean = false): Act? {
+    fun of(flow: Flow, everything: Boolean = false, byMachine: Boolean = false): Act? {
         val from = flow.source
         val to = flow.destination
         if (from is HolderId.Escrow || to is HolderId.Escrow) return null
-        if (listOf(from, to).any { it is HolderId.PlacedBlock || it is HolderId.PlacedEntity }) {
-            return if (everything) Act("moved", BOTH) else null
-        }
+        if (listOf(from, to).any { it is HolderId.PlacedBlock || it is HolderId.PlacedEntity }) return null
         return when (flow.kind) {
             FlowKind.TRANSFORM_IN -> if (everything) Act("used", MINUS) else null
             FlowKind.TRANSFORM_OUT -> Act("crafted", PLUS)
             FlowKind.MINT -> if (to is HolderId.Player && from is HolderId.Source && from.kind == SourceKind.CREATIVE) Act(
                 "conjured",
                 PLUS
-            ) else if (to is HolderId.Player) Act("received", PLUS) else if (everything) Act(
-                "created",
-                PLUS
-            ) else null
+            ) else if (to is HolderId.Player) Act("received", PLUS)
+            else if (isContainer(to) && from is HolderId.Source && from.kind == SourceKind.CREATIVE) Act("put", PLUS, to)
+            else null
 
             FlowKind.BURN -> if (from is HolderId.Player) Act("lost", MINUS) else if (everything) Act(
                 "destroyed",
@@ -63,6 +60,7 @@ internal object ItemPresenter {
                 from is HolderId.ItemEntity -> Act("picked_up", PLUS, to.takeIf(::isContainer))
                 from is HolderId.Player && isContainer(to) -> Act("put", PLUS, to)
                 isContainer(from) && to is HolderId.Player -> Act("took", MINUS, from)
+                byMachine && isContainer(from) && isContainer(to) -> Act("transferred", PLUS, to)
                 else -> Act("moved", BOTH, to.takeIf(::isContainer))
             }
         }

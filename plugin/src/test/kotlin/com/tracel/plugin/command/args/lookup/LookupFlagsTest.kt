@@ -225,7 +225,7 @@ class ActionFilterTest {
     @Test
     fun `a raw cause name narrows both logs`() {
         val filter = ActionArgument.parse(setOf("hopper"))
-        assertTrue(CauseKind.MACHINE in filter.causes)
+        assertTrue(CauseKind.HOPPER in filter.causes)
         assertTrue(filter.structural)
         assertTrue(filter.material)
     }

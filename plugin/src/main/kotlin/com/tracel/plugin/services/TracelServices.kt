@@ -91,7 +91,7 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param exportDirectory directory for history exports and imports
  * @param entityRestoreLimit how many entities one rollback may bring back before it asks
  * @param governorSettings how long a rollback may hold one region tick, at least and at most
- * @param logEntityDamage whether a blow a mob survives is written down as a change to it
+ * @param logEntityDamage whether a blow dealt to a mob is written down: as a hit, and as a change a rollback can undo
  * @param paste where a lookup export goes
  * @param forwardCompatible server Minecraft is newer than the newest tested release
  * @param logging which kinds of history are written

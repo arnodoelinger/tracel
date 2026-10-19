@@ -111,7 +111,10 @@ internal class LookupSearch(
     }
 
     private fun add(change: WorldChange) {
-        if (parsed.actions.isEmpty() && !parsed.natural && ChangeLinePresenter.isUnnamedChange(change)) return
+        if (ChangeLinePresenter.isKeptOnly(change)) return
+        if (parsed.actions.isEmpty() && !parsed.natural && !parsed.turnings && ChangeLinePresenter.isUnnamedChange(change)) {
+            return
+        }
         stack(ChangeLinePresenter.logged(change, actors, rolled))
     }
 

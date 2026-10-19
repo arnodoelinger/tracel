@@ -55,7 +55,15 @@ internal val ALIASES: List<ActionAlias> = listOf(
     ),
     ActionAlias(
         names = setOf("container", "item", "inventory"),
-        causes = setOf(CauseKind.PLAYER_ACTION, CauseKind.MACHINE, CauseKind.BLOCK_BREAK, CauseKind.WEAR),
+        causes = setOf(
+            CauseKind.PLAYER_ACTION,
+            CauseKind.HOPPER,
+            CauseKind.DISPENSER,
+            CauseKind.DROPPER,
+            CauseKind.MACHINE,
+            CauseKind.BLOCK_BREAK,
+            CauseKind.WEAR,
+        ),
         half = Half.MATERIAL,
     ),
     ActionAlias(

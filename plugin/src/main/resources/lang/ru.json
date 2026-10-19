@@ -191,6 +191,23 @@
       "export": "<white>Экспортировать результаты</white>"
     },
     "none": "нет",
+    "edit": {
+      "put": "надел <item> (<slot>)",
+      "took": "снял <item> (<slot>)",
+      "frame_put": "положил <item> в рамку",
+      "frame_took": "достал <item> из рамки",
+      "frame_rotated": "повернул <item>"
+    },
+    "slot": {
+      "head": "голова",
+      "chest": "грудь",
+      "legs": "ноги",
+      "feet": "ступни",
+      "hand": "основная рука",
+      "off_hand": "вторая рука",
+      "body": "тело",
+      "saddle": "седло"
+    },
     "deal": {
       "for": "за",
       "with": "у"
@@ -263,6 +280,8 @@
       "hit": "Ударил",
       "set": "Настроил",
       "pulled": "Подтянул",
+      "blown": "Взорвал",
+      "transferred": "Передал",
       "pushed": "Толкнул",
       "slept": "Лёг спать в",
       "traded": "Обменялся",

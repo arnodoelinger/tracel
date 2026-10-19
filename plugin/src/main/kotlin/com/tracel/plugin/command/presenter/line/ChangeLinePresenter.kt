@@ -18,6 +18,7 @@ import com.tracel.plugin.command.presenter.Actors
 import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.NamePresenter
 import com.tracel.plugin.command.presenter.support.Glyphs
+import com.tracel.plugin.adapter.block.special.SignText
 import com.tracel.plugin.i18n.lower
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.specifics.block.isAirLike
@@ -39,9 +40,11 @@ import java.util.*
 /** One line per recorded change: lookup, the inspector and rollback previews all read the same. */
 internal object ChangeLinePresenter {
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
-    private val HIT = Regex("""^(.+?)(?: with (\S+))? \(([\d.]+) hp\)$""")
+    private val HIT = Regex("""^(.+?)(?: with (\S+))? \(([\d.]+) hp(?:, ([\d.]+) left)?\)$""")
     private val BEACON = Regex("""^beacon (\S+) (\S+)$""")
     private val COMPASS = Regex("""^compass (\S+)$""")
+    private val STAND = Regex("""^stand (\S+) (\S+) (\S+)$""")
+    private val FRAME = Regex("""^frame (put|took|rotated) (\S+)$""")
     private val TRADE = Regex("""^(\S+) x(\d+) for (.+) with (\S+)$""")
     private val PRICE = Regex("""^(\S+) x(\d+)$""")
 
@@ -75,10 +78,17 @@ internal object ChangeLinePresenter {
         }
     }
 
+    /** A change kept for rollback only. */
+    fun isKeptOnly(change: WorldChange): Boolean {
+        if (change.action != ActionKind.ENTITY_CHANGE) return false
+        val subject = change.subject as? ChangeSubject.Entity ?: return false
+        return leashName(subject) == null
+    }
+
     /** A block that only became another block, with no name for it in [TransitionPresenter]: crops, doors, redstone. Noise. */
     fun isUnnamedChange(change: WorldChange): Boolean {
         val subject = change.subject as? ChangeSubject.Block ?: return false
-        if (change.action == ActionKind.BLOCK_GROW) return false
+        if (change.action != ActionKind.BLOCK_CHANGE) return false
         if (subject.before.isAirLike || subject.after.isAirLike) return false
         val byEntity = change.cause == CauseKind.ENTITY_ACTION || change.causedBy is HolderId.Entity
         return TransitionPresenter.of(subject.before.data.value, subject.after.data.value, byEntity) == null
@@ -95,8 +105,11 @@ internal object ChangeLinePresenter {
         }
         return LoggedLine(
             millis = change.epochMillis,
-            key = listOf(change.causedBy ?: change.cause, change.cause, change.action, from, to, rolledAt != null),
-            mark = mark(change.action),
+            key = listOf(
+                change.causedBy ?: change.cause, change.cause, change.action, from, to, rolledAt != null,
+                phrase.whatText.takeIf { change.action == ActionKind.SIGN_EDIT },
+            ),
+            mark = if (phrase.title == "placed") ItemPresenter.PLUS else mark(change.action),
             who = who(change.causedBy, change.cause, actors),
             verb = phrase.verb,
             whoText = whoText(change.causedBy, change.cause, actors),
@@ -137,6 +150,7 @@ internal object ChangeLinePresenter {
             EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).text } ?: raw
             EventKind.SLEEP -> NamePresenter.pretty(raw)
             EventKind.DEATH -> capitalized(raw)
+            EventKind.SET -> edit(raw)?.first ?: raw
             EventKind.TELEPORT -> NamePresenter.pretty(raw)
             EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).text } ?: raw
             else -> raw
@@ -147,7 +161,7 @@ internal object ChangeLinePresenter {
             EventKind.CLICK, EventKind.SLEEP -> NamePresenter.of(raw)
             EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).row } ?: Component.text(raw)
             EventKind.DEATH -> Component.text(capitalized(raw))
-            EventKind.SET -> setting(raw)
+            EventKind.SET -> edit(raw)?.second ?: setting(raw)
             else -> Component.text(raw)
         }
         return LoggedLine(
@@ -192,7 +206,7 @@ internal object ChangeLinePresenter {
             val act = (if (transaction.cause == CauseKind.WEAR) ItemPresenter.Act(
                 "damaged",
                 ItemPresenter.BOTH
-            ) else ItemPresenter.of(flow, everything))
+            ) else ItemPresenter.of(flow, everything, byMachine(transaction.cause)))
                 ?: return@mapNotNull null
             val doer =
                 transaction.causedBy ?: listOf(flow.source, flow.destination).firstOrNull { it is HolderId.Player }
@@ -316,10 +330,10 @@ internal object ChangeLinePresenter {
         val clipped = Glyphs.width(label) > Glyphs.LINE - fixed
         val what = if (!clipped) full else Component.text(Glyphs.clip(label, Glyphs.LINE - fixed))
         val shown =
-            if (!clipped) hover else listOf(
-                entry.tip ?: Component.text(label, NamedTextColor.WHITE),
-                Component.empty()
-            ) + hover
+            if (!clipped) hover else {
+                val head = entry.tip ?: Component.text(label, NamedTextColor.WHITE)
+                if (entry.from != null) listOf(head) + hover else listOf(head, Component.empty()) + hover
+            }
         val row = Component.text()
             .append(ago.colorIfAbsent(NamedTextColor.GRAY)).append(Component.space())
             .append(mark).append(Component.space())
@@ -375,6 +389,33 @@ internal object ChangeLinePresenter {
 
     private class Blow(val text: String, val row: Component, val tip: Component)
 
+    private fun edit(raw: String): Pair<String, Component>? {
+        FRAME.matchEntire(raw)?.let { found ->
+            val (what, item) = found.destructured
+            val frame = NamePresenter.entity("item_frame")
+            val words = NamePresenter.pretty("item_frame")
+            val component = Component.empty().append(frame).append(Component.text(": "))
+                .append(tr("lookup.edit.frame_$what", "item" to NamePresenter.of(item)))
+            return "$words: $what ${NamePresenter.pretty(item)}" to component
+        }
+        STAND.matchEntire(raw)?.let { found ->
+            val (slot, put, took) = found.destructured
+            val where = tr("lookup.slot.$slot")
+            val parts = buildList {
+                if (put != "none") add(tr("lookup.edit.put", "item" to NamePresenter.of(put), "slot" to where))
+                if (took != "none") add(tr("lookup.edit.took", "item" to NamePresenter.of(took), "slot" to where))
+            }
+            val component = Component.empty().append(NamePresenter.entity("armor_stand")).append(Component.text(": "))
+                .append(Component.join(JoinConfiguration.separator(Component.text(", ")), parts))
+            val plain = buildList {
+                if (put != "none") add("put ${NamePresenter.pretty(put)} on $slot")
+                if (took != "none") add("took ${NamePresenter.pretty(took)} from $slot")
+            }.joinToString(", ")
+            return "Armor Stand: $plain" to component
+        }
+        return null
+    }
+
     private class Deal(val text: String, val row: Component)
 
     private fun deal(found: MatchResult): Deal {
@@ -401,13 +442,18 @@ internal object ChangeLinePresenter {
         return Deal(text, row)
     }
 
+    private fun byMachine(cause: CauseKind): Boolean =
+        cause == CauseKind.HOPPER || cause == CauseKind.DROPPER || cause == CauseKind.DISPENSER ||
+                cause == CauseKind.MACHINE
+
     private fun hit(found: MatchResult): Blow {
-        val (victim, projectile, hp) = found.destructured
+        val (victim, projectile, damage, remaining) = found.destructured
+        val hp = if (remaining.isEmpty()) "$damage hp" else "$damage hp, $remaining left"
         val player = victim.startsWith("@")
         val name: Component = if (player) Component.text(victim.drop(1)) else NamePresenter.entity(victim)
-        val detail = listOfNotNull(projectile.takeIf(String::isNotEmpty)?.let(NamePresenter::pretty), "$hp hp")
-        val tail = if (projectile.isEmpty()) Component.text("$hp hp)")
-        else Component.textOfChildren(NamePresenter.entity(projectile), Component.text(", $hp hp)"))
+        val detail = listOfNotNull(projectile.takeIf(String::isNotEmpty)?.let(NamePresenter::pretty), hp)
+        val tail = if (projectile.isEmpty()) Component.text("$hp)")
+        else Component.textOfChildren(NamePresenter.entity(projectile), Component.text(", $hp)"))
         val plain = (if (player) victim.drop(1) else NamePresenter.pretty(victim)) + " (${detail.joinToString(", ")})"
         return Blow(
             plain,
@@ -473,7 +519,8 @@ internal object ChangeLinePresenter {
 
     private fun phrase(change: WorldChange): Phrase = when (val subject = change.subject) {
         is ChangeSubject.Entity -> {
-            val name = leashName(subject) ?: verbName(change.action)
+            val blown = change.action == ActionKind.ENTITY_REMOVE && change.cause == CauseKind.EXPLOSION
+            val name = leashName(subject) ?: if (blown) "blown" else verbName(change.action)
             Phrase(
                 lower("lookup.verb.$name"),
                 name,
@@ -499,6 +546,15 @@ internal object ChangeLinePresenter {
                     NamePresenter.pretty(after)
                 )
 
+                change.action == ActionKind.SIGN_EDIT -> sign(subject, to, after)
+
+                change.action == ActionKind.BLOCK_PLACE -> Phrase(
+                    lower("lookup.verb.$plain"),
+                    plain,
+                    to,
+                    NamePresenter.pretty(after)
+                )
+
                 subject.after.isAirLike -> Phrase(
                     lower("lookup.verb.$plain"),
                     plain,
@@ -506,7 +562,7 @@ internal object ChangeLinePresenter {
                     NamePresenter.pretty(before)
                 )
 
-                subject.before.isAirLike -> Phrase(lower("lookup.verb.$plain"), plain, to, NamePresenter.pretty(after))
+                subject.before.isAirLike -> Phrase(lower("lookup.verb.placed"), "placed", to, NamePresenter.pretty(after))
                 named != null -> Phrase(
                     lower("lookup.verb.${named.key}"),
                     named.key,
@@ -515,9 +571,25 @@ internal object ChangeLinePresenter {
                 )
 
                 before == after -> Phrase(lower("lookup.verb.updated"), "updated", to, NamePresenter.pretty(after))
-                else -> Phrase(lower("lookup.verb.became"), "changed", to, NamePresenter.pretty(after), from, to)
+                else -> Phrase(lower("lookup.verb.placed"), "placed", to, NamePresenter.pretty(after), from, to)
             }
         }
+    }
+
+    private fun sign(subject: ChangeSubject.Block, name: Component, after: String): Phrase {
+        val was = SignText.of(subject.before)
+        val now = SignText.of(subject.after)
+        val shown = if (now.isNullOrEmpty()) name
+        else Component.textOfChildren(name, Component.text(": "), Component.text(now, NamedTextColor.GRAY))
+        val plain = NamePresenter.pretty(after) + if (now.isNullOrEmpty()) "" else ": $now"
+        return Phrase(
+            lower("lookup.verb.edited"),
+            "edited",
+            shown,
+            plain,
+            from = Component.text(was?.ifEmpty { "-" } ?: "?"),
+            to = Component.text(now?.ifEmpty { "-" } ?: "?"),
+        )
     }
 
     private fun halfOf(change: WorldChange): Half? {

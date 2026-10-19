@@ -99,9 +99,15 @@ class MaterialCapture internal constructor(private val services: TracelServices)
      * its own transaction before any click. Found inside the click, the mint sat in the taker's own
      * transaction, and rolling the taker back burned it instead of putting it back.
      */
-    fun seedOnOpen(holder: HolderId, totals: Map<ItemKey, Long>, at: BlockPos?, baseline: Boolean = false) {
+    fun seedOnOpen(
+        holder: HolderId,
+        totals: Map<ItemKey, Long>,
+        at: BlockPos?,
+        baseline: Boolean = false,
+        cause: CauseKind = CauseKind.NATURAL,
+        causedBy: HolderId? = null,
+    ) {
         if (services.differ.seeded(holder)) return
-        // a hopper settles by diff a tick later: unseeded then, the diff minted the stock over again
         if (baseline) services.differ.rebaseline(holder, totals)
         committing("unseen stock at $holder") {
             val believed = services.ledger.totalsAt(holder).mapValues { it.value.raw }
@@ -114,8 +120,8 @@ class MaterialCapture internal constructor(private val services: TracelServices)
                 services.capture.recordDirect(
                     worldgenMintFlows(shortfall, holder),
                     System.currentTimeMillis(),
-                    CauseKind.NATURAL,
-                    null,
+                    cause,
+                    causedBy,
                     at
                 )
             }

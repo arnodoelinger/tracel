@@ -147,6 +147,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         val by = (event as? HangingBreakByEntityEvent)?.remover as? Player
         val who = by?.let { HolderId.Player(it.uniqueId) }
             ?: services.redstoneTriggers.recentExplosionNear(event.entity.location)
+            ?: services.redstoneTriggers.recentDispenseNear(event.entity.location)
         destroyed(event.entity, who)
     }
 
@@ -155,12 +156,13 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         if (restoring) return
         val epochMillis = System.currentTimeMillis()
 
+        val cause = if (causedBy is HolderId.Block) CauseKind.DISPENSER else CauseKind.ENTITY_ACTION
         val hull = if (entity.dropsSelf()) entity.hullItemKey() else null
         if (hull != null) {
             services.hullDrops.expect(entity.location, entity.toPlacedEntityId(), hull, causedBy)
         } else {
             material.released(
-                cause = CauseKind.ENTITY_ACTION,
+                cause = cause,
                 causedBy = causedBy,
                 from = entity.toPlacedEntityId(),
                 to = HolderId.Sink(SinkKind.UNATTRIBUTED),
@@ -170,7 +172,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
 
         if (entity is AbstractVillager) {
             material.released(
-                cause = CauseKind.ENTITY_ACTION,
+                cause = cause,
                 causedBy = causedBy,
                 from = entity.toCargoHolderId(),
                 to = HolderId.Sink(SinkKind.UNATTRIBUTED),
@@ -180,17 +182,17 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         }
         val cargo = entity is InventoryHolder || entity is ItemFrame || entity is ArmorStand
         if (!cargo) return
-        dropCargo(entity, causedBy, epochMillis)
+        dropCargo(entity, causedBy, epochMillis, cause)
     }
 
-    private fun dropCargo(entity: Entity, causedBy: HolderId?, epochMillis: Long) {
+    private fun dropCargo(entity: Entity, causedBy: HolderId?, epochMillis: Long, cause: CauseKind) {
         // Read before empty. Respawning only ledgered lots made pre-plugin frames drop nothing
         val removed = entity.cargoStacks()
         entity.emptyCargo()
         material.dropping(
             holder = entity.toCargoHolderId(),
             at = entity.location,
-            cause = CauseKind.ENTITY_ACTION,
+            cause = cause,
             causedBy = causedBy,
             epochMillis = epochMillis,
             removed = removed
@@ -210,7 +212,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
             if (target is LivingEntity || target !is InventoryHolder) continue
             if (!Bukkit.isOwnedByCurrentRegion(target)) continue
             if (restoring) return
-            dropCargo(target, by, epochMillis)
+            dropCargo(target, by, epochMillis, CauseKind.ENTITY_ACTION)
         }
     }
 
