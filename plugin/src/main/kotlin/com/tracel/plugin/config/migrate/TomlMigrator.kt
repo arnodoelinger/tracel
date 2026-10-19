@@ -69,7 +69,8 @@ internal object TomlMigrator {
     private fun addKey(lines: MutableList<String>, change: Change.AddKey) {
         val header = sectionAt(lines, change.section)
         if (header < 0) {
-            val above = sectionAt(lines, SECTION).takeIf { it >= 0 } ?: run {
+            val above = change.before?.let { sectionAt(lines, it) }?.takeIf { it >= 0 }
+                ?: sectionAt(lines, SECTION).takeIf { it >= 0 } ?: run {
                 while (lines.isNotEmpty() && lines.last().isBlank()) lines.removeLast()
                 lines.size
             }

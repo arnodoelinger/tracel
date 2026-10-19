@@ -27,16 +27,22 @@ import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.command.args.support.MaterialAliases
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.bukkit.block.Block
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
+import java.time.Instant
+
+private const val WATCH_EVERY_MILLIS = 1_000L
+private const val WATCH_LATE_MILLIS = 5_000L
 
 /** [HistoryReads] over the world, transaction and event logs. */
 internal class TracelReads(
     private val services: TracelServices,
     private val materials: MaterialResolver = MaterialAliases::resolve,
+    private val open: () -> Boolean = { true },
 ) : HistoryReads {
     override fun Block.history(build: HistoryQuery.Builder.() -> Unit): History =
         read(HistoryQuery(area = LookupArea.of(place)).with(build))
@@ -86,6 +92,29 @@ internal class TracelReads(
             from = page.next
         } while (from != null)
         return Res.Ok(took.values.sortedByDescending { it.amount })
+    }
+
+    override fun watch(build: HistoryQuery.Builder.() -> Unit): Flow<HistoryRecord> {
+        val query = HistoryQuery().with(build)
+        val from = maxOf(System.currentTimeMillis(), query.since?.toEpochMilli() ?: 0L)
+        return flow {
+            val seen = HashSet<HistoryRecord>()
+            while (open()) {
+                delay(WATCH_EVERY_MILLIS)
+                val since = maxOf(from, System.currentTimeMillis() - WATCH_LATE_MILLIS)
+                val recent = ArrayList<HistoryRecord>()
+                val history = read(query.copy(since = Instant.ofEpochMilli(since)))
+                var cursor: HistoryCursor? = null
+                do {
+                    val page = history.page(cursor).getOrElse { throw TracelException(it) }
+                    recent += page.records
+                    cursor = page.next
+                } while (cursor != null)
+                for (record in recent.asReversed()) if (seen.add(record)) emit(record)
+                seen.removeAll { it.at.toEpochMilli() < since }
+                query.until?.let { if (since > it.toEpochMilli()) return@flow }
+            }
+        }
     }
 
     private suspend fun first(

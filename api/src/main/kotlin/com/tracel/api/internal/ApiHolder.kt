@@ -2,7 +2,11 @@ package com.tracel.api.internal
 
 import com.tracel.api.Internal
 import com.tracel.api.TracelSession
+import com.tracel.api.access.AccessError
+import com.tracel.api.access.TracelConnection
 import com.tracel.api.history.HistoryReads
+import com.tracel.api.result.Res
+import org.bukkit.plugin.Plugin
 
 /** What `Tracel` plugs in behind the API. */
 @Internal
@@ -15,6 +19,9 @@ public interface ApiBackend {
 
     /** Reading history, open to everyone. */
     public val reads: HistoryReads
+
+    /** A connection for [plugin], whose own code asked for it. */
+    public fun connect(plugin: Plugin): Res<TracelConnection, AccessError>
 }
 
 /** Holds the live [ApiBackend]. */

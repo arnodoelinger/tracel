@@ -13,4 +13,5 @@ public enum class SourceKind {
     ROLLBACK_MINT,
     UNTRACKED_GAP,
     UNATTRIBUTED,
+    PLUGIN,
 }

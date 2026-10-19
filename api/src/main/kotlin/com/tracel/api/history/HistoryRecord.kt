@@ -5,6 +5,7 @@ import com.tracel.api.actor.Actor
 import com.tracel.api.item.ItemHolder
 import com.tracel.api.item.ItemKind
 import com.tracel.api.world.BlockPlace
+import com.tracel.api.world.NamespacedName
 import java.time.Instant
 import java.util.UUID
 
@@ -97,4 +98,5 @@ public data class EventRecord(
     public val kind: EventKind,
     public val text: String?,
     public val entity: UUID?,
+    public val name: NamespacedName? = null,
 ) : HistoryRecord

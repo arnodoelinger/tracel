@@ -18,4 +18,5 @@ internal data class Settings(
     val paste: PasteSettings = PasteSettings(),
     val updates: UpdateSettings = UpdateSettings(),
     val autoPurge: AutoPurgeSettings = AutoPurgeSettings(),
+    val api: ApiSettings = ApiSettings(),
 )

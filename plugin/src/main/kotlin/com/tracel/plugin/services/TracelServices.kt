@@ -96,6 +96,7 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param paste where a lookup export goes
  * @param forwardCompatible server Minecraft is newer than the newest tested release
  * @param logging which kinds of history are written
+ * @param api what other plugins may do through the API
  */
 class TracelServices(
     val plugin: Plugin,
@@ -127,6 +128,7 @@ class TracelServices(
     val paste: PasteSettings = PasteSettings(),
     val forwardCompatible: Boolean = false,
     val logging: LoggingSettings = LoggingSettings(),
+    val api: ApiSettings = ApiSettings(),
 
     governorSettings: GovernorSettings = GovernorSettings(),
 

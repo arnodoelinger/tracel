@@ -19,4 +19,5 @@ public enum class EventKind {
     SLEEP,
     TRADE,
     TELEPORT,
+    CUSTOM,
 }

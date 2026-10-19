@@ -102,6 +102,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         purge = config.getTable("purge"),
         logging = config.getTable("logging"),
         updates = config.getTable("updates"),
+        api = config.getTable("api"),
     )
     ScopeLimits.rollbackMaxBlocks = settings.rollbackMaxRadius
     val storage = TracelStorage.open(plugin.dataFolder.resolve("database").toPath(), settings.store)
@@ -176,6 +177,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         governorSettings = settings.governor,
         logEntityDamage = settings.logEntityDamage,
         paste = settings.paste,
+        api = settings.api,
         forwardCompatible = forwardCompatible,
         logging = settings.logging,
     )

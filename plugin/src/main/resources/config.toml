@@ -53,6 +53,16 @@ paste-burn = false
 # Look for a newer Tracel version
 check = true
 
+[api]
+# What other plugins may do through the Tracel API, by plugin name
+# By default, every plugin may do everything, but a plugin listed here may do
+# only what its list names
+# rollback = roll back, preview and undo
+# attribute = change blocks, give items and record events
+# quiet = change the world without logging it
+# e.g., grants = { Arena = ["attribute"], Shop = [] }
+grants = {}
+
 [advanced]
 # How often Tracel forces pending history to disk
 # "every-batch" = saves every commit safely before continuing

@@ -6,6 +6,7 @@ import com.tracel.api.item.ItemKind
 import com.tracel.api.result.Res
 import com.tracel.api.world.BlockPlace
 import com.tracel.api.world.LookupArea
+import kotlinx.coroutines.flow.Flow
 import org.bukkit.block.Block
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
@@ -66,4 +67,10 @@ public interface HistoryReads {
         kind: ItemKind,
         build: HistoryQuery.Builder.() -> Unit = {},
     ): Res<List<ContainerTaker>, HistoryReadError>
+
+    /**
+     * Records as they are written from now on, oldest first, for as long as the flow is collected.
+     * Each arrives a second or two after it happened, once it is on disk.
+     */
+    public fun watch(build: HistoryQuery.Builder.() -> Unit = {}): Flow<HistoryRecord>
 }

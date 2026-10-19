@@ -20,6 +20,7 @@ import com.tracel.api.item.SourceKind
 import com.tracel.api.result.Res
 import com.tracel.api.world.BlockPlace
 import com.tracel.api.world.LookupArea
+import com.tracel.api.world.NamespacedName
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.event.ActorEvent
@@ -82,6 +83,7 @@ internal object ApiConversions {
         is HolderId.ItemEntity -> Actor.Entity(holder.uuid)
         is HolderId.AtBlock -> Actor.Block(place(holder.pos))
         is HolderId.Escrow -> Actor.Plugin(TRACEL)
+        is HolderId.Plugin -> Actor.Plugin(holder.name)
         is HolderId.Source, is HolderId.Sink -> if (cause.isNatural) Actor.Natural else null
     }
 
@@ -94,7 +96,8 @@ internal object ApiConversions {
         Actor.Natural -> Res.Err(
             HistoryReadError.Unsupported("Natural is nobody; ask for natural() and its causes instead."),
         )
-        is Actor.Plugin, is Actor.Addon -> Res.Err(HistoryReadError.Unsupported("History does not name $actor yet."))
+        is Actor.Plugin -> Res.Ok(setOf(HolderId.Plugin(actor.name)))
+        is Actor.Addon -> Res.Err(HistoryReadError.Unsupported("History does not name $actor yet."))
     }
 
     fun holder(id: HolderId): ItemHolder = when (id) {
@@ -106,6 +109,7 @@ internal object ApiConversions {
         is HolderId.PlacedEntity -> ItemHolder.PlacedEntity(id.uuid)
         is HolderId.ItemEntity -> ItemHolder.Dropped(id.uuid)
         is HolderId.Escrow -> ItemHolder.Rollback
+        is HolderId.Plugin -> ItemHolder.Appeared(SourceKind.PLUGIN)
         is HolderId.Source -> ItemHolder.Appeared(source(id.kind))
         is HolderId.Sink -> ItemHolder.Gone(sink(id.kind))
     }
@@ -163,6 +167,9 @@ internal object ApiConversions {
         )
     }
 
+    fun rollbackFilter(query: HistoryQuery, materials: MaterialResolver): Res<LookupFilter, HistoryReadError> =
+        filter(query.copy(natural = true), materials)
+
     fun events(query: HistoryQuery): Set<ModelEvent> = when {
         RecordKind.EVENT !in query.kinds -> emptySet()
         query.events.isEmpty() -> ModelEvent.entries.toSet()
@@ -209,12 +216,22 @@ internal object ApiConversions {
 
     fun record(event: ActorEvent): EventRecord {
         val actor = actor(event.by, ModelCause.PLAYER_ACTION)
-        val cause = if (actor is Actor.Player) CauseKind.PLAYER_ACTION else CauseKind.UNKNOWN
+        val cause = when (actor) {
+            is Actor.Player -> CauseKind.PLAYER_ACTION
+            is Actor.Plugin -> CauseKind.PLUGIN
+            else -> CauseKind.UNKNOWN
+        }
+        val custom = event.kind == ModelEvent.CUSTOM
+        val raw = event.text
+        val name = if (custom) raw?.substringBefore(' ')?.let(NamespacedName::parse) else null
+        val text = if (custom) raw?.substringAfter(' ', "")?.ifEmpty { null } else raw
         return EventRecord(
             Instant.ofEpochMilli(event.epochMillis), actor, cause, null, event.at?.let(::place),
-            cursor(event.epochMillis, event.seq.raw), event(event.kind), event.text, event.entity,
+            cursor(event.epochMillis, event.seq.raw), event(event.kind), text, event.entity, name,
         )
     }
+
+    fun customText(name: NamespacedName, text: String?): String = if (text.isNullOrEmpty()) "$name" else "$name $text"
 
     private fun box(world: UUID, minX: Int, minY: Int, minZ: Int, maxX: Int, maxY: Int, maxZ: Int) =
         LookupRegion(
