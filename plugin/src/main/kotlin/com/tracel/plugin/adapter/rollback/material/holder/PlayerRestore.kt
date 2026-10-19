@@ -12,6 +12,7 @@ import com.tracel.plugin.adapter.rollback.material.item.WornStacks
 import com.tracel.plugin.adapter.rollback.material.item.applyDelta
 import com.tracel.plugin.adapter.rollback.material.spill.spillInRegion
 import com.tracel.plugin.adapter.world.playerOf
+import com.tracel.plugin.specifics.item.Experience
 import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.spill.Spill
@@ -55,7 +56,8 @@ internal suspend fun MaterialRestorer.applyToPlayer(
         }
         val moves = Moves()
         for ((itemKey, delta) in deltas) {
-            applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory, worn = worn)
+            if (Experience.isExperience(itemKey)) player.shiftExperience(delta, moves)
+            else applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory, worn = worn)
         }
         takeFromCursor(player, moves)
         takeFromGrid(player, moves)

@@ -70,6 +70,7 @@ private fun itemListeners(services: TracelServices): List<TracelListener> = list
 
     // Items
     ItemEntityListener(services),
+    ExperienceListener(services),
     ProjectileListener(services),
     LootCaptureListener(services),
 

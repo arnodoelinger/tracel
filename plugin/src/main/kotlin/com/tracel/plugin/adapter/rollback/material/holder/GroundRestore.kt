@@ -12,11 +12,13 @@ import com.tracel.plugin.rollback.material.ENTITY_GONE_AT_PLAN
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.spill.Spill
+import com.tracel.plugin.specifics.item.Experience
 import com.tracel.plugin.util.geometry.regionKey
 import com.tracel.plugin.util.holder.blockPos
 import kotlinx.coroutines.*
 import org.bukkit.Bukkit
 import org.bukkit.Material
+import org.bukkit.entity.ExperienceOrb
 import org.bukkit.entity.Item
 
 /** Restore ground items. */
@@ -115,7 +117,9 @@ internal fun MaterialRestorer.takeGroundItem(
     deltas: Map<ItemKey, Long>,
     worn: WornStacks? = null,
 ): ApplyResult.Failed? {
-    val item = Bukkit.getEntity(holder.uuid) as? Item ?: return ApplyResult.Failed("ground item no longer exists")
+    val found = Bukkit.getEntity(holder.uuid)
+    if (found is ExperienceOrb) return takeOrb(holder, found, deltas.values.single())
+    val item = found as? Item ?: return ApplyResult.Failed("ground item no longer exists")
     val entry = deltas.entries.singleOrNull()
         ?: return ApplyResult.Failed("a ground item can only ever be a single-item-key Take source, got ${deltas.keys}")
     val (itemKey, delta) = entry
@@ -145,6 +149,18 @@ internal fun MaterialRestorer.takeGroundItem(
         "${itemKey.material} x${-remaining} was no longer on the ground",
         mapOf(itemKey to -remaining),
     )
+}
+
+private fun MaterialRestorer.takeOrb(holder: HolderId.ItemEntity, orb: ExperienceOrb, delta: Long): ApplyResult.Failed? {
+    val remaining = orb.experience + delta
+    if (remaining > 0) {
+        orb.experience = remaining.toInt()
+        return null
+    }
+    services.groundWhereabouts.remember(orb)
+    services.selfManagedSpawns.forget(holder.uuid)
+    services.selfManagedWorld.whileRestoring { orb.remove() }
+    return if (remaining == 0L) null else ApplyResult.Failed("short", mapOf(Experience.KEY to -remaining))
 }
 
 internal fun HolderId.toBlockHolder(): HolderId.Block? = when (this) {

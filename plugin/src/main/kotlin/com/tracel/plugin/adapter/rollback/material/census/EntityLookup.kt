@@ -5,6 +5,7 @@ import com.tracel.model.item.ItemKey
 import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.rollback.material.MaterialRestorer
+import com.tracel.plugin.specifics.item.isGroundPile
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.util.geometry.regionKey
 import com.tracel.plugin.util.holder.namedByEntity
@@ -15,7 +16,6 @@ import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.entity.ArmorStand
-import org.bukkit.entity.Item
 import org.bukkit.entity.ItemFrame
 import java.util.*
 
@@ -28,7 +28,7 @@ internal suspend fun MaterialRestorer.findVanished(
     return withContext(services.schedulers.global) {
         byUuid.filterTo(HashSet()) { holder ->
             when (holder) {
-                is HolderId.ItemEntity -> Bukkit.getEntity(holder.uuid) !is Item
+                is HolderId.ItemEntity -> !Bukkit.getEntity(holder.uuid).isGroundPile()
                 is HolderId.Entity -> false
                 is HolderId.PlacedEntity -> false
                 else -> false
@@ -60,7 +60,7 @@ internal suspend fun MaterialRestorer.confirmGone(suspects: Set<HolderId>): Set<
                 chunks.map { (cx, cz) -> async { runCatching { world.getChunkAtAsync(cx, cz).await() } } }.awaitAll()
                 withContext(services.schedulers.region(at)) {
                     for ((cx, cz) in chunks) runCatching { world.getChunkAt(cx, cz).entities }
-                    group.filter { (holder, _) -> Bukkit.getEntity((holder as HolderId.ItemEntity).uuid) is Item }
+                    group.filter { (holder, _) -> Bukkit.getEntity((holder as HolderId.ItemEntity).uuid).isGroundPile() }
                         .map { it.key }
                 }
             }
@@ -108,7 +108,7 @@ internal fun MaterialRestorer.census(
         if (uuid in respawning) continue
         val entity = Bukkit.getEntity(uuid)
         // Pickup reused the UUID
-        if (entity == null || (holder is HolderId.ItemEntity && entity !is Item)) {
+        if (entity == null || (holder is HolderId.ItemEntity && !entity.isGroundPile())) {
             val hint = services.whereabouts.at(uuid)
             if (hint != null && holder is HolderId.Entity) {
                 // Folia global getEntity is often null two regions away; last chunk still hops cargo

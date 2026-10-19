@@ -528,6 +528,88 @@ class MaterialCapture internal constructor(private val services: TracelServices)
     }
 
     /**
+     * [holder] really holds [actual] of [itemKey]: whatever the ledger does not know of is the world's, minted.
+     *
+     * For piles that grow without an event of their own, like an orb that swallowed another one.
+     */
+    fun toppedUp(
+        holder: HolderId,
+        itemKey: ItemKey,
+        actual: Long,
+        at: BlockPos?,
+        cause: CauseKind = CauseKind.NATURAL,
+        epochMillis: Long = System.currentTimeMillis(),
+    ) {
+        if (actual <= 0L) return
+        committing("unseen $itemKey at $holder") { topUp(holder, itemKey, actual, at, cause, epochMillis) }
+    }
+
+    /**
+     * [moved] for a pile that must be on the books first, in the same write.
+     *
+     * The ring and the commit queue are two queues: a move through the ring can overtake the mint of its own pile
+     * and be refused as untracked.
+     */
+    fun movedFromPile(
+        cause: CauseKind,
+        causedBy: HolderId?,
+        itemKey: ItemKey,
+        from: HolderId,
+        to: HolderId,
+        quantity: Long,
+        at: BlockPos?,
+        epochMillis: Long = System.currentTimeMillis(),
+    ) {
+        committing("$cause move $from -> $to") {
+            topUp(from, itemKey, quantity, at, CauseKind.NATURAL, epochMillis - 1)
+            services.capture.recordDirect(
+                listOf(Flow(itemKey, Quantity(quantity), from, to, FlowKind.MOVE)),
+                epochMillis, cause, causedBy, at,
+            )
+        }
+    }
+
+    /** [released] for piles of [itemKey], in the commit queue and with both piles topped up first. */
+    fun releasedPile(
+        cause: CauseKind,
+        causedBy: HolderId?,
+        itemKey: ItemKey,
+        from: HolderId,
+        fromActual: Long,
+        to: HolderId,
+        toActual: Long,
+        at: BlockPos?,
+        epochMillis: Long = System.currentTimeMillis(),
+    ) {
+        committing("$cause release $from -> $to") {
+            topUp(from, itemKey, fromActual, at, CauseKind.NATURAL, epochMillis - 1)
+            if (to is HolderId.ItemEntity) topUp(to, itemKey, toActual, at, CauseKind.NATURAL, epochMillis - 1)
+            val flows = services.ledger.releaseFlows(from, to)
+            if (flows.isNotEmpty()) services.capture.recordDirect(flows, epochMillis, cause, causedBy, at)
+        }
+    }
+
+    private suspend fun topUp(
+        holder: HolderId,
+        itemKey: ItemKey,
+        actual: Long,
+        at: BlockPos?,
+        cause: CauseKind,
+        epochMillis: Long,
+    ) {
+        val believed = services.ledger.totalsAt(holder)[itemKey]?.raw ?: 0L
+        val missing = actual - believed
+        if (missing <= 0L) return
+        services.capture.recordDirect(
+            worldgenMintFlows(mapOf(itemKey to missing), holder),
+            epochMillis,
+            cause,
+            null,
+            at,
+        )
+    }
+
+    /**
      * Keep the differ in sync with event-booked moves.
      *
      * Skip and the next read reports the same movement twice.

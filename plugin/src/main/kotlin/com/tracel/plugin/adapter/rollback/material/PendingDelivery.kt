@@ -5,6 +5,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.item.heldTotals
 import com.tracel.plugin.adapter.item.toItemTotals
+import com.tracel.plugin.adapter.rollback.material.holder.shiftExperience
 import com.tracel.plugin.adapter.rollback.material.holder.takeFromCursor
 import com.tracel.plugin.adapter.rollback.material.holder.takeFromGrid
 import com.tracel.plugin.adapter.rollback.material.holder.takeFromMenu
@@ -15,6 +16,7 @@ import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.rewearPlan
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.result.report.RestorationReport
+import com.tracel.plugin.specifics.item.Experience
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.bukkit.entity.Player
@@ -46,7 +48,9 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
             val enderMoves = Moves()
             val worn = PendingWorn.take(player.uniqueId)
             for ((_, itemKey, delta, _, stash) in claimed.sortedBy { it.delta > 0L }) {
-                if (stash) {
+                if (Experience.isExperience(itemKey)) {
+                    player.shiftExperience(delta, moves)
+                } else if (stash) {
                     applyDelta(itemKey, delta, forms[itemKey], enderMoves, player.enderChest, worn = worn)
                 } else {
                     applyDelta(itemKey, delta, forms[itemKey], moves, player.inventory, worn = worn)

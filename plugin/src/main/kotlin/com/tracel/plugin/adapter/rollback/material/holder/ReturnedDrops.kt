@@ -8,9 +8,11 @@ import com.tracel.plugin.adapter.rollback.material.item.stacksOf
 import com.tracel.plugin.adapter.rollback.material.spill.recordSpilled
 import com.tracel.plugin.adapter.world.worldOf
 import com.tracel.plugin.listener.support.drop.dropTracked
+import com.tracel.plugin.listener.support.drop.dropTrackedOrb
 import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.spill.Spill
+import com.tracel.plugin.specifics.item.Experience
 import com.tracel.plugin.util.geometry.regionKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -75,6 +77,10 @@ internal fun MaterialRestorer.spawnReturnedDrop(
     try {
         for ((itemKey, qty) in deltas) {
             if (qty <= 0L) continue
+            if (Experience.isExperience(itemKey)) {
+                spilled += Spill(vanished, services.dropTrackedOrb(qty, itemKey, world, loc), where)
+                continue
+            }
             val template = stackFor(itemKey, 1, forms[itemKey]) ?: return "unknown material ${itemKey.material}"
             for (stack in stacksOf(itemKey, qty, template)) {
                 spilled += Spill(vanished, services.dropTracked(stack, itemKey, world, loc), where)

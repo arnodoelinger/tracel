@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.World
+import org.bukkit.entity.ExperienceOrb
 import org.bukkit.inventory.ItemStack
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -46,6 +47,21 @@ internal fun TracelServices.dropTracked(
     // the vanished check asks from the global thread, blind to this region: without a hint the pile read as gone
     groundWhereabouts.remember(item)
     return InventoryDelta(HolderId.ItemEntity(item.uniqueId), itemKey, stack.amount.toLong())
+}
+
+internal fun TracelServices.dropTrackedOrb(
+    points: Long,
+    itemKey: ItemKey,
+    world: World,
+    location: Location,
+): InventoryDelta {
+    val value = points.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val orb = selfManagedSpawns.whileSpawning {
+        world.spawn(location, ExperienceOrb::class.java) { it.experience = value }
+    }
+    selfManagedSpawns.track(orb.uniqueId)
+    groundWhereabouts.remember(orb)
+    return InventoryDelta(HolderId.ItemEntity(orb.uniqueId), itemKey, value.toLong())
 }
 
 @Suppress("IfThenToElvis")

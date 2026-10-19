@@ -4,6 +4,7 @@ import com.tracel.engine.actor.ActorFacts
 import com.tracel.engine.capture.CaptureGate
 import com.tracel.engine.capture.material.CaptureCoordinator
 import com.tracel.engine.capture.material.SnapshotDiffer
+import com.tracel.plugin.specifics.item.Experience
 import com.tracel.engine.capture.material.WearCapture
 import com.tracel.engine.capture.world.EntityCaptureQueue
 import com.tracel.engine.capture.world.WorldCaptureCoordinator
@@ -151,7 +152,9 @@ class TracelServices(
     val governor: TickGovernor = TickGovernor(plugin, governorSettings)
     val writeRate: WriteRate = WriteRate(total = { counters.seqIssued })
     val purgeGate: PurgeGate = PurgeGate { composite.isRunning }
-    val differ: SnapshotDiffer = SnapshotDiffer { holder -> ledger.totalsAt(holder).mapValues { it.value.raw } }
+    val differ: SnapshotDiffer = SnapshotDiffer { holder ->
+        ledger.totalsAt(holder).filterKeys { !Experience.isExperience(it) }.mapValues { it.value.raw }
+    }
     val shape: ShapeCapture = ShapeCapture(this)
     val material: MaterialCapture = MaterialCapture(this)
     val capture: CaptureCoordinator = CaptureCoordinator(ledger, log, counters::nextTxnId, counters::nextSeq)
