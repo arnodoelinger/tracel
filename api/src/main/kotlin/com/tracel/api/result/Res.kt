@@ -86,6 +86,7 @@ public inline fun <T, E> Res<T, E>.onOk(action: (T) -> Unit): Res<T, E> = also {
 public inline fun <T, E> Res<T, E>.onErr(action: (E) -> Unit): Res<T, E> = also { if (it is Res.Err) action(it.error) }
 
 /** Thrown by [orThrow]; [error] is what [Res.Err] held. */
+@Unstable
 public class TracelException(public val error: Any?) : RuntimeException(error.toString())
 
 /**

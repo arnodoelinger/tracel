@@ -1,5 +1,6 @@
 plugins {
     id("tracel.pure-kotlin")
+    `maven-publish`
 }
 
 kotlin {
@@ -8,9 +9,26 @@ kotlin {
     }
 }
 
+java {
+    withSourcesJar()
+}
+
 dependencies {
     compileOnly(libs.paper.api)
     compileOnly(libs.kotlinx.coroutines.core)
     testImplementation(libs.paper.api)
     testImplementation(libs.kotlinx.coroutines.core)
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("api") {
+            artifactId = "tracel-api"
+            from(components["java"])
+            pom {
+                name.set("Tracel API")
+                description.set("Public API for integrating with Tracel.")
+            }
+        }
+    }
 }

@@ -53,6 +53,22 @@ class ArchitectureTest {
     }
 
     @Test
+    fun `everything public in the api is unstable or internal`() {
+        val api = Konsist.scopeFromModule("api")
+        val stability = setOf("Unstable", "Internal")
+        val declarations = (api.classes(includeNested = false) + api.interfaces(includeNested = false) +
+                api.objects(includeNested = false) + api.functions(includeNested = false) +
+                api.properties(includeNested = false))
+            .filter { it.path.contains("/src/main/") }
+            .filter { it.hasPublicOrDefaultModifier }
+            .filterNot { it.name in stability }
+        check(declarations.isNotEmpty()) { "no declarations in the api module; the filter is wrong" }
+        declarations.assertTrue(testName = "api declarations are marked") { declaration ->
+            declaration.annotations.any { it.name in stability }
+        }
+    }
+
+    @Test
     fun `capture listeners do not open a unit of work on the event thread`() {
         val handlers = Konsist.scopeFromModule("plugin")
             .files
