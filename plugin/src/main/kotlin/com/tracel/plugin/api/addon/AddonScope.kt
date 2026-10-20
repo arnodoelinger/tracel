@@ -13,6 +13,8 @@ import com.tracel.api.addon.AddonRecorder
 import com.tracel.api.addon.BlockLens
 import com.tracel.api.addon.CustomEventType
 import com.tracel.api.addon.EventTypes
+import com.tracel.api.addon.Flags
+import com.tracel.api.addon.QueryFlag
 import com.tracel.api.addon.HolderTypes
 import com.tracel.api.addon.ItemHolderType
 import com.tracel.api.addon.ItemLens
@@ -28,6 +30,8 @@ import com.tracel.api.world.BlockPlace
 import com.tracel.api.world.NamespacedName
 import com.tracel.api.write.WriteError
 import com.tracel.plugin.api.Owned
+
+private val FLAG_NAME = Regex("[a-z0-9_-]+")
 
 /** What an addon's registries need from a running `Tracel`: writing history down. */
 internal interface AddonWrites {
@@ -95,6 +99,15 @@ internal class AddonScope(
 
         override fun item(lens: ItemLens) {
             owned.own(extensions.itemLenses.add(GuardedItemLens(lens, guard)))
+        }
+    }
+
+    override val flags: Flags = object : Flags {
+        override fun register(flag: QueryFlag) {
+            val name = flag.name
+            require(FLAG_NAME.matches(name)) { "Flag \"$name\" must match ${FLAG_NAME.pattern}." }
+            require(name !in extensions.reservedFlags) { "Flag \"$name\" is one of Tracel's own." }
+            owned.own(extensions.flags.put(name, GuardedFlag(flag, guard, id)))
         }
     }
 

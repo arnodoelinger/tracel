@@ -3,6 +3,7 @@ package com.tracel.plugin.api.rollback
 import com.tracel.api.actor.Actor
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.history.RecordKind
+import com.tracel.api.item.ItemHolder
 import com.tracel.api.result.Res
 import com.tracel.api.result.getOrElse
 import com.tracel.api.rollback.BorrowedArea
@@ -20,6 +21,7 @@ import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.rollback.Rollbacks
 import com.tracel.api.world.LookupArea
 import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.world.TILE_SHIFT
@@ -29,8 +31,9 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.cause.CauseKind as ModelCause
 import com.tracel.model.rollback.RollbackJobId as ModelJob
 import com.tracel.plugin.api.read.ApiConversions
+import com.tracel.plugin.metrics.Telemetry
 import com.tracel.plugin.api.read.MaterialResolver
-import com.tracel.plugin.command.args.scope.ScopeLimits
+import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.api.read.MaterialAliases
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -39,6 +42,10 @@ import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 import org.bukkit.entity.Player
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -93,6 +100,17 @@ internal open class TracelRollbacks(
 
     override suspend fun latest(): RollbackJobId? =
         services.composite.lastUndoable(by)?.let { RollbackJobId(it.raw) }
+    /**
+     * Runs [work] holding the rollback gate and the fluids of [area] still, once: the previews and applies made inside
+     * it take no gate of their own, so what the plan saw is what the world still holds when it is written.
+     *
+     * [RollbackError.Busy] when another rollback holds the gate.
+     */
+    suspend fun <T> holding(area: LookupArea?, work: suspend () -> T): Res<T, RollbackError> {
+        refusal()?.let { return Res.Err(it) }
+        val region = area?.let(ApiConversions::region)
+        return gated { Res.Ok(services.composite.holdingStill(region) { withContext(Held) { work() } }) }
+    }
 
     private fun refusal(): RollbackError? = when {
         !alive() -> RollbackError.Revoked
@@ -100,7 +118,15 @@ internal open class TracelRollbacks(
         else -> null
     }
 
+    private object Held : AbstractCoroutineContextElement(Key), CoroutineContext.Element {
+        object Key : CoroutineContext.Key<Held>
+    }
+
+    private suspend fun <T> still(region: LookupRegion?, work: suspend () -> T): T =
+        if (coroutineContext[Held.Key] != null) work() else services.composite.holdingStill(region, work)
+
     private suspend fun <T> gated(work: suspend () -> Res<T, RollbackError>): Res<T, RollbackError> {
+        if (coroutineContext[Held.Key] != null) return work()
         if (!services.composite.claimGate()) return Res.Err(RollbackError.Busy)
         return try {
             services.purgeGate.awaitSlice()
@@ -108,6 +134,7 @@ internal open class TracelRollbacks(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
+            Telemetry.error(failure)
             Res.Err(RollbackError.Failed(failure.message ?: failure.javaClass.simpleName))
         } finally {
             services.composite.releaseGate()
@@ -160,7 +187,8 @@ internal open class TracelRollbacks(
     }
 
     private fun unreachable(outcome: Unreachable): RollbackError = when (val holder = outcome.holder) {
-        is HolderId.Custom -> RollbackError.AddonMissing(ApiConversions.kind(holder.kind))
+        is HolderId.Custom ->
+            RollbackError.AddonMissing(ItemHolder.Custom(ApiConversions.kind(holder.kind), holder.id), outcome.reason)
         else -> RollbackError.Unreachable(ApiConversions.holder(holder), outcome.reason)
     }
 
@@ -188,7 +216,7 @@ internal open class TracelRollbacks(
         override suspend fun preview(): Res<RollbackReady, RollbackError> {
             val filter = admit(query).getOrElse { return Res.Err(it) }
             return gated {
-                Res.Ok(Ready(this, filter, services.composite.holdingStill(filter.region) { plan(query, filter) }))
+                Res.Ok(Ready(this, filter, still(filter.region) { plan(query, filter) }))
             }
         }
     }
@@ -240,7 +268,7 @@ internal open class TracelRollbacks(
         }
 
         private suspend fun applyGated(): Res<RollbackApplied, RollbackError> =
-            services.composite.holdingStill(filter.region) {
+            still(filter.region) {
                 val strict = draft.conflicts == ConflictPolicy.SKIP
                 when (val outcome = services.composite.apply(planned.copy(by = by), strict)) {
                     is RollbackResult.Done -> {

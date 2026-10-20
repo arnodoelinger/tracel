@@ -123,7 +123,11 @@ internal fun readSettings(
         paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
         updates = UpdateSettings(checkUpdates),
         autoPurge = AutoPurgeSettings(autoPurge, purgeInterval, keep),
-        api = ApiSettings(readGrants(api, complain), readSlowpokes(api, complain)),
+        api = ApiSettings(
+            readGrants(api, complain),
+            readSlowpokes(api, complain),
+            api.setting("api", "allow-destructive", false, complain) { it as? Boolean },
+        ),
     )
 }
 

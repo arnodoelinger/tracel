@@ -9,6 +9,9 @@ internal class Shelf<V : Any>(private val what: String) {
 
     operator fun get(key: String): V? = items[key]
 
+    /** Everything on the shelf, in no particular order. */
+    val values: Collection<V> get() = items.values
+
     operator fun contains(key: String): Boolean = items.containsKey(key)
 
     /** Puts [value] under [key]; a taken [key] throws. */

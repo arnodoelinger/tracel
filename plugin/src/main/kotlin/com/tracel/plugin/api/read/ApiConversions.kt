@@ -26,6 +26,7 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
+import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
@@ -115,6 +116,19 @@ internal object ApiConversions {
         is HolderId.Source -> ItemHolder.Appeared(source(id.kind))
         is HolderId.Sink -> ItemHolder.Gone(sink(id.kind))
         is HolderId.Custom -> ItemHolder.Custom(kind(id.kind), id.id)
+    }
+
+    fun holderId(holder: ItemHolder): HolderId = when (holder) {
+        is ItemHolder.Container -> HolderId.Block(pos(holder.place))
+        is ItemHolder.PlacedBlock -> HolderId.PlacedBlock(pos(holder.place))
+        is ItemHolder.Player -> if (holder.stash) HolderId.PlayerStash(holder.uuid) else HolderId.Player(holder.uuid)
+        is ItemHolder.Entity -> HolderId.Entity(holder.uuid)
+        is ItemHolder.PlacedEntity -> HolderId.PlacedEntity(holder.uuid)
+        is ItemHolder.Dropped -> HolderId.ItemEntity(holder.uuid)
+        ItemHolder.Rollback -> HolderId.Escrow(RollbackJobId(0))
+        is ItemHolder.Appeared -> HolderId.Source(ModelSource.valueOf(holder.kind.name))
+        is ItemHolder.Gone -> HolderId.Sink(ModelSink.valueOf(holder.kind.name))
+        is ItemHolder.Custom -> HolderId.Custom(holder.kind.toString(), holder.id)
     }
 
     fun kind(stored: String): NamespacedName = NamespacedName.parse(stored) ?: NamespacedName("unknown", "unknown")

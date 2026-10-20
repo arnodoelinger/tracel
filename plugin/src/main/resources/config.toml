@@ -70,6 +70,9 @@ grants = {}
 # e.g., excuse-slowpokes = ["backpacks"]
 excuse-slowpokes = []
 
+# Lets plugins purge or replace your history through the API. There is no undoing it
+allow-destructive = false
+
 [advanced]
 # How often Tracel forces pending history to disk
 # "every-batch" = saves every commit safely before continuing

@@ -99,6 +99,7 @@
     "busy": "Another job is running... Wait for it to finish",
     "no_permission": "You don't have permission to use this command",
     "invalid": "<token> is not a valid argument — see suggestions to see what is allowed",
+    "invalid_value": "<token> is not valid — <reason>",
     "nothing": "there's nothing we can do",
     "label": {
       "info": "<gray>Info</gray>: <info>",
@@ -779,7 +780,8 @@
       "world": "World",
       "item": "Item",
       "block": "Block",
-      "action": "Action or cause, comma-separated"
+      "action": "Action or cause, comma-separated",
+      "addon": "Added by <addon>"
     },
     "preset_replace": "Replaces this preset",
     "preset_name": "Name for the new preset"

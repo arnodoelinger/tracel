@@ -56,10 +56,13 @@ public sealed interface RollbackError {
     public data class Unreachable(public val holder: ItemHolder, public val reason: String) : RollbackError
 
     /**
-     * It reaches into containers of [kind], and the addon that owns them is not installed:
+     * It reaches into [holder], a container of an addon that is not installed, and [reason] says what went wrong:
      * nobody can say how to put items back there, so nothing is put back anywhere.
      */
-    public data class AddonMissing(public val kind: NamespacedName) : RollbackError
+    public data class AddonMissing(public val holder: ItemHolder.Custom, public val reason: String) : RollbackError {
+        /** The type of container the missing addon owns. */
+        public val kind: NamespacedName get() = holder.kind
+    }
 
     /** There is nothing to roll back. */
     public data object NothingToDo : RollbackError

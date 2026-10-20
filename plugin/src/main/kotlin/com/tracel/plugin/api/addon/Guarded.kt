@@ -5,6 +5,10 @@ import com.tracel.api.addon.BlockLens
 import com.tracel.api.addon.CustomEventType
 import com.tracel.api.addon.ItemHolderType
 import com.tracel.api.addon.ItemLens
+import com.tracel.api.addon.FlagInput
+import com.tracel.api.addon.QueryFlag
+import com.tracel.api.addon.QueryPart
+import com.tracel.api.result.Res
 import com.tracel.api.world.NamespacedName
 import net.kyori.adventure.text.Component
 import org.bukkit.block.data.BlockData
@@ -44,4 +48,12 @@ internal class GuardedEvent<T : Any>(private val inner: CustomEventType<T>, priv
 
 internal class GuardedActorKind(private val inner: ActorKind, private val guard: AddonGuard) : ActorKind by inner {
     override fun display(id: String): String? = guard.now("actor ${inner.name}") { inner.display(id) }
+}
+
+internal class GuardedFlag(private val inner: QueryFlag, private val guard: AddonGuard, val addon: String) :
+    QueryFlag by inner {
+    override fun parse(input: FlagInput): Res<QueryPart, String> =
+        guard.now("flag $name parse") { inner.parse(input) }
+
+    override fun suggest(input: FlagInput): List<String> = guard.now("flag $name suggest") { inner.suggest(input) }
 }

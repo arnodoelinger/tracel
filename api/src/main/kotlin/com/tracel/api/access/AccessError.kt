@@ -14,6 +14,9 @@ public sealed interface AccessError {
     /** The plugin is not enabled, so it cannot connect. */
     public data class NotEnabled(public val plugin: String) : AccessError
 
+    /** The admin has not allowed destructive operations (`allow-destructive` in `config.toml`), to anyone. */
+    public data object DestructiveNotAllowed : AccessError
+
     /** The connection was closed, by the plugin, by its disabling, or by `Tracel` stopping. */
     public data object Revoked : AccessError
 }

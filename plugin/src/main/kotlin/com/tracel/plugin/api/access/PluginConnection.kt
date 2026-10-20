@@ -3,11 +3,13 @@ package com.tracel.plugin.api.access
 import com.tracel.api.access.AccessError
 import com.tracel.api.access.Grant
 import com.tracel.api.access.TracelConnection
+import com.tracel.api.admin.Admin
 import com.tracel.api.history.HistoryReads
 import com.tracel.api.result.Res
 import com.tracel.api.rollback.Rollbacks
 import com.tracel.api.write.Attribution
 import com.tracel.api.write.QuietWrites
+import com.tracel.plugin.api.admin.TracelAdmin
 import com.tracel.plugin.api.rollback.Borrows
 import com.tracel.plugin.api.rollback.TracelRollbacks
 import com.tracel.plugin.api.write.TracelAttribution
@@ -25,7 +27,7 @@ import org.bukkit.plugin.Plugin
  */
 internal class PluginConnection(
     private val owner: Plugin,
-    services: TracelServices,
+    private val services: TracelServices,
     borrows: Borrows,
     override val reads: HistoryReads,
     private val running: () -> Boolean,
@@ -41,10 +43,16 @@ internal class PluginConnection(
     private val alive = { isOpen }
     private val rollbacking by lazy { TracelRollbacks(services, plugin, alive, borrows) }
     private val attributing by lazy { TracelAttribution(services, plugin, alive) }
+    private val administering by lazy { TracelAdmin(services, plugin, alive) }
     private val quieting by lazy { TracelQuiet(services, alive) }
 
     override val rollbacks: Res<Rollbacks, AccessError> get() = granted(Grant.ROLLBACK) { rollbacking }
     override val attribution: Res<Attribution, AccessError> get() = granted(Grant.ATTRIBUTE) { attributing }
+    override val admin: Res<Admin, AccessError> get() = when {
+        !isOpen -> Res.Err(AccessError.Revoked)
+        !services.api.allowDestructive -> Res.Err(AccessError.DestructiveNotAllowed)
+        else -> Res.Ok(administering)
+    }
     override val quiet: Res<QuietWrites, AccessError> get() = granted(Grant.QUIET) { quieting }
 
     override fun close() {

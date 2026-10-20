@@ -19,6 +19,7 @@ import com.tracel.api.rollback.RollbackJobId
 import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.world.BlockPlace
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import java.util.UUID
 import java.util.logging.Handler
 import java.util.logging.LogRecord
@@ -57,6 +58,7 @@ class AddonHandlersTest {
         logger,
         isPluginEnabled = { true },
         extensions = extensions,
+        guards = { id, trip -> AddonGuard(id, logger, trip, lane = Dispatchers.Unconfined) },
         binders = listOf(HandlerBinder(extensions, { only, sink -> Feed(only, sink).also { feeds += it } }, logger)),
     )
 
@@ -113,7 +115,7 @@ class AddonHandlersTest {
         }
         val lines = extensions.inspect(place)
 
-        assertEquals(listOf("record hi", "started", "finished 12 $done", "undone 7"), addon.heard)
+        assertEquals(listOf("record hi", "started", "finished 12 $done", "undone #7"), addon.heard)
         assertEquals(1, lines.size)
     }
 

@@ -1,6 +1,7 @@
 package com.tracel.api.access
 
 import com.tracel.api.Unstable
+import com.tracel.api.admin.Admin
 import com.tracel.api.history.HistoryReads
 import com.tracel.api.result.Res
 import com.tracel.api.rollback.Rollbacks
@@ -45,6 +46,16 @@ public interface TracelConnection : AutoCloseable {
 
     /** Writing to the world past history, with [Grant.QUIET]. */
     public val quiet: Res<QuietWrites, AccessError>
+
+    /**
+     * Purging, exporting and importing history.
+     *
+     * Be aware that it's not a grant: it is there for every plugin or for none,
+     * as the admin sets `allow-destructive` in `config.toml`, and it is off unless set.
+     *
+     * Otherwise [AccessError.DestructiveNotAllowed].
+     */
+    public val admin: Res<Admin, AccessError>
 
     /**
      * Ends the connection. Handles taken from it answer [AccessError.Revoked]

@@ -29,6 +29,12 @@ internal object FileVersions {
                         "# e.g., excuse-slowpokes = [\"backpacks\"]",
                     ),
                 ),
+                Change.AddKey(
+                    "api", "allow-destructive", "false",
+                    listOf(
+                        "# Lets plugins purge or replace your history through the API. There is no undoing it",
+                    ),
+                ),
             ),
         ),
     )

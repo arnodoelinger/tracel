@@ -3,6 +3,7 @@ package com.tracel.plugin.api.addon
 import com.tracel.api.access.AccessError
 import com.tracel.api.access.Grant
 import com.tracel.api.access.TracelConnection
+import com.tracel.api.admin.Admin
 import com.tracel.api.history.HistoryReads
 import com.tracel.api.result.Res
 import com.tracel.api.rollback.Rollbacks
@@ -25,6 +26,7 @@ internal class DetachedConnection(
     override val isOpen: Boolean get() = !ended
     override val reads: HistoryReads get() = error("A detached connection reads nothing.")
     override val rollbacks: Res<Rollbacks, AccessError> get() = Res.Err(AccessError.Revoked)
+    override val admin: Res<Admin, AccessError> get() = Res.Err(AccessError.Revoked)
     override val attribution: Res<Attribution, AccessError> get() = Res.Err(AccessError.Revoked)
     override val quiet: Res<QuietWrites, AccessError> get() = Res.Err(AccessError.Revoked)
 

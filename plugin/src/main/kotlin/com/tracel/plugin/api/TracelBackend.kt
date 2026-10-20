@@ -15,7 +15,6 @@ import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.api.addon.HandlerBinder
 import com.tracel.plugin.api.addon.ServiceWrites
 import com.tracel.plugin.api.read.TracelReads
-import com.tracel.plugin.api.rollback.Borrows
 import com.tracel.plugin.services.TracelServices
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
@@ -38,7 +37,7 @@ internal class TracelBackend(
 
     override val reads: HistoryReads = TracelReads(services, open = { running })
 
-    private val borrows = Borrows()
+    private val borrows = services.borrows
     private val connections: MutableSet<PluginConnection> = ConcurrentHashMap.newKeySet()
 
     private val addons = AddonManager(

@@ -33,6 +33,9 @@ public interface AddonContext {
     /** Names for custom blocks. */
     public val lenses: Lenses
 
+    /** Flags for lookup and rollback. */
+    public val flags: Flags
+
     /** Events of the addon's own, with a schema. */
     public val eventTypes: EventTypes
 
