@@ -1,82 +1,52 @@
 package com.tracel.plugin.command.action.support
 
-import com.tracel.engine.log.lookup.LookupFilter
-import com.tracel.model.event.EventKind
-import com.tracel.plugin.api.addon.Extensions
-import com.tracel.model.holder.HolderId
+import com.tracel.api.history.HistoryCursor
+import com.tracel.api.history.HistoryQuery
+import com.tracel.api.history.HistoryReadError
+import com.tracel.api.result.Res
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
-import com.tracel.plugin.command.action.support.LookupSearch.Companion.WINDOW
+import com.tracel.plugin.api.read.HistoryRows
+import com.tracel.plugin.api.read.Row
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
-import com.tracel.plugin.api.read.Actors
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.line.LineStack
 import com.tracel.plugin.command.presenter.line.LoggedLine
-import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /** One lookup, read as the pages ask for it. */
 internal class LookupSearch(
-    private val services: TracelServices,
-    private val filter: LookupFilter,
+    private val rows: HistoryRows,
+    private val queries: List<HistoryQuery>,
     val parsed: ParsedLookupArgs,
-    private val eventFilter: LookupFilter,
-    blocks: Boolean,
-    items: Boolean,
     val flushed: Boolean,
-    events: Set<EventKind> = emptySet(),
 ) {
     /** What the sender sees of the page asked for. */
     class View(val page: Int, val rows: List<LineStack>, val total: Int)
-
-    val complete: Boolean get() = (world?.done ?: true) && (txns?.done ?: true) && (said?.done ?: true)
 
     private val lock = Mutex()
     private val stacks = ArrayList<LineStack>()
     private val byKey = HashMap<Any, LineStack>()
     private val halves = HashMap<Pair<Any, Long>, LineStack>()
     private val visitNewest = HashMap<Long, Long>()
-    private val actors = Actors(services.actors)
-    private val rolled = HashMap<Long, Long>()
-
-    private val world = if (blocks) Cursor({ until, limit ->
-        services.reading { services.worldLog.query(filter.copy(until = until, limit = limit)) }
-            .also { changes ->
-                actors.learn(changes.map { it.causedBy })
-                learnRolled(changes.map { it.seq.raw })
-            }
-    }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
-
-    private val txns = if (items) Cursor({ until, limit ->
-        services.reading { services.log.query(filter.copy(until = until, limit = limit)) }
-            .also { found ->
-                actors.learn(found.flatMap(::holdersOf))
-                learnRolled(found.map { it.seq.raw })
-                Extensions.live.learnItemNames(found.flatMapTo(HashSet()) { txn -> txn.flows.map { it.itemKey } }) {
-                    services.itemForms.find(it)
-                }
-            }
-    }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
-
-    private val said = if (events.isNotEmpty()) Cursor({ until, limit ->
-        services.reading { services.events.query(eventFilter.copy(until = until, limit = limit), events) }
-            .also { found -> actors.learn(found.map { it.by }) }
-    }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
+    private val actors = rows.actors()
+    private var from: HistoryCursor? = null
+    private var started = false
 
     /** Page [asked], with the whole search read first. */
-    suspend fun page(asked: Int): View = lock.withLock {
-        drain()
+    suspend fun page(asked: Int): Res<View, HistoryReadError> = lock.withLock {
+        drain()?.let { return@withLock Res.Err(it) }
         val total = maxOf(1, pagesOf(stacks.size))
         val page = if (asked > total) 1 else asked
-        View(page, ordered().drop((page - 1) * PAGE).take(PAGE), total)
+        Res.Ok(View(page, ordered().drop((page - 1) * PAGE).take(PAGE), total))
     }
 
     /** Every line of the search, in the order the pages show them. */
-    suspend fun all(): List<LineStack> = lock.withLock {
-        drain()
-        ordered()
+    suspend fun all(): Res<List<LineStack>, HistoryReadError> = lock.withLock {
+        drain()?.let { return@withLock Res.Err(it) }
+        Res.Ok(ordered())
     }
 
     private fun ordered(): List<LineStack> = stacks.sortedWith(
@@ -85,37 +55,27 @@ internal class LookupSearch(
         },
     )
 
-    private suspend fun learnRolled(seqs: List<Long>) {
-        rolled += services.rolledBack.of(seqs)
-    }
-
-    private fun holdersOf(transaction: Transaction): List<HolderId?> =
-        listOf(transaction.causedBy) + transaction.flows.flatMap { listOf(it.source, it.destination) }
-
     private fun pagesOf(rows: Int) = (rows + PAGE - 1) / PAGE
 
-    private suspend fun drain() {
-        while (!complete) pull()
-    }
-
-    private suspend fun pull() {
-        val a = world?.head()
-        val b = txns?.head()
-        val c = said?.head()
-        val newest = listOfNotNull(
-            a?.let { Triple(it.epochMillis, it.seq.raw, 0) },
-            b?.let { Triple(it.epochMillis, it.seq.raw, 1) },
-            c?.let { Triple(it.epochMillis, it.seq.raw, 2) },
-        ).maxWithOrNull(compareBy<Triple<Long, Long, Int>> { it.first }.thenBy { it.second }
-            .thenByDescending { it.third }) ?: return
-        when (newest.third) {
-            0 -> world!!.drop()?.let(::add)
-            1 -> txns!!.drop()?.let(::add)
-            else -> said!!.drop()?.let { stack(ChangeLinePresenter.logged(it, actors)) }
+    private suspend fun drain(): HistoryReadError? {
+        while (!started || from != null) {
+            val got = when (val read = rows.page(queries, from, WINDOW)) {
+                is Res.Ok -> read.value
+                is Res.Err -> return read.error
+            }
+            started = true
+            from = got.next
+            rows.learn(actors, got.rows)
+            for (row in got.rows) when (row) {
+                is Row.World -> add(row.change, got.rolled)
+                is Row.Txn -> add(row.transaction, got.rolled)
+                is Row.Event -> stack(ChangeLinePresenter.logged(row.event, actors))
+            }
         }
+        return null
     }
 
-    private fun add(change: WorldChange) {
+    private fun add(change: WorldChange, rolled: Map<Long, Long>) {
         if (ChangeLinePresenter.isKeptOnly(change)) return
         if (parsed.actions.isEmpty() && !parsed.natural && !parsed.turnings && ChangeLinePresenter.isUnnamedChange(change)) {
             return
@@ -123,7 +83,7 @@ internal class LookupSearch(
         stack(ChangeLinePresenter.logged(change, actors, rolled))
     }
 
-    private fun add(transaction: Transaction) {
+    private fun add(transaction: Transaction, rolled: Map<Long, Long>) {
         ChangeLinePresenter.logged(transaction, parsed.item, parsed.natural, actors, rolled).forEach(::stack)
     }
 
@@ -148,59 +108,10 @@ internal class LookupSearch(
         }
     }
 
-    /**
-     * A log read backwards in time, [WINDOW] records at a time.
-     *
-     * Each window ends at the oldest time seen, and what was already taken at that very millisecond is skipped;
-     * a window that brings nothing new but was full gets wider, so a thousand edits in one tick cannot stall it.
-     */
-    private class Cursor<T>(
-        private val fetch: suspend (until: Long?, limit: Int) -> List<T>,
-        private val millis: (T) -> Long,
-        private val seq: (T) -> Long,
-        private var until: Long?,
-    ) {
-        private val buffer = ArrayDeque<T>()
-        private val seen = HashSet<Long>()
-        private var first = true
-        private var window = WINDOW
-        var done = false
-            private set
-
-        suspend fun head(): T? {
-            while (buffer.isEmpty() && !done) refill()
-            return buffer.firstOrNull()
-        }
-
-        fun drop(): T? = buffer.removeFirstOrNull()
-
-        private suspend fun refill() {
-            val got = fetch(until, window)
-            val fresh = if (first) got else got.filter { seq(it) !in seen }
-            first = false
-            if (got.isEmpty()) {
-                done = true
-                return
-            }
-            if (fresh.isEmpty()) {
-                if (window >= WIDEST) done = true else window *= 4
-                return
-            }
-            buffer += fresh
-            val oldest = got.minOf(millis)
-            if (oldest != until) seen.clear()
-            until = oldest
-            for (item in got) if (millis(item) == oldest) seen += seq(item)
-            window = WINDOW
-        }
-    }
-
     companion object {
         const val PAGE: Int = LookupPresenter.LOOKUP_PAGE
 
         private const val GAP_MILLIS = 60_000L
-
         private const val WINDOW = 1000
-        private const val WIDEST = 1 shl 20
     }
 }

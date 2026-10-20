@@ -1,13 +1,13 @@
 package com.tracel.plugin.command.args.rollback
 
-import com.tracel.engine.log.lookup.LookupFilter
+import com.tracel.api.history.HistoryQuery
 import com.tracel.plugin.command.args.action.ActionFilter
 import net.kyori.adventure.text.Component
 import org.bukkit.Location
 
 sealed interface FilterResult {
     data class Ok(
-        val filter: LookupFilter,
+        val query: HistoryQuery,
         val center: Location?,
         val actions: ActionFilter,
     ) : FilterResult

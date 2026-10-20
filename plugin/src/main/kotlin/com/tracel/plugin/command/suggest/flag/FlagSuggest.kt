@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.suggest.flag
 
-import com.tracel.plugin.command.args.scope.ScopeLimits
+import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.command.suggest.SuggestLists
 import com.tracel.plugin.command.suggest.Suggestion
 import com.tracel.plugin.command.suggest.quantity.presetsOf
@@ -18,6 +18,11 @@ internal object FlagSuggest {
     ): List<Suggestion> {
         val used = usedGroups(previous)
         val typed = current.lowercase()
+        val addon = lists.addonFlags.firstOrNull { typed.startsWith("${it.name}:") }
+        if (addon != null && previous.none { it.lowercase().startsWith("${addon.name}:") }) {
+            return rank(addon.suggest(current.substring(addon.name.length + 1)), current.substring(addon.name.length + 1))
+                .map { Suggestion("${addon.name}:$it", addon.tooltip) }
+        }
         val matched = matchFlag(typed)
         if (matched != null && matched.flag.kind != FlagKind.SWITCH && profile.accepts(matched.flag) && matched.flag.group !in used) {
             return suggestValue(matched.flag, matched.alias, current, lists)
@@ -33,7 +38,11 @@ internal object FlagSuggest {
                     }
                     .map { Suggestion(it, tr("suggest.flag.${flag.tooltip}")) }
             }
-        return flags + presets(typed, if (profile == FlagProfile.PRESET) lists.copy(presets = emptyList()) else lists)
+        val added = lists.addonFlags
+            .filter { previous.none { used -> used.lowercase().startsWith("${it.name}:") } }
+            .filter { if (typed.isEmpty()) true else "${it.name}:".startsWith(typed) }
+            .map { Suggestion("${it.name}:", it.tooltip) }
+        return flags + added + presets(typed, if (profile == FlagProfile.PRESET) lists.copy(presets = emptyList()) else lists)
     }
 
     private fun presets(typed: String, lists: SuggestLists): List<Suggestion> {

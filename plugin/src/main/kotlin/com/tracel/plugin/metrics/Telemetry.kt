@@ -2,7 +2,7 @@ package com.tracel.plugin.metrics
 
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.LookupScope
-import com.tracel.plugin.rollback.result.outcome.RollbackResult
+import com.tracel.api.rollback.RollbackApplied
 import com.tracel.plugin.status.rollback.RollbackSize
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -110,10 +110,9 @@ internal object Telemetry {
     fun rollback(outcome: String) = count(ROLLBACK_OUTCOMES, outcome)
 
     /** A rollback that went through: clean or partial, how big, how long, how fast. */
-    fun rollbackDone(done: RollbackResult.Done, tookMillis: Long) {
-        val clean = done.structure.fullyRestored && done.material.fullyRestored
-        rollback(if (clean) "clean" else "partial")
-        val records = done.plan.taken.size.toLong()
+    fun rollbackDone(done: RollbackApplied, tookMillis: Long) {
+        rollback(if (done.skipped == 0 && done.itemsRestored) "clean" else "partial")
+        val records = done.records.toLong()
         count(ROLLBACK_SIZES, RollbackSize.of(records).key)
         count(ROLLBACK_TIME, tookBucket(tookMillis))
         if (records > 0 && tookMillis >= 100) count(ROLLBACK_SPEED, speedBucket(records * 1000 / tookMillis))

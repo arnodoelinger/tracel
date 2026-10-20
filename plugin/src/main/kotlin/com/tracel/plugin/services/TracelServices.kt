@@ -32,7 +32,9 @@ import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.plugin.adapter.rollback.structure.rescue.rescueJoined
 import com.tracel.plugin.adapter.world.playerIsOnline
+import com.tracel.plugin.api.CommandApi
 import com.tracel.plugin.api.addon.Extensions
+import com.tracel.plugin.api.rollback.Borrows
 import com.tracel.plugin.capture.MaterialCapture
 import com.tracel.plugin.capture.PendingCaptures
 import com.tracel.plugin.capture.ShapeCapture
@@ -188,6 +190,8 @@ class TracelServices(
     val inspectors: InspectorState = InspectorState()
     val lookup: LookupAction by lazy { LookupAction(this) }
     val coreProtectImport: CoreProtectImportAction by lazy { CoreProtectImportAction(this) }
+    internal val borrows: Borrows = Borrows()
+    internal val commandApi: CommandApi by lazy { CommandApi(this) }
     val pendingCaptures: PendingCaptures = PendingCaptures()
     val frozen: FreezeGuard = FreezeGuard()
     internal val fluidFreeze: FluidFreeze = FluidFreeze()

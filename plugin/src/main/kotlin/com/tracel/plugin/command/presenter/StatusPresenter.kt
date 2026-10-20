@@ -1,15 +1,16 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.engine.store.PurgeCategory
+import com.tracel.api.admin.AutoPurgeStatus
+import com.tracel.api.admin.PurgeCategory
+import com.tracel.api.admin.StoreStatus
 import com.tracel.plugin.command.action.shortSpan
-import com.tracel.plugin.config.AutoPurgeSettings
 import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.status.disk.DiskLevel
 import com.tracel.plugin.status.health.Health
 import com.tracel.plugin.status.rollback.RollbackSize
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.HoverEvent
-import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -19,7 +20,7 @@ internal object StatusPresenter {
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
     /** The whole status, one line per fact. */
-    fun render(status: StatusSnapshot, development: Boolean = false): Component = Component.join(
+    fun render(status: StoreStatus, development: Boolean = false): Component = Component.join(
         JoinConfiguration.newlines(),
         buildList {
             add(tr("status.title"))
@@ -40,32 +41,34 @@ internal object StatusPresenter {
         },
     )
 
-    private fun records(status: StatusSnapshot): Component = tr(
+    private fun records(status: StoreStatus): Component = tr(
         "status.records",
         "blocks" to count(status.blockRows),
         "items" to count(status.itemRows),
         "events" to count(status.eventRows),
     )
 
-    private fun period(status: StatusSnapshot): Component {
-        val oldest = status.oldestMillis ?: return tr("status.period_empty")
+    private fun period(status: StoreStatus): Component {
+        val oldest = status.oldest ?: return tr("status.period_empty")
         return tr(
             "status.period",
-            "from" to STAMP.format(Instant.ofEpochMilli(oldest)),
-            "span" to shortSpan(status.nowMillis - oldest),
+            "from" to STAMP.format(oldest),
+            "span" to shortSpan(status.at.toEpochMilli() - oldest.toEpochMilli()),
         )
     }
 
-    private fun disk(status: StatusSnapshot): Component = tr(
+    private fun diskLevel(status: StoreStatus): DiskLevel = DiskLevel.of(status.diskFree, status.diskTotal)
+
+    private fun disk(status: StoreStatus): Component = tr(
         "status.disk",
         "free" to bytes(status.diskFree),
         "percent" to percent(status),
     )
 
-    private fun purge(status: StatusSnapshot): Component {
-        val settings = status.purge
+    private fun purge(status: StoreStatus): Component {
+        val settings = status.autoPurge
         if (!settings.enabled) return tr("status.purge_off")
-        val last = status.lastPurgeMillis?.let { STAMP.format(Instant.ofEpochMilli(it)) }
+        val last = settings.last?.let { STAMP.format(it) }
         val keeps = settings.keep
         val star = if (keeps.values.toSet().size <= 1) Component.empty() else tr("status.purge_star")
             .hoverEvent(HoverEvent.showText(purgeHover(settings)))
@@ -76,16 +79,16 @@ internal object StatusPresenter {
         )
     }
 
-    private fun purgeHover(settings: AutoPurgeSettings): Component = Component.join(
+    private fun purgeHover(settings: AutoPurgeStatus): Component = Component.join(
         JoinConfiguration.newlines(),
         buildList {
-            add(tr("status.hover.purge_interval", "interval" to shortSpan(settings.intervalMillis)))
+            add(tr("status.hover.purge_interval", "interval" to shortSpan(settings.interval.toMillis())))
             for (category in PurgeCategory.entries) {
                 add(
                     tr(
                         "status.hover.purge_keep",
                         "category" to tr("status.category.${category.name.lowercase()}"),
-                        "keep" to (settings.keep[category]?.let { Component.text(shortSpan(it)) }
+                        "keep" to (settings.keep[category]?.let { Component.text(shortSpan(it.toMillis())) }
                             ?: tr("status.forever")),
                     )
                 )
@@ -93,12 +96,12 @@ internal object StatusPresenter {
         },
     )
 
-    private fun load(status: StatusSnapshot): Component {
+    private fun load(status: StoreStatus): Component {
         val rate = status.writesPerSecond ?: return tr("status.load_unknown")
         return tr("status.load", "rate" to count(Math.round(rate)))
     }
 
-    private fun rollbacks(status: StatusSnapshot): Component {
+    private fun rollbacks(status: StoreStatus): Component {
         if (status.rollbacks.isEmpty()) return tr("status.rollbacks_none")
         val sizes = status.rollbacks.map { tr("status.size_word.${RollbackSize.of(it).key}") }
         return tr(
@@ -108,8 +111,8 @@ internal object StatusPresenter {
         )
     }
 
-    private fun state(status: StatusSnapshot, development: Boolean): Component {
-        val health = status.health
+    private fun state(status: StoreStatus, development: Boolean): Component {
+        val health = Health.of(status.forwardCompatible, status.mspt, status.lagMillis, diskLevel(status))
         if (development && health == Health.OK) {
             val word = tr("status.health.dev")
             return tr("status.state", "state" to word.hoverEvent(HoverEvent.showText(tr("status.hover.dev"))))
@@ -134,7 +137,7 @@ internal object StatusPresenter {
         return tr("status.state", "state" to word.hoverEvent(HoverEvent.showText(hover)))
     }
 
-    private fun percent(status: StatusSnapshot): String =
+    private fun percent(status: StoreStatus): String =
         if (status.diskTotal <= 0L) "?" else (status.diskFree * 100 / status.diskTotal).toString()
 
     private fun count(n: Long): String = String.format(Locale.ENGLISH, "%,d", n)

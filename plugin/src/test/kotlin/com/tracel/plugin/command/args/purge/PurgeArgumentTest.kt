@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.args.purge
 
-import com.tracel.engine.store.PurgeCategory
+import com.tracel.api.admin.PurgeCategory
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 

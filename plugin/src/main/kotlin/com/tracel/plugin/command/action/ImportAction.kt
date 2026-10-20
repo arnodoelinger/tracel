@@ -1,7 +1,10 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.engine.store.ExportSummary
-import com.tracel.engine.store.StoppedByRequest
+import com.tracel.api.admin.AdminError
+import com.tracel.api.admin.ImportControl
+import com.tracel.api.admin.TransferSummary
+import com.tracel.api.result.Res
+import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.services.TracelServices
@@ -10,7 +13,6 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import java.nio.file.*
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -27,63 +29,51 @@ class ImportAction(private val services: TracelServices) {
 
     /** Shows what would be replaced, with the buttons that go on or take a backup first. */
     fun preview(sender: CommandSender, fileName: String) {
-        val path = exportFile(fileName) ?: return badName(sender, fileName)
-        val locale = localeOf(sender)
-        sender.say(
-            Component.join(
-                JoinConfiguration.newlines(),
-                tr("import.preview.title"),
-                Component.empty(),
-                tr("common.label.database", "file" to fileName),
-                tr(
-                    "common.label.size",
-                    "size" to "%.1f".format(locale, runCatching { Files.size(path) }.getOrDefault(0L) / MIB)
+        services.scope.launch {
+            val snapshot = when (val got = services.commandApi.admin.snapshot(fileName)) {
+                is Res.Ok -> got.value
+                is Res.Err -> return@launch badName(sender, fileName)
+            }
+            val locale = localeOf(sender)
+            sender.say(
+                Component.join(
+                    JoinConfiguration.newlines(),
+                    tr("import.preview.title"),
+                    Component.empty(),
+                    tr("common.label.database", "file" to fileName),
+                    tr("common.label.size", "size" to "%.1f".format(locale, snapshot.bytes / MIB)),
+                    info(tr("import.preview.scope")),
+                    Component.empty(),
+                    confirmFooter("/tracel data import $fileName"),
                 ),
-                info(tr("import.preview.scope")),
-                Component.empty(),
-                confirmFooter("/tracel data import $fileName"),
-            ),
-        )
+            )
+        }
     }
 
     /** Replaces the database with the snapshot [fileName] and drops every cache that still remembers the old one. */
     fun execute(sender: CommandSender, fileName: String) {
-        val path = exportFile(fileName)
-        if (path == null) return badName(sender, fileName)
-
-        if (!services.purging.compareAndSet(false, true)) {
-            sender.send("common.busy")
-            return
-        }
-        if (!services.composite.claimGate()) {
-            services.purging.set(false)
-            sender.send("common.busy")
-            return
-        }
-
-        phase.set(CHECKING)
-        sender.send("import.start", "file" to fileName)
-
         services.scope.launch {
+            val control = object : ImportControl {
+                override fun stopRequested(): Boolean = phase.get() == STOPPING
+
+                override fun commit(): Boolean = phase.compareAndSet(CHECKING, REPLACING)
+            }
             val done = try {
-                runCatching {
-                    services.store.importFrom(
-                        path,
-                        stopped = { phase.get() == STOPPING },
-                        commit = { phase.compareAndSet(CHECKING, REPLACING) },
-                    )
+                services.commandApi.admin.importSnapshot(fileName, control) {
+                    phase.set(CHECKING)
+                    sender.send("import.start", "file" to fileName)
                 }
             } finally {
                 phase.set(IDLE)
-                services.composite.releaseGate()
-                services.purging.set(false)
             }
-            done.onSuccess {
-                services.differ.forgetAll()
-                sender.say(report(it, localeOf(sender)))
-            }.onFailure {
-                if (it is StoppedByRequest) sender.send("import.stopped")
-                else sender.fail(it)
+            when (done) {
+                is Res.Ok -> sender.say(report(done.value, localeOf(sender)))
+                is Res.Err -> when (val error = done.error) {
+                    AdminError.Busy -> sender.send("common.busy")
+                    AdminError.Stopped -> sender.send("import.stopped")
+                    is AdminError.BadName -> badName(sender, fileName)
+                    else -> sender.fail(error)
+                }
             }
         }
     }
@@ -107,15 +97,7 @@ class ImportAction(private val services: TracelServices) {
         tr("import.hint.bad_name"),
     )
 
-    private fun exportFile(name: String): Path? {
-        if (name.isBlank() || !name.endsWith(".tracel")) return null
-        if (name.contains('/') || name.contains('\\') || name.contains("..")) return null
-        val candidate = services.exportDirectory.resolve(name).normalize()
-        if (candidate.parent != services.exportDirectory.normalize()) return null
-        return candidate.takeIf { Files.isRegularFile(it) }
-    }
-
-    private fun report(summary: ExportSummary, locale: Locale): Component = Component.join(
+    private fun report(summary: TransferSummary, locale: Locale): Component = Component.join(
         JoinConfiguration.newlines(),
         tr("import.done"),
         Component.empty(),
@@ -124,22 +106,18 @@ class ImportAction(private val services: TracelServices) {
         tr("common.label.rows", "rows" to "%,d".format(locale, summary.rows)),
     )
 
-    private fun CommandSender.fail(reason: Throwable) {
-        val (why, hint) = when (reason) {
-            is AccessDeniedException, is ReadOnlyFileSystemException -> tr(
+    private fun CommandSender.fail(error: AdminError) {
+        val (why, hint) = when (error) {
+            is AdminError.Denied -> tr(
                 "common.reason.denied",
-                "folder" to services.exportDirectory.toString()
+                "folder" to error.folder.toString()
             ) to tr("common.hint.denied")
 
-            is NoSuchFileException -> tr(
-                "import.reason.missing",
-                "file" to reason.file.substringAfterLast('/')
-            ) to tr("import.hint.missing")
+            is AdminError.NoSuchFile -> tr("import.reason.missing", "file" to error.name) to tr("import.hint.missing")
 
-            is FileSystemException if reason.reason?.contains("No space left") == true ->
-                tr("common.reason.no_space") to tr("common.hint.no_space")
+            AdminError.NoSpace -> tr("common.reason.no_space") to tr("common.hint.no_space")
 
-            else -> Component.text(unexpected(reason)) to tr("common.hint.unknown")
+            else -> Component.text(error.describe()) to tr("common.hint.unknown")
         }
         failed("import.failed", why, hint)
     }

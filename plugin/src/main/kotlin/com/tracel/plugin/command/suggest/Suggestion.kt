@@ -3,9 +3,12 @@ package com.tracel.plugin.command.suggest
 import com.mojang.brigadier.context.StringRange
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
+import com.tracel.api.addon.FlagInput
+import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.preset.Presets
 import com.tracel.plugin.i18n.asMessage
+import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.specifics.names.VANILLA_BLOCK_NAMES
 import com.tracel.plugin.specifics.names.VANILLA_ITEM_NAMES
 import net.kyori.adventure.text.Component
@@ -35,6 +38,14 @@ internal data class SuggestLists(
     val itemNames: List<String> = emptyList(),
     val blockNames: List<String> = emptyList(),
     val presets: List<Pair<String, String>> = emptyList(),
+    val addonFlags: List<AddonFlag> = emptyList(),
+)
+
+/** A flag an addon added, as the tab key sees it. */
+internal class AddonFlag(
+    val name: String,
+    val tooltip: Component,
+    val suggest: (typed: String) -> List<String>,
 )
 
 /**
@@ -48,7 +59,21 @@ internal fun liveLists(sender: CommandSender? = null): SuggestLists = SuggestLis
     itemNames = VANILLA_ITEM_NAMES,
     blockNames = VANILLA_BLOCK_NAMES,
     presets = Presets.store?.visibleTo((sender as? Player)?.uniqueId).orEmpty().map { it.name to it.text },
+    addonFlags = addonFlags(sender),
 )
+
+internal fun addonFlags(sender: CommandSender?): List<AddonFlag> = Extensions.live.flags.values.map { flag ->
+    val tooltip = flag.description.takeIf { it.isNotBlank() }?.let(Component::text)
+        ?: tr("suggest.flag.addon", "addon" to flag.addon)
+    AddonFlag(flag.name, tooltip) { typed ->
+        val player = sender as? Player
+        try {
+            flag.suggest(FlagInput(typed, player?.world?.uid, player?.uniqueId))
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+}
 
 /** The token under the cursor, and the tokens already finished before it. */
 internal fun splitTrailing(line: String): Pair<List<String>, String> {

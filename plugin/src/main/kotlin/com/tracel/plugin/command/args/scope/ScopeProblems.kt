@@ -3,7 +3,7 @@ package com.tracel.plugin.command.args.scope
 import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.args.action.ActionFilter
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
-import com.tracel.plugin.command.args.scope.ScopeLimits.isOversized
+import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.i18n.tr
 import net.kyori.adventure.text.Component
 import org.bukkit.Location

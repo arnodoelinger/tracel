@@ -2,7 +2,7 @@ package com.tracel.plugin.setup
 
 import com.tracel.engine.store.PurgeCategory
 import com.tracel.plugin.TracelPlugin
-import com.tracel.plugin.command.args.scope.ScopeLimits
+import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.config.AutoPurgeSettings
 import com.tracel.plugin.config.LoggingSettings
 import com.tracel.plugin.services.TracelServices

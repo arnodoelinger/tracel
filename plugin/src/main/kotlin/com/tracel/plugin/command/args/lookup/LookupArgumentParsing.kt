@@ -1,12 +1,18 @@
 package com.tracel.plugin.command.args.lookup
 
+import com.tracel.api.addon.FlagInput
+import com.tracel.api.result.Res
+import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.command.args.scope.ScopeArgument
 import com.tracel.plugin.command.args.scope.withScope
 import com.tracel.plugin.command.args.time.TimeArgument
 import com.tracel.plugin.command.args.time.TimeExpr
 import com.tracel.plugin.command.suggest.LookupSuggest
 import com.tracel.plugin.command.suggest.SuggestLists
+import com.tracel.plugin.i18n.said
 import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.metrics.Telemetry
+import java.util.UUID
 
 private fun ParsedLookupArgs.within(window: TimeExpr): ParsedLookupArgs =
     copy(since = later(since, window.since), until = earlier(until, window.until))
@@ -82,12 +88,41 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
         { TimeArgument.timeSuggestions() }),
 )
 
+/** The names of Tracel's own flags, `t` and `scope` among them, which an addon may not take. */
+internal fun builtInFlags(): Set<String> =
+    LOOKUP_ARGUMENTS.filter { it.prefix.endsWith(":") }.mapTo(HashSet()) { it.prefix.removeSuffix(":") }
+
 /** Parses flag tokens. Every value has its flag: `t:10m`, `s:20b`, `u:Name`; a bare word is an error. */
-internal fun parseLookupArgs(args: List<String>, nowMillis: Long): ParsedLookupArgs =
+internal fun parseLookupArgs(args: List<String>, nowMillis: Long, here: FlagHere = FlagHere.NOWHERE): ParsedLookupArgs =
     args.fold(ParsedLookupArgs()) { result, token ->
         LOOKUP_ARGUMENTS.firstOrNull { it.matches(token) }?.apply(result, token, nowMillis)
+            ?: result.addonFlag(token, here)
             ?: result.copy(errors = result.errors + tr("common.invalid", "token" to token))
     }
+
+/** Where the sender of a command line stands, for the flags addons add. */
+internal class FlagHere(val world: UUID?, val player: UUID?) {
+    companion object {
+        val NOWHERE = FlagHere(null, null)
+    }
+}
+
+/** [token] taken by an addon's flag, or `null` when no addon has one by that name. */
+private fun ParsedLookupArgs.addonFlag(token: String, here: FlagHere): ParsedLookupArgs? {
+    val colon = token.indexOf(':')
+    if (colon <= 0) return null
+    val flag = Extensions.live.flags[token.substring(0, colon).lowercase()] ?: return null
+    val parsed = try {
+        flag.parse(FlagInput(token.substring(colon + 1), here.world, here.player))
+    } catch (failure: Exception) {
+        Telemetry.error(failure)
+        Res.Err(said(failure.message ?: failure.javaClass.simpleName))
+    }
+    return when (parsed) {
+        is Res.Ok -> copy(parts = parts + parsed.value)
+        is Res.Err -> copy(errors = errors + tr("common.invalid_value", "token" to token, "reason" to parsed.error))
+    }
+}
 
 /** What is set here stays; what is empty here comes from [preset]. Errors of both are kept. */
 internal fun ParsedLookupArgs.filledFrom(preset: ParsedLookupArgs): ParsedLookupArgs = copy(
@@ -108,6 +143,7 @@ internal fun ParsedLookupArgs.filledFrom(preset: ParsedLookupArgs): ParsedLookup
     strict = strict || preset.strict,
     confirmed = confirmed || preset.confirmed,
     errors = errors + preset.errors,
+    parts = parts + preset.parts,
 )
 
 /** Suggest lookup token. */

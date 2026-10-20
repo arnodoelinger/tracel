@@ -16,7 +16,9 @@ import com.tracel.plugin.actor.PlayerModes
 import com.tracel.plugin.actor.PlayerSessions
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.adapter.world.playerIsOnline
-import com.tracel.plugin.command.args.scope.ScopeLimits
+import com.tracel.plugin.config.ScopeLimits
+import com.tracel.plugin.api.addon.Extensions
+import com.tracel.plugin.command.args.lookup.builtInFlags
 import com.tracel.plugin.command.suggest.order.CommandOrderListener
 import com.tracel.plugin.command.tree.TracelCommand
 import com.tracel.plugin.config.migrate.FileVersions
@@ -278,6 +280,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     registerObserved(modes, plugin)
     modes.noteOnline()
     registerObserved(PlayerSessions(actorWrites, actors), plugin)
+    Extensions.live.reservedFlags = builtInFlags()
     plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
         TracelCommand.register(event.registrar(), services)
     }

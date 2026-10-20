@@ -1,24 +1,27 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.engine.store.*
-import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.command.resolvePlayerUuid
+import com.tracel.api.admin.AdminError
+import com.tracel.api.admin.PurgeCategory
+import com.tracel.api.admin.PurgeReport
+import com.tracel.api.admin.PurgeRequest
+import com.tracel.api.admin.PurgeSummary
+import com.tracel.api.result.Res
+import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.command.action.ExportAction.Companion.records
 import com.tracel.plugin.command.args.purge.PurgeArgs
 import com.tracel.plugin.command.args.purge.PurgeArgument
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.services.TracelServices
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import java.time.Instant
 import java.util.*
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * `/tracel data purge`: takes history out of the database, all of it or only what the filters name.
@@ -33,22 +36,22 @@ class PurgeAction(private val services: TracelServices) {
         val command = "/tracel data purge " + tokens.filterNot { it.isStep() }.joinToString(" ")
         if (args.everything) return everything(sender, args, command)
 
-        val spec = specOf(sender, args) ?: return
+        val request = requestOf(sender, args) ?: return
         when {
-            args.confirmed -> purge(sender, spec)
-            else -> preview(sender, args, spec, command)
+            args.confirmed -> purge(sender, request)
+            else -> preview(sender, args, request, command)
         }
     }
 
     private fun refuse(sender: CommandSender, reason: Component) =
         sender.failed("purge.failed", reason, tr("common.hint.fix_flags", "command" to "data purge"))
 
-    private fun specOf(sender: CommandSender, args: PurgeArgs): PurgeSpec? {
+    private fun requestOf(sender: CommandSender, args: PurgeArgs): PurgeRequest? {
         val problems = ArrayList<Component>()
         val world = args.world?.let { name ->
             val found = Bukkit.getWorlds().firstOrNull { it.name.equals(name, ignoreCase = true) }
             if (found == null) problems += tr("common.reason.unknown_world", "name" to name)
-            found?.let { WorldId(it.uid) }
+            found?.uid
         }
         val player = args.player?.let { name ->
             val found = resolvePlayerUuid(name)
@@ -65,42 +68,32 @@ class PurgeAction(private val services: TracelServices) {
             refuse(sender, problems.asReason())
             return null
         }
-        val before = args.olderMillis?.let { System.currentTimeMillis() - it }
-        return PurgeSpec(categories, PurgeFilter(before, world, player))
+        val before = args.olderMillis?.let { Instant.ofEpochMilli(System.currentTimeMillis() - it) }
+        return PurgeRequest(categories, before, world, player)
     }
 
     private fun String.isStep() = equals(PurgeArgument.CONFIRM, true)
 
-    private fun preview(sender: CommandSender, args: PurgeArgs, spec: PurgeSpec, command: String) {
+    private fun preview(sender: CommandSender, args: PurgeArgs, request: PurgeRequest, command: String) {
         sender.send("purge.counting")
         services.scope.launch {
-            try {
-                services.flushCapture()
-                val report = services.store.previewPurge(spec)
-                sender.say(previewCard(report, args, spec, localeOf(sender), command))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                sender.failed("purge.failed", Component.text(unexpected(failure)), tr("purge.hint.unknown"))
+            when (val got = services.commandApi.admin.previewPurge(request)) {
+                is Res.Ok -> sender.say(previewCard(got.value, args, request, localeOf(sender), command))
+                is Res.Err -> failed(sender, got.error)
             }
         }
     }
 
-    private fun purge(sender: CommandSender, spec: PurgeSpec) {
-        if (!claim(sender)) return
-        sender.send("purge.start")
+    private fun purge(sender: CommandSender, request: PurgeRequest) {
         services.scope.launch {
-            try {
-                services.purgeGate.awaitIdle { sender.send("purge.waiting") }
-                services.flushCapture()
-                val report = services.store.purgeSome(spec) { slice -> services.purgeGate.slice(slice = slice) }
-                sender.say(report(report, localeOf(sender)))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                sender.failed("purge.failed", Component.text(unexpected(failure)), tr("purge.hint.unknown"))
-            } finally {
-                services.purging.set(false)
+            val got = services.commandApi.admin.purge(
+                request,
+                onStart = { sender.send("purge.start") },
+                onWait = { sender.send("purge.waiting") },
+            )
+            when (got) {
+                is Res.Ok -> sender.say(report(got.value, localeOf(sender)))
+                is Res.Err -> failed(sender, got.error)
             }
         }
     }
@@ -108,7 +101,7 @@ class PurgeAction(private val services: TracelServices) {
     private fun everything(sender: CommandSender, args: PurgeArgs, command: String) {
         val locale = localeOf(sender)
         if (!args.confirmed) {
-            val size = services.store.liveBytes / MIB
+            val size = services.commandApi.admin.storeBytes / MIB
             sender.say(
                 Component.join(
                     JoinConfiguration.newlines(),
@@ -122,51 +115,31 @@ class PurgeAction(private val services: TracelServices) {
             )
             return
         }
-        if (!claim(sender)) return
 
         services.scope.launch {
-            var held = false
-            try {
-                var told = false
-                while (!services.composite.claimGate()) {
-                    if (!told) sender.send("purge.waiting")
-                    told = true
-                    delay(GATE_POLL_MILLIS.milliseconds)
-                }
-                held = true
-                val summary = services.store.purgeAll()
-                services.differ.forgetAll()
-                sender.say(wiped(summary, locale))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                sender.failed("purge.failed", Component.text(unexpected(failure)), tr("purge.hint.unknown"))
-            } finally {
-                if (held) services.composite.releaseGate()
-                services.purging.set(false)
+            when (val got = services.commandApi.admin.purgeEverything { sender.send("purge.waiting") }) {
+                is Res.Ok -> sender.say(wiped(got.value, locale))
+                is Res.Err -> failed(sender, got.error)
             }
         }
     }
 
-    private fun claim(sender: CommandSender): Boolean {
-        if (!services.purging.compareAndSet(false, true)) {
-            sender.send("common.busy")
-            return false
-        }
-        return true
+    private fun failed(sender: CommandSender, error: AdminError) {
+        if (error == AdminError.Busy) return sender.send("common.busy")
+        sender.failed("purge.failed", Component.text(error.describe()), tr("purge.hint.unknown"))
     }
 
     private fun previewCard(
         report: PurgeReport,
         args: PurgeArgs,
-        spec: PurgeSpec,
+        request: PurgeRequest,
         locale: Locale,
         command: String,
     ): Component {
         if (report.matched == 0L) return tr("purge.preview.nothing")
 
         val lines = mutableListOf(tr("purge.preview.title"), Component.empty())
-        lines += tr("purge.preview.categories", "list" to spec.categories.map(::label).joined())
+        lines += tr("purge.preview.categories", "list" to request.categories.map(::label).joined())
         args.olderMillis?.let { lines += tr("purge.preview.older", "span" to shortSpan(it)) }
         args.world?.let { lines += tr("purge.preview.world", "name" to it) }
         args.player?.let { lines += tr("purge.preview.player", "name" to it) }
@@ -180,7 +153,7 @@ class PurgeAction(private val services: TracelServices) {
                 "total" to "%,d".format(locale, tally.total),
             )
         }
-        records("common.label.records", report.oldest, report.newest, locale)?.let { lines += it }
+        records("common.label.records", report.oldest?.toEpochMilli(), report.newest?.toEpochMilli(), locale)?.let { lines += it }
         lines += tr("common.label.rows", "rows" to "%,d".format(locale, report.rows))
         lines += Component.empty()
         lines += buttons(command)
@@ -198,7 +171,7 @@ class PurgeAction(private val services: TracelServices) {
                 "matched" to "%,d".format(locale, tally.matched),
             )
         }
-        records("common.label.records", report.oldest, report.newest, locale)?.let { lines += it }
+        records("common.label.records", report.oldest?.toEpochMilli(), report.newest?.toEpochMilli(), locale)?.let { lines += it }
         lines += tr("common.label.rows", "rows" to "%,d".format(locale, report.rows))
         if (report.bytes > 0) lines += tr("purge.report.freed", "size" to "%.1f".format(locale, report.bytes / MIB))
         return Component.join(JoinConfiguration.newlines(), lines)
@@ -210,7 +183,7 @@ class PurgeAction(private val services: TracelServices) {
             Component.empty(),
             tr("common.label.size", "size" to "%.1f".format(locale, summary.bytes / MIB)),
         )
-        records("common.label.records", summary.oldest, summary.newest, locale)?.let { lines += it }
+        records("common.label.records", summary.oldest?.toEpochMilli(), summary.newest?.toEpochMilli(), locale)?.let { lines += it }
         lines += tr("common.label.rows", "rows" to "%,d".format(locale, summary.rows))
         return Component.join(JoinConfiguration.newlines(), lines)
     }
@@ -219,7 +192,4 @@ class PurgeAction(private val services: TracelServices) {
 
     private fun localeOf(sender: CommandSender): Locale = (sender as? Player)?.locale() ?: Locale.ENGLISH
 
-    private companion object {
-        const val GATE_POLL_MILLIS = 500L
-    }
 }
