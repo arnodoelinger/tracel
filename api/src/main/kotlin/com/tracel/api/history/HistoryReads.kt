@@ -26,6 +26,12 @@ import org.bukkit.inventory.ItemStack
  */
 @Unstable
 public interface HistoryReads {
+    /** What [query] reads, newest first. */
+    public fun history(query: HistoryQuery): History
+
+    /** A fresh, empty [ActorFacts], to learn from the records read through here. */
+    public fun actorFacts(): ActorFacts
+
     /** What happened to this block, newest first. */
     public fun Block.history(build: HistoryQuery.Builder.() -> Unit = {}): History
 

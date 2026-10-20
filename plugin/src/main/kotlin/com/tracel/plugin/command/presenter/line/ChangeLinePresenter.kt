@@ -1,29 +1,31 @@
 package com.tracel.plugin.command.presenter.line
 
 import com.tracel.annotations.Unstable
-import com.tracel.model.item.ItemKey
-import com.tracel.model.cause.CauseKind
-import com.tracel.model.event.ActorEvent
-import com.tracel.model.event.EventKind
-import com.tracel.model.flow.FlowKind
+import com.tracel.api.actor.Actor
+import com.tracel.api.history.ActionKind
+import com.tracel.api.history.ActorFacts
+import com.tracel.api.history.BlockRecord
+import com.tracel.api.history.CauseKind
+import com.tracel.api.history.EntityRecord
+import com.tracel.api.history.EventKind
+import com.tracel.api.history.EventRecord
+import com.tracel.api.history.FlowKind
+import com.tracel.api.history.HistoryRecord
+import com.tracel.api.history.ItemFlow
+import com.tracel.api.item.ItemHolder
 import com.tracel.model.holder.HolderId
+import com.tracel.model.item.ContentHash
+import com.tracel.model.item.ItemKey
 import com.tracel.model.item.namesMaterial
-import com.tracel.model.transaction.Transaction
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
-import com.tracel.model.world.block.BlockShape
-import com.tracel.model.world.entity.leashHolder
-import com.tracel.plugin.api.read.Actors
+import com.tracel.plugin.api.addon.Extensions
+import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.command.presenter.ItemPresenter
+import com.tracel.plugin.api.read.Actors
 import com.tracel.plugin.command.presenter.NamePresenter
 import com.tracel.plugin.command.presenter.support.Glyphs
-import com.tracel.plugin.adapter.block.special.SignText
-import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.i18n.lower
 import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.specifics.block.isAirLike
+import com.tracel.plugin.specifics.block.AirBlock
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
@@ -52,84 +54,84 @@ internal object ChangeLinePresenter {
 
     private enum class Half { FIRST, SECOND }
 
-    /** Creates a component representing the change. */
-    fun of(change: WorldChange, actors: Actors = Actors.NONE): Component {
-        val who = change.causedBy?.let { holder(it, actors) } ?: Component.text(NamePresenter.pretty(change.cause.name))
-        val at = at(change.at.x, change.at.y, change.at.z)
-        return when (val subject = change.subject) {
-            is ChangeSubject.Block -> {
-                val trampled = trampled(subject)
-                if (trampled != null) tr("change.trampled", "who" to who, "block" to trampled, "at" to at)
-                else tr(
-                    "change.block",
-                    "who" to who,
-                    "verb" to verb(change.action),
-                    "block" to block(subject),
-                    "at" to at
-                )
-            }
-
-            is ChangeSubject.Entity ->
-                tr(
-                    "change.entity",
-                    "who" to who,
-                    "verb" to (leash(subject) ?: verb(change.action)),
-                    "entity" to NamePresenter.entity(subject.type.value),
-                    "at" to at
-                )
-        }
-    }
-
     /** A change kept for rollback only. */
-    fun isKeptOnly(change: WorldChange): Boolean {
-        if (change.action != ActionKind.ENTITY_CHANGE) return false
-        val subject = change.subject as? ChangeSubject.Entity ?: return false
-        return leashName(subject) == null
-    }
+    fun isKeptOnly(record: EntityRecord): Boolean =
+        record.action == ActionKind.ENTITY_CHANGE && leashName(record) == null
 
     /** A block that only became another block, with no name for it in [TransitionPresenter]: crops, doors, redstone. Noise. */
-    fun isUnnamedChange(change: WorldChange): Boolean {
-        val subject = change.subject as? ChangeSubject.Block ?: return false
-        if (change.action != ActionKind.BLOCK_CHANGE) return false
-        if (subject.before.isAirLike || subject.after.isAirLike) return false
-        val byEntity = change.cause == CauseKind.ENTITY_ACTION || change.causedBy is HolderId.Entity
-        return TransitionPresenter.of(subject.before.data.value, subject.after.data.value, byEntity) == null
+    fun isUnnamedChange(record: BlockRecord): Boolean {
+        if (record.action != ActionKind.BLOCK_CHANGE) return false
+        if (airLike(record.before) || airLike(record.after)) return false
+        return TransitionPresenter.of(record.before, record.after, byEntity(record)) == null
     }
 
-    /** The line of the log for [change]: what happened, who did it, when and where. */
+    /** The line of the log for a block [record]: what happened, who did it, when and where. */
     @Unstable
-    fun logged(change: WorldChange, actors: Actors, rolled: Map<Long, Long> = emptyMap()): LoggedLine {
-        val rolledAt = rolled[change.seq.raw]
-        val phrase = phrase(change)
-        val (from, to) = when (val subject = change.subject) {
-            is ChangeSubject.Block -> id(subject.before) to id(subject.after)
-            is ChangeSubject.Entity -> subject.type.value to ""
-        }
+    fun logged(record: BlockRecord, facts: ActorFacts): LoggedLine = line(record, facts, phrase(record), recordKey(record))
+
+    /** The line of the log for an entity [record]: what happened, who did it, when and where. */
+    @Unstable
+    fun logged(record: EntityRecord, facts: ActorFacts): LoggedLine =
+        line(record, facts, phrase(record), recordKey(record))
+
+    private fun recordKey(record: BlockRecord): Pair<String, String> = id(record.before) to id(record.after)
+
+    private fun recordKey(record: EntityRecord): Pair<String, String> = record.type to ""
+
+    private fun line(record: BlockRecord, facts: ActorFacts, phrase: Phrase, ids: Pair<String, String>): LoggedLine {
+        val rolledAt = record.rolledBack?.toEpochMilli()
         return LoggedLine(
-            millis = change.epochMillis,
+            millis = record.at.toEpochMilli(),
             key = listOf(
-                change.causedBy ?: change.cause, change.cause, change.action, from, to, rolledAt != null,
-                phrase.whatText.takeIf { change.action == ActionKind.SIGN_EDIT },
+                by(record) ?: record.cause, record.cause, record.action, ids.first, ids.second, rolledAt != null,
+                phrase.whatText.takeIf { record.action == ActionKind.SIGN_EDIT },
             ),
-            mark = if (phrase.title == "placed") ItemPresenter.PLUS else mark(change.action),
-            who = who(change.causedBy, change.cause, actors),
+            mark = if (phrase.title == "placed") ItemPresenter.PLUS else mark(record.action),
+            who = who(by(record), record.cause, facts),
             verb = phrase.verb,
-            whoText = whoText(change.causedBy, change.cause, actors),
+            whoText = whoText(by(record), record.cause, facts),
             whatText = { phrase.whatText },
             title = phrase.title,
             what = { phrase.what },
             from = phrase.from,
             to = phrase.to,
-            at = change.at,
-            mode = modeOf(change.causedBy, change.epochMillis, actors),
+            at = record.place,
+            mode = modeOf(by(record), record.at, facts),
             rolledAt = rolledAt,
-            counted = halfOf(change) != Half.SECOND,
-            pairs = halfOf(change) != null,
+            counted = halfOf(record) != Half.SECOND,
+            pairs = halfOf(record) != null,
         )
     }
 
+    private fun line(record: EntityRecord, facts: ActorFacts, phrase: Phrase, ids: Pair<String, String>): LoggedLine {
+        val rolledAt = record.rolledBack?.toEpochMilli()
+        return LoggedLine(
+            millis = record.at.toEpochMilli(),
+            key = listOf(
+                by(record) ?: record.cause, record.cause, record.action, ids.first, ids.second, rolledAt != null,
+                null,
+            ),
+            mark = mark(record.action),
+            who = who(by(record), record.cause, facts),
+            verb = phrase.verb,
+            whoText = whoText(by(record), record.cause, facts),
+            whatText = { phrase.whatText },
+            title = phrase.title,
+            what = { phrase.what },
+            from = phrase.from,
+            to = phrase.to,
+            at = record.place,
+            mode = modeOf(by(record), record.at, facts),
+            rolledAt = rolledAt,
+            counted = true,
+            pairs = false,
+        )
+    }
+
+    private fun by(record: HistoryRecord): Actor? = record.actor?.takeUnless { it == Actor.Natural }
+
     /** The line of the log for [event]: who said, typed, joined, or disconnected. */
-    fun logged(event: ActorEvent, actors: Actors): LoggedLine {
+    fun logged(event: EventRecord, facts: ActorFacts): LoggedLine {
         val verb = when (event.kind) {
             EventKind.CHAT -> "said"
             EventKind.COMMAND -> "ran"
@@ -147,7 +149,7 @@ internal object ChangeLinePresenter {
             EventKind.TELEPORT -> "teleported"
             EventKind.CUSTOM -> "did"
         }
-        val raw = event.text.orEmpty()
+        val raw = rawText(event)
         val text = when (event.kind) {
             EventKind.SHOOT, EventKind.PULL, EventKind.PUSH -> NamePresenter.pretty(raw)
             EventKind.HIT -> HIT.matchEntire(raw)?.let { hit(it).text } ?: raw
@@ -169,66 +171,74 @@ internal object ChangeLinePresenter {
             EventKind.CUSTOM -> Extensions.live.eventLine(raw)
             else -> Component.text(raw)
         }
+        val by = by(event)
         return LoggedLine(
-            millis = event.epochMillis,
-            key = listOf(event.by, event.kind, text),
+            millis = event.at.toEpochMilli(),
+            key = listOf(by, event.kind, text),
             mark = when (event.kind) {
                 EventKind.JOIN -> ItemPresenter.PLUS
                 EventKind.QUIT, EventKind.DEATH -> ItemPresenter.MINUS
                 else -> tr("common.mark.said")
             },
-            who = who(event.by, CauseKind.PLAYER_ACTION, actors),
+            who = who(by, CauseKind.PLAYER_ACTION, facts),
             verb = lower("lookup.verb.$verb"),
-            whoText = whoText(event.by, CauseKind.PLAYER_ACTION, actors),
+            whoText = whoText(by, CauseKind.PLAYER_ACTION, facts),
             whatText = { text },
             title = verb,
             what = { shown },
             tip = if (event.kind == EventKind.HIT) HIT.matchEntire(raw)?.let { hit(it).tip } else null,
-            at = event.at,
-            mode = modeOf(event.by, event.epochMillis, actors),
+            at = event.place,
+            mode = modeOf(by, event.at, facts),
         )
     }
 
-    /** The item lines of [transaction]: what was put, taken, dropped, crafted. */
+    private fun rawText(event: EventRecord): String {
+        val name = event.name
+        return if (event.kind == EventKind.CUSTOM && name != null) ApiConversions.customText(name, event.text)
+        else event.text.orEmpty()
+    }
+
+    /**
+     * The item lines of one transaction's [flows], all of one cause, one actor, one moment: what was put, taken,
+     * dropped, crafted.
+     */
     fun logged(
-        transaction: Transaction,
+        flows: List<ItemFlow>,
         item: String?,
         everything: Boolean,
-        actors: Actors,
-        rolled: Map<Long, Long> = emptyMap(),
+        facts: ActorFacts,
     ): List<LoggedLine> {
-        val rolledAt = rolled[transaction.seq.raw]
-        if (transaction.cause.isBookkeeping || (transaction.cause == CauseKind.WEAR && !everything)) return emptyList()
-        val unseen = transaction.flows.filter { mint ->
-            mint.kind == FlowKind.MINT && mint.destination is HolderId.Player && transaction.flows.any { out ->
-                out !== mint && out.source == mint.destination && out.itemKey == mint.itemKey &&
-                        out.quantity.raw >= mint.quantity.raw
+        val first = flows.firstOrNull() ?: return emptyList()
+        val cause = first.cause
+        val rolledAt = first.rolledBack?.toEpochMilli()
+        if (cause.isBookkeeping || (cause == CauseKind.WEAR && !everything)) return emptyList()
+        val unseen = flows.filter { mint ->
+            mint.kind == FlowKind.MINT && isPlayer(mint.to) && flows.any { out ->
+                out !== mint && out.from == mint.to && out.item == mint.item && out.amount >= mint.amount
             }
         }
-        return transaction.flows.mapNotNull { flow ->
-            if (item != null && !namesItem(flow.itemKey, item)) return@mapNotNull null
+        return flows.mapNotNull { flow ->
+            if (item != null && !namesItem(keyOf(flow), item)) return@mapNotNull null
             if (unseen.any { it === flow }) return@mapNotNull null
-            val act = (if (transaction.cause == CauseKind.WEAR) ItemPresenter.Act(
+            val act = (if (cause == CauseKind.WEAR) ItemPresenter.Act(
                 "damaged",
                 ItemPresenter.BOTH
-            ) else ItemPresenter.of(flow, everything, byMachine(transaction.cause)))
+            ) else ItemPresenter.of(flow, everything, byMachine(cause)))
                 ?: return@mapNotNull null
-            val doer =
-                transaction.causedBy ?: listOf(flow.source, flow.destination).firstOrNull { it is HolderId.Player }
-            val place = act.place?.let { it as? HolderId.Block }
-            val id = itemId(flow.itemKey)
+            val doer = by(flow) ?: listOf(flow.from, flow.to).firstOrNull(::isPlayer)?.let {
+                Actor.Player((it as ItemHolder.Player).uuid)
+            }
+            val place = act.place as? ItemHolder.Container
+            val id = itemId(flow)
             val name = NamePresenter.of(id)
             val family = ItemPresenter.family(act.name)
-            val visit = if (family?.container == true) (doer as? HolderId.Player)?.let {
-                actors.visit(
-                    it.uuid,
-                    transaction.epochMillis
-                )
+            val visit = if (family?.container == true) (doer as? Actor.Player)?.let {
+                facts.visitStart(it.uuid, flow.at)?.toEpochMilli()
             } else null
             val delta =
-                if (family == null) 0 else if (act.name == family.plus) flow.quantity.raw else -flow.quantity.raw
+                if (family == null) 0 else if (act.name == family.plus) flow.amount else -flow.amount
             LoggedLine(
-                millis = transaction.epochMillis,
+                millis = flow.at.toEpochMilli(),
                 key = if (visit != null) listOf(
                     doer,
                     "visit",
@@ -236,24 +246,28 @@ internal object ChangeLinePresenter {
                     id,
                     rolledAt != null
                 ) else listOf(
-                    doer ?: transaction.cause, family?.name ?: act.name, id, place, rolledAt != null
+                    doer ?: cause, family?.name ?: act.name, id, place, rolledAt != null
                 ),
                 mark = act.mark,
-                who = who(doer, transaction.cause, actors),
+                who = who(doer, cause, facts),
                 verb = lower("lookup.verb.${act.name}"),
-                whoText = whoText(doer, transaction.cause, actors),
+                whoText = whoText(doer, cause, facts),
                 whatText = { total -> "$total ${NamePresenter.pretty(id)}" },
                 title = act.name,
                 what = { total -> quantity(total, name) },
-                quantity = flow.quantity.raw,
-                at = transaction.at ?: place?.let { BlockPos(it.world, it.x, it.y, it.z) },
-                mode = modeOf(doer, transaction.epochMillis, actors),
+                quantity = flow.amount,
+                at = flow.place ?: place?.place,
+                mode = modeOf(doer, flow.at, facts),
                 net = family?.let { LineNet(it, delta, name, id) },
                 visit = visit,
                 rolledAt = rolledAt,
             )
         }
     }
+
+    private fun isPlayer(holder: ItemHolder): Boolean = holder is ItemHolder.Player && !holder.stash
+
+    private fun keyOf(flow: ItemFlow): ItemKey = ItemKey(flow.item.material, flow.item.variant?.let(::ContentHash))
 
     /** [stacks] as a text file: what the pages show, with the whole time instead of how long ago. */
     fun document(stacks: List<LineStack>, command: String, nowMillis: Long, cap: Int): String {
@@ -353,15 +367,15 @@ internal object ChangeLinePresenter {
             )
             .build()
             .hoverEvent(HoverEvent.showText(Component.join(JoinConfiguration.newlines(), shown)))
-        return if (at == null) row else row.clickEvent(ClickEvent.runCommand("/tracel tp ${at.world.uuid} ${at.x} ${at.y} ${at.z}"))
+        return if (at == null) row else row.clickEvent(ClickEvent.runCommand("/tracel tp ${at.world} ${at.x} ${at.y} ${at.z}"))
     }
 
     /** @return the display component for a given holder ID. */
-    fun holder(holder: HolderId, actors: Actors = Actors.NONE): Component = when (holder) {
+    fun holder(holder: HolderId, facts: ActorFacts = Actors.NONE): Component = when (holder) {
         is HolderId.Block -> tr("holder.block", "x" to holder.x, "y" to holder.y, "z" to holder.z)
         is HolderId.PlacedBlock -> tr("holder.block", "x" to holder.x, "y" to holder.y, "z" to holder.z)
         is HolderId.Player -> tr("holder.player", "name" to playerName(holder.uuid))
-        is HolderId.Entity -> entity(holder.uuid, actors)
+        is HolderId.Entity -> entity(holder.uuid, facts)
         is HolderId.PlacedEntity -> tr("holder.placed_entity", "uuid" to holder.uuid)
         is HolderId.Plugin -> tr("holder.plugin", "name" to holder.name)
         is HolderId.Custom -> Component.text(Extensions.live.name(holder))
@@ -474,24 +488,35 @@ internal object ChangeLinePresenter {
         )
     }
 
-    private fun modeOf(by: HolderId?, millis: Long, actors: Actors): GameMode? =
-        (by as? HolderId.Player)?.let { actors.mode(it.uuid, millis) }
+    private fun modeOf(by: Actor?, at: Instant, facts: ActorFacts): GameMode? =
+        (by as? Actor.Player)?.let { facts.mode(it.uuid, at) }
 
-    private fun whoText(by: HolderId?, cause: CauseKind, actors: Actors): String = when (by) {
-        is HolderId.Player -> playerName(by.uuid) + if (cause == CauseKind.PROJECTILE) " (projectile)" else ""
-        is HolderId.Entity -> actors.kind(by.uuid)?.let(NamePresenter::pretty) ?: english(who(by, cause, actors))
-        else -> english(who(by, cause, actors))
+    private fun whoText(by: Actor?, cause: CauseKind, facts: ActorFacts): String = when (by) {
+        is Actor.Player -> playerName(by.uuid) + if (cause == CauseKind.PROJECTILE) " (projectile)" else ""
+        is Actor.Entity -> facts.entityType(by.uuid)?.toString()?.let(NamePresenter::pretty)
+            ?: english(who(by, cause, facts))
+
+        else -> english(who(by, cause, facts))
     }
 
     private fun english(component: Component): String =
         PlainTextComponentSerializer.plainText().serialize(GlobalTranslator.render(component, Locale.ENGLISH))
 
-    private fun who(by: HolderId?, cause: CauseKind, actors: Actors): Component =
-        (by as? HolderId.Player)?.let { player ->
+    private fun who(by: Actor?, cause: CauseKind, facts: ActorFacts): Component =
+        (by as? Actor.Player)?.let { player ->
             val name = Component.text(playerName(player.uuid))
             if (cause == CauseKind.PROJECTILE) Component.textOfChildren(name, lower("common.via.projectile")) else name
         }
-            ?: by?.let { holder(it, actors) } ?: Component.text(NamePresenter.pretty(cause.name))
+            ?: by?.let { actor(it, facts) } ?: Component.text(NamePresenter.pretty(cause.name))
+
+    private fun actor(actor: Actor, facts: ActorFacts): Component = when (actor) {
+        is Actor.Player -> tr("holder.player", "name" to playerName(actor.uuid))
+        is Actor.Entity -> entity(actor.uuid, facts)
+        is Actor.Block -> tr("holder.block", "x" to actor.place.x, "y" to actor.place.y, "z" to actor.place.z)
+        is Actor.Plugin -> tr("holder.plugin", "name" to actor.name)
+        is Actor.Addon -> Component.text(Extensions.live.name(HolderId.Custom(actor.kind.toString(), actor.id)))
+        Actor.Natural -> Component.empty()
+    }
 
     private fun quantity(total: Long, item: Component): Component =
         Component.textOfChildren(Component.text(total), Component.space(), item)
@@ -525,68 +550,68 @@ internal object ChangeLinePresenter {
         val to: Component? = null,
     )
 
-    private fun phrase(change: WorldChange): Phrase = when (val subject = change.subject) {
-        is ChangeSubject.Entity -> {
-            val blown = change.action == ActionKind.ENTITY_REMOVE && change.cause == CauseKind.EXPLOSION
-            val name = leashName(subject) ?: if (blown) "blown" else verbName(change.action)
-            Phrase(
-                lower("lookup.verb.$name"),
-                name,
-                NamePresenter.entity(subject.type.value),
-                NamePresenter.pretty(subject.type.value)
+    private fun phrase(record: EntityRecord): Phrase {
+        val blown = record.action == ActionKind.ENTITY_REMOVE && record.cause == CauseKind.EXPLOSION
+        val name = leashName(record) ?: if (blown) "blown" else verbName(record.action)
+        return Phrase(
+            lower("lookup.verb.$name"),
+            name,
+            NamePresenter.entity(record.type),
+            NamePresenter.pretty(record.type)
+        )
+    }
+
+    private fun phrase(record: BlockRecord): Phrase {
+        val before = id(record.before)
+        val after = id(record.after)
+        val named = TransitionPresenter.of(record.before, record.after, byEntity(record))
+        val from = NamePresenter.of(before)
+        val to = NamePresenter.of(after)
+        val plain = verbName(record.action)
+        return when {
+            // What bone meal grew reads the same whether it was a flower or a crop going up a stage
+            record.action == ActionKind.BLOCK_CLICK || record.action == ActionKind.BLOCK_GROW -> Phrase(
+                lower("lookup.verb.$plain"),
+                plain,
+                to,
+                NamePresenter.pretty(after)
             )
-        }
 
-        is ChangeSubject.Block -> {
-            val before = id(subject.before)
-            val after = id(subject.after)
-            val byEntity = change.cause == CauseKind.ENTITY_ACTION || change.causedBy is HolderId.Entity
-            val named = TransitionPresenter.of(subject.before.data.value, subject.after.data.value, byEntity)
-            val from = NamePresenter.of(before)
-            val to = NamePresenter.of(after)
-            val plain = verbName(change.action)
-            when {
-                // What bone meal grew reads the same whether it was a flower or a crop going up a stage
-                change.action == ActionKind.BLOCK_CLICK || change.action == ActionKind.BLOCK_GROW -> Phrase(
-                    lower("lookup.verb.$plain"),
-                    plain,
-                    to,
-                    NamePresenter.pretty(after)
-                )
+            record.action == ActionKind.SIGN_EDIT -> sign(record, to, after)
 
-                change.action == ActionKind.SIGN_EDIT -> sign(subject, to, after)
+            record.action == ActionKind.BLOCK_PLACE -> Phrase(
+                lower("lookup.verb.$plain"),
+                plain,
+                to,
+                NamePresenter.pretty(after)
+            )
 
-                change.action == ActionKind.BLOCK_PLACE -> Phrase(
-                    lower("lookup.verb.$plain"),
-                    plain,
-                    to,
-                    NamePresenter.pretty(after)
-                )
+            airLike(record.after) -> Phrase(
+                lower("lookup.verb.$plain"),
+                plain,
+                from,
+                NamePresenter.pretty(before)
+            )
 
-                subject.after.isAirLike -> Phrase(
-                    lower("lookup.verb.$plain"),
-                    plain,
-                    from,
-                    NamePresenter.pretty(before)
-                )
+            airLike(record.before) -> Phrase(lower("lookup.verb.placed"), "placed", to, NamePresenter.pretty(after))
+            named != null -> Phrase(
+                lower("lookup.verb.${named.key}"),
+                named.key,
+                if (named.result) to else from,
+                NamePresenter.pretty(if (named.result) after else before)
+            )
 
-                subject.before.isAirLike -> Phrase(lower("lookup.verb.placed"), "placed", to, NamePresenter.pretty(after))
-                named != null -> Phrase(
-                    lower("lookup.verb.${named.key}"),
-                    named.key,
-                    if (named.result) to else from,
-                    NamePresenter.pretty(if (named.result) after else before)
-                )
-
-                before == after -> Phrase(lower("lookup.verb.updated"), "updated", to, NamePresenter.pretty(after))
-                else -> Phrase(lower("lookup.verb.placed"), "placed", to, NamePresenter.pretty(after), from, to)
-            }
+            before == after -> Phrase(lower("lookup.verb.updated"), "updated", to, NamePresenter.pretty(after))
+            else -> Phrase(lower("lookup.verb.placed"), "placed", to, NamePresenter.pretty(after), from, to)
         }
     }
 
-    private fun sign(subject: ChangeSubject.Block, name: Component, after: String): Phrase {
-        val was = SignText.of(subject.before)
-        val now = SignText.of(subject.after)
+    private fun byEntity(record: BlockRecord): Boolean =
+        record.cause == CauseKind.ENTITY_ACTION || record.actor is Actor.Entity
+
+    private fun sign(record: BlockRecord, name: Component, after: String): Phrase {
+        val was = record.beforeText
+        val now = record.afterText
         val shown = if (now.isNullOrEmpty()) name
         else Component.textOfChildren(name, Component.text(": "), Component.text(now, NamedTextColor.GRAY))
         val plain = NamePresenter.pretty(after) + if (now.isNullOrEmpty()) "" else ": $now"
@@ -600,9 +625,9 @@ internal object ChangeLinePresenter {
         )
     }
 
-    private fun halfOf(change: WorldChange): Half? {
-        if (change.action != ActionKind.BLOCK_PLACE) return null
-        val after = (change.subject as? ChangeSubject.Block)?.after?.data?.value ?: return null
+    private fun halfOf(record: BlockRecord): Half? {
+        if (record.action != ActionKind.BLOCK_PLACE) return null
+        val after = record.after
         return when {
             "part=head" in after || "half=upper" in after -> Half.SECOND
             "part=foot" in after || "half=lower" in after -> Half.FIRST
@@ -610,14 +635,15 @@ internal object ChangeLinePresenter {
         }
     }
 
-    private fun itemId(key: ItemKey): String = Extensions.live.itemName(key) ?: key.material
+    private fun itemId(flow: ItemFlow): String = Extensions.live.itemName(keyOf(flow)) ?: flow.item.material
 
     private fun namesItem(key: ItemKey, wanted: String): Boolean =
         key.material.namesMaterial(wanted) || Extensions.live.itemName(key).equals(wanted, ignoreCase = true)
 
     /** What the block is called: its material, or what a lens sees in it. */
-    private fun id(shape: BlockShape): String =
-        Extensions.live.blockName(shape.data.value) ?: shape.data.value.substringBefore('[')
+    private fun id(data: String): String = Extensions.live.blockName(data) ?: data.substringBefore('[')
+
+    private fun airLike(data: String): Boolean = AirBlock.entries.any { it.id == data }
 
     private fun superscript(n: Int): String = n.toString().map { "⁰¹²³⁴⁵⁶⁷⁸⁹"[it - '0'] }.joinToString("")
 
@@ -639,8 +665,8 @@ internal object ChangeLinePresenter {
         return tr("lookup.ago.$unit", "n" to "%02d".format(n))
     }
 
-    private fun entity(uuid: UUID, actors: Actors): Component {
-        val kind = actors.kind(uuid)
+    private fun entity(uuid: UUID, facts: ActorFacts): Component {
+        val kind = facts.entityType(uuid)?.toString()
         val name = if (kind != null) NamePresenter.entity(kind) else tr("holder.entity_gone")
         return name.hoverEvent(HoverEvent.showText(Component.text(uuid.toString())))
     }
@@ -659,33 +685,10 @@ internal object ChangeLinePresenter {
         ActionKind.BLOCK_GROW -> "grew"
     }
 
-    private fun leashName(subject: ChangeSubject.Entity): String? {
-        val before = subject.before?.extras.leashHolder
-        val after = subject.after?.extras.leashHolder
-        return when {
-            before == null && after != null -> "leashed"
-            before != null && after == null -> "unleashed"
-            else -> null
-        }
-    }
-
-    private fun leash(subject: ChangeSubject.Entity): Component? = leashName(subject)?.let { lower("lookup.verb.$it") }
-
-    private fun trampled(subject: ChangeSubject.Block): Component? {
-        val before = subject.before.data.value.substringBefore('[')
-        val after = subject.after.data.value.substringBefore('[')
-        val trampled = (before.endsWith(":farmland") && after.endsWith(":dirt")) || before.endsWith(":turtle_egg")
-        return if (trampled) NamePresenter.of(before) else null
-    }
-
-    private fun block(subject: ChangeSubject.Block): Component {
-        val before = NamePresenter.of(id(subject.before))
-        val after = NamePresenter.of(id(subject.after))
-        return when {
-            subject.after.isAirLike -> before
-            subject.before.isAirLike -> after
-            else -> tr("change.turned", "from" to before, "to" to after)
-        }
+    private fun leashName(record: EntityRecord): String? = when {
+        !record.leashedBefore && record.leashedAfter -> "leashed"
+        record.leashedBefore && !record.leashedAfter -> "unleashed"
+        else -> null
     }
 
     private fun playerName(uuid: UUID): String =

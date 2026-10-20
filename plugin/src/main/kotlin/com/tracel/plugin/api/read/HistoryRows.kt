@@ -10,7 +10,6 @@ import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
-import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.api.addon.withItemLens
 import com.tracel.plugin.metrics.Telemetry
 import com.tracel.plugin.services.TracelServices
@@ -97,24 +96,6 @@ internal class HistoryRows(
         } while (from != null)
         return Res.Ok(found)
     }
-
-    /** Teaches [actors] who the rows' players and mobs are, and the item names of addons what they need. */
-    suspend fun learn(actors: Actors, rows: List<Row>) {
-        for (row in rows) when (row) {
-            is Row.World -> actors.learn(listOf(row.change.causedBy))
-            is Row.Txn -> actors.learn(
-                listOf(row.transaction.causedBy) + row.transaction.flows.flatMap { listOf(it.source, it.destination) },
-            )
-            is Row.Event -> actors.learn(listOf(row.event.by))
-        }
-        val keys = rows.filterIsInstance<Row.Txn>().flatMapTo(HashSet()) { row ->
-            row.transaction.flows.map { it.itemKey }
-        }
-        if (keys.isNotEmpty()) Extensions.live.learnItemNames(keys) { services.itemForms.find(it) }
-    }
-
-    /** The mobs' and players' facts a lookup shows beside their names. */
-    fun actors(): Actors = Actors(services.actors)
 
     private fun sources(query: HistoryQuery, filter: LookupFilter): List<LogSource<Row>> {
         val until = filter.until

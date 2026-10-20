@@ -1,13 +1,15 @@
 package com.tracel.plugin.command.action.support
 
+import com.tracel.api.history.BlockRecord
+import com.tracel.api.history.EntityRecord
+import com.tracel.api.history.EventRecord
 import com.tracel.api.history.HistoryCursor
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.history.HistoryReadError
+import com.tracel.api.history.HistoryReads
+import com.tracel.api.history.HistoryRecord
+import com.tracel.api.history.ItemFlow
 import com.tracel.api.result.Res
-import com.tracel.model.transaction.Transaction
-import com.tracel.model.world.WorldChange
-import com.tracel.plugin.api.read.HistoryRows
-import com.tracel.plugin.api.read.Row
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
@@ -18,7 +20,7 @@ import kotlinx.coroutines.sync.withLock
 
 /** One lookup, read as the pages ask for it. */
 internal class LookupSearch(
-    private val rows: HistoryRows,
+    private val reads: HistoryReads,
     private val queries: List<HistoryQuery>,
     val parsed: ParsedLookupArgs,
     val flushed: Boolean,
@@ -31,9 +33,8 @@ internal class LookupSearch(
     private val byKey = HashMap<Any, LineStack>()
     private val halves = HashMap<Pair<Any, Long>, LineStack>()
     private val visitNewest = HashMap<Long, Long>()
-    private val actors = rows.actors()
-    private var from: HistoryCursor? = null
-    private var started = false
+    private val facts = reads.actorFacts()
+    private var read = false
 
     /** Page [asked], with the whole search read first. */
     suspend fun page(asked: Int): Res<View, HistoryReadError> = lock.withLock {
@@ -58,33 +59,54 @@ internal class LookupSearch(
     private fun pagesOf(rows: Int) = (rows + PAGE - 1) / PAGE
 
     private suspend fun drain(): HistoryReadError? {
-        while (!started || from != null) {
-            val got = when (val read = rows.page(queries, from, WINDOW)) {
-                is Res.Ok -> read.value
-                is Res.Err -> return read.error
-            }
-            started = true
-            from = got.next
-            rows.learn(actors, got.rows)
-            for (row in got.rows) when (row) {
-                is Row.World -> add(row.change, got.rolled)
-                is Row.Txn -> add(row.transaction, got.rolled)
-                is Row.Event -> stack(ChangeLinePresenter.logged(row.event, actors))
-            }
+        if (read) return null
+        val found = ArrayList<HistoryRecord>()
+        for (query in queries) {
+            var from: HistoryCursor? = null
+            do {
+                val page = when (val got = reads.history(query).page(from, WINDOW)) {
+                    is Res.Ok -> got.value
+                    is Res.Err -> return got.error
+                }
+                found += page.records
+                from = page.next
+            } while (from != null)
         }
+        found.sortByDescending { it.cursor }
+        facts.learn(found)
+        var at = 0
+        while (at < found.size) {
+            when (val record = found[at]) {
+                is BlockRecord -> add(record)
+                is EntityRecord -> add(record)
+                is EventRecord -> stack(ChangeLinePresenter.logged(record, facts))
+                is ItemFlow -> {
+                    var end = at + 1
+                    while (end < found.size && found[end].let { it is ItemFlow && it.cursor == record.cursor }) end++
+                    add(found.subList(at, end).map { it as ItemFlow })
+                    at = end - 1
+                }
+            }
+            at++
+        }
+        read = true
         return null
     }
 
-    private fun add(change: WorldChange, rolled: Map<Long, Long>) {
-        if (ChangeLinePresenter.isKeptOnly(change)) return
-        if (parsed.actions.isEmpty() && !parsed.natural && !parsed.turnings && ChangeLinePresenter.isUnnamedChange(change)) {
+    private fun add(record: BlockRecord) {
+        if (parsed.actions.isEmpty() && !parsed.natural && !parsed.turnings && ChangeLinePresenter.isUnnamedChange(record)) {
             return
         }
-        stack(ChangeLinePresenter.logged(change, actors, rolled))
+        stack(ChangeLinePresenter.logged(record, facts))
     }
 
-    private fun add(transaction: Transaction, rolled: Map<Long, Long>) {
-        ChangeLinePresenter.logged(transaction, parsed.item, parsed.natural, actors, rolled).forEach(::stack)
+    private fun add(record: EntityRecord) {
+        if (ChangeLinePresenter.isKeptOnly(record)) return
+        stack(ChangeLinePresenter.logged(record, facts))
+    }
+
+    private fun add(flows: List<ItemFlow>) {
+        ChangeLinePresenter.logged(flows, parsed.item, parsed.natural, facts).forEach(::stack)
     }
 
     private fun stack(line: LoggedLine) {

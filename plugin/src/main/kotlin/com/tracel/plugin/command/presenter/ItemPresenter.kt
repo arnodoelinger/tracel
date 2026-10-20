@@ -1,9 +1,9 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.model.flow.Flow
-import com.tracel.model.flow.FlowKind
-import com.tracel.model.holder.HolderId
-import com.tracel.model.holder.SourceKind
+import com.tracel.api.history.FlowKind
+import com.tracel.api.history.ItemFlow
+import com.tracel.api.item.ItemHolder
+import com.tracel.api.item.SourceKind
 import com.tracel.plugin.i18n.tr
 import net.kyori.adventure.text.Component
 
@@ -18,7 +18,7 @@ internal object ItemPresenter {
     private val SUPPLY = Family("supply", "received", "lost", false)
 
     /** [name] is the verb under `lookup.verb`; [place] is the container the items went to or came from. */
-    class Act(val name: String, val mark: Component, val place: HolderId? = null)
+    class Act(val name: String, val mark: Component, val place: ItemHolder? = null)
 
     /**
      * Acts that undo each other: items put in and taken out, dropped and picked up, lost and received. A run of
@@ -35,37 +35,39 @@ internal object ItemPresenter {
     }
 
     /** Creates an [Act] instance based on the provided flow information and conditions. */
-    fun of(flow: Flow, everything: Boolean = false, byMachine: Boolean = false): Act? {
-        val from = flow.source
-        val to = flow.destination
-        if (from is HolderId.Escrow || to is HolderId.Escrow) return null
-        if (listOf(from, to).any { it is HolderId.PlacedBlock || it is HolderId.PlacedEntity }) return null
+    fun of(flow: ItemFlow, everything: Boolean = false, byMachine: Boolean = false): Act? {
+        val from = flow.from
+        val to = flow.to
+        if (from == ItemHolder.Rollback || to == ItemHolder.Rollback) return null
+        if (listOf(from, to).any { it is ItemHolder.PlacedBlock || it is ItemHolder.PlacedEntity }) return null
         return when (flow.kind) {
             FlowKind.TRANSFORM_IN -> if (everything) Act("used", MINUS) else null
             FlowKind.TRANSFORM_OUT -> Act("crafted", PLUS)
-            FlowKind.MINT -> if (to is HolderId.Player && from is HolderId.Source && from.kind == SourceKind.CREATIVE) Act(
+            FlowKind.MINT -> if (isPlayer(to) && from is ItemHolder.Appeared && from.kind == SourceKind.CREATIVE) Act(
                 "conjured",
                 PLUS
-            ) else if (to is HolderId.Player) Act("received", PLUS)
-            else if (isContainer(to) && from is HolderId.Source && from.kind == SourceKind.CREATIVE) Act("put", PLUS, to)
+            ) else if (isPlayer(to)) Act("received", PLUS)
+            else if (isContainer(to) && from is ItemHolder.Appeared && from.kind == SourceKind.CREATIVE) Act("put", PLUS, to)
             else null
 
-            FlowKind.BURN -> if (from is HolderId.Player) Act("lost", MINUS) else if (everything) Act(
+            FlowKind.BURN -> if (isPlayer(from)) Act("lost", MINUS) else if (everything) Act(
                 "destroyed",
                 MINUS
             ) else null
 
             FlowKind.MOVE -> when {
-                to is HolderId.ItemEntity -> Act("dropped", MINUS)
-                from is HolderId.ItemEntity -> Act("picked_up", PLUS, to.takeIf(::isContainer))
-                from is HolderId.Player && isContainer(to) -> Act("put", PLUS, to)
-                isContainer(from) && to is HolderId.Player -> Act("took", MINUS, from)
+                to is ItemHolder.Dropped -> Act("dropped", MINUS)
+                from is ItemHolder.Dropped -> Act("picked_up", PLUS, to.takeIf(::isContainer))
+                isPlayer(from) && isContainer(to) -> Act("put", PLUS, to)
+                isContainer(from) && isPlayer(to) -> Act("took", MINUS, from)
                 byMachine && isContainer(from) && isContainer(to) -> Act("transferred", PLUS, to)
                 else -> Act("moved", BOTH, to.takeIf(::isContainer))
             }
         }
     }
 
-    private fun isContainer(holder: HolderId) =
-        holder is HolderId.Block || holder is HolderId.Entity || holder is HolderId.PlayerStash
+    private fun isPlayer(holder: ItemHolder) = holder is ItemHolder.Player && !holder.stash
+
+    private fun isContainer(holder: ItemHolder) =
+        holder is ItemHolder.Container || holder is ItemHolder.Entity || (holder is ItemHolder.Player && holder.stash)
 }

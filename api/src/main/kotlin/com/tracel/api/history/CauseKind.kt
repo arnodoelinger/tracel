@@ -26,6 +26,9 @@ public enum class CauseKind {
     DISPENSER,
     DROPPER;
 
+    /** A rollback's or an undo's own bookkeeping: history does not show it as what happened. */
+    public val isBookkeeping: Boolean get() = this == ROLLBACK || this == INVOLUTION
+
     /** The world on its own. Hidden from history unless the query asks for it. */
     public val isNatural: Boolean get() = this in NATURAL_CAUSES
 

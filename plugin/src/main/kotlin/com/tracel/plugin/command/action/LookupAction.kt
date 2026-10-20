@@ -171,7 +171,7 @@ class LookupAction(private val services: TracelServices) {
     ) {
         services.scope.launch {
             val flushed = services.commandApi.reads.settle()
-            val search = LookupSearch(services.commandApi.rows, queries, parsed, flushed)
+            val search = LookupSearch(services.commandApi.reads, queries, parsed, flushed)
             searches[key(sender)] = search
             show(sender, search, parsed.page, extra)
         }

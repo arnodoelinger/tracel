@@ -1,14 +1,15 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.model.flow.FlowKind
-import com.tracel.model.holder.HolderId
-import com.tracel.model.transaction.Transaction
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
-import com.tracel.model.world.block.BlockShape
+import com.tracel.api.actor.Actor
+import com.tracel.api.history.ActionKind
+import com.tracel.api.history.BlockRecord
+import com.tracel.api.history.EntityRecord
+import com.tracel.api.history.FlowKind
+import com.tracel.api.history.HistoryRecord
+import com.tracel.api.history.ItemFlow
+import com.tracel.api.item.ItemHolder
 import com.tracel.plugin.command.presenter.line.TransitionPresenter
-import com.tracel.plugin.specifics.block.isAirLike
+import com.tracel.plugin.specifics.block.AirBlock
 import java.util.*
 
 /** What one player did in a window, counted. */
@@ -35,11 +36,12 @@ internal data class PlayerReport(
         private const val TOP = 3
 
         /**
-         * Counts [changes] and [txns] for [player]. Both logs are asked for the player already; this is the
-         * tally, and it skips what the player only stood next to.
+         * Counts [records] for [player]. They are asked for the player already; this is the tally, and it skips what the
+         * player only stood next to.
          */
-        fun of(player: UUID, changes: List<WorldChange>, txns: List<Transaction>): PlayerReport {
-            val me = HolderId.Player(player)
+        fun of(player: UUID, records: List<HistoryRecord>): PlayerReport {
+            val me = Actor.Player(player)
+            val meHolder = ItemHolder.Player(player)
             val placed = HashMap<String, Int>()
             val broken = HashMap<String, Int>()
             val kills = HashMap<String, Int>()
@@ -71,30 +73,34 @@ internal data class PlayerReport(
                 slot[3] = z
             }
 
-            for ((_, action, _, causedBy, epochMillis, at, subject) in changes) {
-                if (causedBy != me) continue
-                seen(epochMillis)
+            for (record in records) {
+                val (action, at) = when (record) {
+                    is BlockRecord -> record.action to record.place
+                    is EntityRecord -> record.action to record.place
+                    else -> continue
+                }
+                if (record.actor != me) continue
+                seen(record.at.toEpochMilli())
                 column(at.x, at.y, at.z)
+                val block = record as? BlockRecord
                 when (action) {
                     ActionKind.BLOCK_PLACE -> {
                         place++
-                        (subject as? ChangeSubject.Block)?.after?.let { placed.merge(it.name(), 1, Int::plus) }
+                        block?.let { placed.merge(it.after.named(), 1, Int::plus) }
                     }
 
                     ActionKind.BLOCK_BREAK -> {
                         breakage++
-                        (subject as? ChangeSubject.Block)?.before?.let { broken.merge(it.name(), 1, Int::plus) }
+                        block?.let { broken.merge(it.before.named(), 1, Int::plus) }
                     }
 
                     ActionKind.BLOCK_CHANGE, ActionKind.BLOCK_GROW -> {
-                        val block = subject as? ChangeSubject.Block
-                        val byEntity = causedBy is HolderId.Entity
-                        if (action == ActionKind.BLOCK_CHANGE && block != null && !block.after.isAirLike &&
-                            TransitionPresenter.of(block.before.data.value, block.after.data.value, byEntity) == null &&
-                            block.before != block.after
+                        if (action == ActionKind.BLOCK_CHANGE && block != null && !block.after.isAir() &&
+                            TransitionPresenter.of(block.before, block.after, false) == null &&
+                            (block.before != block.after || block.beforeText != block.afterText)
                         ) {
                             place++
-                            placed.merge(block.after.name(), 1, Int::plus)
+                            placed.merge(block.after.named(), 1, Int::plus)
                         } else {
                             change++
                         }
@@ -102,7 +108,7 @@ internal data class PlayerReport(
                     ActionKind.SIGN_EDIT -> signs++
                     ActionKind.ENTITY_SPAWN -> spawned++
                     ActionKind.ENTITY_REMOVE -> {
-                        val type = (subject as? ChangeSubject.Entity)?.type?.value
+                        val type = (record as? EntityRecord)?.type
                         if (type != null) kills.merge(type.removePrefix("minecraft:"), 1, Int::plus)
                     }
 
@@ -111,34 +117,36 @@ internal data class PlayerReport(
             }
 
             var mine = 0
-            for ((_, _, epochMillis, _, _, flows, _, at) in txns) {
+            for (flows in records.filterIsInstance<ItemFlow>().groupBy { it.cursor }.values) {
                 var touched = false
-                for ((itemKey, quantity, from, to, kind) in flows) {
-                    if (kind != FlowKind.MOVE) continue
-                    val n = quantity.raw
-                    val name = itemKey.material.lowercase()
+                for (flow in flows) {
+                    if (flow.kind != FlowKind.MOVE) continue
+                    val n = flow.amount
+                    val name = flow.item.material.lowercase()
+                    val from = flow.from
+                    val to = flow.to
                     when {
-                        to == me && from.isStorage() -> {
+                        to == meHolder && from.isStorage() -> {
                             took += n; items.merge(name, n, Long::plus); touched = true
                         }
 
-                        from == me && to.isStorage() -> {
+                        from == meHolder && to.isStorage() -> {
                             stored += n; items.merge(name, n, Long::plus); touched = true
                         }
 
-                        from == me && to is HolderId.ItemEntity -> {
+                        from == meHolder && to is ItemHolder.Dropped -> {
                             dropped += n; touched = true
                         }
 
-                        to == me && from is HolderId.ItemEntity -> {
+                        to == meHolder && from is ItemHolder.Dropped -> {
                             pickedUp += n; touched = true
                         }
                     }
                 }
                 if (touched) {
                     mine++
-                    seen(epochMillis)
-                    at?.let { column(it.x, it.y, it.z) }
+                    seen(flows.first().at.toEpochMilli())
+                    flows.first().place?.let { column(it.x, it.y, it.z) }
                 }
             }
 
@@ -167,11 +175,12 @@ internal data class PlayerReport(
         private fun <T : Comparable<T>> Map<String, T>.top(): List<Pair<String, T>> =
             entries.sortedByDescending { it.value }.take(TOP).map { it.key to it.value }
 
-        private fun BlockShape.name(): String =
-            data.value.removePrefix("minecraft:").substringBefore('[')
+        private fun String.named(): String = removePrefix("minecraft:").substringBefore('[')
 
-        private fun HolderId.isStorage(): Boolean =
-            this is HolderId.Block || this is HolderId.PlacedBlock || this is HolderId.Entity ||
-                    this is HolderId.PlacedEntity
+        private fun String.isAir(): Boolean = AirBlock.entries.any { it.id == this }
+
+        private fun ItemHolder.isStorage(): Boolean =
+            this is ItemHolder.Container || this is ItemHolder.PlacedBlock || this is ItemHolder.Entity ||
+                    this is ItemHolder.PlacedEntity
     }
 }

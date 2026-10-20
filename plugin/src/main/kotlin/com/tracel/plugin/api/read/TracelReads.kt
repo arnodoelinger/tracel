@@ -1,6 +1,7 @@
 package com.tracel.plugin.api.read
 
 import com.tracel.api.actor.Actor
+import com.tracel.api.history.ActorFacts
 import com.tracel.api.history.ContainerTaker
 import com.tracel.api.history.History
 import com.tracel.api.history.HistoryCursor
@@ -20,6 +21,7 @@ import com.tracel.api.result.getOrElse
 import com.tracel.api.world.LookupArea
 import com.tracel.api.world.place
 import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +40,10 @@ internal class TracelReads(
     private val rows: HistoryRows = HistoryRows(services),
     private val open: () -> Boolean = { true },
 ) : HistoryReads {
+    override fun history(query: HistoryQuery): History = read(query)
+
+    override fun actorFacts(): ActorFacts = Actors(services.actors)
+
     override fun Block.history(build: HistoryQuery.Builder.() -> Unit): History =
         read(HistoryQuery(area = LookupArea.of(place)).with(build))
 
@@ -128,6 +134,11 @@ internal class TracelReads(
 
     private fun read(query: HistoryQuery): History = LogHistory(query)
 
+    private suspend fun learnItemNames(rows: List<Row>) {
+        val keys = rows.filterIsInstance<Row.Txn>().flatMapTo(HashSet()) { row -> row.transaction.flows.map { it.itemKey } }
+        if (keys.isNotEmpty()) Extensions.live.learnItemNames(keys) { services.itemForms.find(it) }
+    }
+
     private inner class LogHistory(override val query: HistoryQuery) : History {
         override val records: Flow<HistoryRecord>
             get() = flow {
@@ -141,6 +152,7 @@ internal class TracelReads(
 
         override suspend fun page(from: HistoryCursor?, size: Int): Res<HistoryPage, HistoryReadError> {
             val page = rows.page(query, from, size).getOrElse { return Res.Err(it) }
+            learnItemNames(page.rows)
             val item = query.item?.let { page.filter.material }
             val records = page.rows.flatMap { row ->
                 when (row) {

@@ -46,6 +46,8 @@ public data class BlockRecord(
     public val action: ActionKind,
     public val before: String,
     public val after: String,
+    public val beforeText: String? = null,
+    public val afterText: String? = null,
 ) : HistoryRecord
 
 /** An entity appearing, going away or changing in place. [place] is the block it was in. */
@@ -63,6 +65,8 @@ public data class EntityRecord(
     public val type: String,
     public val existedBefore: Boolean,
     public val existsAfter: Boolean,
+    public val leashedBefore: Boolean = false,
+    public val leashedAfter: Boolean = false,
 ) : HistoryRecord
 
 /**
@@ -81,6 +85,7 @@ public data class ItemFlow(
     public val amount: Long,
     public val from: ItemHolder,
     public val to: ItemHolder,
+    public val kind: FlowKind = FlowKind.MOVE,
 ) : HistoryRecord
 
 /**

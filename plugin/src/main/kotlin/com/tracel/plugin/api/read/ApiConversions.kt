@@ -7,6 +7,7 @@ import com.tracel.api.history.CauseKind
 import com.tracel.api.history.EntityRecord
 import com.tracel.api.history.EventKind
 import com.tracel.api.history.EventRecord
+import com.tracel.api.history.FlowKind
 import com.tracel.api.history.HistoryCursor
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.history.HistoryReadError
@@ -24,6 +25,9 @@ import com.tracel.api.world.NamespacedName
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.event.ActorEvent
+import com.tracel.model.flow.FlowKind as ModelFlow
+import com.tracel.model.world.entity.leashHolder
+import com.tracel.plugin.adapter.block.special.SignText
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
@@ -32,6 +36,7 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.TILE_SHIFT
 import com.tracel.model.world.WorldChange
+import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.WorldId
 import java.time.Instant
 import java.util.UUID
@@ -69,6 +74,12 @@ internal object ApiConversions {
     fun source(kind: ModelSource): SourceKind = SourceKind.valueOf(kind.name)
 
     fun sink(kind: ModelSink): SinkKind = SinkKind.valueOf(kind.name)
+
+    /** What a sign says: only asked of a sign edit, because reading it deserializes the tile. */
+    private fun signText(action: ModelAction, shape: BlockShape): String? =
+        if (action == ModelAction.SIGN_EDIT) SignText.of(shape) else null
+
+    fun flowKind(kind: ModelFlow): FlowKind = FlowKind.valueOf(kind.name)
 
     fun place(pos: BlockPos): BlockPlace = BlockPlace(pos.world.uuid, pos.x, pos.y, pos.z)
 
@@ -223,11 +234,14 @@ internal object ApiConversions {
             is ChangeSubject.Block -> if (RecordKind.BLOCK !in query.kinds) null else BlockRecord(
                 at, actor, cause(change.cause), rolledBack, place(change.at), cursor,
                 action(change.action), subject.before.data.value, subject.after.data.value,
+                signText(change.action, subject.before), signText(change.action, subject.after),
             )
             is ChangeSubject.Entity -> if (RecordKind.ENTITY !in query.kinds) null else EntityRecord(
                 at, actor, cause(change.cause), rolledBack, place(change.at), cursor,
                 action(change.action), subject.entity, subject.type.value,
                 existedBefore = subject.before != null, existsAfter = subject.after != null,
+                leashedBefore = subject.before?.extras.leashHolder != null,
+                leashedAfter = subject.after?.extras.leashHolder != null,
             )
         }
     }
@@ -245,7 +259,7 @@ internal object ApiConversions {
             if (wanted != null && query.exactItem && kind.variant != wanted.variant) return@mapNotNull null
             ItemFlow(
                 at, actor, cause(transaction.cause), rolledBack, place, cursor,
-                kind, flow.quantity.raw, holder(flow.source), holder(flow.destination),
+                kind, flow.quantity.raw, holder(flow.source), holder(flow.destination), flowKind(flow.kind),
             )
         }
     }

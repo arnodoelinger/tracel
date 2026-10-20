@@ -1,10 +1,11 @@
 package com.tracel.plugin.command.action
 
 import com.tracel.api.actor.Actor
+import com.tracel.api.history.HistoryCursor
 import com.tracel.api.history.HistoryQuery
+import com.tracel.api.history.HistoryRecord
 import com.tracel.api.result.Res
 import com.tracel.plugin.adapter.command.resolvePlayerUuid
-import com.tracel.plugin.api.read.Row
 import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
@@ -27,6 +28,7 @@ import java.time.Instant
 internal class PlayerAction(private val services: TracelServices) {
     private companion object {
         const val DEFAULT_WINDOW = 24L * 3_600_000
+        const val PAGE = 2_000
     }
 
     fun execute(sender: CommandSender, name: String, parsed: ParsedLookupArgs) {
@@ -55,18 +57,21 @@ internal class PlayerAction(private val services: TracelServices) {
             natural = true,
         )
         services.scope.launch {
-            services.commandApi.reads.settle()
-            val found = when (val read = services.commandApi.rows.all(listOf(query))) {
-                is Res.Ok -> read.value
-                is Res.Err -> return@launch sender.failed(
-                    "player.failed", Component.text(read.error.describe()), tr("player.hint.again"),
-                )
-            }
-            val report = PlayerReport.of(
-                uuid,
-                found.filterIsInstance<Row.World>().map { it.change },
-                found.filterIsInstance<Row.Txn>().map { it.transaction },
-            )
+            val reads = services.commandApi.reads
+            reads.settle()
+            val found = ArrayList<HistoryRecord>()
+            var from: HistoryCursor? = null
+            do {
+                val page = when (val got = reads.history(query).page(from, PAGE)) {
+                    is Res.Ok -> got.value
+                    is Res.Err -> return@launch sender.failed(
+                        "player.failed", Component.text(got.error.describe()), tr("player.hint.again"),
+                    )
+                }
+                found += page.records
+                from = page.next
+            } while (from != null)
+            val report = PlayerReport.of(uuid, found)
             render(sender, name, now - since, report, scope?.let(ScopeArgument::describe))
         }
     }

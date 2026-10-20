@@ -19,8 +19,8 @@ private const val SIGNER = "Tracel"
  * they cannot do through it is a hole in it.
  */
 internal class CommandApi(private val services: TracelServices) {
-    /** The rows under every history read, for the lines a lookup shows. */
-    val rows: HistoryRows = HistoryRows(services)
+    /** The rows under every history read. */
+    private val rows: HistoryRows = HistoryRows(services)
 
     /** Purge, export, import, migration and status. */
     val admin: Admin = TracelAdmin(services, SIGNER)
