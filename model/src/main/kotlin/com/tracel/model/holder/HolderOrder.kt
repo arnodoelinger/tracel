@@ -22,6 +22,8 @@ public object HolderOrder : Comparator<HolderId> {
             is HolderId.Escrow -> a.job.raw.compareTo((b as HolderId.Escrow).job.raw)
             is HolderId.Source -> a.kind.compareTo((b as HolderId.Source).kind)
             is HolderId.Sink -> a.kind.compareTo((b as HolderId.Sink).kind)
+            is HolderId.Plugin -> a.name.compareTo((b as HolderId.Plugin).name)
+            is HolderId.Custom -> compareValuesBy(a, b as HolderId.Custom, { it.kind }, { it.id })
         }
     }
 
@@ -39,5 +41,7 @@ public object HolderOrder : Comparator<HolderId> {
         is HolderId.Escrow -> 7
         is HolderId.Source -> 8
         is HolderId.Sink -> 9
+        is HolderId.Plugin -> 10
+        is HolderId.Custom -> 11
     }
 }

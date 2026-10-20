@@ -425,7 +425,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         }
         val inlineWorld = includeWorld && scans != null && region != null && regionWorldId != null &&
                 (filterWorldId == null || filterWorldId == regionWorldId) &&
-                filter.material == null && filter.offset == 0 && filter.limit == Int.MAX_VALUE
+                filter.material == null && filter.itemKeys.isEmpty() && filter.offset == 0 && filter.limit == Int.MAX_VALUE
         val worldRows = if (inlineWorld) SpatialRows() else null
 
         val (worldSeqs, txnSeqs) = if (scans != null && scans.isEmpty()) {
@@ -438,7 +438,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val worldArr = if (inlineWorld) LongArray(0) else ascending(worldSeqs)
         val txnLog = transactions as TransactionLog
         val byItem =
-            if (scans == null && filter.material != null) txnLog.itemKeyIdsFor(this, filter.material!!) else null
+            if (scans == null) txnLog.itemKeyIdsFor(this, filter) else null
         val txnArr = if (byItem == null) ascending(txnSeqs) else ascending(
             QueryProbe.phase("item index") {
                 gatherSeqs(
@@ -1175,6 +1175,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             materialEquals(material) || aliases.any { materialEquals(it) }
 
         fun String.materialEquals(material: String): Boolean {
+            if ('[' in material) return equals(material, ignoreCase = true)
             val stored = substringBefore('[')
             if (stored.equals(material, ignoreCase = true)) return true
             val bare = stored.substringAfter(':')

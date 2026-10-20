@@ -111,7 +111,12 @@ fun List<Component>.commas(): Component = Component.join(JoinConfiguration.separ
 /** What an exception said when nothing better is known: no trailing period, and no capital unless it is a name (`IOException`). */
 fun unexpected(failure: Throwable): String {
     Telemetry.error(failure)
-    val said = (failure.message ?: failure::class.java.simpleName).trimEnd('.', ' ')
+    return said(failure.message ?: failure::class.java.simpleName)
+}
+
+/** [message] the way [unexpected] says it, for a failure that has been counted already. */
+fun said(message: String): String {
+    val said = message.trimEnd('.', ' ')
     return if (said.length > 1 && said[1].isUpperCase()) said else said.replaceFirstChar(Char::lowercase)
 }
 

@@ -1,7 +1,9 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.engine.store.ExportSummary
-import com.tracel.engine.store.StoppedByRequest
+import com.tracel.api.admin.AdminError
+import com.tracel.api.admin.TransferSummary
+import com.tracel.api.result.Res
+import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.launch
@@ -13,7 +15,6 @@ import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.nio.file.*
 import java.time.Instant
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -27,8 +28,8 @@ class ExportAction(private val services: TracelServices) {
     /** Shows how much disk the export may take, and how much is left, before it is run for real. */
     fun confirmExport(sender: CommandSender) {
         val locale = localeOf(sender)
-        val size = services.store.liveBytes
-        val free = freeSpace(services.exportDirectory)
+        val size = services.commandApi.admin.storeBytes
+        val free = freeSpace(services.commandApi.admin.exportDirectory)
         val args = arrayOf("size" to "%.1f".format(locale, size / MIB), "free" to "%.1f".format(locale, free / MIB))
         sender.say(
             Component.join(
@@ -44,24 +45,22 @@ class ExportAction(private val services: TracelServices) {
 
     /** Exports the current `Tracel` database snapshot to a file in the export directory. */
     fun executeExport(sender: CommandSender) {
-        val name = "database-%s.tracel".format(LocalDateTime.now().format(STAMP))
-        val to = services.exportDirectory.resolve(name)
-
         if (!running.compareAndSet(false, true)) return sender.send("common.busy")
         stopping.set(false)
         sender.send("export.start")
 
         services.scope.launch {
             val done = try {
-                runCatching { services.store.exportTo(to, stopping::get) }
+                services.commandApi.admin.export(stopping::get)
             } finally {
                 running.set(false)
             }
-            done.onSuccess { sender.say(report(it, localeOf(sender))) }
-                .onFailure {
-                    if (it is StoppedByRequest) sender.send("export.stopped")
-                    else sender.fail("export.failed", it)
-                }
+            when (done) {
+                is Res.Ok -> sender.say(report(done.value, localeOf(sender)))
+                is Res.Err ->
+                    if (done.error == AdminError.Stopped) sender.send("export.stopped")
+                    else sender.fail("export.failed", done.error)
+            }
         }
     }
 
@@ -78,7 +77,7 @@ class ExportAction(private val services: TracelServices) {
         return runCatching { Files.getFileStore(existing ?: directory).usableSpace }.getOrDefault(0L)
     }
 
-    private fun report(summary: ExportSummary, locale: Locale): Component {
+    private fun report(summary: TransferSummary, locale: Locale): Component {
         val file = summary.file.fileName.toString()
         val lines = mutableListOf(
             tr("export.done"),
@@ -86,7 +85,7 @@ class ExportAction(private val services: TracelServices) {
             tr("common.label.database", "file" to file),
             tr("common.label.size", "size" to "%.1f".format(locale, summary.bytes / MIB)),
         )
-        records("common.label.records", summary.oldest, summary.newest, locale)?.let { lines += it }
+        records("common.label.records", summary.oldest?.toEpochMilli(), summary.newest?.toEpochMilli(), locale)?.let { lines += it }
         lines += tr("common.label.rows", "rows" to "%,d".format(locale, summary.rows))
         lines += Component.empty()
 
@@ -99,17 +98,15 @@ class ExportAction(private val services: TracelServices) {
         return Component.join(JoinConfiguration.newlines(), lines)
     }
 
-    private fun CommandSender.fail(key: String, reason: Throwable) {
-        val cause = when {
-            reason is AccessDeniedException || reason is ReadOnlyFileSystemException ->
-                Cause("common.reason.denied", "common.hint.denied", "folder" to services.exportDirectory.toString())
+    private fun CommandSender.fail(key: String, error: AdminError) {
+        val cause = when (error) {
+            is AdminError.Denied ->
+                Cause("common.reason.denied", "common.hint.denied", "folder" to error.folder.toString())
 
-            reason is FileSystemException && reason.reason?.contains("No space left") == true ->
-                Cause("common.reason.no_space", "common.hint.no_space")
-
+            AdminError.NoSpace -> Cause("common.reason.no_space", "common.hint.no_space")
             else -> null
         }
-        if (cause == null) fail(key, Component.text(unexpected(reason)), tr("common.hint.unknown"))
+        if (cause == null) fail(key, Component.text(error.describe()), tr("common.hint.unknown"))
         else fail(key, tr(cause.reason, *cause.args), tr(cause.hint))
     }
 
@@ -128,7 +125,5 @@ class ExportAction(private val services: TracelServices) {
             fun at(millis: Long) = stamp.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
             return tr(key, "from" to at(oldest), "to" to at(newest))
         }
-
-        val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss")
     }
 }

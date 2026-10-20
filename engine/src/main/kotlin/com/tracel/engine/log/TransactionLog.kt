@@ -1,5 +1,6 @@
 package com.tracel.engine.log
 
+import com.tracel.model.item.ItemKey
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.log.Seq
@@ -16,6 +17,9 @@ public interface TransactionLog {
 
     /** Transactions that [filter] lets through, newest first, after its offset and up to its limit. */
     public suspend fun query(filter: LookupFilter): List<Transaction>
+
+    /** Every item key a transaction has ever moved, each once. */
+    public suspend fun itemKeys(): List<ItemKey>
 
     /** The lots the transaction at [seq] moved, with what each moved of them; empty if there is no such transaction. */
     public suspend fun lotsAt(seq: Seq): List<FlowLot>

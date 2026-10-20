@@ -1,5 +1,6 @@
 package com.tracel.plugin.config.migrate
 
+import com.tracel.platform.Versions
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -47,6 +48,22 @@ class TomlMigratorTest {
         assertTrue("auto-purge = true\n\n# how long\nkeep-blocks = \"90d\"" in out)
         assertTrue(out.indexOf("[status]") < out.indexOf("[version]"))
         assertTrue(out.trimEnd().endsWith("version = 2"))
+    }
+
+    @Test
+    fun `a new section lands above the one it names`() {
+        val steps = listOf(FileStep(2, listOf(Change.AddKey("status", "enabled", "true", before = "purge"))))
+        val out = TomlMigrator.migrate(TomlMigrator.migrate(legacy, 1, emptyList()).text, 2, steps).text
+        assertTrue("entity-restore-limit = 100\n\n[status]\nenabled = true\n\n[purge]" in out)
+    }
+
+    @Test
+    fun `a config from before every step migrates into the shipped one`() {
+        val shipped = javaClass.getResource("/config.toml")!!.readText()
+        val before = shipped.replace(Regex("(?ms)^\\[api]\\n.*?\\n\\n(?=\\[)"), "")
+        assertNotEquals(shipped, before)
+        val out = TomlMigrator.migrate(before, Versions.Format.CONFIG, FileVersions.CONFIG_STEPS).text
+        assertEquals(shipped.trimEnd(), out.substringBefore("\n[version]").trimEnd())
     }
 
     @Test

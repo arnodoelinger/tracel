@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.highlight
 
-import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.api.rollback.PlannedBlock
 import com.tracel.plugin.adapter.block.BlockDataCache
 import io.papermc.paper.math.Position
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
@@ -28,20 +28,20 @@ internal class Highlights(private val plugin: Plugin) {
     }
 
     /**
-     * Shows what the rollback would do to [player] alone, for [seconds]: [create] steps put blocks back, [destroy]
-     * steps take them away. Only blocks; entities and items have no ghost.
+     * Shows what the rollback would do to [player] alone, for [seconds]: each of [changes] is a block it sets.
+     * Only blocks; entities and items have no ghost.
      *
      * @return how many blocks were drawn.
      */
     @Suppress("UnstableApiUsage")
-    fun ghost(player: Player, create: List<StructureStep>, destroy: List<StructureStep>, seconds: Int): Int {
+    fun ghost(player: Player, changes: List<PlannedBlock>, seconds: Int): Int {
         val world = player.world
         val drawn = LinkedHashMap<Location, Entry>()
-        for (step in create.asSequence() + destroy.asSequence()) {
-            val set = step as? StructureStep.SetBlock ?: continue
-            val target = BlockDataCache.of(set.target.data) ?: continue
-            val was = BlockDataCache.of(set.expected.data) ?: continue
-            val at = Location(world, set.at.x.toDouble(), set.at.y.toDouble(), set.at.z.toDouble())
+        for (change in changes) {
+            val target = BlockDataCache.of(change.becomes) ?: continue
+            val was = BlockDataCache.of(change.was) ?: continue
+            val place = change.place
+            val at = Location(world, place.x.toDouble(), place.y.toDouble(), place.z.toDouble())
             drawn[at] = Entry(at, target, was)
         }
         if (drawn.isEmpty()) return 0

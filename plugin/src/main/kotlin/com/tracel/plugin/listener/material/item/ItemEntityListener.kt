@@ -20,8 +20,8 @@ import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.drop.ContainerDrop
 import com.tracel.plugin.listener.support.drop.CraftDrop
-import com.tracel.plugin.listener.support.entity.HitActor
-import com.tracel.plugin.listener.support.entity.damageBlame
+import com.tracel.plugin.actor.blame.HitActor
+import com.tracel.plugin.actor.blame.damageBlame
 import com.tracel.plugin.listener.support.flow.CREATIVE_SINK
 import com.tracel.plugin.listener.support.flow.CREATIVE_SOURCE
 import com.tracel.plugin.listener.support.flow.DESTROYED_SINK

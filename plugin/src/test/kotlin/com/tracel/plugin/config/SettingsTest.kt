@@ -214,4 +214,16 @@ class SettingsTest {
         assertTrue(readSettings(advanced = null).updates.check)
         assertFalse(readSettings(advanced = null, updates = Toml.parse("check = false")).updates.check)
     }
+
+    @Test
+    fun `excused slowpokes are addon IDs in any case, and a non-list excuses nobody`() {
+        val listed = readSettings(advanced = null, api = Toml.parse("excuse-slowpokes = [\"Backpacks\"]"), complain = complaints::add)
+        assertTrue(listed.api.excuses("backpacks"))
+        assertFalse(listed.api.excuses("eco"))
+        assertTrue(complaints.isEmpty())
+
+        val wrong = readSettings(advanced = null, api = Toml.parse("excuse-slowpokes = \"backpacks\""), complain = complaints::add)
+        assertFalse(wrong.api.excuses("backpacks"))
+        assertEquals(1, complaints.size)
+    }
 }

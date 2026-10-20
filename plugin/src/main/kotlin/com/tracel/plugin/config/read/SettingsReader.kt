@@ -1,11 +1,13 @@
 package com.tracel.plugin.config.read
 
+import com.tracel.api.access.Grant
 import com.tracel.engine.store.PurgeCategory
 import com.tracel.engine.store.StoreSettings
 import com.tracel.plugin.command.args.time.TimeArgument
 import com.tracel.plugin.config.*
 import com.tracel.plugin.governor.GovernorSettings
 import com.tracel.plugin.integration.privatebin.PrivateBin
+import org.tomlj.TomlArray
 import org.tomlj.TomlTable
 import java.net.URI
 
@@ -28,6 +30,7 @@ internal fun readSettings(
     purge: TomlTable? = null,
     logging: TomlTable? = null,
     updates: TomlTable? = null,
+    api: TomlTable? = null,
 ): Settings {
     val defaults = StoreSettings()
 
@@ -120,7 +123,44 @@ internal fun readSettings(
         paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
         updates = UpdateSettings(checkUpdates),
         autoPurge = AutoPurgeSettings(autoPurge, purgeInterval, keep),
+        api = ApiSettings(
+            readGrants(api, complain),
+            readSlowpokes(api, complain),
+            api.setting("api", "allow-destructive", false, complain) { it as? Boolean },
+        ),
     )
+}
+
+private fun readSlowpokes(api: TomlTable?, complain: (String) -> Unit): Set<String> {
+    val raw = api?.get("excuse-slowpokes") ?: return emptySet()
+    val names = (raw as? TomlArray)?.toList() ?: run {
+        complain("api.excuse-slowpokes: \"$raw\" is not a list of addon IDs; nobody is excused.")
+        return emptySet()
+    }
+    return names.mapTo(HashSet()) { it.toString().lowercase() }
+}
+
+private fun readGrants(api: TomlTable?, complain: (String) -> Unit): Map<String, Set<Grant>> {
+    val raw = api?.get("grants") ?: return emptyMap()
+    val table = raw as? TomlTable ?: run {
+        complain("api.grants: \"$raw\" is not a table of plugin names; every plugin keeps every grant.")
+        return emptyMap()
+    }
+    val out = HashMap<String, Set<Grant>>()
+    for (plugin in table.keySet()) {
+        val names = (table.get(listOf(plugin)) as? TomlArray)?.toList() ?: run {
+            complain("api.grants.$plugin: not a list of grants like [\"rollback\"]; it gets none.")
+            continue
+        }
+        out[plugin.lowercase()] = names.mapNotNullTo(HashSet()) { name ->
+            Grant.named(name.toString()) ?: run {
+                val known = Grant.entries.joinToString { it.configName }
+                complain("api.grants.$plugin: \"$name\" is not a grant; the grants are $known.")
+                null
+            }
+        }
+    }
+    return out
 }
 
 private fun <T> TomlTable?.setting(
@@ -132,6 +172,6 @@ private fun <T> TomlTable?.setting(
 ): T {
     val raw = this?.get(key) ?: return default
     parse(raw)?.let { return it }
-    complain("$section.$key: \"$raw\" is not a value Tracel can use; keeping the default ($default)")
+    complain("$section.$key: \"$raw\" is not a value Tracel can use; keeping the default ($default).")
     return default
 }

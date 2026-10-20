@@ -21,6 +21,7 @@ import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
 import com.tracel.engine.rollback.job.record.RollbackJobRepository
 import com.tracel.engine.rollback.journal.Journal
+import com.tracel.engine.rollback.outside.OutsideSteps
 import com.tracel.engine.rollback.plan.WorldQuery
 import com.tracel.engine.store.Counters
 import com.tracel.engine.store.StoreAdmin
@@ -31,6 +32,9 @@ import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.plugin.adapter.rollback.structure.rescue.rescueJoined
 import com.tracel.plugin.adapter.world.playerIsOnline
+import com.tracel.plugin.api.CommandApi
+import com.tracel.plugin.api.addon.Extensions
+import com.tracel.plugin.api.rollback.Borrows
 import com.tracel.plugin.capture.MaterialCapture
 import com.tracel.plugin.capture.PendingCaptures
 import com.tracel.plugin.capture.ShapeCapture
@@ -49,6 +53,8 @@ import com.tracel.plugin.listener.support.guard.SelfManagedWorldGuard
 import com.tracel.plugin.listener.support.guard.SpawnGuard
 import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
 import com.tracel.plugin.rollback.RollbackGenius
+import com.tracel.plugin.rollback.outside.OutsideRollbacks
+import com.tracel.plugin.rollback.SignaledRollbacks
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.structure.StructureRestorer
@@ -80,6 +86,7 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param jobs stores rollback jobs
  * @param undo coordinates involution jobs
  * @param undoJournal which undo steps already ran, plus whether their items went back
+ * @param outside what addons were told about their records a rollback took back
  * @param pendingDeliveries stores pending item deliveries
  * @param unit the unit of work every write runs in
  * @param store what an operator can do to the stored history
@@ -96,6 +103,7 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param paste where a lookup export goes
  * @param forwardCompatible server Minecraft is newer than the newest tested release
  * @param logging which kinds of history are written
+ * @param api what other plugins may do through the API
  */
 class TracelServices(
     val plugin: Plugin,
@@ -115,6 +123,7 @@ class TracelServices(
     val gate: CaptureGate,
     val events: EventLog,
     val rolledBack: RolledBack,
+    val outside: OutsideSteps,
     val foreign: ForeignHistory,
     val groundPositions: GroundPositions,
     val worldLog: WorldLog,
@@ -127,6 +136,7 @@ class TracelServices(
     val paste: PasteSettings = PasteSettings(),
     val forwardCompatible: Boolean = false,
     val logging: LoggingSettings = LoggingSettings(),
+    val api: ApiSettings = ApiSettings(),
 
     governorSettings: GovernorSettings = GovernorSettings(),
 
@@ -165,7 +175,11 @@ class TracelServices(
     val restorer: MaterialRestorer = MaterialRestorer(this)
     val selfManagedWorld: SelfManagedWorldGuard = SelfManagedWorldGuard()
     val structureRestorer: StructureRestorer = StructureRestorer(this)
-    val composite: RollbackGenius = RollbackComposer(this, structureRestorer, restorer, restorer)
+    val composite: RollbackGenius =
+        SignaledRollbacks(
+            OutsideRollbacks(this, RollbackComposer(this, structureRestorer, restorer, restorer), Extensions.live),
+            Extensions.live,
+        )
     val redstoneTriggers: RedstoneTrigger = RedstoneTrigger()
     val whereabouts: EntityWhereabouts = EntityWhereabouts(capacity = WHEREABOUTS_KEPT)
     val groundWhereabouts: GroundWhereabouts = GroundWhereabouts(groundPositions)
@@ -176,6 +190,8 @@ class TracelServices(
     val inspectors: InspectorState = InspectorState()
     val lookup: LookupAction by lazy { LookupAction(this) }
     val coreProtectImport: CoreProtectImportAction by lazy { CoreProtectImportAction(this) }
+    internal val borrows: Borrows = Borrows()
+    internal val commandApi: CommandApi by lazy { CommandApi(this) }
     val pendingCaptures: PendingCaptures = PendingCaptures()
     val frozen: FreezeGuard = FreezeGuard()
     internal val fluidFreeze: FluidFreeze = FluidFreeze()

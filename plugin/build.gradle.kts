@@ -8,7 +8,14 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+kotlin {
+    compilerOptions {
+        optIn.addAll("com.tracel.api.Unstable", "com.tracel.api.Internal")
+    }
+}
+
 dependencies {
+    implementation(project(":api"))
     implementation(project(":model"))
     implementation(project(":engine"))
     implementation(project(":platform"))

@@ -99,6 +99,7 @@
     "busy": "Другая задача уже выполняется... Дождитесь её завершения",
     "no_permission": "У вас нет прав на эту команду",
     "invalid": "<token> — недопустимый аргумент, смотрите подсказки, что разрешено",
+    "invalid_value": "<token> — недопустимо: <reason>",
     "nothing": "ничего, что мы бы могли сделать",
     "label": {
       "info": "<gray>Инфо</gray>: <info>",
@@ -345,7 +346,8 @@
       "restored": "<green>возвращено <count></green>",
       "removed": "<red>убрано <count></red>",
       "returned": "<aqua>предметов возвращено: <count></aqua>",
-      "uncrafted": "<aqua>раскрафчено <count></aqua>"
+      "uncrafted": "<aqua>раскрафчено <count></aqua>",
+      "outside": "<light_purple>записей аддонов отменено: <count></light_purple>"
     },
     "join": {
       "and": " и ",
@@ -671,7 +673,8 @@
     "block": "блок <x>, <y>, <z>",
     "player": "игрок <name>",
     "entity_gone": "сущность",
-    "placed_entity": "поставленная сущность <uuid>"
+    "placed_entity": "поставленная сущность <uuid>",
+    "plugin": "<name> (плагин)"
   },
   "command": {
     "lookup": "Просмотр истории мира",
@@ -777,7 +780,8 @@
       "world": "Мир",
       "item": "Предмет",
       "block": "Блок",
-      "action": "Действие или причина, через запятую"
+      "action": "Действие или причина, через запятую",
+      "addon": "Добавлено аддоном <addon>"
     },
     "preset_replace": "Заменит этот пресет",
     "preset_name": "Имя нового пресета"

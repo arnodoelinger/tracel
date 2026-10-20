@@ -6,6 +6,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
+import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.item.namesMaterial
 import com.tracel.model.log.LogKind
@@ -187,7 +188,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         if (ids.matchesNothing) return@read emptyList()
         val holderIds = ids.holders
 
-        val materialIds = filter.material?.let { itemKeyIdsFor(this, it) }
+        val materialIds = itemKeyIdsFor(this, filter)
         if (materialIds != null && materialIds.isEmpty()) return@read emptyList()
 
         val region = filter.region
@@ -240,7 +241,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
 
     internal fun loadSeqs(unit: StorageUnit, seqs: LongArray, filter: LookupFilter): List<Transaction> {
         val ids = interning.idsFor(unit, filter)
-        val materialIds = filter.material?.let { itemKeyIdsFor(unit, it) }
+        val materialIds = itemKeyIdsFor(unit, filter)
         if (seqs.isEmpty()) return emptyList()
         val accepted = pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
             QueryProbe.opened(slice.size.toLong())
@@ -266,6 +267,29 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val out = ArrayList<Transaction>(n)
         for (i in n - 1 downTo 0) out += slots[i]!!
         return out
+    }
+
+    /**
+     * Interned IDs of the item keys [filter] asks for: its exact keys, or else its material;
+     * `null` for any.
+     */
+    internal fun itemKeyIdsFor(unit: StorageUnit, filter: LookupFilter): Set<Int>? {
+        val keys = filter.itemKeys
+        val material = filter.material
+        if (keys.isEmpty() && material == null) return null
+        val out = HashSet<Int>()
+        unit.eachRow(byteArrayOf(Keys.INTERN_FORWARD, Keys.NS_ITEM_KEY)) { cursor ->
+            val key = Packed.decodeItemKey(cursor.value())
+            val wanted = if (keys.isNotEmpty()) key in keys else material != null && key.material.namesMaterial(material)
+            if (wanted) out += KeyReader.u32(cursor.key(), 2)
+        }
+        return out
+    }
+
+    override suspend fun itemKeys(): List<ItemKey> = storage.read {
+        val out = ArrayList<ItemKey>()
+        eachRow(byteArrayOf(Keys.INTERN_FORWARD, Keys.NS_ITEM_KEY)) { cursor -> out += Packed.decodeItemKey(cursor.value()) }
+        out
     }
 
     private fun StorageUnit.accepts(
@@ -380,16 +404,6 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
     }
 
     private data class HolderBlock(val worldId: Int, val x: Int, val y: Int, val z: Int)
-
-    internal fun itemKeyIdsFor(unit: StorageUnit, material: String): Set<Int> {
-        val out = HashSet<Int>()
-        unit.eachRow(byteArrayOf(Keys.INTERN_FORWARD, Keys.NS_ITEM_KEY)) { cursor ->
-            if (Packed.decodeItemKey(cursor.value()).material.namesMaterial(material)) {
-                out += KeyReader.u32(cursor.key(), 2)
-            }
-        }
-        return out
-    }
 
     private fun index(unit: StorageUnit, holder: HolderId, seq: Long, epochMillis: Long, cause: CauseKind) {
         val world: WorldId

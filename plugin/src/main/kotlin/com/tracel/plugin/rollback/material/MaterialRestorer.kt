@@ -12,6 +12,7 @@ import com.tracel.plugin.adapter.rollback.material.census.locateDestinations
 import com.tracel.plugin.adapter.rollback.material.restoreDeltas
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
+import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.survey.WorldCensus
 import com.tracel.plugin.services.TracelServices
@@ -29,7 +30,8 @@ class MaterialRestorer(internal val services: TracelServices) : MaterialHalf, Wo
     override fun deltasForUndo(steps: List<InvolutionStep>, noise: Set<LotId>): Map<HolderId, Map<ItemKey, Long>> =
         undoDeltas(steps, noise)
 
-    override fun preflight(deltas: Map<HolderId, Map<ItemKey, Long>>): PreflightResult = preflightWorlds(deltas)
+    override fun preflight(deltas: Map<HolderId, Map<ItemKey, Long>>): PreflightResult =
+        preflightAddons(deltas).takeIf { it is Unreachable } ?: preflightWorlds(deltas)
 
     override suspend fun vanishedEntities(holders: Set<HolderId>): Set<HolderId> =
         findVanished(holders)

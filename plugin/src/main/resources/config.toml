@@ -53,6 +53,26 @@ paste-burn = false
 # Look for a newer Tracel version
 check = true
 
+[api]
+# What other plugins may do through the Tracel API, by plugin name
+# By default, every plugin may do everything, but a plugin listed here may do
+# only what its list names
+# rollback = roll back, preview and undo
+# attribute = change blocks, give items and record events
+# quiet = change the world without logging it
+# e.g., grants = { Arena = ["attribute"], Shop = [] }
+grants = {}
+
+# Addons that keep running however slow they are, by addon ID
+# Normally an addon that keeps Tracel waiting over a second, or hangs for five, is
+# thrown out until the next restart; one listed here is only named in the log
+# For when the addon is slow and its author is slower
+# e.g., excuse-slowpokes = ["backpacks"]
+excuse-slowpokes = []
+
+# Lets plugins purge or replace your history through the API. There is no undoing it
+allow-destructive = false
+
 [advanced]
 # How often Tracel forces pending history to disk
 # "every-batch" = saves every commit safely before continuing

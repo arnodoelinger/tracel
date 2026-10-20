@@ -1,5 +1,6 @@
 package com.tracel.plugin.command.preset
 
+import com.tracel.plugin.command.args.lookup.FlagHere
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.lookup.filledFrom
 import com.tracel.plugin.command.args.lookup.parseLookupArgs
@@ -17,15 +18,16 @@ internal fun parseWithPresets(
     owner: UUID?,
     store: PresetStore?,
     now: Long,
+    here: FlagHere = FlagHere.NOWHERE,
 ): ParsedLookupArgs {
     val (refs, typed) = tokens.partition { it.startsWith("@") && it.length > 1 }
-    var result = parseLookupArgs(typed, now)
+    var result = parseLookupArgs(typed, now, here)
     for (ref in refs) {
         val preset = store?.find(ref.substring(1), owner)
         result = if (preset == null) {
             result.copy(errors = result.errors + tr("preset.reason.missing", "name" to ref.substring(1).lowercase()))
         } else {
-            result.filledFrom(parseLookupArgs(preset.tokens, now))
+            result.filledFrom(parseLookupArgs(preset.tokens, now, here))
         }
     }
     return result

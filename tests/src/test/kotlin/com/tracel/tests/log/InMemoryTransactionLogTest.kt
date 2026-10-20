@@ -8,6 +8,8 @@ import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
+import com.tracel.model.item.ContentHash
+import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.log.Seq
 import com.tracel.model.transaction.Transaction
@@ -179,5 +181,27 @@ class InMemoryTransactionLogTest {
         assertEquals(listOf(txns[4], txns[3]), page1)
         assertEquals(listOf(txns[2], txns[1]), page2)
         assertEquals(listOf(txns[0]), page3)
+    }
+
+    @Test
+    fun `exact item keys find one decoration and leave its plain twin out`() = runTest {
+        val log = InMemoryTransactionLog(NamespacedNames)
+        val chest = block(0, 64, 0)
+        val steve = player(1)
+        val ruby = ItemKey("minecraft:paper", ContentHash("ab12"))
+        val paper = ItemKey("minecraft:paper")
+        for ((n, key) in listOf(ruby, paper).withIndex()) {
+            log.append(
+                Transaction(
+                    TxnId(n + 1L), Seq(n + 1L), 1_000L + n, CauseKind.PLAYER_ACTION, steve,
+                    listOf(Flow(key, Quantity(1), chest, steve, FlowKind.MOVE)),
+                ),
+            )
+        }
+
+        val found = log.query(LookupFilter(material = "itemsadder:ruby", itemKeys = setOf(ruby)))
+
+        assertEquals(listOf(ruby), found.flatMap { txn -> txn.flows.map { it.itemKey } })
+        assertEquals(setOf(ruby, paper), log.itemKeys().toSet())
     }
 }

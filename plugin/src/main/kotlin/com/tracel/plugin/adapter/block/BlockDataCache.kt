@@ -16,16 +16,22 @@ object BlockDataCache {
     private val unparseable = ConcurrentHashMap.newKeySet<String>()
 
     /** @return the parsed block state for [key], or `null` if it cannot be parsed. */
-    fun of(key: BlockDataKey): BlockData? {
-        parsed[key.value]?.let { return it }
-        if (key.value in unparseable) return null
+    fun of(key: BlockDataKey): BlockData? = of(key.value)
 
-        val data = runCatching { Bukkit.createBlockData(key.value) }.getOrNull()
+    /**
+     * @return the parsed block state for [value], as `Bukkit.createBlockData` reads it,
+     * or `null` if it cannot be.
+     */
+    fun of(value: String): BlockData? {
+        parsed[value]?.let { return it }
+        if (value in unparseable) return null
+
+        val data = runCatching { Bukkit.createBlockData(value) }.getOrNull()
         if (data == null) {
-            unparseable += key.value
+            unparseable += value
             return null
         }
-        parsed[key.value] = data
+        parsed[value] = data
         return data
     }
 }

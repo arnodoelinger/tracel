@@ -1,21 +1,22 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.engine.log.lookup.LookupFilter
-import com.tracel.engine.log.lookup.LookupRegion
-import com.tracel.model.cause.CauseKind
+import com.tracel.api.history.HistoryQuery
+import com.tracel.api.history.RecordKind
+import com.tracel.api.result.Res
+import com.tracel.api.world.BlockPlace
+import com.tracel.api.world.LookupArea
 import com.tracel.model.event.EventKind
-import com.tracel.model.holder.HolderId
-import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.command.resolvePlayerUuid
-import com.tracel.plugin.adapter.world.toLookupRegion
-import com.tracel.plugin.adapter.world.toWorldId
+import com.tracel.plugin.api.addon.Extensions
+import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.command.action.support.LookupSearch
+import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.command.args.action.ActionArgument
-import com.tracel.plugin.command.args.action.ActionFilter
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
+import com.tracel.plugin.command.args.lookup.lookupQuery
 import com.tracel.plugin.command.args.scope.actionProblems
+import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.scope.scopeProblem
-import com.tracel.plugin.command.args.support.MaterialAliases
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.i18n.*
@@ -67,7 +68,10 @@ class LookupAction(private val services: TracelServices) {
         sender.send("lookup.export.start")
         services.scope.launch {
             val done = runCatching {
-                val stacks = search.all()
+                val stacks = when (val read = search.all()) {
+                    is Res.Ok -> read.value
+                    is Res.Err -> error(read.error.describe())
+                }
                 if (stacks.isEmpty()) return@runCatching null
                 val text =
                     ChangeLinePresenter.document(stacks, search.parsed.command, System.currentTimeMillis(), MAX_LINES)
@@ -89,18 +93,17 @@ class LookupAction(private val services: TracelServices) {
 
     /** What the inspector shows for a click on [block]: the lookup of that one block, pages and all. */
     fun inspect(sender: CommandSender, block: Block, entity: Entity? = null) {
-        val world = WorldId(block.world.uid)
-        val region = LookupRegion(
-            world,
-            block.x shr 4, block.x shr 4, block.z shr 4, block.z shr 4,
-            block.x, block.x, block.y, block.y, block.z, block.z,
-        )
-        val filter = LookupFilter(region = region, world = world, limit = Int.MAX_VALUE)
+        val place = BlockPlace.of(block)
         val parsed = ParsedLookupArgs(anchor = block.location, command = "lookup block", all = true, turnings = true)
-        val events = entity?.let { LookupFilter(world = world, entity = it.uniqueId, limit = Int.MAX_VALUE) } ?: filter
-        runLookup(
-            sender, filter, parsed, ActionArgument.parse(emptySet()), EventKind.entries.toSet() - INSPECT_HIDDEN, events,
+        val shown = HistoryQuery(area = LookupArea.of(place), natural = true)
+        val said = EventKind.entries.toSet() - INSPECT_HIDDEN
+        val events = shown.copy(
+            kinds = setOf(RecordKind.EVENT),
+            events = said.mapTo(HashSet(), ApiConversions::event),
+            area = if (entity == null) shown.area else LookupArea.World(place.world),
+            entity = entity?.uniqueId,
         )
+        runLookup(sender, listOf(shown, events), parsed, Extensions.live.inspect(place))
     }
 
     /** Executes lookup. */
@@ -137,35 +140,23 @@ class LookupAction(private val services: TracelServices) {
             return
         }
 
-        val filter = LookupFilter(
-            holders = users.map(HolderId::Player).toSet(),
-            material = parsed.item?.let { MaterialAliases.resolve(it).first },
-            blockMaterials = parsed.item?.let { MaterialAliases.resolve(it).second }.orEmpty(),
-            causes = actions.causes,
-            excludedCauses = if (parsed.natural) emptySet() else CauseKind.NATURAL_CAUSES - actions.causes,
-            worldCauses = actions.worldCauses,
-            actions = actions.actions,
-            since = parsed.since,
-            until = parsed.until,
-            region = center?.toLookupRegion(scope, parsed.horizontalOnly),
-            world = named.toWorldId(),
-            limit = Int.MAX_VALUE,
-        )
+        val area = areaOf(center, scope, parsed.horizontalOnly, named)
+        val events = if (parsed.all && parsed.actions.isEmpty()) EventKind.entries.toSet() else actions.events
+        val query = parsed.lookupQuery(users, actions, area, events)
 
-        runLookup(sender, filter, parsed.copy(anchor = center), actions)
+        runLookup(sender, listOf(query), parsed.copy(anchor = center))
     }
 
-    private fun show(sender: CommandSender, search: LookupSearch, page: Int) {
+    private fun show(sender: CommandSender, search: LookupSearch, page: Int, extra: List<Component> = emptyList()) {
         services.scope.launch {
-            val view = try {
-                search.page(page)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                sender.failed("lookup.failed", Component.text(unexpected(failure)), tr("lookup.hint.again"))
-                return@launch
+            val view = when (val read = search.page(page)) {
+                is Res.Ok -> read.value
+                is Res.Err -> return@launch sender.failed(
+                    "lookup.failed", Component.text(read.error.describe()), tr("lookup.hint.again"),
+                )
             }
             LookupPresenter.render(sender, view, search)
+            extra.forEach(sender::sendMessage)
         }
     }
 
@@ -174,26 +165,15 @@ class LookupAction(private val services: TracelServices) {
 
     private fun runLookup(
         sender: CommandSender,
-        filter: LookupFilter,
+        queries: List<HistoryQuery>,
         parsed: ParsedLookupArgs,
-        actions: ActionFilter,
-        kinds: Set<EventKind>? = null,
-        eventFilter: LookupFilter = filter,
+        extra: List<Component> = emptyList(),
     ) {
         services.scope.launch {
-            val flushed = services.flushCapture()
-            val search = LookupSearch(
-                services = services,
-                filter = filter,
-                eventFilter = eventFilter,
-                parsed = parsed,
-                blocks = actions.structural && !parsed.materialOnly,
-                items = actions.material && !parsed.structureOnly,
-                flushed = flushed,
-                events = kinds ?: if (parsed.all && parsed.actions.isEmpty()) EventKind.entries.toSet() else actions.events,
-            )
+            val flushed = services.commandApi.reads.settle()
+            val search = LookupSearch(services.commandApi.reads, queries, parsed, flushed)
             searches[key(sender)] = search
-            show(sender, search, parsed.page)
+            show(sender, search, parsed.page, extra)
         }
     }
 }

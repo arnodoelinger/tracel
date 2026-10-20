@@ -99,6 +99,7 @@
     "busy": "Another job is running... Wait for it to finish",
     "no_permission": "You don't have permission to use this command",
     "invalid": "<token> is not a valid argument — see suggestions to see what is allowed",
+    "invalid_value": "<token> is not valid — <reason>",
     "nothing": "there's nothing we can do",
     "label": {
       "info": "<gray>Info</gray>: <info>",
@@ -345,7 +346,8 @@
       "restored": "<green><count> restored</green>",
       "removed": "<red><count> removed</red>",
       "returned": "<aqua><count> item(s) returned</aqua>",
-      "uncrafted": "<aqua><count> uncrafted</aqua>"
+      "uncrafted": "<aqua><count> uncrafted</aqua>",
+      "outside": "<light_purple><count> addon record(s) taken back</light_purple>"
     },
     "join": {
       "and": " and ",
@@ -671,7 +673,8 @@
     "block": "block <x>, <y>, <z>",
     "player": "player <name>",
     "entity_gone": "entity",
-    "placed_entity": "placed entity <uuid>"
+    "placed_entity": "placed entity <uuid>",
+    "plugin": "<name> (plugin)"
   },
   "command": {
     "lookup": "Browse world history",
@@ -777,7 +780,8 @@
       "world": "World",
       "item": "Item",
       "block": "Block",
-      "action": "Action or cause, comma-separated"
+      "action": "Action or cause, comma-separated",
+      "addon": "Added by <addon>"
     },
     "preset_replace": "Replaces this preset",
     "preset_name": "Name for the new preset"

@@ -1,6 +1,7 @@
 package com.tracel.plugin.command.tree
 
 import com.tracel.plugin.command.action.LookupAction
+import com.tracel.plugin.command.args.lookup.FlagHere
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.LookupScope
 import com.tracel.plugin.command.preset.PresetStore
@@ -44,6 +45,7 @@ internal fun parsePresetted(sender: CommandSender, tokens: List<String>, store: 
     (sender as? Player)?.uniqueId,
     store,
     System.currentTimeMillis(),
+    FlagHere((sender as? Player)?.world?.uid, (sender as? Player)?.uniqueId),
 )
 
 /** These arguments with the command line that produced them, minus the page, so it can be run again. */

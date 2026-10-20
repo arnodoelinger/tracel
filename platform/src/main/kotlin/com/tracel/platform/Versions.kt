@@ -49,7 +49,7 @@ public object Versions {
          *
          * Bump it together with a step in `FileVersions.CONFIG_STEPS` and `config.yml` file.
          */
-        public const val CONFIG: Int = 1
+        public const val CONFIG: Int = 2
 
         /** Preset version. */
         public const val PRESETS: Int = 1

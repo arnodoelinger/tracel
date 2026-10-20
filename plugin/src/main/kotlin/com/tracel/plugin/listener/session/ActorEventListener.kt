@@ -10,7 +10,7 @@ import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.block.toBlockPos
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.entity.HitActor
+import com.tracel.plugin.actor.blame.HitActor
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.concurrent.ExpiringMap
 import io.papermc.paper.event.player.AsyncChatEvent

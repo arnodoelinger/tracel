@@ -16,7 +16,9 @@ import com.tracel.plugin.actor.PlayerModes
 import com.tracel.plugin.actor.PlayerSessions
 import com.tracel.plugin.adapter.item.PendingItemForms
 import com.tracel.plugin.adapter.world.playerIsOnline
-import com.tracel.plugin.command.args.scope.ScopeLimits
+import com.tracel.plugin.config.ScopeLimits
+import com.tracel.plugin.api.addon.Extensions
+import com.tracel.plugin.command.args.lookup.builtInFlags
 import com.tracel.plugin.command.suggest.order.CommandOrderListener
 import com.tracel.plugin.command.tree.TracelCommand
 import com.tracel.plugin.config.migrate.FileVersions
@@ -42,6 +44,7 @@ import com.tracel.plugin.setup.SetupListener
 import com.tracel.plugin.setup.SetupState
 import com.tracel.plugin.startup.version.MinecraftVersion
 import com.tracel.plugin.status.disk.DiskGuard
+import com.tracel.storage.ports.job.OutsideSteps
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.Drainer
@@ -102,6 +105,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         purge = config.getTable("purge"),
         logging = config.getTable("logging"),
         updates = config.getTable("updates"),
+        api = config.getTable("api"),
     )
     ScopeLimits.rollbackMaxBlocks = settings.rollbackMaxRadius
     val storage = TracelStorage.open(plugin.dataFolder.resolve("database").toPath(), settings.store)
@@ -164,6 +168,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         gate = CaptureGate(storage.ring),
         events = events,
         rolledBack = RolledBack(storage),
+        outside = OutsideSteps(storage),
         foreign = ForeignHistory(storage, worldLog, log, events, counters),
         groundPositions = GroundPositions(storage),
         worldLog = worldLog,
@@ -176,6 +181,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         governorSettings = settings.governor,
         logEntityDamage = settings.logEntityDamage,
         paste = settings.paste,
+        api = settings.api,
         forwardCompatible = forwardCompatible,
         logging = settings.logging,
     )
@@ -274,6 +280,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     registerObserved(modes, plugin)
     modes.noteOnline()
     registerObserved(PlayerSessions(actorWrites, actors), plugin)
+    Extensions.live.reservedFlags = builtInFlags()
     plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
         TracelCommand.register(event.registrar(), services)
     }

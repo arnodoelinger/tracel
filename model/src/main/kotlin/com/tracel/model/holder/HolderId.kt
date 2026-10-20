@@ -49,4 +49,19 @@ public sealed interface HolderId {
 
     /** Items leaving the ledger permanently. */
     public data class Sink(public val kind: SinkKind) : HolderId
+
+    /**
+     * Another plugin acting through the API, by its name.
+     *
+     * Holds nothing; it only ever causes.
+     */
+    public data class Plugin(public val name: String) : HolderId
+
+    /**
+     * Something an extension defines: a container, or someone who acts. [kind] names its type, `backpacks:backpack`,
+     * and [id] the one instance, in the extension's own spelling.
+     *
+     * Kept as text, so it outlives the extension that wrote it.
+     */
+    public data class Custom(public val kind: String, public val id: String) : HolderId
 }

@@ -1,9 +1,13 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.engine.log.lookup.LookupFilter
-import com.tracel.model.holder.HolderId
+import com.tracel.api.actor.Actor
+import com.tracel.api.history.HistoryCursor
+import com.tracel.api.history.HistoryQuery
+import com.tracel.api.history.HistoryRecord
+import com.tracel.api.result.Res
 import com.tracel.plugin.adapter.command.resolvePlayerUuid
-import com.tracel.plugin.adapter.world.toLookupRegion
+import com.tracel.plugin.command.action.support.describe
+import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.ScopeArgument
 import com.tracel.plugin.command.args.scope.scopeProblem
@@ -11,9 +15,6 @@ import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.PlayerReport
 import com.tracel.plugin.i18n.*
 import com.tracel.plugin.services.TracelServices
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -21,11 +22,13 @@ import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import java.time.Instant
 
 /** `/tracel player <name>`: what a player did, on one screen. */
 internal class PlayerAction(private val services: TracelServices) {
     private companion object {
         const val DEFAULT_WINDOW = 24L * 3_600_000
+        const val PAGE = 2_000
     }
 
     fun execute(sender: CommandSender, name: String, parsed: ParsedLookupArgs) {
@@ -46,28 +49,29 @@ internal class PlayerAction(private val services: TracelServices) {
             refuse(sender, it)
             return
         }
-        val filter = LookupFilter(
-            holders = setOf(HolderId.Player(uuid)),
-            since = since,
-            until = parsed.until,
-            region = center?.toLookupRegion(scope, parsed.horizontalOnly),
-            limit = Int.MAX_VALUE,
+        val query = HistoryQuery(
+            area = areaOf(center, scope, parsed.horizontalOnly, null),
+            since = Instant.ofEpochMilli(since),
+            until = parsed.until?.let(Instant::ofEpochMilli),
+            by = setOf(Actor.Player(uuid)),
+            natural = true,
         )
         services.scope.launch {
-            services.flushCapture()
-            val (txns, changes) = try {
-                coroutineScope {
-                    val t = async { services.reading { services.log.query(filter) } }
-                    val w = async { services.reading { services.worldLog.query(filter) } }
-                    t.await() to w.await()
+            val reads = services.commandApi.reads
+            reads.settle()
+            val found = ArrayList<HistoryRecord>()
+            var from: HistoryCursor? = null
+            do {
+                val page = when (val got = reads.history(query).page(from, PAGE)) {
+                    is Res.Ok -> got.value
+                    is Res.Err -> return@launch sender.failed(
+                        "player.failed", Component.text(got.error.describe()), tr("player.hint.again"),
+                    )
                 }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                sender.failed("player.failed", Component.text(unexpected(failure)), tr("player.hint.again"))
-                return@launch
-            }
-            val report = PlayerReport.of(uuid, changes, txns)
+                found += page.records
+                from = page.next
+            } while (from != null)
+            val report = PlayerReport.of(uuid, found)
             render(sender, name, now - since, report, scope?.let(ScopeArgument::describe))
         }
     }

@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.presenter.line
 
-import com.tracel.model.world.BlockPos
+import com.tracel.api.world.BlockPlace
 import net.kyori.adventure.text.Component
 import org.bukkit.GameMode
 
@@ -18,7 +18,7 @@ internal class LoggedLine(
     val quantity: Long = 1,
     val from: Component? = null,
     val to: Component? = null,
-    val at: BlockPos? = null,
+    val at: BlockPlace? = null,
     val mode: GameMode? = null,
     val net: LineNet? = null,
     val visit: Long? = null,

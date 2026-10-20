@@ -1,5 +1,6 @@
 package com.tracel.plugin.adapter.entity
 
+import com.tracel.plugin.actor.EntityKinds
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.OpaqueBytes
@@ -29,7 +30,7 @@ fun Entity.toBlockPos(): BlockPos =
  * into the world log and deliver a second copy on restore.
  */
 fun Entity.toShape(): EntityShape = EntityShape(
-    EntityTypeKey(type.key.asString()),
+    EntityKinds.keyOf(type),
     location.x,
     location.y,
     location.z,

@@ -1,13 +1,13 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.plugin.actor.ActorHolders
+import com.tracel.api.item.ItemHolder
+import com.tracel.api.rollback.RollbackApplied
+import com.tracel.api.rollback.RollbackReady
+import com.tracel.api.rollback.RollbackUndone
+import com.tracel.api.world.NamespacedName
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.i18n.*
-import com.tracel.plugin.rollback.result.outcome.Planned
-import com.tracel.plugin.rollback.result.outcome.RollbackResult
-import com.tracel.plugin.rollback.result.outcome.UndoResult
-import com.tracel.plugin.rollback.result.outcome.Unreachable
-import com.tracel.plugin.specifics.block.isAirLike
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
@@ -26,16 +26,15 @@ object RollbackPresenter {
         sender.failed("rollback.failed", reason, hint)
 
     /** Why a rollback or an undo stopped at a holder it could not reach. */
-    fun unreachable(outcome: Unreachable): Component = tr(
+    fun unreachable(holder: ItemHolder, reason: String): Component = tr(
         "rollback.reason.unreachable",
-        "holder" to ChangeLinePresenter.holder(outcome.holder),
-        "reason" to outcome.reason,
+        "holder" to ChangeLinePresenter.holder(ActorHolders.holderId(holder)),
+        "reason" to reason,
     )
 
     /** A preview of what a rollback would do, with a link to apply it. */
-    fun preview(sender: CommandSender, planned: Planned, halves: Component, ghosts: Int, ghostSeconds: Int) {
-        val composite = planned.composite
-        if (composite.isEmpty) {
+    fun preview(sender: CommandSender, ready: RollbackReady, halves: Component, ghosts: Int, ghostSeconds: Int) {
+        if (ready.isEmpty) {
             sender.send("rollback.nothing", "halves" to halves)
             return
         }
@@ -43,7 +42,7 @@ object RollbackPresenter {
             add(tr("rollback.preview.title"))
             add(Component.empty())
             if (ghosts > 0) add(info(tr("rollback.preview.ghost", "count" to ghosts, "seconds" to ghostSeconds)))
-            add(tr("rollback.preview.would", "summary" to summary(planned).joined()))
+            add(tr("rollback.preview.would", "summary" to summary(ready).joined()))
         }
         sender.say(Component.join(JoinConfiguration.newlines(), lines))
     }
@@ -52,7 +51,7 @@ object RollbackPresenter {
      * A rollback that finished, told like every other success: what came back, what was removed, and
      * how long it took.
      */
-    fun report(sender: CommandSender, done: RollbackResult.Done, tookMillis: Long) {
+    fun report(sender: CommandSender, done: RollbackApplied, tookMillis: Long) {
         val counts = counts(done)
         val undo = tr("rollback.button.undo")
             .clickEvent(ClickEvent.runCommand("/tracel rollback undo ${done.job.raw}"))
@@ -74,11 +73,11 @@ object RollbackPresenter {
     }
 
     /** The undo, told like a rollback: what came back and how long it took. */
-    fun reportUndo(sender: CommandSender, done: UndoResult.Done, tookMillis: Long) {
+    fun reportUndo(sender: CommandSender, done: RollbackUndone, tookMillis: Long) {
         val lines = buildList {
             add(tr("undo.done.title"))
             add(Component.empty())
-            add(tr("undo.done.result", "changes" to done.structure.count))
+            add(tr("undo.done.result", "changes" to done.changed))
             add(tr("common.label.time", "time" to took(tookMillis)))
         }
         sender.say(Component.join(JoinConfiguration.newlines(), lines))
@@ -88,19 +87,12 @@ object RollbackPresenter {
     fun refusedUndo(sender: CommandSender, reason: Component, hint: Component) =
         sender.failed("undo.failed", reason, hint)
 
-    /** Whether [done] changed nothing at all: no block, no entity, no item. */
-    fun appliedNothing(done: RollbackResult.Done): Boolean = counts(done).isEmpty()
+    /** What [ready] would do, in words. */
+    fun summary(ready: RollbackReady): List<Component> = counts(ready).all()
 
-    /** Whether [planned] would change nothing at all: no block, no entity, no item. */
-    fun summary(planned: Planned): List<Component> = counts(planned).all()
-
-    /** @return the list of resurrection steps from a list of structure steps. */
-    fun List<StructureStep>.resurrections(): List<StructureStep.SpawnEntity> =
-        filterIsInstance<StructureStep.SpawnEntity>().filter { it.expected == null }
-
-    /** @return a component describing the most common type of resurrection in [spawns]. */
-    fun mostly(spawns: List<StructureStep.SpawnEntity>): Component {
-        val counted = spawns.groupingBy { it.shape.type.value.substringAfter(':') }.eachCount()
+    /** @return a component describing the most common type of resurrection in [spawns], counted by type. */
+    fun mostly(spawns: Map<NamespacedName, Int>): Component {
+        val counted = spawns.entries.groupingBy { it.key.value }.fold(0) { sum, entry -> sum + entry.value }
         val (type, count) = counted.maxByOrNull { it.value } ?: return tr("rollback.mostly.mixed")
         return if (counted.size == 1) tr("rollback.mostly.all", "type" to type)
         else tr("rollback.mostly.most", "type" to type, "count" to count)
@@ -124,34 +116,23 @@ object RollbackPresenter {
         val removed: Int,
         val reclaimed: Int,
         val uncrafted: Int,
-        val compensated: Int
+        val compensated: Int,
+        val outside: Int,
     ) {
-        fun isEmpty() = restored + removed + reclaimed + uncrafted + compensated == 0
+        fun isEmpty() = restored + removed + reclaimed + uncrafted + compensated + outside == 0
         fun world() = listOf("restored" to restored, "removed" to removed).tally()
         fun items() = listOf("returned" to reclaimed + compensated, "uncrafted" to uncrafted).tally()
-        fun all() = world() + items()
+        fun all() = world() + items() + listOf("outside" to outside).tally()
 
         private fun List<Pair<String, Int>>.tally(): List<Component> =
             filter { it.second > 0 }.map { (key, count) -> tr("rollback.summary.$key", "count" to count) }
     }
 
-    private fun counts(done: RollbackResult.Done): Counts {
-        val applied = done.structure.applied
-        val removed =
-            applied.count { it is StructureStep.RemoveEntity || (it is StructureStep.SetBlock && it.target.isAirLike) }
-        val material = done.plan.composite.material
-        return Counts(applied.size - removed, removed, material.takeCount, material.unmakeCount, material.mintCount)
-    }
+    private fun counts(done: RollbackApplied): Counts = Counts(
+        done.restored, done.removed, done.balance.taken, done.balance.unmade, done.balance.minted, done.outside,
+    )
 
-    private fun counts(planned: Planned): Counts {
-        val composite = planned.composite
-        val material = composite.material
-        return Counts(
-            composite.create.size,
-            composite.destroy.size,
-            material.takeCount,
-            material.unmakeCount,
-            material.mintCount
-        )
-    }
+    private fun counts(ready: RollbackReady): Counts = Counts(
+        ready.restores, ready.removals, ready.balance.taken, ready.balance.unmade, ready.balance.minted, ready.outside,
+    )
 }
