@@ -74,7 +74,7 @@ class RollbackAction internal constructor(
                 Telemetry.flags(Telemetry.ROLLBACK_FLAGS, parsed)
                 if (!parsed.preview) Telemetry.rollbackReach(parsed)
                 val rollbacks = services.commandApi.rollbacks(sender.actor(), parsed.confirmed)
-                val held = rollbacks.holding(filter.query.area) { rollbackFiltered(sender, parsed, filter, rollbacks) }
+                val held = rollbacks.hold(filter.query.area) { rollbackFiltered(sender, parsed, filter, rollbacks) }
                 if (held is Res.Err) refuse(sender, held.error, planning = true)
             }
         }

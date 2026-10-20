@@ -3,6 +3,7 @@ package com.tracel.plugin.api
 import com.tracel.api.actor.Actor
 import com.tracel.api.admin.Admin
 import com.tracel.api.history.HistoryReads
+import com.tracel.api.rollback.Rollbacks
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.api.admin.TracelAdmin
 import com.tracel.plugin.api.read.HistoryRows
@@ -32,7 +33,7 @@ internal class CommandApi(private val services: TracelServices) {
      *
      * With [confirmed] the sender has agreed to bring back more entities than the limit.
      */
-    fun rollbacks(by: Actor.Player?, confirmed: Boolean = false): TracelRollbacks = TracelRollbacks(
+    fun rollbacks(by: Actor.Player?, confirmed: Boolean = false): Rollbacks = TracelRollbacks(
         services, SIGNER, { true }, services.borrows, by = by?.let { HolderId.Player(it.uuid) }, confirmed = confirmed,
     )
 }

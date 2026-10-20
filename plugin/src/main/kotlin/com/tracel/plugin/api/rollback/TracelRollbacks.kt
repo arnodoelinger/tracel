@@ -100,16 +100,11 @@ internal open class TracelRollbacks(
 
     override suspend fun latest(): RollbackJobId? =
         services.composite.lastUndoable(by)?.let { RollbackJobId(it.raw) }
-    /**
-     * Runs [work] holding the rollback gate and the fluids of [area] still, once: the previews and applies made inside
-     * it take no gate of their own, so what the plan saw is what the world still holds when it is written.
-     *
-     * [RollbackError.Busy] when another rollback holds the gate.
-     */
-    suspend fun <T> holding(area: LookupArea?, work: suspend () -> T): Res<T, RollbackError> {
+
+    override suspend fun <T> hold(area: LookupArea?, block: suspend () -> T): Res<T, RollbackError> {
         refusal()?.let { return Res.Err(it) }
         val region = area?.let(ApiConversions::region)
-        return gated { Res.Ok(services.composite.holdingStill(region) { withContext(Held) { work() } }) }
+        return gated { Res.Ok(services.composite.holdingStill(region) { withContext(Held) { block() } }) }
     }
 
     private fun refusal(): RollbackError? = when {

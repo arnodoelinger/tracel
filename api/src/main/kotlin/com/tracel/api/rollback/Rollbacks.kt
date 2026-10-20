@@ -40,6 +40,15 @@ public interface Rollbacks {
      */
     public suspend fun <T> borrow(area: LookupArea, block: suspend BorrowedArea.() -> T): Res<T, RollbackError>
 
+    /**
+     * Runs [block] holding the one rollback slot, and the fluids of [area] still, from the first plan to the last
+     * apply: the previews and applies made inside take no slot of their own, so what a plan saw is what the world still
+     * holds when it is written. `null` for [area] holds nothing still.
+     *
+     * [RollbackError.Busy] when another rollback or undo holds the slot.
+     */
+    public suspend fun <T> hold(area: LookupArea?, block: suspend () -> T): Res<T, RollbackError>
+
     /** Undoes rollback [job], one this plugin made earlier, even before a restart. */
     public suspend fun undo(job: RollbackJobId): Res<RollbackUndone, RollbackError>
 
