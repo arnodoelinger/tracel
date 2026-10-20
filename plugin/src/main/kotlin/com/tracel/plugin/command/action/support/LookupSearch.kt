@@ -2,6 +2,7 @@ package com.tracel.plugin.command.action.support
 
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.event.EventKind
+import com.tracel.plugin.api.addon.Extensions
 import com.tracel.model.holder.HolderId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
@@ -53,6 +54,9 @@ internal class LookupSearch(
             .also { found ->
                 actors.learn(found.flatMap(::holdersOf))
                 learnRolled(found.map { it.seq.raw })
+                Extensions.live.learnItemNames(found.flatMapTo(HashSet()) { txn -> txn.flows.map { it.itemKey } }) {
+                    services.itemForms.find(it)
+                }
             }
     }, { it.epochMillis }, { it.seq.raw }, filter.until) else null
 

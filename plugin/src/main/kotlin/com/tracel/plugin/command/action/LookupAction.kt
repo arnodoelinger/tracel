@@ -11,6 +11,7 @@ import com.tracel.plugin.adapter.command.resolvePlayerUuid
 import com.tracel.plugin.adapter.world.toLookupRegion
 import com.tracel.plugin.adapter.world.toWorldId
 import com.tracel.plugin.api.addon.Extensions
+import com.tracel.plugin.api.addon.withItemLens
 import com.tracel.plugin.command.action.support.LookupSearch
 import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.args.action.ActionFilter
@@ -190,7 +191,7 @@ class LookupAction(private val services: TracelServices) {
             val flushed = services.flushCapture()
             val search = LookupSearch(
                 services = services,
-                filter = filter,
+                filter = services.withItemLens(filter),
                 eventFilter = eventFilter,
                 parsed = parsed,
                 blocks = actions.structural && !parsed.materialOnly,

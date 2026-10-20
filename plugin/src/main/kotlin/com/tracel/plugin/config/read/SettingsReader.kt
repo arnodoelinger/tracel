@@ -123,8 +123,17 @@ internal fun readSettings(
         paste = PasteSettings(pasteUrl, pasteExpire, pasteBurn),
         updates = UpdateSettings(checkUpdates),
         autoPurge = AutoPurgeSettings(autoPurge, purgeInterval, keep),
-        api = ApiSettings(readGrants(api, complain)),
+        api = ApiSettings(readGrants(api, complain), readSlowpokes(api, complain)),
     )
+}
+
+private fun readSlowpokes(api: TomlTable?, complain: (String) -> Unit): Set<String> {
+    val raw = api?.get("excuse-slowpokes") ?: return emptySet()
+    val names = (raw as? TomlArray)?.toList() ?: run {
+        complain("api.excuse-slowpokes: \"$raw\" is not a list of addon IDs; nobody is excused.")
+        return emptySet()
+    }
+    return names.mapTo(HashSet()) { it.toString().lowercase() }
 }
 
 private fun readGrants(api: TomlTable?, complain: (String) -> Unit): Map<String, Set<Grant>> {

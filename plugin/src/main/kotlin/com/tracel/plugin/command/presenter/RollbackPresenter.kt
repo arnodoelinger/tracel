@@ -35,7 +35,7 @@ object RollbackPresenter {
     /** A preview of what a rollback would do, with a link to apply it. */
     fun preview(sender: CommandSender, planned: Planned, halves: Component, ghosts: Int, ghostSeconds: Int) {
         val composite = planned.composite
-        if (composite.isEmpty) {
+        if (composite.isEmpty && planned.outside.isEmpty()) {
             sender.send("rollback.nothing", "halves" to halves)
             return
         }
@@ -124,12 +124,13 @@ object RollbackPresenter {
         val removed: Int,
         val reclaimed: Int,
         val uncrafted: Int,
-        val compensated: Int
+        val compensated: Int,
+        val outside: Int,
     ) {
-        fun isEmpty() = restored + removed + reclaimed + uncrafted + compensated == 0
+        fun isEmpty() = restored + removed + reclaimed + uncrafted + compensated + outside == 0
         fun world() = listOf("restored" to restored, "removed" to removed).tally()
         fun items() = listOf("returned" to reclaimed + compensated, "uncrafted" to uncrafted).tally()
-        fun all() = world() + items()
+        fun all() = world() + items() + listOf("outside" to outside).tally()
 
         private fun List<Pair<String, Int>>.tally(): List<Component> =
             filter { it.second > 0 }.map { (key, count) -> tr("rollback.summary.$key", "count" to count) }
@@ -140,7 +141,10 @@ object RollbackPresenter {
         val removed =
             applied.count { it is StructureStep.RemoveEntity || (it is StructureStep.SetBlock && it.target.isAirLike) }
         val material = done.plan.composite.material
-        return Counts(applied.size - removed, removed, material.takeCount, material.unmakeCount, material.mintCount)
+        return Counts(
+            applied.size - removed, removed, material.takeCount, material.unmakeCount, material.mintCount,
+            done.plan.outside.size,
+        )
     }
 
     private fun counts(planned: Planned): Counts {
@@ -151,7 +155,8 @@ object RollbackPresenter {
             composite.destroy.size,
             material.takeCount,
             material.unmakeCount,
-            material.mintCount
+            material.mintCount,
+            planned.outside.size,
         )
     }
 }

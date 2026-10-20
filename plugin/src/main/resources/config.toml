@@ -63,6 +63,13 @@ check = true
 # e.g., grants = { Arena = ["attribute"], Shop = [] }
 grants = {}
 
+# Addons that keep running however slow they are, by addon ID
+# Normally an addon that keeps Tracel waiting over a second, or hangs for five, is
+# thrown out until the next restart; one listed here is only named in the log
+# For when the addon is slow and its author is slower
+# e.g., excuse-slowpokes = ["backpacks"]
+excuse-slowpokes = []
+
 [advanced]
 # How often Tracel forces pending history to disk
 # "every-batch" = saves every commit safely before continuing

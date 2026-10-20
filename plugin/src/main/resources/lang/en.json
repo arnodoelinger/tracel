@@ -345,7 +345,8 @@
       "restored": "<green><count> restored</green>",
       "removed": "<red><count> removed</red>",
       "returned": "<aqua><count> item(s) returned</aqua>",
-      "uncrafted": "<aqua><count> uncrafted</aqua>"
+      "uncrafted": "<aqua><count> uncrafted</aqua>",
+      "outside": "<light_purple><count> addon record(s) taken back</light_purple>"
     },
     "join": {
       "and": " and ",

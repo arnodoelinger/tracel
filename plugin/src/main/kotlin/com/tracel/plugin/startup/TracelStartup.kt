@@ -42,6 +42,7 @@ import com.tracel.plugin.setup.SetupListener
 import com.tracel.plugin.setup.SetupState
 import com.tracel.plugin.startup.version.MinecraftVersion
 import com.tracel.plugin.status.disk.DiskGuard
+import com.tracel.storage.ports.job.OutsideSteps
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.Drainer
@@ -165,6 +166,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         gate = CaptureGate(storage.ring),
         events = events,
         rolledBack = RolledBack(storage),
+        outside = OutsideSteps(storage),
         foreign = ForeignHistory(storage, worldLog, log, events, counters),
         groundPositions = GroundPositions(storage),
         worldLog = worldLog,

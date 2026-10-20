@@ -1,6 +1,5 @@
 package com.tracel.plugin.api.addon
 
-import com.tracel.api.addon.AddonContext
 import com.tracel.api.addon.InspectLines
 import com.tracel.api.addon.OnInspect
 import com.tracel.api.addon.OnRecord
@@ -26,9 +25,9 @@ internal fun interface AddonBinder {
     fun prepare(addon: Any): AddonBinding?
 }
 
-/** Subscriptions to make for one enable; the context owns them, so they end with it. */
+/** Subscriptions to make for one enable; the scope owns them, so they end with it. */
 internal fun interface AddonBinding {
-    fun bind(context: AddonContext)
+    fun bind(scope: AddonScope)
 }
 
 /** Records to hear, [only] these kinds or every one when empty; closing ends it. */
@@ -58,20 +57,23 @@ internal class HandlerBinder(
         val rollbacks = onStarted.isNotEmpty() || onFinished.isNotEmpty() || onUndo.isNotEmpty()
         if (recorded.isEmpty() && !rollbacks && inspected.isEmpty()) return null
 
-        return AddonBinding { context ->
+        return AddonBinding { scope ->
+            val guard = scope.guard
             for ((method, marked) in recorded) {
-                context.own(records(marked.only.toSet()) { record -> safely(method) { call(record) } })
+                scope.own(records(marked.only.toSet()) { record -> guard.later(method.description) { method.call(record) } })
             }
-            if (rollbacks) context.own(extensions.rollbacks.add(object : RollbackHearer {
-                override fun started(job: RollbackJob) = onStarted.forEach { safely(it) { call(job) } }
+            if (rollbacks) scope.own(extensions.rollbacks.add(object : RollbackHearer {
+                override fun started(job: RollbackJob) =
+                    onStarted.forEach { guard.later(it.description) { it.call(job) } }
 
                 override fun finished(job: RollbackJob, outcome: RollbackOutcome) =
-                    onFinished.forEach { safely(it) { call(job, outcome) } }
+                    onFinished.forEach { guard.later(it.description) { it.call(job, outcome) } }
 
-                override fun undone(undone: RollbackUndone) = onUndo.forEach { safely(it) { call(undone) } }
+                override fun undone(undone: RollbackUndone) =
+                    onUndo.forEach { guard.later(it.description) { it.call(undone) } }
             }))
-            if (inspected.isNotEmpty()) context.own(extensions.inspectors.add { place, lines ->
-                inspected.forEach { safely(it) { call(place, lines) } }
+            if (inspected.isNotEmpty()) scope.own(extensions.inspectors.add { place, lines ->
+                inspected.forEach { safely(it) { guard.now(description) { call(place, lines) } } }
             })
         }
     }

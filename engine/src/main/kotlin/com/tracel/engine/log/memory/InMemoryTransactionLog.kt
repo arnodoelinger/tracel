@@ -1,5 +1,6 @@
 package com.tracel.engine.log.memory
 
+import com.tracel.model.item.ItemKey
 import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
@@ -64,6 +65,10 @@ public class InMemoryTransactionLog(private val names: NameMatcher = NameMatcher
     }
 
     @Reads
+    override suspend fun itemKeys(): List<ItemKey> =
+        transactions.values.flatMapTo(LinkedHashSet()) { txn -> txn.flows.map { it.itemKey } }.toList()
+
+    @Reads
     override suspend fun lotsAt(seq: Seq): List<FlowLot> = bySeq[seq.raw]?.lots.orEmpty()
 
     /** Every transaction, in no order. For tests. */
@@ -99,6 +104,11 @@ public class InMemoryTransactionLog(private val names: NameMatcher = NameMatcher
         if (!filter.admitsTime(epochMillis)) return false
         if (!filter.admitsCause(cause)) return false
         if (!holdersMatch(filter.holders, filter.excludedHolders)) return false
+        val keys = filter.itemKeys
+        if (keys.isNotEmpty()) {
+            if (flows.none { it.itemKey in keys }) return false
+            return positionsMatch(filter.world, filter.region)
+        }
         val material = filter.material
         if (material != null) {
             var hit = false

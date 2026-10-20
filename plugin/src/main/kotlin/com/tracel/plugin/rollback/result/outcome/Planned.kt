@@ -1,5 +1,6 @@
 package com.tracel.plugin.rollback.result.outcome
 
+import com.tracel.engine.rollback.outside.OutsideStep
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.structure.CompositeRollbackPlan
@@ -22,4 +23,5 @@ data class Planned(
     val imported: Int = 0,
     val asItStood: LookupRegion? = null,
     val taken: LongArray = LongArray(0),
+    val outside: List<OutsideStep> = emptyList(),
 )

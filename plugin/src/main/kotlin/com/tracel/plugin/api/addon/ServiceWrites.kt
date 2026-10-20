@@ -22,8 +22,10 @@ import com.tracel.plugin.api.Owned
 import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.api.write.TracelAttribution
 import com.tracel.plugin.integration.worldedit.EditBuffer
+import com.tracel.plugin.rollback.outside.OutsideReconciler
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.log.Warnings
+import kotlinx.coroutines.launch
 import org.bukkit.block.data.BlockData
 import org.bukkit.entity.Player
 import java.util.UUID
@@ -41,6 +43,14 @@ internal class ServiceWrites(
     private val running: () -> Boolean,
 ) : AddonWrites {
     override fun recorder(addon: String, owned: Owned): AddonRecorder = Recorder(owned)
+
+    private val reconciler = OutsideReconciler(services.rolledBack, services.outside, services.scope) { kind ->
+        extensions.reversibles[kind]
+    }
+
+    override fun reconcile(kind: String) {
+        services.scope.launch { reconciler.reconcileKind(kind) }
+    }
 
     override suspend fun record(
         addon: String,

@@ -1,6 +1,7 @@
 package com.tracel.api.write
 
 import com.tracel.api.Unstable
+import com.tracel.api.access.Grant
 import com.tracel.api.world.BlockPlace
 
 /** Why a write did not happen. */
@@ -8,6 +9,9 @@ import com.tracel.api.world.BlockPlace
 public sealed interface WriteError {
     /** The connection was closed or the plugin disabled. */
     public data object Revoked : WriteError
+
+    /** The admin did not give the plugin [grant]. */
+    public data class NotGranted(public val grant: Grant) : WriteError
 
     /** It cannot be written as asked, and [reason] says why. */
     public data class Unsupported(public val reason: String) : WriteError

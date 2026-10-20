@@ -21,6 +21,7 @@ import com.tracel.engine.rollback.involution.InvolutionJobCoordinator
 import com.tracel.engine.rollback.job.RollbackJobCoordinator
 import com.tracel.engine.rollback.job.record.RollbackJobRepository
 import com.tracel.engine.rollback.journal.Journal
+import com.tracel.engine.rollback.outside.OutsideSteps
 import com.tracel.engine.rollback.plan.WorldQuery
 import com.tracel.engine.store.Counters
 import com.tracel.engine.store.StoreAdmin
@@ -50,6 +51,7 @@ import com.tracel.plugin.listener.support.guard.SelfManagedWorldGuard
 import com.tracel.plugin.listener.support.guard.SpawnGuard
 import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
 import com.tracel.plugin.rollback.RollbackGenius
+import com.tracel.plugin.rollback.outside.OutsideRollbacks
 import com.tracel.plugin.rollback.SignaledRollbacks
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.material.MaterialRestorer
@@ -82,6 +84,7 @@ private const val WHEREABOUTS_KEPT = 200_000
  * @param jobs stores rollback jobs
  * @param undo coordinates involution jobs
  * @param undoJournal which undo steps already ran, plus whether their items went back
+ * @param outside what addons were told about their records a rollback took back
  * @param pendingDeliveries stores pending item deliveries
  * @param unit the unit of work every write runs in
  * @param store what an operator can do to the stored history
@@ -118,6 +121,7 @@ class TracelServices(
     val gate: CaptureGate,
     val events: EventLog,
     val rolledBack: RolledBack,
+    val outside: OutsideSteps,
     val foreign: ForeignHistory,
     val groundPositions: GroundPositions,
     val worldLog: WorldLog,
@@ -170,7 +174,10 @@ class TracelServices(
     val selfManagedWorld: SelfManagedWorldGuard = SelfManagedWorldGuard()
     val structureRestorer: StructureRestorer = StructureRestorer(this)
     val composite: RollbackGenius =
-        SignaledRollbacks(RollbackComposer(this, structureRestorer, restorer, restorer), Extensions.live)
+        SignaledRollbacks(
+            OutsideRollbacks(this, RollbackComposer(this, structureRestorer, restorer, restorer), Extensions.live),
+            Extensions.live,
+        )
     val redstoneTriggers: RedstoneTrigger = RedstoneTrigger()
     val whereabouts: EntityWhereabouts = EntityWhereabouts(capacity = WHEREABOUTS_KEPT)
     val groundWhereabouts: GroundWhereabouts = GroundWhereabouts(groundPositions)

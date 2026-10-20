@@ -1,5 +1,6 @@
 package com.tracel.plugin.api.addon
 
+import com.tracel.api.access.TracelConnection
 import com.tracel.api.addon.Addon
 import com.tracel.api.addon.TracelAddon
 import com.tracel.plugin.api.Owned
@@ -20,6 +21,11 @@ internal class AddonManager(
     private val extensions: Extensions = Extensions(logger),
     private val writes: AddonWrites = AddonWrites.NONE,
     private val binders: List<AddonBinder> = emptyList(),
+    private val excused: (addon: String) -> Boolean = { false },
+    private val guards: (addon: String, trip: (String) -> Unit) -> AddonGuard = { addon, trip ->
+        AddonGuard(addon, logger, trip, excused = excused(addon))
+    },
+    private val connect: (addon: Any) -> TracelConnection = { addon -> DetachedConnection(addon.javaClass.simpleName) },
 ) {
     private val addons = LinkedHashMap<String, Entry>()
     private var running = false
@@ -77,7 +83,9 @@ internal class AddonManager(
         val owned = Owned { resource, failure ->
             logger.log(Level.WARNING, "Addon \"${entry.id}\" failed to close $resource.", failure)
         }
-        val context = AddonScope(entry.id, owned, extensions, writes)
+        val guard = owned.own(guards(entry.id) { tripped(entry.id) })
+        val connection = owned.own(connect(entry.addon))
+        val context = AddonScope(entry.id, owned, extensions, writes, guard, connection)
         entry.context = context
         try {
             (entry.addon as? TracelAddon)?.onEnable(context)
@@ -87,6 +95,11 @@ internal class AddonManager(
             logger.log(Level.SEVERE, "Addon \"${entry.id}\" failed to enable and was disabled.", failure)
             disable(entry)
         }
+    }
+
+    @Synchronized
+    private fun tripped(id: String) {
+        addons[id]?.let(::disable)
     }
 
     private fun disable(entry: Entry) {

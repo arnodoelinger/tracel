@@ -23,6 +23,7 @@ import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
+import com.tracel.plugin.api.addon.withItemLens
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.command.args.support.MaterialAliases
 import com.tracel.plugin.services.TracelServices
@@ -147,7 +148,7 @@ internal class TracelReads(
             if (size <= 0) return Res.Err(HistoryReadError.Unsupported("A page holds at least one record, not $size."))
             val filter = ApiConversions.filter(query, materials).getOrElse { return Res.Err(it) }
             return try {
-                Res.Ok(read(filter, from, size))
+                Res.Ok(read(services.withItemLens(filter), from, size))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {

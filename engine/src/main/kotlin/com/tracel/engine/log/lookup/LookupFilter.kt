@@ -4,6 +4,7 @@ import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.world.WorldLog
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
+import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
 import java.util.UUID
@@ -16,6 +17,7 @@ public data class LookupFilter(
     public val holders: Set<HolderId> = emptySet(),
     public val excludedHolders: Set<HolderId> = emptySet(),
     public val material: String? = null,
+    public val itemKeys: Set<ItemKey> = emptySet(),
     public val blockMaterials: Set<String> = emptySet(),
     public val causes: Set<CauseKind> = emptySet(),
     public val worldCauses: Set<CauseKind>? = null,

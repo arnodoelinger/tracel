@@ -168,7 +168,7 @@ class RollbackAction internal constructor(
         val started = System.nanoTime()
         var attempt = planned
         repeat(STALE_ATTEMPTS) {
-            if (attempt.composite.isEmpty) {
+            if (attempt.composite.isEmpty && attempt.outside.isEmpty()) {
                 Telemetry.rollback("nothing to do")
                 sender.send("rollback.nothing", "halves" to halves)
                 return

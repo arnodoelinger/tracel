@@ -32,6 +32,9 @@ public interface RollbackReady {
     /** Records it takes back that came from a `CoreProtect` import. */
     public val imported: Int
 
+    /** Addon records it takes back outside the world, through their `Reversible`. */
+    public val outside: Int
+
     /** True when there is nothing to do. */
     public val isEmpty: Boolean
 

@@ -345,7 +345,8 @@
       "restored": "<green>возвращено <count></green>",
       "removed": "<red>убрано <count></red>",
       "returned": "<aqua>предметов возвращено: <count></aqua>",
-      "uncrafted": "<aqua>раскрафчено <count></aqua>"
+      "uncrafted": "<aqua>раскрафчено <count></aqua>",
+      "outside": "<light_purple>записей аддонов отменено: <count></light_purple>"
     },
     "join": {
       "and": " и ",

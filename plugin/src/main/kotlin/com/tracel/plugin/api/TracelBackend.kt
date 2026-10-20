@@ -47,7 +47,17 @@ internal class TracelBackend(
         extensions = Extensions.live,
         writes = ServiceWrites(services, Extensions.live) { running },
         binders = listOf(HandlerBinder(Extensions.live, ::feed, plugin.logger)),
+        connect = { addon -> connection(ownerOf(addon)) },
+        excused = services.api::excuses,
     )
+
+    private fun ownerOf(addon: Any): Plugin {
+        val loader = addon.javaClass.classLoader
+        return plugin.server.pluginManager.plugins.firstOrNull { it.javaClass.classLoader === loader } ?: plugin
+    }
+
+    private fun connection(owner: Plugin): PluginConnection =
+        PluginConnection(owner, services, borrows, reads, { running }, connections::remove).also { connections += it }
 
     /** Publishes the API and enables the addons that registered early. */
     fun open() {
@@ -66,9 +76,7 @@ internal class TracelBackend(
 
     override fun connect(plugin: Plugin): Res<TracelConnection, AccessError> {
         if (!plugin.isEnabled) return Res.Err(AccessError.NotEnabled(plugin.name))
-        val connection = PluginConnection(plugin, services, borrows, reads, { running }, connections::remove)
-        connections += connection
-        return Res.Ok(connection)
+        return Res.Ok(connection(plugin))
     }
 
     override fun registerAddon(addon: Any) = addons.register(addon)

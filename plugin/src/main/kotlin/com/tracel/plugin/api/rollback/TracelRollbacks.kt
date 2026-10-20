@@ -173,7 +173,8 @@ internal open class TracelRollbacks(
             get() = ItemBalance(material.takeCount, material.unmakeCount, material.mintCount)
         override val complete: Boolean get() = planned.flushed
         override val imported: Int get() = planned.imported
-        override val isEmpty: Boolean get() = composite.isEmpty
+        override val outside: Int get() = planned.outside.size
+        override val isEmpty: Boolean get() = composite.isEmpty && planned.outside.isEmpty()
 
         override suspend fun apply(): Res<RollbackApplied, RollbackError> {
             if (!used.compareAndSet(false, true)) return Res.Err(RollbackError.Moved)

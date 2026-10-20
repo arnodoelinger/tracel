@@ -1,6 +1,7 @@
 package com.tracel.plugin.command.presenter.line
 
 import com.tracel.annotations.Unstable
+import com.tracel.model.item.ItemKey
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
@@ -205,7 +206,7 @@ internal object ChangeLinePresenter {
             }
         }
         return transaction.flows.mapNotNull { flow ->
-            if (item != null && !flow.itemKey.material.namesMaterial(item)) return@mapNotNull null
+            if (item != null && !namesItem(flow.itemKey, item)) return@mapNotNull null
             if (unseen.any { it === flow }) return@mapNotNull null
             val act = (if (transaction.cause == CauseKind.WEAR) ItemPresenter.Act(
                 "damaged",
@@ -215,7 +216,8 @@ internal object ChangeLinePresenter {
             val doer =
                 transaction.causedBy ?: listOf(flow.source, flow.destination).firstOrNull { it is HolderId.Player }
             val place = act.place?.let { it as? HolderId.Block }
-            val name = NamePresenter.of(flow.itemKey.material)
+            val id = itemId(flow.itemKey)
+            val name = NamePresenter.of(id)
             val family = ItemPresenter.family(act.name)
             val visit = if (family?.container == true) (doer as? HolderId.Player)?.let {
                 actors.visit(
@@ -231,22 +233,22 @@ internal object ChangeLinePresenter {
                     doer,
                     "visit",
                     visit,
-                    flow.itemKey.material,
+                    id,
                     rolledAt != null
                 ) else listOf(
-                    doer ?: transaction.cause, family?.name ?: act.name, flow.itemKey.material, place, rolledAt != null
+                    doer ?: transaction.cause, family?.name ?: act.name, id, place, rolledAt != null
                 ),
                 mark = act.mark,
                 who = who(doer, transaction.cause, actors),
                 verb = lower("lookup.verb.${act.name}"),
                 whoText = whoText(doer, transaction.cause, actors),
-                whatText = { total -> "$total ${NamePresenter.pretty(flow.itemKey.material)}" },
+                whatText = { total -> "$total ${NamePresenter.pretty(id)}" },
                 title = act.name,
                 what = { total -> quantity(total, name) },
                 quantity = flow.quantity.raw,
                 at = transaction.at ?: place?.let { BlockPos(it.world, it.x, it.y, it.z) },
                 mode = modeOf(doer, transaction.epochMillis, actors),
-                net = family?.let { LineNet(it, delta, name, flow.itemKey.material) },
+                net = family?.let { LineNet(it, delta, name, id) },
                 visit = visit,
                 rolledAt = rolledAt,
             )
@@ -607,6 +609,11 @@ internal object ChangeLinePresenter {
             else -> null
         }
     }
+
+    private fun itemId(key: ItemKey): String = Extensions.live.itemName(key) ?: key.material
+
+    private fun namesItem(key: ItemKey, wanted: String): Boolean =
+        key.material.namesMaterial(wanted) || Extensions.live.itemName(key).equals(wanted, ignoreCase = true)
 
     /** What the block is called: its material, or what a lens sees in it. */
     private fun id(shape: BlockShape): String =

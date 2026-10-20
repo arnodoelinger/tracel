@@ -19,6 +19,16 @@ internal object FileVersions {
                     ),
                     before = "advanced",
                 ),
+                Change.AddKey(
+                    "api", "excuse-slowpokes", "[]",
+                    listOf(
+                        "# Addons that keep running however slow they are, by addon ID",
+                        "# Normally an addon that keeps Tracel waiting over a second, or hangs for five, is",
+                        "# thrown out until the next restart; one listed here is only named in the log",
+                        "# For when the addon is slow and its author is slower",
+                        "# e.g., excuse-slowpokes = [\"backpacks\"]",
+                    ),
+                ),
             ),
         ),
     )

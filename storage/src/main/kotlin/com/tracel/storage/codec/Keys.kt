@@ -173,6 +173,7 @@ object Keys {
     const val ROLLED_SET: Byte = 0x33
     const val ROLLED_SET_JOB: Byte = 0x34
     const val EVENT_ENTITY: Byte = 0x35
+    const val OUTSIDE_STEP: Byte = 0x36
     const val PROGRESS_ROLLBACK: Byte = 0
     const val PROGRESS_INVOLUTION: Byte = 1
     const val NS_ITEM_KEY: Byte = 0
@@ -384,6 +385,10 @@ object Keys {
 
     fun rolledSetJobPrefix(jobId: Long): ByteArray = KeyWriter(9).tag(ROLLED_SET_JOB).u64(jobId).done()
 
+    fun outsideStep(seq: Long): ByteArray = KeyWriter(9).tag(OUTSIDE_STEP).u64(seq).done()
+
+    fun outsideStepPrefix(): ByteArray = KeyWriter(1).tag(OUTSIDE_STEP).done()
+
     fun event(seq: Long): ByteArray = KeyWriter(9).tag(EVENT).u64(seq).done()
 
     fun eventActor(holderId: Int, epochMillis: Long, seq: Long): ByteArray =
@@ -474,6 +479,7 @@ object Keys {
         META,
         ROLLED_SET,
         ROLLED_SET_JOB,
+        OUTSIDE_STEP,
     )
 }
 
