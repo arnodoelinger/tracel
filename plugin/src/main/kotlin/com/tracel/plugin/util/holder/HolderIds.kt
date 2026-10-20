@@ -18,6 +18,7 @@ fun HolderId.blockPos(): BlockPos? = when (this) {
     is HolderId.Sink,
     is HolderId.Escrow,
     is HolderId.Plugin,
+    is HolderId.Custom,
         -> null
 }
 
@@ -33,6 +34,7 @@ fun HolderId.worldId(): WorldId? = when (this) {
     is HolderId.Sink,
     is HolderId.Escrow,
     is HolderId.Plugin,
+    is HolderId.Custom,
         -> null
 }
 
@@ -48,6 +50,7 @@ fun HolderId.entityUuid(): UUID? = when (this) {
     is HolderId.Sink,
     is HolderId.Escrow,
     is HolderId.Plugin,
+    is HolderId.Custom,
         -> null
 }
 

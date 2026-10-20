@@ -84,6 +84,7 @@ internal object ApiConversions {
         is HolderId.AtBlock -> Actor.Block(place(holder.pos))
         is HolderId.Escrow -> Actor.Plugin(TRACEL)
         is HolderId.Plugin -> Actor.Plugin(holder.name)
+        is HolderId.Custom -> Actor.Addon(kind(holder.kind), holder.id)
         is HolderId.Source, is HolderId.Sink -> if (cause.isNatural) Actor.Natural else null
     }
 
@@ -97,7 +98,7 @@ internal object ApiConversions {
             HistoryReadError.Unsupported("Natural is nobody; ask for natural() and its causes instead."),
         )
         is Actor.Plugin -> Res.Ok(setOf(HolderId.Plugin(actor.name)))
-        is Actor.Addon -> Res.Err(HistoryReadError.Unsupported("History does not name $actor yet."))
+        is Actor.Addon -> Res.Ok(setOf(HolderId.Custom(actor.kind.toString(), actor.id)))
     }
 
     fun holder(id: HolderId): ItemHolder = when (id) {
@@ -112,7 +113,10 @@ internal object ApiConversions {
         is HolderId.Plugin -> ItemHolder.Appeared(SourceKind.PLUGIN)
         is HolderId.Source -> ItemHolder.Appeared(source(id.kind))
         is HolderId.Sink -> ItemHolder.Gone(sink(id.kind))
+        is HolderId.Custom -> ItemHolder.Custom(kind(id.kind), id.id)
     }
+
+    fun kind(stored: String): NamespacedName = NamespacedName.parse(stored) ?: NamespacedName("unknown", "unknown")
 
     fun region(area: LookupArea): LookupRegion? = when (area) {
         is LookupArea.Around -> box(

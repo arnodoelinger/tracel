@@ -1,5 +1,6 @@
 package com.tracel.plugin.command.args.support
 
+import com.tracel.plugin.api.addon.Extensions
 import org.bukkit.Material
 
 /**
@@ -8,9 +9,12 @@ import org.bukkit.Material
  * or a rollback takes the item back and leaves the block standing.
  */
 internal object MaterialAliases {
-    /** @return the item name for the ledger and every block id it stands as, for the world log. */
+    /**
+     * @return the item name for the ledger and every block id it stands as, for the world log; for a custom block a
+     * lens knows, the one full state it is made of
+     */
     fun resolve(name: String): Pair<String, Set<String>> {
-        val material = Material.matchMaterial(name) ?: return name to emptySet()
+        val material = Material.matchMaterial(name) ?: return name to setOfNotNull(Extensions.live.blockData(name))
         val item = when {
             material.isItem -> material
             else -> runCatching { material.createBlockData().placementMaterial }.getOrNull()?.takeIf { it.isItem }

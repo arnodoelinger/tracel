@@ -1,5 +1,6 @@
 package com.tracel.plugin.command.action
 
+import com.tracel.api.world.BlockPlace
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.cause.CauseKind
@@ -9,6 +10,7 @@ import com.tracel.model.world.WorldId
 import com.tracel.plugin.adapter.command.resolvePlayerUuid
 import com.tracel.plugin.adapter.world.toLookupRegion
 import com.tracel.plugin.adapter.world.toWorldId
+import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.command.action.support.LookupSearch
 import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.args.action.ActionFilter
@@ -98,8 +100,10 @@ class LookupAction(private val services: TracelServices) {
         val filter = LookupFilter(region = region, world = world, limit = Int.MAX_VALUE)
         val parsed = ParsedLookupArgs(anchor = block.location, command = "lookup block", all = true, turnings = true)
         val events = entity?.let { LookupFilter(world = world, entity = it.uniqueId, limit = Int.MAX_VALUE) } ?: filter
+        val extra = Extensions.live.inspect(BlockPlace.of(block))
         runLookup(
             sender, filter, parsed, ActionArgument.parse(emptySet()), EventKind.entries.toSet() - INSPECT_HIDDEN, events,
+            extra,
         )
     }
 
@@ -155,7 +159,7 @@ class LookupAction(private val services: TracelServices) {
         runLookup(sender, filter, parsed.copy(anchor = center), actions)
     }
 
-    private fun show(sender: CommandSender, search: LookupSearch, page: Int) {
+    private fun show(sender: CommandSender, search: LookupSearch, page: Int, extra: List<Component> = emptyList()) {
         services.scope.launch {
             val view = try {
                 search.page(page)
@@ -166,6 +170,7 @@ class LookupAction(private val services: TracelServices) {
                 return@launch
             }
             LookupPresenter.render(sender, view, search)
+            extra.forEach(sender::sendMessage)
         }
     }
 
@@ -179,6 +184,7 @@ class LookupAction(private val services: TracelServices) {
         actions: ActionFilter,
         kinds: Set<EventKind>? = null,
         eventFilter: LookupFilter = filter,
+        extra: List<Component> = emptyList(),
     ) {
         services.scope.launch {
             val flushed = services.flushCapture()
@@ -193,7 +199,7 @@ class LookupAction(private val services: TracelServices) {
                 events = kinds ?: if (parsed.all && parsed.actions.isEmpty()) EventKind.entries.toSet() else actions.events,
             )
             searches[key(sender)] = search
-            show(sender, search, parsed.page)
+            show(sender, search, parsed.page, extra)
         }
     }
 }

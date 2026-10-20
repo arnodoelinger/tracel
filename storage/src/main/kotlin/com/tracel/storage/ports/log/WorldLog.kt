@@ -1175,6 +1175,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             materialEquals(material) || aliases.any { materialEquals(it) }
 
         fun String.materialEquals(material: String): Boolean {
+            if ('[' in material) return equals(material, ignoreCase = true)
             val stored = substringBefore('[')
             if (stored.equals(material, ignoreCase = true)) return true
             val bare = stored.substringAfter(':')

@@ -127,6 +127,8 @@ class CodecGoldensTest {
             HolderId.Escrow(RollbackJobId(Long.MAX_VALUE)),
             HolderId.Source(SourceKind.WORLDGEN),
             HolderId.Sink(SinkKind.ROLLBACK_BURN),
+            HolderId.Plugin("Arena"),
+            HolderId.Custom("backpacks:backpack", "6767-ёж"),
         )
         for (holder in holders) {
             assertEquals(holder, Packed.decodeHolder(MemorySegment.ofArray(Packed.holder(holder))))

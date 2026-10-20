@@ -19,6 +19,7 @@ import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.NamePresenter
 import com.tracel.plugin.command.presenter.support.Glyphs
 import com.tracel.plugin.adapter.block.special.SignText
+import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.i18n.lower
 import com.tracel.plugin.i18n.tr
 import com.tracel.plugin.specifics.block.isAirLike
@@ -154,6 +155,7 @@ internal object ChangeLinePresenter {
             EventKind.SET -> edit(raw)?.first ?: raw
             EventKind.TELEPORT -> NamePresenter.pretty(raw)
             EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).text } ?: raw
+            EventKind.CUSTOM -> english(Extensions.live.eventLine(raw))
             else -> raw
         }
         val shown: Component = when (event.kind) {
@@ -163,6 +165,7 @@ internal object ChangeLinePresenter {
             EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).row } ?: Component.text(raw)
             EventKind.DEATH -> Component.text(capitalized(raw))
             EventKind.SET -> edit(raw)?.second ?: setting(raw)
+            EventKind.CUSTOM -> Extensions.live.eventLine(raw)
             else -> Component.text(raw)
         }
         return LoggedLine(
@@ -359,6 +362,7 @@ internal object ChangeLinePresenter {
         is HolderId.Entity -> entity(holder.uuid, actors)
         is HolderId.PlacedEntity -> tr("holder.placed_entity", "uuid" to holder.uuid)
         is HolderId.Plugin -> tr("holder.plugin", "name" to holder.name)
+        is HolderId.Custom -> Component.text(Extensions.live.name(holder))
         else -> Component.text(holder.toString())
     }
 
@@ -604,7 +608,9 @@ internal object ChangeLinePresenter {
         }
     }
 
-    private fun id(shape: BlockShape): String = shape.data.value.substringBefore('[')
+    /** What the block is called: its material, or what a lens sees in it. */
+    private fun id(shape: BlockShape): String =
+        Extensions.live.blockName(shape.data.value) ?: shape.data.value.substringBefore('[')
 
     private fun superscript(n: Int): String = n.toString().map { "⁰¹²³⁴⁵⁶⁷⁸⁹"[it - '0'] }.joinToString("")
 
@@ -666,8 +672,8 @@ internal object ChangeLinePresenter {
     }
 
     private fun block(subject: ChangeSubject.Block): Component {
-        val before = NamePresenter.of(subject.before.data.value)
-        val after = NamePresenter.of(subject.after.data.value)
+        val before = NamePresenter.of(id(subject.before))
+        val after = NamePresenter.of(id(subject.after))
         return when {
             subject.after.isAirLike -> before
             subject.before.isAirLike -> after

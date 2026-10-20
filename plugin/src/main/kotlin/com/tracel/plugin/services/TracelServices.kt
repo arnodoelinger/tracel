@@ -31,6 +31,7 @@ import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.plugin.adapter.rollback.structure.rescue.rescueJoined
 import com.tracel.plugin.adapter.world.playerIsOnline
+import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.capture.MaterialCapture
 import com.tracel.plugin.capture.PendingCaptures
 import com.tracel.plugin.capture.ShapeCapture
@@ -49,6 +50,7 @@ import com.tracel.plugin.listener.support.guard.SelfManagedWorldGuard
 import com.tracel.plugin.listener.support.guard.SpawnGuard
 import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
 import com.tracel.plugin.rollback.RollbackGenius
+import com.tracel.plugin.rollback.SignaledRollbacks
 import com.tracel.plugin.rollback.composer.RollbackComposer
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.structure.StructureRestorer
@@ -167,7 +169,8 @@ class TracelServices(
     val restorer: MaterialRestorer = MaterialRestorer(this)
     val selfManagedWorld: SelfManagedWorldGuard = SelfManagedWorldGuard()
     val structureRestorer: StructureRestorer = StructureRestorer(this)
-    val composite: RollbackGenius = RollbackComposer(this, structureRestorer, restorer, restorer)
+    val composite: RollbackGenius =
+        SignaledRollbacks(RollbackComposer(this, structureRestorer, restorer, restorer), Extensions.live)
     val redstoneTriggers: RedstoneTrigger = RedstoneTrigger()
     val whereabouts: EntityWhereabouts = EntityWhereabouts(capacity = WHEREABOUTS_KEPT)
     val groundWhereabouts: GroundWhereabouts = GroundWhereabouts(groundPositions)

@@ -61,6 +61,8 @@ internal suspend fun MaterialRestorer.dispatch(
     is HolderId.PlacedBlock -> ApplyResult.Ok
     is HolderId.Entity -> fillEntityCargo(holder, deltas, forms, sink, asOf, worn) ?: ApplyResult.Ok
 
+    is HolderId.Custom -> applyToCustom(holder, deltas, forms, sink)
+
     is HolderId.Source, is HolderId.Sink, is HolderId.Escrow, is HolderId.Plugin -> ApplyResult.Ok
 }
 

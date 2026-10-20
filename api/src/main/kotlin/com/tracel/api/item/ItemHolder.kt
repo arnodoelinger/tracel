@@ -2,6 +2,7 @@ package com.tracel.api.item
 
 import com.tracel.api.Unstable
 import com.tracel.api.world.BlockPlace
+import com.tracel.api.world.NamespacedName
 import java.util.UUID
 
 /** Where items sat before or after an item flow. */
@@ -33,4 +34,11 @@ public sealed interface ItemHolder {
 
     /** Nowhere: the items ended here, for [kind]. */
     public data class Gone(public val kind: SinkKind) : ItemHolder
+
+    /**
+     * A container an addon keeps: [kind] names its type, [id] the one holder, as the type's codec spells it.
+     *
+     * Still read after the addon is gone; then nobody knows what [id] means.
+     */
+    public data class Custom(public val kind: NamespacedName, public val id: String) : ItemHolder
 }

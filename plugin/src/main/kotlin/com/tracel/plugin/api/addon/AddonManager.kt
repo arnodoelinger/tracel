@@ -1,7 +1,6 @@
 package com.tracel.plugin.api.addon
 
 import com.tracel.api.addon.Addon
-import com.tracel.api.addon.AddonContext
 import com.tracel.api.addon.TracelAddon
 import com.tracel.plugin.api.Owned
 import java.util.logging.Level
@@ -18,6 +17,9 @@ private val ADDON_ID = Regex("[a-z0-9]+(-[a-z0-9]+)*")
 internal class AddonManager(
     private val logger: Logger,
     private val isPluginEnabled: (String) -> Boolean,
+    private val extensions: Extensions = Extensions(logger),
+    private val writes: AddonWrites = AddonWrites.NONE,
+    private val binders: List<AddonBinder> = emptyList(),
 ) {
     private val addons = LinkedHashMap<String, Entry>()
     private var running = false
@@ -28,7 +30,7 @@ internal class AddonManager(
     /**
      * Registers [addon] and enables it if the host is running.
      *
-     * No [Addon], a bad IR or a taken one throws.
+     * No [Addon], a bad ID, a taken one, or a handler with a bad signature throws.
      */
     @Synchronized
     fun register(addon: Any) {
@@ -39,7 +41,8 @@ internal class AddonManager(
             "Addon ID \"${meta.id}\" of ${addon.javaClass.name} must be lowercase letters and digits, split by dashes."
         }
         require(meta.id !in addons) { "Addon \"${meta.id}\" is already registered." }
-        val entry = Entry(meta.id, meta.requires.toList(), addon)
+        val bindings = binders.mapNotNull { it.prepare(addon) }
+        val entry = Entry(meta.id, meta.requires.toList(), addon, bindings)
         addons[meta.id] = entry
         if (running) enable(entry)
     }
@@ -71,12 +74,14 @@ internal class AddonManager(
             logger.info("Addon \"${entry.id}\" needs ${missing.joinToString()}; it stays off.")
             return
         }
-        val context = Context(entry.id, Owned { resource, failure ->
+        val owned = Owned { resource, failure ->
             logger.log(Level.WARNING, "Addon \"${entry.id}\" failed to close $resource.", failure)
-        })
+        }
+        val context = AddonScope(entry.id, owned, extensions, writes)
         entry.context = context
         try {
             (entry.addon as? TracelAddon)?.onEnable(context)
+            entry.bindings.forEach { it.bind(context) }
             logger.info("Addon \"${entry.id}\" enabled.")
         } catch (failure: Throwable) {
             logger.log(Level.SEVERE, "Addon \"${entry.id}\" failed to enable and was disabled.", failure)
@@ -95,11 +100,7 @@ internal class AddonManager(
         context.owned.close()
     }
 
-    private class Entry(val id: String, val requires: List<String>, val addon: Any) {
-        var context: Context? = null
-    }
-
-    private class Context(override val id: String, val owned: Owned) : AddonContext {
-        override fun <T : AutoCloseable> own(resource: T): T = owned.own(resource)
+    private class Entry(val id: String, val requires: List<String>, val addon: Any, val bindings: List<AddonBinding>) {
+        var context: AddonScope? = null
     }
 }

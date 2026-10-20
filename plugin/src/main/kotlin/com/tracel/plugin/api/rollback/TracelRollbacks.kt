@@ -130,9 +130,14 @@ internal open class TracelRollbacks(
             UndoResult.NotFound, UndoResult.AlreadyUndone -> Res.Err(RollbackError.NotUndoable)
             is UndoResult.OutOfOrder -> Res.Err(RollbackError.OutOfOrder(outcome.newer.map { it.raw }))
             is UndoResult.Failed -> Res.Err(RollbackError.Failed(outcome.reason))
-            is Unreachable -> Res.Err(RollbackError.Unreachable(outcome.reason))
+            is Unreachable -> Res.Err(unreachable(outcome))
             is Blocked -> Res.Err(RollbackError.Blocked)
         }
+    }
+
+    private fun unreachable(outcome: Unreachable): RollbackError = when (val holder = outcome.holder) {
+        is HolderId.Custom -> RollbackError.AddonMissing(ApiConversions.kind(holder.kind))
+        else -> RollbackError.Unreachable(outcome.reason)
     }
 
     private inner class Draft(
@@ -201,7 +206,7 @@ internal open class TracelRollbacks(
                     }
                     RollbackResult.Stale ->
                         Res.Err(RollbackError.Stale(Ready(draft, filter, plan(draft.query, filter))))
-                    is Unreachable -> Res.Err(RollbackError.Unreachable(outcome.reason))
+                    is Unreachable -> Res.Err(unreachable(outcome))
                     is Blocked -> Res.Err(RollbackError.Blocked)
                 }
             }

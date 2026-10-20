@@ -1,6 +1,7 @@
 package com.tracel.api.rollback
 
 import com.tracel.api.Unstable
+import com.tracel.api.world.NamespacedName
 
 /**
  * Why a rollback step did not happen.
@@ -48,6 +49,12 @@ public sealed interface RollbackError {
 
     /** Somewhere it must write is out of reach, and [reason] says why. */
     public data class Unreachable(public val reason: String) : RollbackError
+
+    /**
+     * It reaches into containers of [kind], and the addon that owns them is not installed:
+     * nobody can say how to put items back there, so nothing is put back anywhere.
+     */
+    public data class AddonMissing(public val kind: NamespacedName) : RollbackError
 
     /** There is nothing to roll back. */
     public data object NothingToDo : RollbackError
