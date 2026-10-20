@@ -1,5 +1,6 @@
 package com.tracel.plugin.api.addon
 
+import com.tracel.plugin.actor.ActorHolders
 import com.tracel.api.addon.ActorKind
 import com.tracel.api.addon.BlockLens
 import com.tracel.api.addon.CustomEventType
@@ -19,7 +20,6 @@ import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.plugin.adapter.block.BlockDataCache
-import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.rollback.RollbackSignals
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -204,7 +204,7 @@ internal class Extensions(private val logger: Logger = Logger.getLogger("TracelA
     }
 
     private fun job(run: Long, planned: Planned) =
-        RollbackJob(run, ApiConversions.actor(planned.by, CauseKind.PLAYER_ACTION), planned.taken.size)
+        RollbackJob(run, ActorHolders.actor(planned.by, CauseKind.PLAYER_ACTION), planned.taken.size)
 
     private fun outcome(result: RollbackResult?, failure: Throwable?): RollbackOutcome = when (result) {
         is RollbackResult.Done -> RollbackOutcome.Done(

@@ -18,7 +18,7 @@ import com.tracel.api.result.Res
 import com.tracel.api.world.NamespacedName
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.api.write.TracelAttribution
+import com.tracel.plugin.actor.ActorHolders
 import com.tracel.plugin.rollback.material.preflightAddons
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
@@ -184,7 +184,7 @@ class AddonRegistriesTest {
     @Test
     fun `an addon actor is written down as a custom holder`() {
         val kind = NamespacedName("backpacks", "courier")
-        val written = TracelAttribution.holderOf(Actor.Addon(kind, "7"), signer = null)
+        val written = ActorHolders.writer(Actor.Addon(kind, "7"), signer = null)
         assertEquals(HolderId.Custom("backpacks:courier", "7"), (written as Res.Ok).value)
     }
 }

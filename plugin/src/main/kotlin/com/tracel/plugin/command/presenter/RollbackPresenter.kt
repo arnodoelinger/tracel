@@ -1,11 +1,11 @@
 package com.tracel.plugin.command.presenter
 
+import com.tracel.plugin.actor.ActorHolders
 import com.tracel.api.item.ItemHolder
 import com.tracel.api.rollback.RollbackApplied
 import com.tracel.api.rollback.RollbackReady
 import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.world.NamespacedName
-import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.i18n.*
 import net.kyori.adventure.text.Component
@@ -28,7 +28,7 @@ object RollbackPresenter {
     /** Why a rollback or an undo stopped at a holder it could not reach. */
     fun unreachable(holder: ItemHolder, reason: String): Component = tr(
         "rollback.reason.unreachable",
-        "holder" to ChangeLinePresenter.holder(ApiConversions.holderId(holder)),
+        "holder" to ChangeLinePresenter.holder(ActorHolders.holderId(holder)),
         "reason" to reason,
     )
 

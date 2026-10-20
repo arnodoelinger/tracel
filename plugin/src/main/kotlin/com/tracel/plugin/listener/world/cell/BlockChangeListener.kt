@@ -18,7 +18,7 @@ import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.FireCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
-import com.tracel.plugin.listener.support.entity.explosionActor
+import com.tracel.plugin.actor.blame.explosionActor
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.specifics.block.WaterPlant
 import com.tracel.plugin.specifics.block.isAirLike

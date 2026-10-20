@@ -1,4 +1,4 @@
-package com.tracel.plugin.listener.support.entity
+package com.tracel.plugin.actor.blame
 
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.services.TracelServices

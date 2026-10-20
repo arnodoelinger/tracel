@@ -6,6 +6,7 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.annotations.Observes
 import com.tracel.engine.actor.EntityKindSource
 import com.tracel.model.world.entity.EntityTypeKey
+import org.bukkit.entity.EntityType
 import org.bukkit.entity.Item
 import org.bukkit.entity.Player
 import org.bukkit.event.Listener
@@ -19,8 +20,11 @@ internal class EntityKinds : EntityKindSource, Listener {
     private val gone = Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).maximumSize(GONE_KEPT)
         .build<UUID, EntityTypeKey>()
 
-    private companion object {
-        const val GONE_KEPT = 50_000L
+    companion object {
+        private const val GONE_KEPT = 50_000L
+
+        /** What kind of mob [type] is, as the log keeps it: `minecraft:zombie`. */
+        fun keyOf(type: EntityType): EntityTypeKey = EntityTypeKey(type.key().asString())
     }
 
     override fun kindOf(uuid: UUID): EntityTypeKey? = living[uuid] ?: gone.getIfPresent(uuid)
@@ -29,7 +33,7 @@ internal class EntityKinds : EntityKindSource, Listener {
     fun onAdd(event: EntityAddToWorldEvent) {
         val entity = event.entity
         if (entity is Player || entity is Item) return
-        living[entity.uniqueId] = EntityTypeKey(entity.type.key().asString())
+        living[entity.uniqueId] = keyOf(entity.type)
     }
 
     @Observes(ignoreCancelled = false)

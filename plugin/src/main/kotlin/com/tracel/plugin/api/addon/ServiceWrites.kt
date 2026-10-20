@@ -18,6 +18,7 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.item.toItemTotals
+import com.tracel.plugin.actor.ActorHolders
 import com.tracel.plugin.api.Owned
 import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.api.write.TracelAttribution
@@ -83,7 +84,7 @@ internal class ServiceWrites(
         }
 
         override fun batch(by: Actor): BlockBatch {
-            val signer = TracelAttribution.holderOf(by, signer = null).getOrElse { error(it.toString()) }
+            val signer = ActorHolders.writer(by, signer = null).getOrElse { error(it.toString()) }
             return owned.own(Batch(signer))
         }
     }

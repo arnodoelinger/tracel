@@ -8,7 +8,7 @@ import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.item.addTo
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
-import com.tracel.plugin.listener.support.entity.HitActor
+import com.tracel.plugin.actor.blame.HitActor
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player

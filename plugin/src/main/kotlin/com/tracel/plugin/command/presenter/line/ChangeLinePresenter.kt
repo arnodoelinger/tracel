@@ -20,7 +20,7 @@ import com.tracel.model.item.namesMaterial
 import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.command.presenter.ItemPresenter
-import com.tracel.plugin.api.read.Actors
+import com.tracel.plugin.actor.Actors
 import com.tracel.plugin.command.presenter.NamePresenter
 import com.tracel.plugin.command.presenter.support.Glyphs
 import com.tracel.plugin.i18n.lower

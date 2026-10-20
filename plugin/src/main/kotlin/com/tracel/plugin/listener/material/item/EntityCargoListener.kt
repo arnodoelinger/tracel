@@ -12,7 +12,7 @@ import com.tracel.plugin.adapter.entity.kind.hullItemKey
 import com.tracel.plugin.adapter.item.toItemKey
 import com.tracel.plugin.adapter.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.entity.HitActor
+import com.tracel.plugin.actor.blame.HitActor
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.specifics.command.EntityCommand

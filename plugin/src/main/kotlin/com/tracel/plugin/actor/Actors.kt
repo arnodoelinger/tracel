@@ -1,4 +1,4 @@
-package com.tracel.plugin.api.read
+package com.tracel.plugin.actor
 
 import com.tracel.api.history.ActorFacts
 import com.tracel.api.history.HistoryRecord

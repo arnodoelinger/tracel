@@ -1,5 +1,6 @@
 package com.tracel.plugin.api.rollback
 
+import com.tracel.plugin.actor.ActorHolders
 import com.tracel.api.actor.Actor
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.history.RecordKind
@@ -184,13 +185,13 @@ internal open class TracelRollbacks(
     private fun unreachable(outcome: Unreachable): RollbackError = when (val holder = outcome.holder) {
         is HolderId.Custom ->
             RollbackError.AddonMissing(ItemHolder.Custom(ApiConversions.kind(holder.kind), holder.id), outcome.reason)
-        else -> RollbackError.Unreachable(ApiConversions.holder(holder), outcome.reason)
+        else -> RollbackError.Unreachable(ActorHolders.holder(holder), outcome.reason)
     }
 
     private suspend fun blocked(outcome: Blocked): RollbackError.Blocked {
         val holds = outcome.conflicts.values.groupingBy { it }.eachCount().map { (job, lots) ->
             val owner = services.atomically { services.jobs.find(job) }?.by
-            RollbackError.Blocked.Hold(RollbackJobId(job.raw), ApiConversions.actor(owner, ModelCause.UNKNOWN), lots)
+            RollbackError.Blocked.Hold(RollbackJobId(job.raw), ActorHolders.actor(owner, ModelCause.UNKNOWN), lots)
         }
         return RollbackError.Blocked(holds.sortedBy { it.job })
     }

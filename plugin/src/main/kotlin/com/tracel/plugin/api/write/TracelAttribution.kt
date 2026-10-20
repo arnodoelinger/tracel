@@ -17,6 +17,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.item.Quantity
 import com.tracel.model.world.ActionKind
+import com.tracel.plugin.actor.ActorHolders
 import com.tracel.plugin.adapter.block.toShape
 import com.tracel.plugin.adapter.entity.toBlockPos
 import com.tracel.plugin.adapter.item.toItemKey
@@ -111,23 +112,7 @@ internal class TracelAttribution(
         }
     }
 
-    private fun holderOf(by: Actor?): Res<HolderId, WriteError> = holderOf(by, signer)
-
-    internal companion object {
-        fun holderOf(by: Actor?, signer: String?): Res<HolderId, WriteError> = when (by) {
-            null ->
-                if (signer != null) Res.Ok(HolderId.Plugin(signer))
-                else Res.Err(WriteError.Unsupported("Somebody has to have done it."))
-            is Actor.Plugin ->
-                if (signer == null || by.name == signer) Res.Ok(HolderId.Plugin(by.name))
-                else Res.Err(WriteError.Unsupported("A plugin writes in its own name, not as ${by.name}."))
-            is Actor.Player -> Res.Ok(HolderId.Player(by.uuid))
-            is Actor.Entity -> Res.Ok(HolderId.Entity(by.uuid))
-            is Actor.Block -> Res.Ok(HolderId.Block(ApiConversions.pos(by.place)))
-            Actor.Natural -> Res.Err(WriteError.Unsupported("Natural is nobody; a plugin's change is the plugin's."))
-            is Actor.Addon -> Res.Ok(HolderId.Custom(by.kind.toString(), by.id))
-        }
-    }
+    private fun holderOf(by: Actor?): Res<HolderId, WriteError> = ActorHolders.writer(by, signer)
 
     private suspend fun <T> guarded(work: suspend () -> Res<T, WriteError>): Res<T, WriteError> = try {
         work()

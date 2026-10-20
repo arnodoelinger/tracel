@@ -14,7 +14,6 @@ import com.tracel.api.history.HistoryReadError
 import com.tracel.api.history.HistoryRecord
 import com.tracel.api.history.ItemFlow
 import com.tracel.api.history.RecordKind
-import com.tracel.api.item.ItemHolder
 import com.tracel.api.item.ItemKind
 import com.tracel.api.item.SinkKind
 import com.tracel.api.item.SourceKind
@@ -27,10 +26,10 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.flow.FlowKind as ModelFlow
 import com.tracel.model.world.entity.leashHolder
+import com.tracel.plugin.actor.ActorHolders
 import com.tracel.plugin.adapter.block.special.SignText
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
@@ -52,11 +51,9 @@ internal typealias MaterialResolver = (String) -> Pair<String, Set<String>>
 /**
  * The one place engine types turn into API types and back.
  *
- * Nothing else in the plugin converts a [HolderId] to an [Actor];
- * two places doing it is how they start to disagree.
+ * Who and what holds items is `ActorHolders`' business, not this one's.
  */
 internal object ApiConversions {
-    private const val TRACEL = "Tracel"
     private val ANY_HEIGHT = Int.MIN_VALUE to Int.MAX_VALUE
 
     fun cause(kind: ModelCause): CauseKind = CauseKind.valueOf(kind.name)
@@ -86,61 +83,6 @@ internal object ApiConversions {
     fun pos(place: BlockPlace): BlockPos = BlockPos(WorldId(place.world), place.x, place.y, place.z)
 
     fun item(key: ItemKey): ItemKind = ItemKind(key.material, key.decoration?.hex)
-
-    fun actor(holder: HolderId?, cause: ModelCause): Actor? = when (holder) {
-        null -> if (cause.isNatural) Actor.Natural else null
-        is HolderId.Player -> Actor.Player(holder.uuid)
-        is HolderId.PlayerStash -> Actor.Player(holder.uuid)
-        is HolderId.Entity -> Actor.Entity(holder.uuid)
-        is HolderId.PlacedEntity -> Actor.Entity(holder.uuid)
-        is HolderId.ItemEntity -> Actor.Entity(holder.uuid)
-        is HolderId.AtBlock -> Actor.Block(place(holder.pos))
-        is HolderId.Escrow -> Actor.Plugin(TRACEL)
-        is HolderId.Plugin -> Actor.Plugin(holder.name)
-        is HolderId.Custom -> Actor.Addon(kind(holder.kind), holder.id)
-        is HolderId.Source, is HolderId.Sink -> if (cause.isNatural) Actor.Natural else null
-    }
-
-    fun holders(actor: Actor): Res<Set<HolderId>, HistoryReadError> = when (actor) {
-        is Actor.Player -> Res.Ok(setOf(HolderId.Player(actor.uuid)))
-        is Actor.Entity -> Res.Ok(
-            setOf(HolderId.Entity(actor.uuid), HolderId.PlacedEntity(actor.uuid), HolderId.ItemEntity(actor.uuid)),
-        )
-        is Actor.Block -> pos(actor.place).let { Res.Ok(setOf(HolderId.Block(it), HolderId.PlacedBlock(it))) }
-        Actor.Natural -> Res.Err(
-            HistoryReadError.Unsupported("Natural is nobody; ask for natural() and its causes instead."),
-        )
-        is Actor.Plugin -> Res.Ok(setOf(HolderId.Plugin(actor.name)))
-        is Actor.Addon -> Res.Ok(setOf(HolderId.Custom(actor.kind.toString(), actor.id)))
-    }
-
-    fun holder(id: HolderId): ItemHolder = when (id) {
-        is HolderId.Block -> ItemHolder.Container(place(id.pos))
-        is HolderId.PlacedBlock -> ItemHolder.PlacedBlock(place(id.pos))
-        is HolderId.Player -> ItemHolder.Player(id.uuid)
-        is HolderId.PlayerStash -> ItemHolder.Player(id.uuid, stash = true)
-        is HolderId.Entity -> ItemHolder.Entity(id.uuid)
-        is HolderId.PlacedEntity -> ItemHolder.PlacedEntity(id.uuid)
-        is HolderId.ItemEntity -> ItemHolder.Dropped(id.uuid)
-        is HolderId.Escrow -> ItemHolder.Rollback
-        is HolderId.Plugin -> ItemHolder.Appeared(SourceKind.PLUGIN)
-        is HolderId.Source -> ItemHolder.Appeared(source(id.kind))
-        is HolderId.Sink -> ItemHolder.Gone(sink(id.kind))
-        is HolderId.Custom -> ItemHolder.Custom(kind(id.kind), id.id)
-    }
-
-    fun holderId(holder: ItemHolder): HolderId = when (holder) {
-        is ItemHolder.Container -> HolderId.Block(pos(holder.place))
-        is ItemHolder.PlacedBlock -> HolderId.PlacedBlock(pos(holder.place))
-        is ItemHolder.Player -> if (holder.stash) HolderId.PlayerStash(holder.uuid) else HolderId.Player(holder.uuid)
-        is ItemHolder.Entity -> HolderId.Entity(holder.uuid)
-        is ItemHolder.PlacedEntity -> HolderId.PlacedEntity(holder.uuid)
-        is ItemHolder.Dropped -> HolderId.ItemEntity(holder.uuid)
-        ItemHolder.Rollback -> HolderId.Escrow(RollbackJobId(0))
-        is ItemHolder.Appeared -> HolderId.Source(ModelSource.valueOf(holder.kind.name))
-        is ItemHolder.Gone -> HolderId.Sink(ModelSink.valueOf(holder.kind.name))
-        is ItemHolder.Custom -> HolderId.Custom(holder.kind.toString(), holder.id)
-    }
 
     fun kind(stored: String): NamespacedName = NamespacedName.parse(stored) ?: NamespacedName("unknown", "unknown")
 
@@ -176,14 +118,14 @@ internal object ApiConversions {
         }
         val holders = HashSet<HolderId>()
         for (actor in query.by - Actor.Natural) {
-            when (val got = holders(actor)) {
+            when (val got = ActorHolders.holders(actor)) {
                 is Res.Ok -> holders += got.value
                 is Res.Err -> return got
             }
         }
         val excluded = HashSet<HolderId>()
         for (actor in query.notBy - Actor.Natural) {
-            when (val got = holders(actor)) {
+            when (val got = ActorHolders.holders(actor)) {
                 is Res.Ok -> excluded += got.value
                 is Res.Err -> return got
             }
@@ -227,7 +169,7 @@ internal object ApiConversions {
 
     fun record(change: WorldChange, query: HistoryQuery, rolled: Map<Long, Long>): HistoryRecord? {
         val at = Instant.ofEpochMilli(change.epochMillis)
-        val actor = actor(change.causedBy, change.cause)
+        val actor = ActorHolders.actor(change.causedBy, change.cause)
         val cursor = cursor(change.epochMillis, change.seq.raw)
         val rolledBack = instant(rolled[change.seq.raw])
         return when (val subject = change.subject) {
@@ -248,7 +190,7 @@ internal object ApiConversions {
 
     fun records(transaction: Transaction, query: HistoryQuery, item: String?, rolled: Map<Long, Long>): List<ItemFlow> {
         val at = Instant.ofEpochMilli(transaction.epochMillis)
-        val actor = actor(transaction.causedBy, transaction.cause)
+        val actor = ActorHolders.actor(transaction.causedBy, transaction.cause)
         val cursor = cursor(transaction.epochMillis, transaction.seq.raw)
         val rolledBack = instant(rolled[transaction.seq.raw])
         val place = transaction.at?.let(::place)
@@ -259,13 +201,13 @@ internal object ApiConversions {
             if (wanted != null && query.exactItem && kind.variant != wanted.variant) return@mapNotNull null
             ItemFlow(
                 at, actor, cause(transaction.cause), rolledBack, place, cursor,
-                kind, flow.quantity.raw, holder(flow.source), holder(flow.destination), flowKind(flow.kind),
+                kind, flow.quantity.raw, ActorHolders.holder(flow.source), ActorHolders.holder(flow.destination), flowKind(flow.kind),
             )
         }
     }
 
     fun record(event: ActorEvent): EventRecord {
-        val actor = actor(event.by, ModelCause.PLAYER_ACTION)
+        val actor = ActorHolders.actor(event.by, ModelCause.PLAYER_ACTION)
         val cause = when (actor) {
             is Actor.Player -> CauseKind.PLAYER_ACTION
             is Actor.Plugin -> CauseKind.PLUGIN

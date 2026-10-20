@@ -21,10 +21,10 @@ import com.tracel.plugin.adapter.entity.toShape
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DispenseCell
-import com.tracel.plugin.listener.support.entity.DamageBlame
-import com.tracel.plugin.listener.support.entity.HitActor
-import com.tracel.plugin.listener.support.entity.damageBlame
-import com.tracel.plugin.listener.support.entity.explosionActor
+import com.tracel.plugin.actor.blame.DamageBlame
+import com.tracel.plugin.actor.blame.HitActor
+import com.tracel.plugin.actor.blame.damageBlame
+import com.tracel.plugin.actor.blame.explosionActor
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.specifics.command.EntityCommand
 import com.tracel.plugin.specifics.command.isCommand
