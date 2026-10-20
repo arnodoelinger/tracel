@@ -1,6 +1,8 @@
 package com.tracel.api.rollback
 
 import com.tracel.api.Unstable
+import com.tracel.api.actor.Actor
+import com.tracel.api.item.ItemHolder
 import com.tracel.api.world.NamespacedName
 
 /**
@@ -44,11 +46,14 @@ public sealed interface RollbackError {
         public val asked: Long,
     ) : RollbackError
 
-    /** Some items it needs are held by another rollback. */
-    public data object Blocked : RollbackError
+    /** Some items it needs are held by other rollbacks, and [holds] says whose. */
+    public data class Blocked(public val holds: List<Hold>) : RollbackError {
+        /** [lots] lots of items held for [job], which [by] ran; `null` for the console. */
+        public data class Hold(public val job: RollbackJobId, public val by: Actor?, public val lots: Int)
+    }
 
-    /** Somewhere it must write is out of reach, and [reason] says why. */
-    public data class Unreachable(public val reason: String) : RollbackError
+    /** Somewhere it must write is out of reach: [holder] is the one it could not reach, and [reason] says why. */
+    public data class Unreachable(public val holder: ItemHolder, public val reason: String) : RollbackError
 
     /**
      * It reaches into containers of [kind], and the addon that owns them is not installed:
@@ -67,7 +72,7 @@ public sealed interface RollbackError {
     public data object NotUndoable : RollbackError
 
     /** Rollbacks [newer] touched the same things later; undo those first. */
-    public data class OutOfOrder(public val newer: List<Long>) : RollbackError
+    public data class OutOfOrder(public val newer: List<RollbackJobId>) : RollbackError
 
     /** The query asks something a rollback cannot do, and [reason] says what. */
     public data class Unsupported(public val reason: String) : RollbackError

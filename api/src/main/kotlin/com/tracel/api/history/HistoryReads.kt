@@ -69,6 +69,13 @@ public interface HistoryReads {
     ): Res<List<ContainerTaker>, HistoryReadError>
 
     /**
+     * Waits until what was captured so far is on disk, so a read after it sees it.
+     *
+     * @return `false` when some of it was still on its way when the wait ran out
+     */
+    public suspend fun settle(): Boolean
+
+    /**
      * Records as they are written from now on, oldest first, for as long as the flow is collected.
      * Each arrives a second or two after it happened, once it is on disk.
      */

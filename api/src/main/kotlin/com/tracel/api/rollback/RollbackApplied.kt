@@ -7,10 +7,25 @@ import com.tracel.api.result.Res
 @Unstable
 public interface RollbackApplied {
     /** The job, for `Rollbacks.undo` after a restart. */
-    public val job: Long
+    public val job: RollbackJobId
 
     /** Blocks and entities it changed. */
     public val changed: Int
+
+    /** Of [changed], the ones it put back. */
+    public val restored: Int
+
+    /** Of [changed], the ones it took away: blocks turned to air, entities removed. */
+    public val removed: Int
+
+    /** What it did to items. */
+    public val balance: ItemBalance
+
+    /** Addon records it took back outside the world. */
+    public val outside: Int
+
+    /** How many history records it took back. */
+    public val records: Int
 
     /** Blocks and entities it left alone: changed since, out of reach. */
     public val skipped: Int
@@ -28,7 +43,7 @@ public interface RollbackApplied {
 /** A rollback that was taken back. */
 @Unstable
 public data class RollbackUndone(
-    public val job: Long,
+    public val job: RollbackJobId,
     public val changed: Int,
     public val skipped: Int,
     public val itemsRestored: Boolean,

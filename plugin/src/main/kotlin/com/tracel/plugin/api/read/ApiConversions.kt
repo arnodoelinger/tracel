@@ -51,6 +51,7 @@ internal typealias MaterialResolver = (String) -> Pair<String, Set<String>>
  */
 internal object ApiConversions {
     private const val TRACEL = "Tracel"
+    private val ANY_HEIGHT = Int.MIN_VALUE to Int.MAX_VALUE
 
     fun cause(kind: ModelCause): CauseKind = CauseKind.valueOf(kind.name)
 
@@ -119,12 +120,27 @@ internal object ApiConversions {
     fun kind(stored: String): NamespacedName = NamespacedName.parse(stored) ?: NamespacedName("unknown", "unknown")
 
     fun region(area: LookupArea): LookupRegion? = when (area) {
-        is LookupArea.Around -> box(
-            area.world,
-            area.center.x - area.radius, area.center.y - area.radius, area.center.z - area.radius,
-            area.center.x + area.radius, area.center.y + area.radius, area.center.z + area.radius,
-        )
-        is LookupArea.Cube -> box(area.world, area.minX, area.minY, area.minZ, area.maxX, area.maxY, area.maxZ)
+        is LookupArea.Around -> {
+            val r = area.radius
+            val (minY, maxY) = if (area.anyHeight) ANY_HEIGHT else (area.center.y - r) to (area.center.y + r)
+            box(
+                area.world,
+                area.center.x - r, minY, area.center.z - r,
+                area.center.x + r, maxY, area.center.z + r,
+            )
+        }
+        is LookupArea.Cube -> {
+            val (minY, maxY) = if (area.anyHeight) ANY_HEIGHT else area.minY to area.maxY
+            box(area.world, area.minX, minY, area.minZ, area.maxX, maxY, area.maxZ)
+        }
+        is LookupArea.Chunks -> {
+            val x = area.center.x shr TILE_SHIFT
+            val z = area.center.z shr TILE_SHIFT
+            LookupRegion(
+                WorldId(area.world),
+                x - area.radius, x + area.radius, z - area.radius, z + area.radius,
+            )
+        }
         is LookupArea.World -> null
     }
 
@@ -160,12 +176,14 @@ internal object ApiConversions {
                 material = resolved?.first,
                 blockMaterials = resolved?.second.orEmpty(),
                 causes = causes,
+                worldCauses = query.blockCauses?.mapTo(HashSet(), ::cause),
                 excludedCauses = query.notCauses.mapTo(HashSet(), ::cause) + hidden,
                 actions = query.actions.mapTo(HashSet(), ::action),
                 since = query.since?.toEpochMilli(),
                 until = query.until?.toEpochMilli(),
                 region = area?.let(::region),
                 world = area?.let { WorldId(it.world) },
+                entity = query.entity,
                 limit = Int.MAX_VALUE,
             ),
         )

@@ -2,6 +2,7 @@ package com.tracel.api.addon
 
 import com.tracel.api.Unstable
 import com.tracel.api.actor.Actor
+import com.tracel.api.rollback.RollbackJobId
 import net.kyori.adventure.text.Component
 
 /** A rollback as `@OnRollbackStarted` and `@OnRollbackFinished` see it: the same value in both. */
@@ -22,7 +23,7 @@ public data class RollbackJob(
 public sealed interface RollbackOutcome {
     /** It ran as rollback [job], for `Rollbacks.undo`. */
     public data class Done(
-        public val job: Long,
+        public val job: RollbackJobId,
         public val changed: Int,
         public val skipped: Int,
         public val overwritten: Int,

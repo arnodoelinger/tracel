@@ -5,6 +5,7 @@ import com.tracel.api.actor.Actor
 import com.tracel.api.item.ItemKind
 import com.tracel.api.world.LookupArea
 import java.time.Instant
+import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.toJavaDuration
 import java.time.Duration as JavaDuration
@@ -29,10 +30,12 @@ public data class HistoryQuery(
     public val notBy: Set<Actor> = emptySet(),
     public val causes: Set<CauseKind> = emptySet(),
     public val notCauses: Set<CauseKind> = emptySet(),
+    public val blockCauses: Set<CauseKind>? = null,
     public val actions: Set<ActionKind> = emptySet(),
     public val item: ItemKind? = null,
     public val exactItem: Boolean = false,
     public val natural: Boolean = false,
+    public val entity: UUID? = null,
 ) {
     /** This query, narrowed further by [block]. */
     public fun with(block: Builder.() -> Unit): HistoryQuery = Builder(this).apply(block).query
@@ -88,6 +91,14 @@ public data class HistoryQuery(
             query = query.copy(notCauses = query.notCauses + causes)
         }
 
+        /**
+         * Only block and entity records for one of [causes], where that differs from the [causes] item records and
+         * events are held to. Left alone, [causes] covers all.
+         */
+        public fun blockCauses(vararg causes: CauseKind) {
+            query = query.copy(blockCauses = causes.toSet())
+        }
+
         /** Only block and entity records that did one of [actions]. */
         public fun actions(vararg actions: ActionKind) {
             query = query.copy(actions = query.actions + actions)
@@ -111,6 +122,11 @@ public data class HistoryQuery(
         /** Only records of [kinds]. */
         public fun only(vararg kinds: RecordKind) {
             query = query.copy(kinds = kinds.toSet())
+        }
+
+        /** Only what happened to or with the entity [uuid], as far as history ties records to one. */
+        public fun entity(uuid: UUID) {
+            query = query.copy(entity = uuid)
         }
 
         /** Events as well, of [kinds] or every kind when none are named. */

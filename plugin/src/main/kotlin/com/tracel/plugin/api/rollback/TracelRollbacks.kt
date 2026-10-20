@@ -11,18 +11,27 @@ import com.tracel.api.rollback.ItemBalance
 import com.tracel.api.rollback.RollbackApplied
 import com.tracel.api.rollback.RollbackDraft
 import com.tracel.api.rollback.RollbackError
+import com.tracel.api.rollback.RollbackJobId
+import com.tracel.api.rollback.PlannedBlock
+import com.tracel.api.rollback.UndoPreview
+import com.tracel.api.world.NamespacedName
 import com.tracel.api.rollback.RollbackReady
 import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.rollback.Rollbacks
 import com.tracel.api.world.LookupArea
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.engine.rollback.structure.inverse
+import com.tracel.model.world.TILE_SHIFT
+import com.tracel.plugin.adapter.rollback.composer.warmForPreview
+import com.tracel.plugin.specifics.block.isAirLike
 import com.tracel.model.holder.HolderId
-import com.tracel.model.rollback.RollbackJobId
+import com.tracel.model.cause.CauseKind as ModelCause
+import com.tracel.model.rollback.RollbackJobId as ModelJob
 import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.api.read.MaterialResolver
 import com.tracel.plugin.command.args.scope.ScopeLimits
-import com.tracel.plugin.command.args.support.MaterialAliases
+import com.tracel.plugin.api.read.MaterialAliases
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
@@ -34,8 +43,11 @@ import org.bukkit.entity.Player
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * [Rollbacks] for one plugin, over the same planner and composer `/tracel rollback` uses. Every job it runs is
- * signed with [signer], so lookups and undo know whose it was.
+ * [Rollbacks] for one plugin, or for the commands: `/tracel rollback` and its undo run through these too, signed as
+ * the player who typed them. Every job it runs is signed with [by], so lookups and undo know whose it was, and holds
+ * areas as [signer].
+ *
+ * [confirmed] is for the commands: the sender has said yes to bringing back more entities than the limit.
  */
 internal open class TracelRollbacks(
     private val services: TracelServices,
@@ -44,9 +56,9 @@ internal open class TracelRollbacks(
     private val borrows: Borrows,
     private val lease: Borrows.Lease? = null,
     private val materials: MaterialResolver = MaterialAliases::resolve,
+    private val by: HolderId? = HolderId.Plugin(signer),
+    private val confirmed: Boolean = false,
 ) : Rollbacks {
-    private val by = HolderId.Plugin(signer)
-
     override fun Player.rollback(build: HistoryQuery.Builder.() -> Unit): RollbackDraft =
         rollback(HistoryQuery(by = setOf(Actor.Player(uniqueId))).with(build))
 
@@ -66,10 +78,21 @@ internal open class TracelRollbacks(
         }
     }
 
-    override suspend fun undo(job: Long): Res<RollbackUndone, RollbackError> {
+    override suspend fun undo(job: RollbackJobId): Res<RollbackUndone, RollbackError> {
         refusal()?.let { return Res.Err(it) }
-        return gated { undoGated(RollbackJobId(job)) }
+        return gated { undoGated(ModelJob(job.raw)) }
     }
+
+    override suspend fun undoPreview(job: RollbackJobId): Res<UndoPreview, RollbackError> {
+        refusal()?.let { return Res.Err(it) }
+        if (!services.composite.isUndoable(by, ModelJob(job.raw))) return Res.Err(RollbackError.NotUndoable)
+        val record = services.atomically { services.jobs.find(ModelJob(job.raw)) }
+            ?: return Res.Err(RollbackError.NotUndoable)
+        return Res.Ok(UndoPreview(job, entityTypes((record.create + record.destroy).map { it.inverse() })))
+    }
+
+    override suspend fun latest(): RollbackJobId? =
+        services.composite.lastUndoable(by)?.let { RollbackJobId(it.raw) }
 
     private fun refusal(): RollbackError? = when {
         !alive() -> RollbackError.Revoked
@@ -98,6 +121,7 @@ internal open class TracelRollbacks(
         val radius = when (area) {
             is LookupArea.Around -> area.radius
             is LookupArea.Cube -> maxOf(area.maxX - area.minX, area.maxZ - area.minZ) / 2
+            is LookupArea.Chunks -> area.radius shl TILE_SHIFT
             is LookupArea.World -> return Res.Err(RollbackError.Unbounded("an area smaller than a world."))
         }
         ScopeLimits.rollbackMaxBlocks?.let { max ->
@@ -116,29 +140,41 @@ internal open class TracelRollbacks(
         material = RecordKind.ITEM in query.kinds,
     )
 
-    private suspend fun undoGated(job: RollbackJobId): Res<RollbackUndone, RollbackError> {
+    private suspend fun undoGated(job: ModelJob): Res<RollbackUndone, RollbackError> {
         if (!services.composite.isUndoable(by, job)) return Res.Err(RollbackError.NotUndoable)
         return when (val outcome = services.composite.undo(job)) {
             is UndoResult.Done -> Res.Ok(
                 RollbackUndone(
-                    job.raw,
+                    RollbackJobId(job.raw),
                     outcome.structure.count,
                     outcome.structure.skipped.size,
                     outcome.material.fullyRestored,
                 ),
             )
             UndoResult.NotFound, UndoResult.AlreadyUndone -> Res.Err(RollbackError.NotUndoable)
-            is UndoResult.OutOfOrder -> Res.Err(RollbackError.OutOfOrder(outcome.newer.map { it.raw }))
+            is UndoResult.OutOfOrder -> Res.Err(RollbackError.OutOfOrder(outcome.newer.map { RollbackJobId(it.raw) }))
             is UndoResult.Failed -> Res.Err(RollbackError.Failed(outcome.reason))
             is Unreachable -> Res.Err(unreachable(outcome))
-            is Blocked -> Res.Err(RollbackError.Blocked)
+            is Blocked -> Res.Err(blocked(outcome))
         }
     }
 
     private fun unreachable(outcome: Unreachable): RollbackError = when (val holder = outcome.holder) {
         is HolderId.Custom -> RollbackError.AddonMissing(ApiConversions.kind(holder.kind))
-        else -> RollbackError.Unreachable(outcome.reason)
+        else -> RollbackError.Unreachable(ApiConversions.holder(holder), outcome.reason)
     }
+
+    private suspend fun blocked(outcome: Blocked): RollbackError.Blocked {
+        val holds = outcome.conflicts.values.groupingBy { it }.eachCount().map { (job, lots) ->
+            val owner = services.atomically { services.jobs.find(job) }?.by
+            RollbackError.Blocked.Hold(RollbackJobId(job.raw), ApiConversions.actor(owner, ModelCause.UNKNOWN), lots)
+        }
+        return RollbackError.Blocked(holds.sortedBy { it.job })
+    }
+
+    private fun entityTypes(steps: List<StructureStep>): Map<NamespacedName, Int> =
+        steps.filterIsInstance<StructureStep.SpawnEntity>().filter { it.expected == null }
+            .groupingBy { ApiConversions.kind(it.shape.type.value) }.eachCount()
 
     private inner class Draft(
         override val query: HistoryQuery,
@@ -167,14 +203,24 @@ internal open class TracelRollbacks(
         private val material = composite.material
 
         override val blocks: Int get() = composite.structureCount
+        override val restores: Int get() = composite.create.size
+        override val removals: Int get() = composite.destroy.size
         override val entities: Int
             get() = composite.create.count { it is StructureStep.SpawnEntity && it.expected == null }
+        override val entityTypes: Map<NamespacedName, Int> get() = entityTypes(composite.create)
+        override val blockChanges: List<PlannedBlock>
+            get() = (composite.create.asSequence() + composite.destroy.asSequence())
+                .filterIsInstance<StructureStep.SetBlock>()
+                .map { PlannedBlock(ApiConversions.place(it.at), it.target.data.value, it.expected.data.value) }
+                .toList()
         override val balance: ItemBalance
             get() = ItemBalance(material.takeCount, material.unmakeCount, material.mintCount)
         override val complete: Boolean get() = planned.flushed
         override val imported: Int get() = planned.imported
         override val outside: Int get() = planned.outside.size
         override val isEmpty: Boolean get() = composite.isEmpty && planned.outside.isEmpty()
+
+        override suspend fun warm() = warmForPreview(services, planned)
 
         override suspend fun apply(): Res<RollbackApplied, RollbackError> {
             if (!used.compareAndSet(false, true)) return Res.Err(RollbackError.Moved)
@@ -188,7 +234,7 @@ internal open class TracelRollbacks(
         }
 
         private fun budget(): RollbackError? = when {
-            entities > services.entityRestoreLimit ->
+            !confirmed && entities > services.entityRestoreLimit ->
                 RollbackError.OverBudget("entities", services.entityRestoreLimit.toLong(), entities.toLong())
             else -> null
         }
@@ -208,7 +254,7 @@ internal open class TracelRollbacks(
                     RollbackResult.Stale ->
                         Res.Err(RollbackError.Stale(Ready(draft, filter, plan(draft.query, filter))))
                     is Unreachable -> Res.Err(unreachable(outcome))
-                    is Blocked -> Res.Err(RollbackError.Blocked)
+                    is Blocked -> Res.Err(blocked(outcome))
                 }
             }
     }
@@ -216,8 +262,17 @@ internal open class TracelRollbacks(
     private inner class Applied(done: RollbackResult.Done) : RollbackApplied {
         private val used = AtomicBoolean(false)
 
-        override val job: Long = done.job.raw
+        override val job: RollbackJobId = RollbackJobId(done.job.raw)
         override val changed: Int = done.structure.count
+        override val removed: Int = done.structure.applied.count {
+            it is StructureStep.RemoveEntity || (it is StructureStep.SetBlock && it.target.isAirLike)
+        }
+        override val restored: Int = changed - removed
+        override val balance: ItemBalance = done.plan.composite.material.let {
+            ItemBalance(it.takeCount, it.unmakeCount, it.mintCount)
+        }
+        override val outside: Int = done.plan.outside.size
+        override val records: Int = done.plan.taken.size
         override val skipped: Int = done.structure.skipped.size
         override val overwritten: Int = done.structure.overwritten
         override val itemsRestored: Boolean = done.material.fullyRestored
@@ -225,7 +280,7 @@ internal open class TracelRollbacks(
         override suspend fun undo(): Res<RollbackUndone, RollbackError> {
             if (!used.compareAndSet(false, true)) return Res.Err(RollbackError.Moved)
             refusal()?.let { return Res.Err(it) }
-            val got = gated { undoGated(RollbackJobId(job)) }
+            val got = gated { undoGated(ModelJob(job.raw)) }
             if (got is Res.Err && got.error == RollbackError.Busy) used.set(false)
             return got
         }

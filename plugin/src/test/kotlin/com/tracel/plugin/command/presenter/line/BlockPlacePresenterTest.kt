@@ -9,7 +9,7 @@ import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.command.presenter.Actors
+import com.tracel.plugin.api.read.Actors
 import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.PlayerReport
 import com.tracel.plugin.specifics.block.AIR

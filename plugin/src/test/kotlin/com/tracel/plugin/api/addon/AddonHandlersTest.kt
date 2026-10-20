@@ -15,6 +15,7 @@ import com.tracel.api.history.EventRecord
 import com.tracel.api.history.HistoryCursor
 import com.tracel.api.history.HistoryRecord
 import com.tracel.api.history.RecordKind
+import com.tracel.api.rollback.RollbackJobId
 import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.world.BlockPlace
 import java.time.Instant
@@ -61,7 +62,7 @@ class AddonHandlersTest {
 
     private val place = BlockPlace(UUID(1, 2), 3, 64, 5)
     private val job = RollbackJob(1, null, 12)
-    private val done = RollbackOutcome.Done(7, 10, 2, 0, true)
+    private val done = RollbackOutcome.Done(RollbackJobId(7), 10, 2, 0, true)
     private val record = EventRecord(
         Instant.EPOCH, null, CauseKind.UNKNOWN, null, null, HistoryCursor(0, 1), EventKind.CHAT, "hi", null,
     )
@@ -108,7 +109,7 @@ class AddonHandlersTest {
         for (hearer in extensions.rollbacks.all) {
             hearer.started(job)
             hearer.finished(job, done)
-            hearer.undone(RollbackUndone(7, 1, 0, true))
+            hearer.undone(RollbackUndone(RollbackJobId(7), 1, 0, true))
         }
         val lines = extensions.inspect(place)
 

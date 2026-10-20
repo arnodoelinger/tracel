@@ -3,6 +3,7 @@ package com.tracel.plugin.api.rollback
 import com.tracel.api.rollback.RollbackError
 import com.tracel.api.result.Res
 import com.tracel.api.world.LookupArea
+import com.tracel.model.world.TILE_SHIFT
 import java.util.UUID
 
 /**
@@ -72,9 +73,21 @@ internal class Borrows {
         private fun box(area: LookupArea): Box = when (area) {
             is LookupArea.Around -> with(area.center) {
                 val r = area.radius
-                Box(world, x - r, y - r, z - r, x + r, y + r, z + r)
+                if (area.anyHeight) Box(world, x - r, Int.MIN_VALUE, z - r, x + r, Int.MAX_VALUE, z + r)
+                else Box(world, x - r, y - r, z - r, x + r, y + r, z + r)
             }
-            is LookupArea.Cube -> Box(area.world, area.minX, area.minY, area.minZ, area.maxX, area.maxY, area.maxZ)
+            is LookupArea.Cube ->
+                if (area.anyHeight) Box(area.world, area.minX, Int.MIN_VALUE, area.minZ, area.maxX, Int.MAX_VALUE, area.maxZ)
+                else Box(area.world, area.minX, area.minY, area.minZ, area.maxX, area.maxY, area.maxZ)
+            is LookupArea.Chunks -> with(area.center) {
+                val r = area.radius
+                Box(
+                    world,
+                    ((x shr TILE_SHIFT) - r) shl TILE_SHIFT, Int.MIN_VALUE, ((z shr TILE_SHIFT) - r) shl TILE_SHIFT,
+                    (((x shr TILE_SHIFT) + r + 1) shl TILE_SHIFT) - 1, Int.MAX_VALUE,
+                    (((z shr TILE_SHIFT) + r + 1) shl TILE_SHIFT) - 1,
+                )
+            }
             is LookupArea.World -> Box(
                 area.world,
                 Int.MIN_VALUE, Int.MIN_VALUE, Int.MIN_VALUE,

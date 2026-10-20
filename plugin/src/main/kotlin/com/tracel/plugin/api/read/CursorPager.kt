@@ -5,12 +5,13 @@ import com.tracel.api.history.HistoryCursor
 /**
  * One log read backwards from a [HistoryCursor].
  *
- * [fetch] answers newest first, at most `limit` rows, none newer than `until`;
+ * [fetch] answers newest first, at most `limit` rows, none newer than `until`, and [until] caps what it is asked;
  * the log's order inside one millisecond is not trusted.
  */
 internal class LogSource<T>(
     private val fetch: suspend (until: Long?, limit: Int) -> List<T>,
     val cursorOf: (T) -> HistoryCursor,
+    private val until: Long? = null,
 ) {
     /**
      * At least [size] rows older than [from], newest first, or all that are left.
@@ -18,7 +19,7 @@ internal class LogSource<T>(
      * A full window can cut its oldest millisecond anywhere, so rows of that millisecond
      * only count once the window held more than it.
      */
-    suspend fun older(from: HistoryCursor?, until: Long?, size: Int): List<T> {
+    suspend fun older(from: HistoryCursor?, size: Int): List<T> {
         val bound = listOfNotNull(from?.millis, until).minOrNull()
         var window = size + 1
         while (true) {
@@ -46,9 +47,9 @@ internal class LogSource<T>(
 internal object CursorPager {
     class Rows<T>(val rows: List<T>, val next: HistoryCursor?)
 
-    suspend fun <T> page(sources: List<LogSource<T>>, from: HistoryCursor?, until: Long?, size: Int): Rows<T> {
+    suspend fun <T> page(sources: List<LogSource<T>>, from: HistoryCursor?, size: Int): Rows<T> {
         val all = ArrayList<Pair<HistoryCursor, T>>()
-        for (source in sources) for (row in source.older(from, until, size)) all += source.cursorOf(row) to row
+        for (source in sources) for (row in source.older(from, size)) all += source.cursorOf(row) to row
         all.sortByDescending { it.first }
         if (all.size < size) return Rows(all.map { it.second }, null)
         val taken = all.subList(0, size)

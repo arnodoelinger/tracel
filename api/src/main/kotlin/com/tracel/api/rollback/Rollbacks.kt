@@ -3,6 +3,7 @@ package com.tracel.api.rollback
 import com.tracel.api.Unstable
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.result.Res
+import com.tracel.api.world.NamespacedName
 import com.tracel.api.world.LookupArea
 import org.bukkit.entity.Player
 
@@ -40,7 +41,13 @@ public interface Rollbacks {
     public suspend fun <T> borrow(area: LookupArea, block: suspend BorrowedArea.() -> T): Res<T, RollbackError>
 
     /** Undoes rollback [job], one this plugin made earlier, even before a restart. */
-    public suspend fun undo(job: Long): Res<RollbackUndone, RollbackError>
+    public suspend fun undo(job: RollbackJobId): Res<RollbackUndone, RollbackError>
+
+    /** What undoing [job] would bring back, for asking first. */
+    public suspend fun undoPreview(job: RollbackJobId): Res<UndoPreview, RollbackError>
+
+    /** The newest rollback of this plugin that is not undone yet, or `null`. */
+    public suspend fun latest(): RollbackJobId?
 }
 
 /** An area held by one plugin for the length of a `borrow` block. Its drafts must stay inside it. */
@@ -51,4 +58,11 @@ public interface BorrowedArea : Rollbacks {
 
     /** True once the `borrow` block has ended. */
     public val isExpired: Boolean
+}
+
+/** What an undo would do beyond blocks: [entityTypes] are the entities it would bring back, by type. */
+@Unstable
+public data class UndoPreview(public val job: RollbackJobId, public val entityTypes: Map<NamespacedName, Int>) {
+    /** How many entities it brings back. */
+    public val entities: Int get() = entityTypes.values.sum()
 }

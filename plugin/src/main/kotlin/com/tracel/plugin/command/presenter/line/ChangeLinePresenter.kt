@@ -15,7 +15,7 @@ import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.leashHolder
-import com.tracel.plugin.command.presenter.Actors
+import com.tracel.plugin.api.read.Actors
 import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.NamePresenter
 import com.tracel.plugin.command.presenter.support.Glyphs

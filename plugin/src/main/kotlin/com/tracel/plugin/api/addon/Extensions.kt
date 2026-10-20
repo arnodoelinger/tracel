@@ -9,6 +9,7 @@ import com.tracel.api.addon.ItemLens
 import com.tracel.api.addon.RollbackJob
 import com.tracel.api.addon.RollbackOutcome
 import com.tracel.api.addon.RollbackStep
+import com.tracel.api.rollback.RollbackJobId
 import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.world.BlockPlace
 import com.tracel.api.world.NamespacedName
@@ -194,7 +195,8 @@ internal class Extensions(private val logger: Logger = Logger.getLogger("TracelA
         val hearers = rollbacks.all
         if (hearers.isEmpty()) return
         val undone = RollbackUndone(
-            done.job.raw, done.structure.count, done.structure.skipped.size, done.material.fullyRestored,
+            RollbackJobId(done.job.raw), done.structure.count, done.structure.skipped.size,
+            done.material.fullyRestored,
         )
         for (hearer in hearers) guarded("undo") { hearer.undone(undone) }
     }
@@ -204,7 +206,7 @@ internal class Extensions(private val logger: Logger = Logger.getLogger("TracelA
 
     private fun outcome(result: RollbackResult?, failure: Throwable?): RollbackOutcome = when (result) {
         is RollbackResult.Done -> RollbackOutcome.Done(
-            result.job.raw,
+            RollbackJobId(result.job.raw),
             result.structure.count,
             result.structure.skipped.size,
             result.structure.overwritten,

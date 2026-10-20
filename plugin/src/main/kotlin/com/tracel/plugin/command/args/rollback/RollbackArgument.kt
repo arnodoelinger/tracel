@@ -10,7 +10,7 @@ import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.ScopeLimits
 import com.tracel.plugin.command.args.scope.actionProblems
 import com.tracel.plugin.command.args.scope.scopeProblem
-import com.tracel.plugin.command.args.support.MaterialAliases
+import com.tracel.plugin.api.read.MaterialAliases
 import com.tracel.plugin.i18n.tr
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit

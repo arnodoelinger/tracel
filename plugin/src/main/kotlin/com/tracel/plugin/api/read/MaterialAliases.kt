@@ -1,4 +1,4 @@
-package com.tracel.plugin.command.args.support
+package com.tracel.plugin.api.read
 
 import com.tracel.plugin.api.addon.Extensions
 import org.bukkit.Material

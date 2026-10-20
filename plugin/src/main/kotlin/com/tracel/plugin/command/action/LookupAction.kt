@@ -18,7 +18,7 @@ import com.tracel.plugin.command.args.action.ActionFilter
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.actionProblems
 import com.tracel.plugin.command.args.scope.scopeProblem
-import com.tracel.plugin.command.args.support.MaterialAliases
+import com.tracel.plugin.api.read.MaterialAliases
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.i18n.*

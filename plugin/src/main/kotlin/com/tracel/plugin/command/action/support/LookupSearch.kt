@@ -8,7 +8,7 @@ import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.command.action.support.LookupSearch.Companion.WINDOW
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
-import com.tracel.plugin.command.presenter.Actors
+import com.tracel.plugin.api.read.Actors
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.line.LineStack

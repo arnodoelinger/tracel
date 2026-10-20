@@ -19,15 +19,8 @@ import com.tracel.api.result.andThen
 import com.tracel.api.result.getOrElse
 import com.tracel.api.world.LookupArea
 import com.tracel.api.world.place
-import com.tracel.engine.log.lookup.LookupFilter
-import com.tracel.model.event.ActorEvent
-import com.tracel.model.transaction.Transaction
-import com.tracel.model.world.WorldChange
-import com.tracel.plugin.api.addon.withItemLens
 import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.command.args.support.MaterialAliases
 import com.tracel.plugin.services.TracelServices
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -42,7 +35,7 @@ private const val WATCH_LATE_MILLIS = 5_000L
 /** [HistoryReads] over the world, transaction and event logs. */
 internal class TracelReads(
     private val services: TracelServices,
-    private val materials: MaterialResolver = MaterialAliases::resolve,
+    private val rows: HistoryRows = HistoryRows(services),
     private val open: () -> Boolean = { true },
 ) : HistoryReads {
     override fun Block.history(build: HistoryQuery.Builder.() -> Unit): History =
@@ -95,6 +88,8 @@ internal class TracelReads(
         return Res.Ok(took.values.sortedByDescending { it.amount })
     }
 
+    override suspend fun settle(): Boolean = services.flushCapture()
+
     override fun watch(build: HistoryQuery.Builder.() -> Unit): Flow<HistoryRecord> {
         val query = HistoryQuery().with(build)
         val from = maxOf(System.currentTimeMillis(), query.since?.toEpochMilli() ?: 0L)
@@ -145,74 +140,16 @@ internal class TracelReads(
             }
 
         override suspend fun page(from: HistoryCursor?, size: Int): Res<HistoryPage, HistoryReadError> {
-            if (size <= 0) return Res.Err(HistoryReadError.Unsupported("A page holds at least one record, not $size."))
-            val filter = ApiConversions.filter(query, materials).getOrElse { return Res.Err(it) }
-            return try {
-                Res.Ok(read(services.withItemLens(filter), from, size))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                Res.Err(HistoryReadError.Failed(failure.message ?: failure.javaClass.simpleName))
-            }
-        }
-
-        private suspend fun read(filter: LookupFilter, from: HistoryCursor?, size: Int): HistoryPage {
-            val rows = CursorPager.page(sources(filter), from, filter.until, size)
-            val rolled = services.rolledBack.of(rows.rows.mapNotNull(Row::rollable))
-            val item = query.item?.let { filter.material }
-            val records = rows.rows.flatMap { row ->
+            val page = rows.page(query, from, size).getOrElse { return Res.Err(it) }
+            val item = query.item?.let { page.filter.material }
+            val records = page.rows.flatMap { row ->
                 when (row) {
-                    is Row.World -> listOfNotNull(ApiConversions.record(row.change, query, rolled))
-                    is Row.Txn -> ApiConversions.records(row.transaction, query, item, rolled)
+                    is Row.World -> listOfNotNull(ApiConversions.record(row.change, query, page.rolled))
+                    is Row.Txn -> ApiConversions.records(row.transaction, query, item, page.rolled)
                     is Row.Event -> listOf(ApiConversions.record(row.event))
                 }
             }
-            return HistoryPage(records, rows.next)
-        }
-
-        private fun sources(filter: LookupFilter): List<LogSource<Row>> {
-            val sources = ArrayList<LogSource<Row>>(3)
-            if (RecordKind.BLOCK in query.kinds || RecordKind.ENTITY in query.kinds) {
-                sources += LogSource({ until, limit ->
-                    services.reading { services.worldLog.query(filter.copy(until = until, limit = limit)) }
-                        .map(Row::World)
-                }, Row::cursor)
-            }
-            if (RecordKind.ITEM in query.kinds) {
-                sources += LogSource({ until, limit ->
-                    services.reading { services.log.query(filter.copy(until = until, limit = limit)) }.map(Row::Txn)
-                }, Row::cursor)
-            }
-            val events = ApiConversions.events(query)
-            if (events.isNotEmpty()) {
-                // An event has no cause, so thhe natural causes hidden by default must not hide it
-                val said = filter.copy(excludedCauses = emptySet(), worldCauses = null)
-                sources += LogSource({ until, limit ->
-                    services.reading { services.events.query(said.copy(until = until, limit = limit), events) }
-                        .map(Row::Event)
-                }, Row::cursor)
-            }
-            return sources
-        }
-    }
-
-    private sealed interface Row {
-        val cursor: HistoryCursor
-        val rollable: Long?
-
-        class World(val change: WorldChange) : Row {
-            override val cursor = ApiConversions.cursor(change.epochMillis, change.seq.raw)
-            override val rollable: Long get() = change.seq.raw
-        }
-
-        class Txn(val transaction: Transaction) : Row {
-            override val cursor = ApiConversions.cursor(transaction.epochMillis, transaction.seq.raw)
-            override val rollable: Long get() = transaction.seq.raw
-        }
-
-        class Event(val event: ActorEvent) : Row {
-            override val cursor = ApiConversions.cursor(event.epochMillis, event.seq.raw)
-            override val rollable: Long? get() = null
+            return Res.Ok(HistoryPage(records, page.next))
         }
     }
 }
