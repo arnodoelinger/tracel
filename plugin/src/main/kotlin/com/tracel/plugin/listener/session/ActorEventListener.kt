@@ -118,7 +118,7 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         val hp = "%.1f".format(Locale.ROOT, event.finalDamage)
         val left = (victim as? LivingEntity)?.let { maxOf(0.0, it.health - event.finalDamage) }
             ?.let { ", ${"%.1f".format(Locale.ROOT, (it * 2).roundToLong() / 2.0)} left" }.orEmpty()
-        record(EventKind.HIT, attacker, "$victimName$how ($hp hp$left)", victim.toBlockPos(), victim)
+        record(EventKind.HIT, attacker, "$victimName$how ($hp HP$left)", victim.toBlockPos(), victim)
     }
 
     @Observes

@@ -44,7 +44,7 @@ import java.util.*
 /** One line per recorded change: lookup, the inspector and rollback previews all read the same. */
 internal object ChangeLinePresenter {
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
-    private val HIT = Regex("""^(.+?)(?: with (\S+))? \(([\d.]+) hp(?:, ([\d.]+) left)?\)$""")
+    private val HIT = Regex("""^(.+?)(?: with (\S+))? \(([\d.]+) (?i:hp)(?:, ([\d.]+) left)?\)$""")
     private val BEACON = Regex("""^beacon (\S+) (\S+)$""")
     private val COMPASS = Regex("""^compass (\S+)$""")
     private val STAND = Regex("""^stand (\S+) (\S+) (\S+)$""")
@@ -470,7 +470,7 @@ internal object ChangeLinePresenter {
 
     private fun hit(found: MatchResult): Blow {
         val (victim, projectile, damage, remaining) = found.destructured
-        val hp = if (remaining.isEmpty()) "$damage hp" else "$damage hp, $remaining left"
+        val hp = if (remaining.isEmpty()) "$damage HP" else "$damage HP, $remaining left"
         val player = victim.startsWith("@")
         val name: Component = if (player) Component.text(victim.drop(1)) else NamePresenter.entity(victim)
         val detail = listOfNotNull(projectile.takeIf(String::isNotEmpty)?.let(NamePresenter::pretty), hp)

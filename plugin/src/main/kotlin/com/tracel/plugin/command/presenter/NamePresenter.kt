@@ -23,9 +23,11 @@ internal object NamePresenter {
     }
 
     /** E.g. `minecraft:large_fern` -> `Large Fern`; what is left when the server cannot name it. */
-    fun pretty(id: String): String =
-        id.substringAfter(':').lowercase().split('_').filter(String::isNotEmpty)
+    fun pretty(id: String): String {
+        if (id == "EXPERIENCE") return "XP"
+        return id.substringAfter(':').lowercase().split('_').filter(String::isNotEmpty)
             .joinToString(" ") { word -> word.replaceFirstChar(Char::uppercase) }
+    }
 
     private fun named(id: String, entity: Boolean): Component {
         val bare = id.substringBefore('[')
