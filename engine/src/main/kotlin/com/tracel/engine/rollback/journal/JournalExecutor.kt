@@ -1,7 +1,5 @@
 package com.tracel.engine.rollback.journal
 
-import com.tracel.annotations.Journaled
-import com.tracel.annotations.RequiresLease
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
 import com.tracel.engine.rollback.apply.RollbackExecutor
@@ -30,8 +28,6 @@ public class JournalExecutor(
     private val batchSize: Int = DEFAULT_BATCH_SIZE,
 ) {
     /** Executes the rollback plan in batches and records completed steps in the journal. */
-    @Journaled
-    @RequiresLease
     public suspend fun execute(
         lease: Lease,
         plan: RollbackPlan,

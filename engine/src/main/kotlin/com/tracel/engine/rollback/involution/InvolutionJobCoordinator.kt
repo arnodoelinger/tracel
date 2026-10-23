@@ -1,6 +1,5 @@
 package com.tracel.engine.rollback.involution
 
-import com.tracel.annotations.Journaled
 import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
 import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
@@ -33,7 +32,6 @@ public class InvolutionJobCoordinator(
      *
      * Does not replan-and-compare; the recorded plan is the truth.
      */
-    @Journaled
     public suspend fun undo(
         job: RollbackJobId,
         crashPoint: CrashPoint = CrashPoint.None,

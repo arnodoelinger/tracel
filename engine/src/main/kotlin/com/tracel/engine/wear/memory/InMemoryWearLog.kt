@@ -1,6 +1,5 @@
 package com.tracel.engine.wear.memory
 
-import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
@@ -23,7 +22,6 @@ public class InMemoryWearLog : WearLog {
         byLot.getOrPut(mark.lotId) { CopyOnWriteArrayList() } += mark
     }
 
-    @Reads
     override suspend fun marksOf(lots: Collection<LotId>): Map<LotId, List<WearMark>> {
         val out = HashMap<LotId, List<WearMark>>()
         for (lot in lots) byLot[lot]?.takeIf { it.isNotEmpty() }?.let { out[lot] = it.toList() }

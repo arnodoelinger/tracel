@@ -2,7 +2,6 @@ package com.tracel.storage.ports.ledger
 
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
-import com.tracel.annotations.Consume
 import com.tracel.engine.ledger.LotPortion
 import com.tracel.engine.ledger.repository.PlacedRun
 import com.tracel.engine.ledger.repository.PlacedRuns
@@ -274,7 +273,6 @@ class LotRepository(
         out
     }
 
-    @Consume
     override suspend fun takeFifo(
         holder: HolderId,
         itemKey: ItemKey,
@@ -288,7 +286,6 @@ class LotRepository(
         consume(this, holder, holderId, itemKey, itemKeyId, longArrayOf(quantity.raw), strict = true, txn)[0]
     }
 
-    @Consume
     override suspend fun drainFifo(
         holder: HolderId,
         itemKey: ItemKey,

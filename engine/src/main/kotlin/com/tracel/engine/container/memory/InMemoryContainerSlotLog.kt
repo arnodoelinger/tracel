@@ -1,6 +1,5 @@
 package com.tracel.engine.container.memory
 
-import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
@@ -28,7 +27,6 @@ public class InMemoryContainerSlotLog : ContainerSlotLog {
         column[descKey(seq.incrementAndGet())] = Entry(epochMillis, slots)
     }
 
-    @Reads
     override suspend fun layoutAt(holder: HolderId, asOfMillis: Long, limit: Int): List<ContainerSlotEntry>? {
         if (limit <= 0) return null
         val column = byHolder[holder] ?: return null

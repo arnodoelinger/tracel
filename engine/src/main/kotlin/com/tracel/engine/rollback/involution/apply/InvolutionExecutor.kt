@@ -1,6 +1,5 @@
 package com.tracel.engine.rollback.involution.apply
 
-import com.tracel.annotations.RequiresLease
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.ledger.LotPortion
 import com.tracel.engine.log.TransactionLog
@@ -41,7 +40,6 @@ public class InvolutionExecutor(
      *
      * [InvolutionStep.Remake] spends its ingredients where [LotLedger.recraft] takes them: at the product's holder.
      */
-    @RequiresLease
     public suspend fun checkSatisfiable(lease: Lease, steps: List<InvolutionStep>): Unit = atomically {
         val pending = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
         val known = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
@@ -83,7 +81,6 @@ public class InvolutionExecutor(
     }
 
     /** Apply an [InvolutionStep] to the ledger. */
-    @RequiresLease
     public suspend fun apply(lease: Lease, step: InvolutionStep, txn: TxnId): Unit = atomically {
         val flows = when (step) {
             is InvolutionStep.Return -> {

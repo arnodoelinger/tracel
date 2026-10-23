@@ -1,7 +1,5 @@
 package com.tracel.engine.ledger.repository.memory
 
-import com.tracel.annotations.Consume
-import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
@@ -42,7 +40,6 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
     private val changes = atomic(0L)
     private var depth = 0
 
-    @Reads
     override suspend fun version(): Long = changes.value
 
     override suspend fun <T> atomically(block: suspend () -> T): T {
@@ -67,7 +64,6 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         return lot
     }
 
-    @Reads
     override suspend fun lot(id: LotId): Lot = state.get().lots.getValue(id)
 
     override suspend fun recordEdge(edge: LotEdge) {
@@ -80,13 +76,10 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         commit(state.get().removeEdge(parent, child))
     }
 
-    @Reads
     override suspend fun edgesFrom(lotId: LotId): List<LotEdge> = snapshotEdges(state.get().edgesByParent[lotId])
 
-    @Reads
     override suspend fun edgesInto(lotId: LotId): List<LotEdge> = snapshotEdges(state.get().edgesByChild[lotId])
 
-    @Reads
     override suspend fun findCompensateEdge(originalLotId: LotId, job: RollbackJobId): LotEdge.Compensate? {
         val edges = state.get().edgesByParent[originalLotId] ?: return null
         for (edge in edges.values) {
@@ -95,7 +88,6 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         return null
     }
 
-    @Reads
     override suspend fun accountQueue(holder: HolderId, itemKey: ItemKey, limit: Int): List<AccountLot> {
         if (limit <= 0) return emptyList()
         val s = state.get()
@@ -106,7 +98,6 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         return queue.subList(0, min(limit, queue.size))
     }
 
-    @Consume
     override suspend fun takeFifo(
         holder: HolderId,
         itemKey: ItemKey,
@@ -131,7 +122,6 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         return taken
     }
 
-    @Consume
     override suspend fun drainFifo(
         holder: HolderId,
         itemKey: ItemKey,
@@ -161,14 +151,12 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         return out
     }
 
-    @Reads
     override suspend fun totalOf(holder: HolderId, itemKey: ItemKey): Long {
         val s = state.get()
         val key = s.keyOrNull(holder, itemKey) ?: return 0L
         return s.remainingAt[key] ?: 0L
     }
 
-    @Reads
     override suspend fun totalsAt(holder: HolderId): Map<ItemKey, Long> {
         val s = state.get()
         val items = s.itemsAt[holder] ?: return emptyMap()
@@ -182,12 +170,10 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         return if (out.isEmpty()) emptyMap() else out
     }
 
-    @Reads
     override suspend fun placementOf(holder: HolderId, lotId: LotId): AccountLot? {
         return state.get().byLot[lotId]?.takeIf { it.holder == holder }
     }
 
-    @Reads
     override suspend fun census(itemKey: ItemKey): Long {
         val s = state.get()
         val holders = s.holdersOf[itemKey] ?: return 0L
@@ -200,19 +186,16 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         return total
     }
 
-    @Reads
     override suspend fun allPlacements(itemKey: ItemKey): List<AccountLot> {
         val s = state.get()
         return s.collectPlacements(s.holdersOf[itemKey]) { holder -> s.keyOrNull(holder, itemKey) }
     }
 
-    @Reads
     override suspend fun placementsAt(holder: HolderId): List<AccountLot> {
         val s = state.get()
         return s.collectPlacements(s.itemsAt[holder]) { itemKey -> s.keyOrNull(holder, itemKey) }
     }
 
-    @Reads
     override suspend fun currentHolderOf(lotId: LotId): HolderId? = state.get().holderOf[lotId]
 
     override suspend fun place(holder: HolderId, lotId: LotId, quantity: Quantity): AccountLot {

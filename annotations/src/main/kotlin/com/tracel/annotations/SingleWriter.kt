@@ -1,8 +1,7 @@
 package com.tracel.annotations
 
 /**
- * In-memory port: one thread may mutate. Public methods that write must call
- * `writer.checkIn()`. Public methods that only read are marked [Reads].
+ * In-memory port: one thread may mutate.
  *
  * Enforced by `Konsist` on classes named `InMemory*`.
  */

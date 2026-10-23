@@ -1,6 +1,5 @@
 package com.tracel.engine.ledger
 
-import com.tracel.annotations.Consume
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
 import com.tracel.engine.ledger.craft.CraftResult
@@ -71,7 +70,6 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
      * The balance is checked before anything is touched and a shortfall throws, so a failed withdrawal leaves the
      * account as it was. It used to take whatever it could reach and throw afterwards.
      */
-    @Consume
     public suspend fun withdraw(holder: HolderId, itemKey: ItemKey, quantity: Quantity, txn: TxnId): List<LotPortion> =
         atomically {
             val available = repo.totalOf(holder, itemKey)
@@ -90,7 +88,6 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
      *
      * Throws, touching nothing, if [holder] holds less than the sum of [owed].
      */
-    @Consume
     public suspend fun drain(
         holder: HolderId,
         itemKey: ItemKey,

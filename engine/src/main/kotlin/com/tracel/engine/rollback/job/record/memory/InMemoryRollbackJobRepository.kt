@@ -1,6 +1,5 @@
 package com.tracel.engine.rollback.job.record.memory
 
-import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
@@ -29,17 +28,13 @@ public class InMemoryRollbackJobRepository : RollbackJobRepository {
         }
     }
 
-    @Reads
     override suspend fun find(id: RollbackJobId): RollbackJobRecord? = records[id]
 
-    @Reads
     override suspend fun undoable(limit: Int): List<RollbackJobId> = stack.reversed().take(limit)
 
-    @Reads
     override suspend fun undoableBy(by: HolderId?, limit: Int): List<RollbackJobId> =
         stack.reversed().filter { records[it]?.by == by }.take(limit)
 
-    @Reads
     override suspend fun isUndoable(id: RollbackJobId): Boolean = id in stack
 
     override suspend fun markUndone(id: RollbackJobId) {

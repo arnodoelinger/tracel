@@ -1,7 +1,6 @@
 package com.tracel.engine.log.memory
 
 import com.tracel.model.item.ItemKey
-import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
@@ -43,10 +42,8 @@ public class InMemoryTransactionLog(private val names: NameMatcher = NameMatcher
         byTime.putIfAbsent(Stamp(transaction.epochMillis, transaction.seq.raw), transaction)
     }
 
-    @Reads
     override suspend fun find(id: TxnId): Transaction? = transactions[id]
 
-    @Reads
     override suspend fun query(filter: LookupFilter): List<Transaction> {
         val wanted = wantedCount(filter.offset, filter.limit)
         if (wanted <= 0) return emptyList()
@@ -64,15 +61,12 @@ public class InMemoryTransactionLog(private val names: NameMatcher = NameMatcher
         return ArrayList(matched.subList(from, matched.size))
     }
 
-    @Reads
     override suspend fun itemKeys(): List<ItemKey> =
         transactions.values.flatMapTo(LinkedHashSet()) { txn -> txn.flows.map { it.itemKey } }.toList()
 
-    @Reads
     override suspend fun lotsAt(seq: Seq): List<FlowLot> = bySeq[seq.raw]?.lots.orEmpty()
 
     /** Every transaction, in no order. For tests. */
-    @Reads
     public fun all(): Collection<Transaction> = transactions.values
 
     private fun seqView(filter: LookupFilter): NavigableMap<Long, Transaction>? {

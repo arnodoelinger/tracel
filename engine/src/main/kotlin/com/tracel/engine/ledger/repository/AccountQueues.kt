@@ -1,6 +1,5 @@
 package com.tracel.engine.ledger.repository
 
-import com.tracel.annotations.Consume
 import com.tracel.engine.ledger.LotPortion
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
@@ -22,7 +21,6 @@ public interface AccountQueues {
     public suspend fun accountQueue(holder: HolderId, itemKey: ItemKey, limit: Int = Int.MAX_VALUE): List<AccountLot>
 
     /** FIFO-consume [quantity] from the live queue, oldest first, splitting the last lot. */
-    @Consume
     public suspend fun takeFifo(
         holder: HolderId,
         itemKey: ItemKey,
@@ -31,7 +29,6 @@ public interface AccountQueues {
     ): List<LotPortion>
 
     /** Same FIFO consume as [takeFifo], handed to several destinations in [owed] order. */
-    @Consume
     public suspend fun drainFifo(
         holder: HolderId,
         itemKey: ItemKey,

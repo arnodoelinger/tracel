@@ -1,6 +1,5 @@
 package com.tracel.engine.world.memory
 
-import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
@@ -42,7 +41,6 @@ public class InMemoryWorldLog(private val names: NameMatcher = NameMatcher.Exact
         column[key] = change
     }
 
-    @Reads
     override suspend fun at(pos: BlockPos, limit: Int): List<WorldChange> {
         if (limit <= 0) return emptyList()
         val column = byPos[pos] ?: return emptyList()
@@ -50,7 +48,6 @@ public class InMemoryWorldLog(private val names: NameMatcher = NameMatcher.Exact
         return HeadView(column, limit) // Do not use [i]
     }
 
-    @Reads
     override suspend fun query(filter: LookupFilter): List<WorldChange> {
         if (filter.limit <= 0) return emptyList()
         var skipped = 0
@@ -76,7 +73,6 @@ public class InMemoryWorldLog(private val names: NameMatcher = NameMatcher.Exact
     }
 
     /** Every change, newest first. For tests. */
-    @Reads
     public fun all(): Collection<WorldChange> = bySeq.values
 
     private fun WorldChange.matches(filter: LookupFilter): Boolean {

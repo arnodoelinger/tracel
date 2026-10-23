@@ -1,6 +1,5 @@
 package com.tracel.engine.rollback.journal.memory
 
-import com.tracel.annotations.Reads
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
@@ -20,11 +19,9 @@ public class InMemoryJournal : Journal {
         completed.getOrPut(job) { mutableSetOf() }.add(stepIndex)
     }
 
-    @Reads
     override suspend fun isCompleted(job: RollbackJobId, stepIndex: Int): Boolean =
         completed[job]?.contains(stepIndex) == true
 
-    @Reads
     override suspend fun completed(job: RollbackJobId, count: Int): Set<Int> =
         completed[job]?.filterTo(mutableSetOf()) { it < count }.orEmpty()
 }

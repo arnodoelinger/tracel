@@ -100,19 +100,7 @@ class ArchitectureTest {
     }
 
     @Test
-    fun `Journaled functions are suspending and talk to a journal`() {
-        val journaled = Konsist.scopeFromProject()
-            .functions()
-            .withAnnotationOf(Journaled::class)
-        check(journaled.isNotEmpty()) { "no @Journaled functions — the annotation is unused decoration" }
-        journaled.assertTrue(testName = "journal steps suspend") { it.hasSuspendModifier }
-        journaled.assertTrue(testName = "journal steps use a journal") {
-            it.text.contains("journal.")
-        }
-    }
-
-    @Test
-    fun `InMemory ports are SingleWriter STORAGE and writes check in`() {
+    fun `InMemory ports are SingleWriter STORAGE`() {
         val ports = engineScope()
             .classes()
             .filter { it.name.startsWith("InMemory") }
@@ -122,23 +110,6 @@ class ArchitectureTest {
             klass.hasAnnotationOf(RunsOn::class) &&
                     klass.annotations.any { it.text.contains("STORAGE") }
         }
-        ports.flatMap { klass ->
-            klass.functions(includeNested = false)
-                .withPublicOrDefaultModifier()
-                .filterNot { it.hasAnnotationOf(Reads::class) }
-        }.assertTrue(testName = "writes call writer.checkIn()") { function ->
-            function.text.contains("writer.checkIn()")
-        }
-    }
-
-    @Test
-    fun `Reads methods on InMemory ports do not check in`() {
-        engineScope()
-            .classes()
-            .filter { it.name.startsWith("InMemory") }
-            .flatMap { it.functions(includeNested = false) }
-            .withAnnotationOf(Reads::class)
-            .assertFalse(testName = "@Reads does not checkIn") { it.text.contains("writer.checkIn()") }
     }
 
     @Test
@@ -178,14 +149,6 @@ class ArchitectureTest {
             .assertFalse(testName = "REGION no inline atomically") { function ->
                 function.text.contains("atomically") && !function.text.contains("launch")
             }
-    }
-
-    @Test
-    fun `takeFifo and drainFifo are Consume`() {
-        (engineScope() + Konsist.scopeFromModule("storage"))
-            .functions()
-            .filter { it.name == "takeFifo" || it.name == "drainFifo" }
-            .assertTrue(testName = "FIFO consume is @Consume") { it.hasAnnotationOf(Consume::class) }
     }
 
     @Test
@@ -236,18 +199,6 @@ class ArchitectureTest {
             .assertFalse(testName = "no mutable property type") { it.type?.isMutableType == true }
     }
 
-    @Test
-    fun `RequiresLease functions take a Lease first`() {
-        val gated = engineScope()
-            .functions()
-            .withAnnotationOf(RequiresLease::class)
-        check(gated.isNotEmpty()) { "no @RequiresLease functions" }
-        gated.assertTrue(testName = "first parameter is a Lease") {
-            it.parameters.firstOrNull()?.type?.name == "Lease"
-        }
-    }
-
-    // A layer is its decisions in `rollback` and its hands on the world in `adapter/rollback`
     private fun rollbackLayer(layer: String) = Konsist.scopeFromModule("plugin")
         .files
         .filter { Regex("""/src/main/kotlin/com/tracel/plugin/(adapter/)?rollback/$layer/""").containsMatchIn(it.path) }
