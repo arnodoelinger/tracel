@@ -16,6 +16,8 @@ import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.lookup.lookupQuery
 import com.tracel.plugin.command.args.scope.actionProblems
 import com.tracel.plugin.command.args.scope.areaOf
+import com.tracel.plugin.command.args.scope.region
+import com.tracel.plugin.command.args.scope.unknownPlace
 import com.tracel.plugin.command.args.scope.scopeProblem
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
@@ -129,9 +131,10 @@ class LookupAction(private val services: TracelServices) {
         }
 
         val scope = parsed.scope
-        val named = parsed.world?.let { Bukkit.getWorld(it) }
+        val region = parsed.region(sender)
+        val named = region?.world ?: parsed.world?.let { Bukkit.getWorld(it) }
         if (parsed.world != null && named == null) {
-            refuse(sender, listOf(tr("common.reason.unknown_world", "name" to parsed.world)))
+            refuse(sender, listOf(unknownPlace(parsed.world)))
             return
         }
         val center = if (scope != null) parsed.anchor ?: (sender as? Player)?.location else null
@@ -140,7 +143,7 @@ class LookupAction(private val services: TracelServices) {
             return
         }
 
-        val area = areaOf(center, scope, parsed.horizontalOnly, named)
+        val area = region?.area ?: areaOf(center, scope, parsed.horizontalOnly, named)
         val events = if (parsed.all && parsed.actions.isEmpty()) EventKind.entries.toSet() else actions.events
         val query = parsed.lookupQuery(users, actions, area, events)
 

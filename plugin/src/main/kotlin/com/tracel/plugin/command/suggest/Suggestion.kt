@@ -9,6 +9,7 @@ import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.preset.Presets
 import com.tracel.plugin.i18n.asMessage
 import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.integration.worldguard.Regions
 import com.tracel.plugin.specifics.names.VANILLA_BLOCK_NAMES
 import com.tracel.plugin.specifics.names.VANILLA_ITEM_NAMES
 import net.kyori.adventure.text.Component
@@ -37,9 +38,13 @@ internal data class SuggestLists(
     val actionNames: List<String> = emptyList(),
     val itemNames: List<String> = emptyList(),
     val blockNames: List<String> = emptyList(),
+    val regions: (typed: String) -> List<String> = { emptyList() },
     val presets: List<Pair<String, String>> = emptyList(),
     val addonFlags: List<AddonFlag> = emptyList(),
 )
+
+private const val NEAR_REGIONS = 3
+private const val MATCHING_REGIONS = 10
 
 /** A flag an addon added, as the tab key sees it. */
 internal class AddonFlag(
@@ -58,6 +63,7 @@ internal fun liveLists(sender: CommandSender? = null): SuggestLists = SuggestLis
     actionNames = ActionArgument.NAMES,
     itemNames = VANILLA_ITEM_NAMES,
     blockNames = VANILLA_BLOCK_NAMES,
+    regions = { typed -> (sender as? Player)?.let { Regions.nearby(it, typed, if (typed.isEmpty()) NEAR_REGIONS else MATCHING_REGIONS) }.orEmpty() },
     presets = Presets.store?.visibleTo((sender as? Player)?.uniqueId).orEmpty().map { it.name to it.text },
     addonFlags = addonFlags(sender),
 )

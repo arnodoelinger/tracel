@@ -105,7 +105,9 @@ internal object FlagSuggest {
                 raw = raw,
                 units = SCOPE_UNITS,
                 presets = presetsOf(SCOPE_PRESETS, SCOPE_UNITS),
-                words = WHERE_WORDS + lists.worldNames.map { it to tr("suggest.scope_world", "name" to it) },
+                words = WHERE_WORDS +
+                        lists.worldNames.map { it to tr("suggest.scope_world", "name" to it) } +
+                        lists.regions(raw).map { it to tr("suggest.scope_region", "name" to it) },
                 allowed = { unit, amount ->
                     amount <= if (unit.suffix == "b") ScopeLimits.MAX_BLOCK_RADIUS else ScopeLimits.MAX_CHUNK_RADIUS
                 },

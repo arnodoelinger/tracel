@@ -10,6 +10,7 @@ import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.ScopeArgument
+import com.tracel.plugin.command.args.scope.region
 import com.tracel.plugin.command.args.scope.scopeProblem
 import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.PlayerReport
@@ -44,13 +45,14 @@ internal class PlayerAction(private val services: TracelServices) {
         val now = System.currentTimeMillis()
         val since = parsed.since ?: (now - DEFAULT_WINDOW)
         val scope = parsed.scope
+        val region = parsed.region(sender)
         val center = if (scope != null) (sender as? Player)?.location else null
         scopeProblem(scope, center, null)?.let {
             refuse(sender, it)
             return
         }
         val query = HistoryQuery(
-            area = areaOf(center, scope, parsed.horizontalOnly, null),
+            area = region?.area ?: areaOf(center, scope, parsed.horizontalOnly, null),
             since = Instant.ofEpochMilli(since),
             until = parsed.until?.let(Instant::ofEpochMilli),
             by = setOf(Actor.Player(uuid)),

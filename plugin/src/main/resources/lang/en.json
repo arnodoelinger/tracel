@@ -136,6 +136,8 @@
     "reason": {
       "unknown_player": "no player named <name>",
       "unknown_world": "no world named <name>",
+      "unknown_place": "no world or region named <name>",
+      "region_shape": "region <name> is not a box, so a rollback cannot stay inside it",
       "unknown_action": "unknown action: <name>",
       "needs_player": "a scope around you needs a player — run this in game, or specify a world",
       "other_world": "you are not in <world> — a scope around you cannot be used there",
@@ -753,6 +755,7 @@
     "scope_block": "The block you are standing on",
     "scope_chunk": "The chunk you are standing in",
     "scope_world": "Scope to world <name>",
+    "scope_region": "Scope to region <name>",
     "today": "Since midnight today",
     "yesterday": "Since midnight yesterday",
     "past": "Past <span>",

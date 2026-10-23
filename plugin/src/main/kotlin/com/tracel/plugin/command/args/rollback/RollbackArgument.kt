@@ -8,7 +8,9 @@ import com.tracel.plugin.command.args.lookup.rollbackQuery
 import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.scope.actionProblems
+import com.tracel.plugin.command.args.scope.region
 import com.tracel.plugin.command.args.scope.scopeProblem
+import com.tracel.plugin.command.args.scope.unknownPlace
 import com.tracel.plugin.i18n.tr
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
@@ -29,16 +31,20 @@ object RollbackArgument {
         val actions = ActionArgument.parse(parsed.actions)
         reasons += actionProblems(actions, parsed.actions)
 
-        val namedWorld = parsed.world?.let(Bukkit::getWorld)
+        val region = parsed.region(sender)
+        val namedWorld = region?.world ?: parsed.world?.let(Bukkit::getWorld)
         if (parsed.world != null && namedWorld == null) {
-            reasons += tr("common.reason.unknown_world", "name" to parsed.world)
+            reasons += unknownPlace(parsed.world)
+        }
+        if (region != null && !region.cuboid && !region.whole) {
+            reasons += tr("common.reason.region_shape", "name" to region.id)
         }
 
         val scope = parsed.scope
         val center = if (scope != null) (sender as? Player)?.location else null
         scopeProblem(scope, center, namedWorld, if (wholeWorld) null else ScopeLimits.rollbackMaxBlocks)?.let { reasons += it }
 
-        reasons += missingBounds(parsed, wholeWorld)
+        reasons += missingBounds(parsed, wholeWorld, region != null)
         if (parsed.since != null && parsed.until != null && parsed.since > parsed.until) {
             reasons += tr("common.reason.no_window")
         }
@@ -48,16 +54,20 @@ object RollbackArgument {
         }
 
         return FilterResult.Ok(
-            query = parsed.rollbackQuery(users, actions, areaOf(center, scope, parsed.horizontalOnly, namedWorld)),
+            query = parsed.rollbackQuery(users, actions, region?.area ?: areaOf(center, scope, parsed.horizontalOnly, namedWorld)),
             center = center,
             actions = actions,
         )
     }
 
     /** A rollback with no time or no place undoes the history of the server, so it is refused. */
-    internal fun missingBounds(parsed: ParsedLookupArgs, wholeWorld: Boolean = false): List<Component> = buildList {
+    internal fun missingBounds(
+        parsed: ParsedLookupArgs,
+        wholeWorld: Boolean = false,
+        inRegion: Boolean = false,
+    ): List<Component> = buildList {
         if (parsed.since == null) add(tr("common.reason.need_time"))
-        val placed = parsed.scope != null || parsed.partsLimitArea || (wholeWorld && parsed.world != null)
+        val placed = inRegion || parsed.scope != null || parsed.partsLimitArea || (wholeWorld && parsed.world != null)
         if (!placed) add(tr("common.reason.need_scope"))
     }
 

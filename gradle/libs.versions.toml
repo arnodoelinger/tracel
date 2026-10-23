@@ -18,6 +18,7 @@ paper = "26.1.2.build.74-stable"
 runPaper = "3.1.0"
 hangarPublish = "0.1.4"
 fawe = "2.15.3"
+worldguard = "7.0.11"
 bstats = "3.2.1"
 luckperms = "5.4"
 
@@ -41,6 +42,7 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 fawe-core = { module = "com.fastasyncworldedit:FastAsyncWorldEdit-Core", version.ref = "fawe" }
+worldguard-core = { module = "com.sk89q.worldguard:worldguard-core", version.ref = "worldguard" }
 bstats = { module = "org.bstats:bstats-bukkit", version.ref = "bstats" }
 luckperms-api = { module = "net.luckperms:api", version.ref = "luckperms" }
 

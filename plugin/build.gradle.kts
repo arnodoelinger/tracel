@@ -29,6 +29,7 @@ dependencies {
 
     compileOnly(libs.paper.api)
     compileOnly(libs.luckperms.api)
+    compileOnly(libs.worldguard.core) { isTransitive = false }
     compileOnly(libs.fawe.core) { exclude(group = "net.kyori") }
     testImplementation(libs.paper.api)
     testImplementation(testFixtures(project(":tests")))
