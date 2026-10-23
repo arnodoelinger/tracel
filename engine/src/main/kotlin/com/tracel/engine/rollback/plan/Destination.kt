@@ -12,6 +12,6 @@ public fun RollbackTarget.destinationFor(plan: RollbackPlan, lotId: LotId): Hold
     is RollbackTarget.Uniform -> holder
     is RollbackTarget.PerRoot -> {
         val root = plan.rootOf[lotId] ?: lotId
-        byRoot[root] ?: error("no destination for lot $lotId (root $root) — the plan and the target disagree")
+        byRoot[root] ?: error("no destination for lot $lotId (root $root) — the plan and the target disagree.")
     }
 }

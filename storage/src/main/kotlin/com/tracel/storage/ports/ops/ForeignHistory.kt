@@ -58,7 +58,7 @@ class ForeignHistory(
         var nextTxn = firstTxn
         var written = 0
         fun take(count: Int): Seq {
-            check(next + count <= Counters.SEQ_BASE) { "imported history ran out of sequence numbers" }
+            check(next + count <= Counters.SEQ_BASE) { "imported history ran out of sequence numbers." }
             return Seq(next).also { next += count }
         }
         for (record in records) when (record) {

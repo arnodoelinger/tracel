@@ -148,12 +148,12 @@ class LsmEngine(
         if (batch.isEmpty()) return
 
         lock.withLock {
-            check(!closed) { "storage engine is closed" }
-            check(failure == null) { "storage engine stopped taking writes after an I/O error: ${failure?.message}" }
+            check(!closed) { "storage engine is closed." }
+            check(failure == null) { "storage engine stopped taking writes after an I / O error: ${failure?.message}." }
             if (!fits(version.active, batch)) rotate(batch)
             check(fits(version.active, batch)) {
                 "a ${needs(batch)}-byte batch does not fit a freshly rotated " +
-                        "${version.active.capacity}-byte memtable — the size accounting is wrong"
+                        "${version.active.capacity}-byte memtable; the size accounting is wrong"
             }
 
             val seq = sequence.incrementAndGet()
@@ -256,7 +256,7 @@ class LsmEngine(
         }.sortedWith(compareBy({ it.window }, { it.id }))
 
     override fun dropHistory(category: Int, endedBefore: Long): Dropped {
-        require(category != SegmentClassifier.STATE) { "state is not history, and is never dropped" }
+        require(category != SegmentClassifier.STATE) { "state is not history, and is never dropped." }
         return compactor.submit<Dropped> { dropNow(category, endedBefore) }.get()
     }
 
@@ -292,7 +292,7 @@ class LsmEngine(
                                 value,
                                 seq
                             )
-                        ) { "the memtable made for a wipe cannot hold what the wipe keeps" }
+                        ) { "the memtable made for a wipe cannot hold what the wipe keeps." }
                     }
                     logs.sync()
                     last = seq
@@ -366,7 +366,7 @@ class LsmEngine(
             publish()
             return
         }
-        // Oldest first: a later segment has to carry the higher id so it shadows the earlier one
+        // Oldest first: a later segment has to carry the higher ID so it shadows the earlier one
         val written = pending.sortedBy { it.minSequence }
             .flatMap { segmentWriter.seal(it, { nextFileId++ }, horizon = Long.MAX_VALUE) }
         open += written
@@ -442,7 +442,7 @@ class LsmEngine(
         } catch (e: Throwable) {
             // The write-ahead log still holds every one of these writes, so a failed flush costs
             // memory and a longer recovery, not data, as long as it is tried again rather than dropped.
-            logger.log(Level.SEVERE, "flush failed; the write-ahead log still holds this data, retrying", e)
+            logger.log(Level.SEVERE, "flush failed; the write-ahead log still holds this data, retrying...", e)
             if (!closed) {
                 runCatching {
                     flusher.execute {
@@ -502,7 +502,7 @@ class LsmEngine(
         } catch (e: Throwable) {
             // Nothing was published, so the previous manifest is still in force and the inputs are
             // all still live. The orphaned output gets swept on the next publish or restart.
-            logger.log(Level.SEVERE, "compaction failed; the previous manifest is still in force", e)
+            logger.log(Level.SEVERE, "compaction failed; the previous manifest is still in force.", e)
             return false
         }
     }

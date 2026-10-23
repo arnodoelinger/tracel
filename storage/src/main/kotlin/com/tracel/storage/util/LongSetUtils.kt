@@ -8,7 +8,7 @@ internal class LongSetUtils(expected: Int = 16) {
 
     /** Adds [value] to the set, ignoring it if already present. */
     fun add(value: Long) {
-        require(value >= 0) { "$value is not a sequence number" }
+        require(value >= 0) { "$value is not a sequence number." }
         if ((size + 1) * 2 > table.size) grow()
         if (insert(table, value)) size++
     }

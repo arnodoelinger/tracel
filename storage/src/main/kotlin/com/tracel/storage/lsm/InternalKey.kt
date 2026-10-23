@@ -10,7 +10,7 @@ object InternalKey {
 
     /** The trailer is a 64-bit integer that encodes the sequence number and type. */
     fun trailer(sequence: Long, type: Byte): Long {
-        require(sequence in 0..MAX_SEQUENCE) { "sequence $sequence does not fit 56 bits" }
+        require(sequence in 0..MAX_SEQUENCE) { "sequence $sequence does not fit 56 bits." }
         return ((MAX_SEQUENCE - sequence) shl 8) or (type.toLong() and 0xFF)
     }
 

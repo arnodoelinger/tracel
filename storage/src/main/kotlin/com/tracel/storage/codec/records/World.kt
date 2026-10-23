@@ -114,7 +114,7 @@ object World {
         val v = MemorySegment.ofArray(payload)
         return when (payload[0]) {
             EXTRAS_POSED -> {
-                check(payload.size >= POSE_BYTES) { "posed extras truncated at ${payload.size} bytes" }
+                check(payload.size >= POSE_BYTES) { "posed extras truncated at ${payload.size} bytes." }
                 val nested =
                     if (payload.size == POSE_BYTES) ByteArray(0) else payload.copyOfRange(POSE_BYTES, payload.size)
                 EntityShape(
@@ -136,7 +136,7 @@ object World {
                 extras = decodeEntityExtras(payload),
             )
 
-            else -> error("unrecognized entity extras tag: ${payload[0]}")
+            else -> error("unrecognized entity extras tag: ${payload[0]}.")
         }
     }
 
@@ -222,7 +222,7 @@ object World {
 
     internal fun checkExtras(before: ByteArray, after: ByteArray) {
         require(before.size <= MAX_EXTRAS_BYTES && after.size <= MAX_EXTRAS_BYTES) {
-            "extras of ${before.size} / ${after.size} bytes do not fit a u16 length prefix"
+            "extras of ${before.size} / ${after.size} bytes do not fit a u16 length prefix."
         }
     }
 

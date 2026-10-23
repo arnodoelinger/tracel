@@ -78,7 +78,7 @@ internal class Packs(private val counters: Counters) {
         val holderId = LotRecord.locationHolderId(location)
         val itemKeyId = LotRecord.locationItemKeyId(location)
         val slot = unit.get(Keys.packAt(holderId, itemKeyId, LotRecord.locationTail(location)))
-            ?: error("pack $packId points at a queue slot that is empty")
+            ?: error("pack $packId points at a queue slot that is empty.")
         return decode(holderId, itemKeyId, slot)
     }
 

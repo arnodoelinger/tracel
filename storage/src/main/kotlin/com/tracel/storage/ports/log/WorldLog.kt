@@ -45,7 +45,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         storage.write {
             val seq = change.seq.raw
             check(get(Keys.wchg(seq)) == null) {
-                "world change at ${change.seq} already appended — the log is append-only"
+                "world change at ${change.seq} already appended; the log is append-only."
             }
 
             val causedById = change.causedBy?.let { interning.internHolder(this, it) } ?: 0
@@ -147,7 +147,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         storage.write {
             val baseSeq = base.raw
             check(get(Keys.wchg(baseSeq)) == null) {
-                "world change at $base already appended — the log is append-only"
+                "world change at $base already appended; the log is append-only."
             }
             val causedById = edits.causedBy?.let { interning.internHolder(this, it) } ?: 0
             val worldId = interning.internWorld(this, first.world)
@@ -220,7 +220,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val bookkeeping = raw.cause.isBookkeeping
         storage.write {
             check(get(Keys.wchg(base)) == null) {
-                "world change at ${Seq(base)} already appended — the log is append-only"
+                "world change at ${Seq(base)} already appended; the log is append-only."
             }
             val worldId = raw.worldId
             val causedById = raw.causedById
@@ -747,7 +747,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         structureEnds: Boolean,
     ): List<WorldChange> {
         if (seqs.isEmpty()) return emptyList()
-        val accepted = QueryProbe.phase("world records fetch") {
+        val accepted = QueryProbe.phase("world records fetch.") {
             pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
                 QueryProbe.opened(slice.size.toLong())
                 val n = slice.size
@@ -769,7 +769,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         }
         val matched = accepted.seqs
         val records = accepted.records
-        return QueryProbe.phase("world records decode") {
+        return QueryProbe.phase("world records decode.") {
             if (structureEnds) decodeStructureEnds(unit, matched, records, filter)
             else decodeNewestFirst(unit, matched, records, filter)
         }
@@ -1067,7 +1067,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     private fun decode(unit: StorageUnit, seq: Long, record: MemorySegment, resolved: Resolved? = null): WorldChange {
         val version = Records.wchgVersion(record)
         check(version == Records.VERSION) {
-            "world change at seq $seq was written by codec v$version, this build reads v${Records.VERSION}"
+            "world change at seq $seq was written by codec v$version, this build reads v${Records.VERSION}."
         }
 
         val worldId = Records.wchgWorldId(record)
@@ -1123,7 +1123,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 ChangeSubject.Entity(Records.entityChangeUuid(record), type, before, after)
             }
 
-            else -> error("unrecognized world change kind: $kind")
+            else -> error("unrecognized world change kind: $kind.")
         }
 
         val causedById = Records.wchgCausedBy(record)

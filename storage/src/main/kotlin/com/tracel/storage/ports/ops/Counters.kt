@@ -34,7 +34,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     override suspend fun nextSeq(): Seq = Seq(next(SEQ)).also { issued.incrementAndGet() }
 
     override suspend fun nextSeqRange(count: Int): Seq {
-        require(count > 0) { "a range of $count sequences is not a range" }
+        require(count > 0) { "a range of $count sequences is not a range." }
         if (count == 1) return nextSeq()
         return Seq(nextRange(SEQ, count)).also { issued.addAndGet(count.toLong()) }
     }

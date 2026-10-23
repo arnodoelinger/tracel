@@ -61,7 +61,7 @@ class StorageUnit(
             runCatching(hook).onFailure {
                 hookLogger.log(
                     Level.WARNING,
-                    "a commit hook failed",
+                    "a commit hook failed.",
                     it
                 )
             }
@@ -79,7 +79,7 @@ class StorageUnit(
             runCatching(hook).onFailure {
                 hookLogger.log(
                     Level.WARNING,
-                    "an abort hook failed",
+                    "an abort hook failed.",
                     it
                 )
             }
@@ -173,13 +173,13 @@ private class OverlayCursor(
         }
     }
 
-    override fun key(): ByteArray = currentKey ?: error("cursor is not positioned")
+    override fun key(): ByteArray = currentKey ?: error("cursor is not positioned.")
 
     override fun keyLength(): Int = key().size
 
     override fun keyByte(at: Int): Byte = key()[at]
 
-    override fun value(): MemorySegment = currentValue ?: error("cursor is not positioned")
+    override fun value(): MemorySegment = currentValue ?: error("cursor is not positioned.")
 
     override fun skipTo(from: ByteArray) {
         committed.skipTo(from)

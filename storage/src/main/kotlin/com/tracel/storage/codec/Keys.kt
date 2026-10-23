@@ -517,7 +517,7 @@ class KeyWriter(size: Int) {
     }
 
     fun done(): ByteArray {
-        check(at == bytes.size) { "key writer sized ${bytes.size} but wrote $at bytes" }
+        check(at == bytes.size) { "key writer sized ${bytes.size} but wrote $at bytes." }
         return bytes
     }
 }

@@ -280,9 +280,9 @@ class LotRepository(
         txn: TxnId,
     ): List<LotPortion> = storage.write {
         val holderId = interning.findHolderId(this, holder)
-            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0")
+            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0.")
         val itemKeyId = interning.findItemKeyId(this, itemKey)
-            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0")
+            ?: error("insufficient balance at $holder for $itemKey: needed ${quantity.raw}, have 0.")
         consume(this, holder, holderId, itemKey, itemKeyId, longArrayOf(quantity.raw), strict = true, txn)[0]
     }
 
@@ -321,7 +321,7 @@ class LotRepository(
             }
         }
         check(!strict || have >= want) {
-            "insufficient balance at $holder for $itemKey: needed $want, short by ${want - have}"
+            "insufficient balance at $holder for $itemKey: needed $want, short by ${want - have}."
         }
 
         val out = Array(wants.size) { ArrayList<LotPortion>(4) }
@@ -463,7 +463,7 @@ class LotRepository(
             val seen = HashSet<Long>(portions.size * 2)
             val byItem = LinkedHashMap<Int, Entries>()
             for ((lotId, quantity) in portions) {
-                check(seen.add(lotId.raw)) { "lot $lotId is already placed at $holder" }
+                check(seen.add(lotId.raw)) { "lot $lotId is already placed at $holder." }
                 notPlaced(this, lotId)
                 val itemKeyId = interning.internItemKey(this, readLot(this, lotId).itemKey)
                 byItem.getOrPut(itemKeyId) { Entries() }.add(lotId.raw, quantity.raw, counters.nextFifoSeqOn(this))
@@ -479,7 +479,7 @@ class LotRepository(
     private fun notPlaced(unit: StorageUnit, lotId: LotId) {
         val pointer = unit.get(Keys.lotPack(lotId.raw)) ?: return
         val holderId = packs.holderIdOf(unit, Records.asLong(pointer)) ?: return
-        error("lot $lotId is already placed at ${interning.resolveHolder(unit, holderId)}")
+        error("lot $lotId is already placed at ${interning.resolveHolder(unit, holderId)}.")
     }
 
     override suspend fun remove(holder: HolderId, lotId: LotId) {
@@ -502,7 +502,7 @@ class LotRepository(
         if (lotIds.isEmpty()) return emptyMap()
         return storage.write {
             val fromId = interning.findHolderId(this, from)
-                ?: error("lot ${lotIds.first()} is not currently placed at $from")
+                ?: error("lot ${lotIds.first()} is not currently placed at $from.")
             val sorted = rawsOf(lotIds)
             val packOf = HashMap<Long, Long>(lotIds.size * 2)
             walkWanted(Keys.LOT_PACK, sorted, 0, sorted.size, Keys::lotPack) { at, cursor ->
@@ -510,7 +510,7 @@ class LotRepository(
             }
             val byPack = LinkedHashMap<Long, ArrayList<Long>>()
             for (lotId in lotIds) {
-                val packId = packOf[lotId.raw] ?: error("lot $lotId is not currently placed at $from")
+                val packId = packOf[lotId.raw] ?: error("lot $lotId is not currently placed at $from.")
                 byPack.getOrPut(packId) { ArrayList() } += lotId.raw
             }
             val toId = if (from == to) fromId else interning.internHolder(this, to)
@@ -518,12 +518,12 @@ class LotRepository(
             val delta = HashMap<Int, Long>()
             for ((packId, chosen) in byPack) {
                 val pack = packs.read(this, packId)?.takeIf { it.holderId == fromId }
-                    ?: error("lot ${LotId(chosen.first())} is not currently placed at $from")
+                    ?: error("lot ${LotId(chosen.first())} is not currently placed at $from.")
                 val take = BooleanArray(pack.size)
                 var sum = 0L
                 for (lot in chosen) {
                     val i = pack.indexOf(lot)
-                    check(i >= 0) { "lot ${LotId(lot)} is not currently placed at $from" }
+                    check(i >= 0) { "lot ${LotId(lot)} is not currently placed at $from." }
                     take[i] = true
                     moved[LotId(lot)] = Quantity(pack.remaining[i])
                     sum += pack.remaining[i]
@@ -572,11 +572,11 @@ class LotRepository(
 
     override suspend fun replace(holder: HolderId, retiredLotId: LotId, newLotId: LotId, remaining: Quantity) {
         storage.write {
-            val holderId = interning.findHolderId(this, holder) ?: error("no placement of $retiredLotId at $holder")
+            val holderId = interning.findHolderId(this, holder) ?: error("no placement of $retiredLotId at $holder.")
             val pack = packs.of(this, retiredLotId.raw)?.takeIf { it.holderId == holderId }
-                ?: error("no placement of $retiredLotId at $holder")
+                ?: error("no placement of $retiredLotId at $holder.")
             val i = pack.indexOf(retiredLotId.raw)
-            check(i >= 0) { "no placement of $retiredLotId at $holder" }
+            check(i >= 0) { "no placement of $retiredLotId at $holder." }
             val previous = pack.remaining[i]
 
             // The replacement keeps the retired lot's queue slot: for everyone who comes after,
@@ -686,7 +686,7 @@ class LotRepository(
 
     private fun readLot(unit: StorageUnit, id: LotId): Lot {
         lots.getIfPresent(id)?.let { return it }
-        val value = unit.get(Keys.lot(id.raw)) ?: error("lot $id does not exist")
+        val value = unit.get(Keys.lot(id.raw)) ?: error("lot $id does not exist.")
         return decodeLot(unit, id, value).also { unit.cache(id, it) }
     }
 
@@ -721,7 +721,7 @@ class LotRepository(
                 RollbackJobId(Records.edgeReference(value)),
             )
 
-            else -> error("unrecognized lot edge kind: $kind")
+            else -> error("unrecognized lot edge kind: $kind.")
         }
     }
 

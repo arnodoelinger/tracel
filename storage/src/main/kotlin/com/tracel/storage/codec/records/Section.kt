@@ -77,7 +77,7 @@ object Section {
         extras: List<SectionExtras>,
         head: MemorySegment.(Int) -> Unit,
     ): ByteArray {
-        require(count > 0) { "a packed section with no positions says nothing" }
+        require(count > 0) { "a packed section with no positions says nothing." }
         val palette = paletteOf(before, after, count)
         val wide = palette.size > 256
         val bitmap = count >= SECTION_BITMAP_FROM

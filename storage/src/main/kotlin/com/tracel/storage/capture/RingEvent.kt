@@ -129,7 +129,7 @@ internal fun CaptureRing.collectPublished(maxBatch: Int): Collected {
                 cursor += 1L + count
             }
 
-            else -> error("ring slot $cursor holds type $type where an event was expected — the ring is corrupt")
+            else -> error("ring slot $cursor holds type $type where an event was expected; the ring is corrupt.")
         }
     }
 

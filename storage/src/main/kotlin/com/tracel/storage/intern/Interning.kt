@@ -83,7 +83,7 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
         private val keys = arrayOfNulls<Any>(SLOTS)
         private val ids = IntArray(SLOTS)
 
-        /** @return the id for [value], or zero if it is not in this thread's cache. */
+        /** @return the ID for [value], or zero if it is not in this thread's cache. */
         fun lookup(value: Any): Int {
             val slot = slotOf(value)
             return if (keys[slot] == value) ids[slot] else 0
@@ -155,7 +155,7 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
             is WorldId -> worlds.intern(unit, value) to worlds
             is BlockDataKey -> blockData.intern(unit, value) to blockData
             is EntityTypeKey -> entityTypes.intern(unit, value) to entityTypes
-            else -> error("nothing else is ever interned provisionally: ${value::class}")
+            else -> error("nothing else is ever interned provisionally: ${value::class}.")
         }
         if (table.isPending(unit, real)) unit.afterCommit { toReal[id] = real } else toReal[id] = real
         return real
@@ -257,11 +257,11 @@ private class Interned<T : Any>(
     /** What the shared cache already knows, without touching the store. The capture path's second look. */
     fun cached(value: T): Int? = byValue.getIfPresent(value)
 
-    /** The id [value] has, or null. Reads the store, writes nothing but the cache. */
+    /** The ID [value] has, or null. Reads the store, writes nothing but the cache. */
     fun find(unit: StorageUnit, value: T): Int? =
         byValue.getIfPresent(value) ?: idOf(unit, pack(value))?.also { remember(unit, value, it) }
 
-    /** The id [value] has, assigning and writing one if it has none. */
+    /** The ID [value] has, assigning and writing one if it has none. */
     fun intern(unit: StorageUnit, value: T): Int {
         byValue.getIfPresent(value)?.let { return it }
         val packed = pack(value)
@@ -271,7 +271,7 @@ private class Interned<T : Any>(
         }
 
         val id = counter.incrementAndGet()
-        check(id > 0) { "intern namespace $namespace ran out of ids" }
+        check(id > 0) { "intern namespace $namespace ran out of IDs." }
         unit.putPinned(Keys.internForward(namespace, id), packed)
         unit.putPinned(Keys.internReverse(namespace, packed), Records.int(id))
         unit.putPinned(Keys.counter(COUNTER_BASE + namespace), Records.long(id.toLong()))
@@ -283,7 +283,7 @@ private class Interned<T : Any>(
     /** The value behind [id]. */
     fun resolve(unit: StorageUnit, id: Int): T =
         byId.getIfPresent(id) ?: decode(
-            unit.get(Keys.internForward(namespace, id)) ?: error("$name id $id was never interned"),
+            unit.get(Keys.internForward(namespace, id)) ?: error("$name ID $id was never interned."),
         ).also { remember(unit, it, id) }
 
     fun forget() {

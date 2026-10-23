@@ -8,18 +8,7 @@ import com.tracel.storage.lsm.write.SyncPolicy
 /** The wall clock. */
 val WALL_CLOCK: () -> Long = { System.currentTimeMillis() }
 
-/**
- * How the engine sizes its memtables, when it syncs, and how it files history.
- *
- * @property classifier which family a row goes to; see [SegmentClassifier]
- * @property windowMillis how long one window of history is
- * @property windowFanout how many segments one window piles up before they are merged into one
- * @property stateBlockBytes how much a block of state holds before it is compressed and closed
- * @property historyBlockBytes the same for a block of history
- * @property pointRead whether keys with this first byte are ever asked for by exact key. The rest stay out of the
- * segment filters, and a get of one goes past the filter rather than trust it, so a wrong answer here costs time
- * and never a row
- */
+/** How the engine sizes its memtables, when it syncs, and how it files history. */
 data class LsmConfig(
     val memtableBytes: Long = 16L * 1024 * 1024,
     val maxFrozenMemtables: Int = 3,

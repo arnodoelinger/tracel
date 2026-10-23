@@ -31,7 +31,7 @@ public class InMemoryWorldLog(private val names: NameMatcher = NameMatcher.Exact
         writer.checkIn()
         val key = descKey(change.seq.raw)
         check(bySeq.putIfAbsent(key, change) == null) {
-            "world change at ${change.seq} already appended — the log is append-only"
+            "world change at ${change.seq} already appended; the log is append-only."
         }
         var column = byPos[change.at]
         if (column == null) {

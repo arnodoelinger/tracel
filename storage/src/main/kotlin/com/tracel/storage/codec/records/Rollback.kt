@@ -380,6 +380,6 @@ object Rollback {
                 RollbackStep.Unmake(outputs, inputs, TxnId(v.i64(1)), holder(v.i32(9)))
             }
 
-            else -> error("unrecognized rollback step kind: $kind")
+            else -> error("unrecognized rollback step kind: $kind.")
         }
 }

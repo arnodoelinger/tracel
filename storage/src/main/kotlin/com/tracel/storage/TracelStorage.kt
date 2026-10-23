@@ -61,7 +61,7 @@ class TracelStorage private constructor(
     suspend fun <T> write(block: StorageUnit.() -> T): T {
         val open = currentCoroutineContext()[OpenUnit]
         return if (open != null) {
-            check(!open.readOnly) { "write inside reading { } — a snapshot is not a unit of work" }
+            check(!open.readOnly) { "write inside reading { }; a snapshot is not a unit of work." }
             writer.checkIn()
             open.joined().block()
         } else {
@@ -193,7 +193,7 @@ class TracelStorage private constructor(
         fun joined(): StorageUnit {
             check(thread === Thread.currentThread()) {
                 "unit of work opened on ${thread.name} was re-entered from ${Thread.currentThread().name} — " +
-                        "an atomically { } block must not leave the storage thread"
+                        "an atomically { } block must not leave the storage thread."
             }
             return unit
         }

@@ -28,7 +28,7 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
     override suspend fun append(event: ActorEvent) {
         storage.write {
             val seq = event.seq.raw
-            check(get(Keys.event(seq)) == null) { "event at ${event.seq} already appended — the log is append-only" }
+            check(get(Keys.event(seq)) == null) { "event at ${event.seq} already appended; the log is append-only." }
             val byId = event.by?.let { interning.internHolder(this, it) } ?: 0
             val at = event.at
             val worldId = at?.let { interning.internWorld(this, it.world) } ?: 0

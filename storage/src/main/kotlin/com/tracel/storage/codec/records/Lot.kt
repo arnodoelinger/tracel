@@ -50,7 +50,6 @@ object Lot {
 
     fun packSum(packId: Long, sum: Long): ByteArray = recordBytes(16) { putI64(0, packId); putI64(8, sum) }
 
-    fun sumPackId(v: MemorySegment): Long = v.i64(0)
     fun sumOf(v: MemorySegment): Long = v.i64(8)
 
     fun edge(kind: Byte, quantity: Long, reference: Long, producedAtHolderId: Int): ByteArray =

@@ -95,7 +95,7 @@ suspend fun importFrom(
     stopped: () -> Boolean = { false },
     commit: () -> Boolean = { true },
 ): ExportSummary = withContext(Dispatchers.IO) {
-    require(Files.exists(from)) { "$from does not exist" }
+    require(Files.exists(from)) { "$from does not exist." }
 
     // Checked whole before anything is wiped, then read again straight into the store
     val rows = eachExportedRow(from) { _, _ -> if (stopped()) throw StoppedByRequest() }
@@ -121,14 +121,14 @@ internal fun eachExportedRow(from: Path, row: (ByteArray, ByteArray) -> Unit): L
     DataInputStream(
         BufferedInputStream(ZstdInputStream(Files.newInputStream(from)), 1 shl 16),
     ).use { input ->
-        require(ByteArray(MAGIC.size).also(input::readFully).contentEquals(MAGIC)) { "$from is not a Tracel export" }
+        require(ByteArray(MAGIC.size).also(input::readFully).contentEquals(MAGIC)) { "$from is not a Tracel export." }
         val version = input.readInt()
-        require(version == VERSION) { "$from is export v$version, this build reads v$VERSION" }
+        require(version == VERSION) { "$from is export v$version, this build reads v$VERSION." }
         while (true) {
             val keyLength = try {
                 input.readInt()
             } catch (end: EOFException) {
-                throw IllegalArgumentException("$from ends without saying how many rows it held", end)
+                throw IllegalArgumentException("$from ends without saying how many rows it held.", end)
             }
             if (keyLength == -1) {
                 stated = input.readLong()
@@ -140,6 +140,6 @@ internal fun eachExportedRow(from: Path, row: (ByteArray, ByteArray) -> Unit): L
             rows++
         }
     }
-    require(stated == rows) { "$from says it holds $stated rows and holds $rows — it was truncated" }
+    require(stated == rows) { "$from says it holds $stated rows and holds $rows; it was truncated." }
     return rows
 }
