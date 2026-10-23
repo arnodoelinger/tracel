@@ -24,6 +24,7 @@ internal class Scrub(
     private var wanted = 0
     private var last = slot
     private var asked = 0L
+    private val flash = ScrubFlash(plugin, player, world)
     private var playing = false
     private var dirty = false
     private var ticks = 0L
@@ -91,6 +92,7 @@ internal class Scrub(
     fun end(restore: Boolean) {
         if (!over.compareAndSet(false, true)) return
         task?.cancel()
+        flash.close()
         if (restore) resync()
         overlay.clear()
         timeline.close()
@@ -134,6 +136,7 @@ internal class Scrub(
             overlay.getOrPut(Packed.chunkOf(pos)) { IntIntMap() }.put(Packed.local(pos), state)
         }
         player.sendMultiBlockChange(send)
+        if (!playing) flash.show(Outline.of(batch.keys))
         if (depth == 0) {
             resync()
             overlay.clear()

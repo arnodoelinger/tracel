@@ -11,6 +11,7 @@ internal object CommandOrder {
             "rollback",
             "near",
             "player",
+            "scrub",
             "preset",
             "status",
             "data",

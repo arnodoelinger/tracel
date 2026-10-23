@@ -1,7 +1,10 @@
 package com.tracel.plugin.command.action
 
 import com.tracel.api.history.BlockRecord
+import com.tracel.api.history.HistoryCursor
 import com.tracel.api.history.RecordKind
+import com.tracel.api.result.TracelException
+import com.tracel.api.result.getOrElse
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.rollback.FilterResult
 import com.tracel.plugin.command.args.rollback.RollbackArgument
@@ -55,14 +58,20 @@ internal class ScrubAction(private val services: TracelServices) {
         val builder = ScrubTimelineBuilder(world)
         try {
             var told = System.nanoTime()
-            reads.history(query).records.collect { record ->
-                if (record is BlockRecord) builder.add(record)
-                val now = System.nanoTime()
-                if (now - told >= PROGRESS_NANOS) {
-                    told = now
-                    player.sendActionBar(tr("scrub.reading", "records" to builder.records))
+            val history = reads.history(query)
+            var from: HistoryCursor? = null
+            do {
+                val page = history.page(from, PAGE).getOrElse { throw TracelException(it) }
+                for (record in page.records) {
+                    if (record is BlockRecord) builder.add(record)
+                    val now = System.nanoTime()
+                    if (now - told >= PROGRESS_NANOS) {
+                        told = now
+                        player.sendActionBar(tr("scrub.reading", "records" to builder.records))
+                    }
                 }
-            }
+                from = page.next
+            } while (from != null)
             val timeline = builder.build()
             if (timeline.size == 0) {
                 timeline.close()
@@ -93,5 +102,6 @@ internal class ScrubAction(private val services: TracelServices) {
 
     private companion object {
         const val PROGRESS_NANOS = 1_000_000_000L
+        const val PAGE = (1 shl 20) - 1
     }
 }
