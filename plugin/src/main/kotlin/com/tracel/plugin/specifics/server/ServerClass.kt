@@ -1,7 +1,7 @@
 package com.tracel.plugin.specifics.server
 
 /**
- * Server classes the section paste reaches into, by name.
+ * Server classes `Tracel` reaches into.
  *
  * None of this is `Paper` API. A Minecraft update that moves or renames one is fixed here.
  */
@@ -27,6 +27,17 @@ internal enum class ServerClass(val className: String) {
     SECTION_POS("net.minecraft.core.SectionPos"),
     POI_TYPES("net.minecraft.world.entity.ai.village.poi.PoiTypes"),
     LIGHT_ENGINE("net.minecraft.world.level.lighting.LightEngine"),
+    CRAFT_ENTITY("org.bukkit.craftbukkit.entity.CraftEntity"),
+    CRAFT_PLAYER("org.bukkit.craftbukkit.entity.CraftPlayer"),
+    ENTITY("net.minecraft.world.entity.Entity"),
+    ENTITY_DATA("net.minecraft.network.syncher.SynchedEntityData"),
+    SERVER_PLAYER("net.minecraft.server.level.ServerPlayer"),
+    COMMON_LISTENER("net.minecraft.server.network.ServerCommonPacketListenerImpl"),
+    PACKET("net.minecraft.network.protocol.Packet"),
+    ADD_ENTITY("net.minecraft.network.protocol.game.ClientboundAddEntityPacket"),
+    SET_ENTITY_DATA("net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket"),
+    REMOVE_ENTITIES("net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket"),
+    BUNDLE("net.minecraft.network.protocol.game.ClientboundBundlePacket"),
 
     ;
 

@@ -47,6 +47,7 @@ class TracelPlugin : JavaPlugin() {
         Messages.unload()
         stopping(logger, "metrics") { TracelMetrics.stop() }
         val run = runtime
+        stopping(logger, "scrubs") { run?.services?.scrubs?.dropAll() }
         stopping(logger, "storage") {
             val live = run ?: return@stopping
             val clean = live.store.closeAfter(5_000L) {

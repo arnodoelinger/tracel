@@ -14,6 +14,7 @@ internal enum class HelpTopic(val permission: Permission, val key: String) {
     ROLLBACK(Permission.ROLLBACK, "rollback"),
     NEAR(Permission.NEAR, "near"),
     PLAYER(Permission.PLAYER, "player"),
+    SCRUB(Permission.LOOKUP, "scrub"),
     PRESET(Permission.PRESET, "preset"),
     STATUS(Permission.STATUS, "status"),
     DATA(Permission.DATA, "data"),

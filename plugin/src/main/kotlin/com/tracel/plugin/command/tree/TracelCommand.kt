@@ -23,6 +23,7 @@ object TracelCommand {
             presetBranch(actions)
             nearBranch(actions)
             playerBranch(actions)
+            scrubBranch(actions)
             statusBranch(actions)
             inspectBranch(actions)
             dataBranch(actions)

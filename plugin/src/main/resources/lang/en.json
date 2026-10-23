@@ -159,6 +159,7 @@
     "lookup": "<gray>/tracel lookup</gray>: browse world history",
     "inspect": "<gray>/tracel inspect</gray>: toggle the inspector",
     "rollback": "<gray>/tracel rollback</gray>: roll back / undo world history",
+    "scrub": "<gray>/tracel scrub</gray>: scroll through time using the mouse wheel",
     "near": "<gray>/tracel near</gray>: what happened around you in the last minutes",
     "player": "<gray>/tracel player</gray>: what a player did, on one screen",
     "preset": "<gray>/tracel preset</gray>: save lookup / rollback options as a preset",
@@ -326,6 +327,37 @@
     "players_only": "Only players can toggle inspect mode",
     "on": "Inspector mode on. Click any block or container to see its history in chat",
     "off": "Inspector mode off"
+  },
+  "scrub": {
+    "failed": "<red>✘ Scrub failed!</red>",
+    "players_only": "Only a player can scrub the past",
+    "reason": {
+      "none": "you are not scrubbing",
+      "nothing": "no block changes match"
+    },
+    "stopped": "Back in the present",
+    "started": "<aqua>⏪ Scrub</aqua>",
+    "reading": "<gray>Reading history... <records> <records:change:changes></gray>",
+    "controls": {
+      "scroll": "<gray>Scroll</gray>: down — back in time, up — forward",
+      "shift": "<gray>Shift + scroll</gray>: ten steps at a time",
+      "play": "<gray>F</gray>: play or stop the timelapse",
+      "leave": "<gray>Q</gray>: leave"
+    },
+    "hint": {
+      "none": "starting one with <gold>\"/tracel scrub\"</gold>",
+      "nothing": "a wider area or a longer time range",
+      "again": "a smaller area or a shorter time range, or check the server log for details"
+    },
+    "bar": {
+      "now": "<aqua>⏺ Now</aqua> <gray>· <total> <total:step:steps> back to scroll</gray>",
+      "back": "<aqua>⏪ <depth>/<total></aqua> <gray>· before <white><who></white> changed <white><n></white> × <white><block></white>, <ago></gray><play>",
+      "playing": " <yellow>▶</yellow>"
+    },
+    "who": {
+      "world": "the world",
+      "thing": "something"
+    }
   },
   "rollback": {
     "preview": {
@@ -681,6 +713,8 @@
     "status": "Show how the plugin is doing",
     "inspect": "Toggle the inspector",
     "rollback": "Roll back world and container changes",
+    "scrub": "Scroll through time using the mouse wheel",
+    "scrub_stop": "Leave the scrub",
     "undo": "Undo the last rollback",
     "undo_confirm": "Undo it anyway, past the entity warning",
     "near": "See what happened around you recently",
