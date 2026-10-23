@@ -5,6 +5,7 @@ import com.tracel.storage.lsm.segment.SegmentReader
 import com.tracel.storage.lsm.segment.SegmentWriter
 import com.tracel.storage.lsm.write.MemTable
 import com.tracel.storage.lsm.write.Wal
+import java.nio.file.Files
 import java.nio.file.Path
 
 /** What replaying the write-ahead logs left behind. */
@@ -40,18 +41,33 @@ internal fun replayWals(
         table.close()
     }
 
-    // Replay every log in order, and if a memtable fills up, seal it to a segment and start a new one
-    for (id in manifest.walIds) {
-        val applied = Wal.replay(Manifest.walPath(directory, id), manifest.lastSequence) { seq, key, value ->
+    // Replay every log in order, and if a memtable fills up, seal it to a segment and start a new one.
+    // Only the newest log may end torn. Every older one was synced when it was closed, so damage there is not a
+    // crash, and applying the logs after it would put their writes on top of a gap.
+    for ((index, id) in manifest.walIds.withIndex()) {
+        val path = Manifest.walPath(directory, id)
+        val newest = index == manifest.walIds.lastIndex
+        val replayed = Wal.replay(path, manifest.lastSequence) { seq, key, value ->
             if (!active.put(key, value, seq)) {
                 seal(active)
                 active = MemTable(maxOf(config.memtableBytes, entryBytes(key, value) * 2))
                 check(active.put(key, value, seq)) {
-                    "a recovered entry does not fit a memtable sized for it — the accounting is wrong"
+                    "a recovered entry does not fit a memtable sized for it; the accounting is wrong."
                 }
             }
         }
-        if (applied > recovered) recovered = applied
+        if (replayed.highest > recovered) recovered = replayed.highest
+
+        val missing = !newest && !Files.exists(path)
+        val damage = replayed.damage?.takeUnless { newest && it.tear }
+        if (!missing && damage == null) continue
+
+        val what = if (missing) "$path is listed but missing." else
+            "$path is damaged ${damage!!.at} bytes into ${damage.size}."
+        throw IllegalStateException(
+            "$what, and ${manifest.walIds.size - index - 1} later logs would be applied over the gap. " +
+                    "Restore the log from a backup."
+        )
     }
     if (active.entries > 0) {
         seal(active)

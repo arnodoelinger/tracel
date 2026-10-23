@@ -9,6 +9,17 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 
+/** What [Wal.replay] found: the highest sequence it applied, and the damage it stopped at, if any. */
+class Replayed(val highest: Long, val damage: Damage?)
+
+/**
+ * Where a log stopped being readable.
+ *
+ * A [tear] is what a power cut leaves: a frame cut short at the end of the file. Anything else is a frame that is
+ * whole and wrong, or has more behind it, and that is not a crash.
+ */
+class Damage(val at: Long, val size: Long, val tear: Boolean)
+
 /**
  * The write-ahead log: the only file whose contents decide what survives losing the machine.
  *
@@ -97,32 +108,48 @@ class Wal private constructor(
         /**
          * Replays every intact frame of [path] with a sequence above [afterSequence].
          *
-         * Stops — quietly, on purpose — at the first frame that is truncated or fails its
-         * checksum. That frame is where the machine died mid-write, and everything after it is
-         * by definition not part of any durable prefix.
+         * Stops at the first frame that is truncated or fails its checksum, and says what it found. At the end of
+         * the newest log that is where the machine died mid-write. Anywhere else it is damage, and the caller
+         * decides what to do with the logs after it.
          *
-         * @return the highest sequence applied.
+         * A length field flipped in the middle reads as a cut-short frame, so it is told apart from a tear only
+         * when the frame is whole and a bad checksum has more behind it.
+         *
+         * @return the highest sequence applied, and the damage if the log did not end cleanly.
          */
-        fun replay(path: Path, afterSequence: Long, apply: (Long, ByteArray, ByteArray?) -> Unit): Long {
-            if (!Files.exists(path)) return afterSequence
+        fun replay(path: Path, afterSequence: Long, apply: (Long, ByteArray, ByteArray?) -> Unit): Replayed {
+            if (!Files.exists(path)) return Replayed(afterSequence, null)
             var highest = afterSequence
+            var damage: Damage? = null
             FileChannel.open(path, StandardOpenOption.READ).use { channel ->
                 val size = channel.size()
                 var at = 0L
                 val head = ByteBuffer.allocate(HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN)
                 while (at + HEADER_BYTES <= size) {
                     head.clear()
-                    if (readFully(channel, head, at) < HEADER_BYTES) break
+                    if (readFully(channel, head, at) < HEADER_BYTES) {
+                        damage = Damage(at, size, tear = true)
+                        break
+                    }
                     head.flip()
                     val length = head.int
                     val crc = head.int
                     val sequence = head.long
-                    if (length < 0 || at + HEADER_BYTES + length > size) break
+                    if (length < 0 || at + HEADER_BYTES + length > size) {
+                        damage = Damage(at, size, tear = true)
+                        break
+                    }
 
                     val body = ByteBuffer.allocate(length).order(ByteOrder.LITTLE_ENDIAN)
-                    if (readFully(channel, body, at + HEADER_BYTES) < length) break
+                    if (readFully(channel, body, at + HEADER_BYTES) < length) {
+                        damage = Damage(at, size, tear = true)
+                        break
+                    }
                     body.flip()
-                    if (Bytes.checksum(body.array()) != crc) break
+                    if (Bytes.checksum(body.array()) != crc) {
+                        damage = Damage(at, size, tear = at + HEADER_BYTES + length >= size)
+                        break
+                    }
 
                     if (sequence > afterSequence) {
                         while (body.hasRemaining()) {
@@ -136,8 +163,9 @@ class Wal private constructor(
                     }
                     at += HEADER_BYTES + length
                 }
+                if (damage == null && at < size) damage = Damage(at, size, tear = true)
             }
-            return highest
+            return Replayed(highest, damage)
         }
 
         private fun readFully(channel: FileChannel, buffer: ByteBuffer, at: Long): Int {
