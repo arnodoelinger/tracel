@@ -143,6 +143,8 @@ object Records {
     fun entityChangeAfterShape(type: EntityTypeKey, at: BlockPos, v: MemorySegment) =
         World.entityChangeAfterShape(type, at, v)
 
+    fun entityChangeUuidHigh(v: MemorySegment) = World.entityChangeUuidHigh(v)
+    fun entityChangeUuidLow(v: MemorySegment) = World.entityChangeUuidLow(v)
     fun blockChangeBeforeBlockExtras(v: MemorySegment) = World.blockChangeBeforeBlockExtras(v)
     fun blockChangeAfterBlockExtras(v: MemorySegment) = World.blockChangeAfterBlockExtras(v)
 

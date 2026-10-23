@@ -229,6 +229,8 @@ object World {
 
     fun entityChangeTypeId(v: MemorySegment): Int = v.i32(32)
     fun entityChangeUuid(v: MemorySegment): UUID = UUID(v.i64(36), v.i64(44))
+    fun entityChangeUuidHigh(v: MemorySegment): Long = v.i64(36)
+    fun entityChangeUuidLow(v: MemorySegment): Long = v.i64(44)
     fun entityChangeBeforeExtrasLength(v: MemorySegment): Int = v.i16(52).toInt() and 0xFFFF
     fun entityChangeAfterExtrasLength(v: MemorySegment): Int = v.i16(54).toInt() and 0xFFFF
     fun entityChangeBeforeExtras(v: MemorySegment): ByteArray = v.readBytes(ENTITY_EXTRAS_AT, entityChangeBeforeExtrasLength(v))

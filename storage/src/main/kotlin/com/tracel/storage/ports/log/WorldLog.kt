@@ -675,7 +675,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         return true
     }
 
-    private fun structureEndsOf(ordered: List<WorldChange>): List<WorldChange> {
+    private fun structureEndsOf(ordered: List<WorldChange>): ArrayList<WorldChange> {
         val n = ordered.size
         packedEndsOf(ordered)?.let { return it }
         // Both ends in one entry. Two maps meant hashing every coordinate twice on the way in and
@@ -695,60 +695,91 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         return out
     }
 
-    private fun packedEndsOf(ordered: List<WorldChange>): List<WorldChange>? {
+    private fun packedEndsOf(ordered: List<WorldChange>): ArrayList<WorldChange>? {
         val n = ordered.size
         if (n < PACKED_ENDS_FROM) return null
         val world = ordered[0].at.world
-        val capacity = Integer.highestOneBit((n * 2).coerceAtLeast(16)) shl 1
-        val shift = 64 - Integer.numberOfTrailingZeros(capacity)
-        val mask = capacity - 1
-        val keys = LongArray(capacity)
-        val used = BooleanArray(capacity)
-        val firsts = IntArray(capacity)
-        val lasts = IntArray(capacity)
-        val entities = HashMap<Any, IntArray>()
+        var entityRows = 0
+        for (i in 0 until n) {
+            val change = ordered[i]
+            if (change.subject is ChangeSubject.Entity) entityRows++
+            else if (change.at.world != world) return null
+        }
+        val blocks = EndsTable(n - entityRows, wide = false)
+        val entities = if (entityRows == 0) null else EndsTable(entityRows, wide = true)
         for (i in n - 1 downTo 0) {
             val change = ordered[i]
             val subject = change.subject
             if (subject is ChangeSubject.Entity) {
-                val slot = entities.getOrPut(subject.entity) { intArrayOf(i, i) }
-                slot[1] = i
+                entities!!.put(i, subject.entity.mostSignificantBits, subject.entity.leastSignificantBits)
                 continue
             }
             val at = change.at
-            if (at.world != world) return null
-            val key = ((at.x.toLong() and 0x3FFFFFF) shl 38) or ((at.z.toLong() and 0x3FFFFFF) shl 12) or
-                    (at.y.toLong() and 0xFFF)
-            var h = ((key * -0x61c8864680b583ebL) ushr shift).toInt()
-            while (used[h] && keys[h] != key) h = (h + 1) and mask
-            if (!used[h]) {
-                used[h] = true
-                keys[h] = key
-                firsts[h] = i
-            }
-            lasts[h] = i
+            blocks.put(
+                i,
+                ((at.x.toLong() and 0x3FFFFFF) shl 38) or ((at.z.toLong() and 0x3FFFFFF) shl 12) or
+                        (at.y.toLong() and 0xFFF),
+                0L,
+            )
         }
         val pick = BooleanArray(n)
-        var count = 0
-        for (h in 0 until capacity) if (used[h]) {
-            if (!pick[firsts[h]]) {
-                pick[firsts[h]] = true; count++
-            }
-            if (!pick[lasts[h]]) {
-                pick[lasts[h]] = true; count++
-            }
-        }
-        for (slot in entities.values) {
-            if (!pick[slot[0]]) {
-                pick[slot[0]] = true; count++
-            }
-            if (!pick[slot[1]]) {
-                pick[slot[1]] = true; count++
-            }
-        }
+        val count = blocks.mark(pick) + (entities?.mark(pick) ?: 0)
         val out = ArrayList<WorldChange>(count)
         for (i in n - 1 downTo 0) if (pick[i]) out += ordered[i]
         return out
+    }
+
+    private class EndsTable(expected: Int, wide: Boolean) {
+        private val shift: Int
+        private val mask: Int
+        private val keys: LongArray
+        private val keys2: LongArray?
+        private val firsts: IntArray
+        private val lasts: IntArray
+
+        init {
+            val capacity = Integer.highestOneBit(((expected.toLong() * 3 / 2).coerceIn(16, 1L shl 30)).toInt() - 1) shl 1
+            shift = 64 - Integer.numberOfTrailingZeros(capacity)
+            mask = capacity - 1
+            keys = LongArray(capacity)
+            keys2 = if (wide) LongArray(capacity) else null
+            firsts = IntArray(capacity)
+            lasts = IntArray(capacity)
+        }
+
+        fun put(index: Int, key: Long, key2: Long) {
+            var h = (((key xor (key2 * -0x4b47d4a8a3b9d5e3L)) * -0x61c8864680b583ebL) ushr shift).toInt()
+            while (true) {
+                val first = firsts[h]
+                if (first == 0) {
+                    keys[h] = key
+                    if (keys2 != null) keys2[h] = key2
+                    firsts[h] = index + 1
+                    break
+                }
+                if (keys[h] == key && (keys2 == null || keys2[h] == key2)) break
+                h = (h + 1) and mask
+            }
+            lasts[h] = index + 1
+        }
+
+        fun mark(pick: BooleanArray): Int {
+            var count = 0
+            for (h in firsts.indices) {
+                val first = firsts[h] - 1
+                if (first < 0) continue
+                if (!pick[first]) {
+                    pick[first] = true
+                    count++
+                }
+                val last = lasts[h] - 1
+                if (!pick[last]) {
+                    pick[last] = true
+                    count++
+                }
+            }
+            return count
+        }
     }
 
     private fun WorldChange.structureKey(): Any = when (val subject = subject) {
@@ -801,15 +832,11 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val n = seqs.size
         if (n == 0) return ArrayList()
         val resolved = resolveAll(unit, records, pick = null)
-        val slots = arrayOfNulls<MutableList<WorldChange>>(n)
-        val build = { i: Int ->
-            val one = ArrayList<WorldChange>(1)
-            expandInto(unit, seqs.getLong(i), records[i], resolved, filter, one)
-            slots[i] = one
-        }
+        val slots = arrayOfNulls<Any>(n)
+        val build = { i: Int -> slots[i] = expandOne(unit, seqs.getLong(i), records[i], resolved, filter) }
         eachIndex(n, body = build)
         val out = ArrayList<WorldChange>(n)
-        for (i in n - 1 downTo 0) out += slots[i]!!
+        for (i in n - 1 downTo 0) out.addExpanded(slots[i])
         return out
     }
 
@@ -822,56 +849,70 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val n = seqs.size
         if (n == 0) return ArrayList()
 
-        val ends = HashMap<Any, IntArray>(n.coerceAtMost(65_536))
+        var blockRows = 0
+        var entityRows = 0
+        for (i in 0 until n) {
+            when (Records.wchgKind(records[i])) {
+                Records.CHANGE_BLOCK -> blockRows++
+                Records.CHANGE_SECTION -> Unit
+                else -> entityRows++
+            }
+        }
+        val blocks = EndsTable(blockRows, wide = true)
+        val entities = EndsTable(entityRows, wide = true)
         val pick = BooleanArray(n)
         var count = 0
         for (i in n - 1 downTo 0) {
-            if (Records.wchgKind(records[i]) == Records.CHANGE_SECTION) {
-                pick[i] = true
-                count++
-                continue
+            val record = records[i]
+            when (Records.wchgKind(record)) {
+                Records.CHANGE_SECTION -> {
+                    pick[i] = true
+                    count++
+                }
+
+                Records.CHANGE_BLOCK -> blocks.put(
+                    i,
+                    (Records.wchgX(record).toLong() shl 32) or (Records.wchgZ(record).toLong() and 0xFFFFFFFFL),
+                    (Records.wchgY(record).toLong() shl 32) or (Records.wchgWorldId(record).toLong() and 0xFFFFFFFFL),
+                )
+
+                else -> entities.put(i, Records.entityChangeUuidHigh(record), Records.entityChangeUuidLow(record))
             }
-            val slot = ends.getOrPut(structureKey(records[i])) { intArrayOf(i, i) }
-            slot[1] = i
         }
-        for (slot in ends.values) {
-            if (!pick[slot[0]]) {
-                pick[slot[0]] = true; count++
-            }
-            if (!pick[slot[1]]) {
-                pick[slot[1]] = true; count++
-            }
-        }
+        count += blocks.mark(pick) + entities.mark(pick)
 
         val resolved = resolveAll(unit, records, pick)
-        val slots = arrayOfNulls<MutableList<WorldChange>>(n)
+        val slots = arrayOfNulls<Any>(n)
         val build = { i: Int ->
-            if (pick[i]) {
-                val one = ArrayList<WorldChange>(1)
-                expandInto(unit, seqs.getLong(i), records[i], resolved, filter, one)
-                slots[i] = one
-            }
+            if (pick[i]) slots[i] = expandOne(unit, seqs.getLong(i), records[i], resolved, filter)
         }
         eachIndex(n, work = count, body = build)
 
         val ordered = ArrayList<WorldChange>(count)
-        for (i in 0 until n) slots[i]?.let { ordered += it }
-        return ArrayList(structureEndsOf(ordered))
+        for (i in 0 until n) ordered.addExpanded(slots[i])
+        return structureEndsOf(ordered)
     }
 
-    private fun structureKey(record: MemorySegment): Any =
-        if (Records.wchgKind(record) == Records.CHANGE_BLOCK) {
-            BlockKey(
-                Records.wchgWorldId(record),
-                Records.wchgX(record),
-                Records.wchgY(record),
-                Records.wchgZ(record),
-            )
-        } else {
-            Records.entityChangeUuid(record)
-        }
+    private fun expandOne(
+        unit: StorageUnit,
+        seq: Long,
+        record: MemorySegment,
+        resolved: Resolved?,
+        filter: LookupFilter?,
+    ): Any = if (Records.wchgKind(record) != Records.CHANGE_SECTION) {
+        decode(unit, seq, record, resolved)
+    } else {
+        ArrayList<WorldChange>().also { expandInto(unit, seq, record, resolved, filter, it) }
+    }
 
-    private data class BlockKey(val worldId: Int, val x: Int, val y: Int, val z: Int)
+    @Suppress("UNCHECKED_CAST")
+    private fun ArrayList<WorldChange>.addExpanded(slot: Any?) {
+        when (slot) {
+            null -> Unit
+            is WorldChange -> add(slot)
+            else -> addAll(slot as List<WorldChange>)
+        }
+    }
 
     private fun StorageUnit.accepts(record: MemorySegment, filter: LookupFilter, ids: FilterIds): Boolean {
         val holderIds = ids.holders
