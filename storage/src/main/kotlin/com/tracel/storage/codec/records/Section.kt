@@ -12,6 +12,8 @@ import com.tracel.storage.ffm.Bytes.putI64
 import com.tracel.storage.ffm.Bytes.putI8
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.ffm.Bytes.writeBytes
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap
+import it.unimi.dsi.fastutil.ints.IntLinkedOpenHashSet
 import java.lang.foreign.MemorySegment
 
 class SectionExtras(val index: Int, val before: ByteArray, val after: ByteArray)
@@ -116,11 +118,12 @@ object Section {
 
             for (i in palette.indices) putI32((paletteAt + i * 4).toLong(), palette[i])
 
-            val slot = HashMap<Int, Int>(palette.size * 2)
-            for (i in palette.indices) slot[palette[i]] = i
+            val slot = Int2IntOpenHashMap(palette.size).apply { defaultReturnValue(-1) }
+            for (i in palette.indices) slot.put(palette[i], i)
             for (i in 0 until count) {
-                val b = slot.getValue(before[i])
-                val a = slot.getValue(after[i])
+                val b = slot.get(before[i])
+                val a = slot.get(after[i])
+                check(b >= 0 && a >= 0) { "a state is missing from its own palette." }
                 if (wide) {
                     putI16((indicesAt + i * 2).toLong(), b.toShort())
                     putI16((indicesAt + count * 2 + i * 2).toLong(), a.toShort())
@@ -144,10 +147,10 @@ object Section {
     }
 
     private fun paletteOf(before: IntArray, after: IntArray, count: Int): IntArray {
-        val seen = LinkedHashSet<Int>()
+        val seen = IntLinkedOpenHashSet()
         for (i in 0 until count) {
-            seen += before[i]
-            seen += after[i]
+            seen.add(before[i])
+            seen.add(after[i])
         }
         return seen.toIntArray()
     }

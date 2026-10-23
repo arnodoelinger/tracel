@@ -23,6 +23,12 @@ import com.tracel.storage.intern.Interning
 import com.tracel.storage.util.ascending
 import com.tracel.storage.util.eachIndex
 import com.tracel.storage.util.pageAccepted
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap
+import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap
+import it.unimi.dsi.fastutil.longs.LongArrayList
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
 import com.tracel.engine.world.WorldLog as WorldLogPort
@@ -113,10 +119,16 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val real = edits.edits.filter { it.before != it.after }
         if (real.isEmpty()) return 0
 
-        val bySection = LinkedHashMap<Long, MutableList<BlockEdit>>()
+        val bySection = Long2ObjectLinkedOpenHashMap<MutableList<BlockEdit>>()
         for (edit in real) {
             val at = edit.at
-            bySection.getOrPut(sectionOf(at.x, at.y, at.z)) { ArrayList() } += edit
+            val section = sectionOf(at.x, at.y, at.z)
+            var group = bySection.get(section)
+            if (group == null) {
+                group = ArrayList()
+                bySection.put(section, group)
+            }
+            group += edit
         }
 
         for (group in bySection.values) {
@@ -205,13 +217,18 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         if (n >= RAW_MAX_EDITS) return appendAll(raw.resolved(), nextSeqRange)
         val coordinates = raw.coordinates
 
-        val sectionIds = HashMap<Long, Int>()
+        val sectionIds = Long2IntOpenHashMap().apply { defaultReturnValue(-1) }
         val keys = LongArray(n)
         for (i in 0 until n) {
             val x = coordinates[i * 3]
             val y = coordinates[i * 3 + 1]
             val z = coordinates[i * 3 + 2]
-            val section = sectionIds.getOrPut(sectionOf(x, y, z)) { sectionIds.size }
+            val sectionKey = sectionOf(x, y, z)
+            var section = sectionIds.get(sectionKey)
+            if (section < 0) {
+                section = sectionIds.size
+                sectionIds.put(sectionKey, section)
+            }
             keys[i] = (section.toLong() shl 32) or (Records.packSectionPosition(x, y, z).toLong() shl 20) or i.toLong()
         }
         keys.sort()
@@ -492,12 +509,12 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             holderIds.isNotEmpty() -> scansOver(holderIds.map(Keys::actorPrefix))
             else -> null
         }
-        val matched = ArrayList<Long>()
+        val matched = LongArrayList()
         val records = ArrayList<MemorySegment>()
         val take = { seq: Long ->
             val record = get(Keys.wchg(seq))
             if (record != null && accepts(record, filter, ids)) {
-                matched += seq
+                matched.add(seq)
                 records += record
             }
             matched.size
@@ -531,7 +548,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val from = filter.offset.coerceAtMost(matched.size)
         val until = (from.toLong() + filter.limit).coerceAtMost(matched.size.toLong()).toInt()
         val out = ArrayList<WorldChange>(until - from)
-        for (i in from until until) expandInto(this, matched[i], records[i], null, filter, out)
+        for (i in from until until) expandInto(this, matched.getLong(i), records[i], null, filter, out)
         out
     }
 
@@ -777,7 +794,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
     private fun decodeNewestFirst(
         unit: StorageUnit,
-        seqs: ArrayList<Long>,
+        seqs: LongArrayList,
         records: ArrayList<MemorySegment>,
         filter: LookupFilter,
     ): ArrayList<WorldChange> {
@@ -787,7 +804,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val slots = arrayOfNulls<MutableList<WorldChange>>(n)
         val build = { i: Int ->
             val one = ArrayList<WorldChange>(1)
-            expandInto(unit, seqs[i], records[i], resolved, filter, one)
+            expandInto(unit, seqs.getLong(i), records[i], resolved, filter, one)
             slots[i] = one
         }
         eachIndex(n, body = build)
@@ -798,7 +815,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
     private fun decodeStructureEnds(
         unit: StorageUnit,
-        seqs: ArrayList<Long>,
+        seqs: LongArrayList,
         records: ArrayList<MemorySegment>,
         filter: LookupFilter,
     ): ArrayList<WorldChange> {
@@ -831,7 +848,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val build = { i: Int ->
             if (pick[i]) {
                 val one = ArrayList<WorldChange>(1)
-                expandInto(unit, seqs[i], records[i], resolved, filter, one)
+                expandInto(unit, seqs.getLong(i), records[i], resolved, filter, one)
                 slots[i] = one
             }
         }
@@ -923,52 +940,52 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     }
 
     private class Resolved(
-        val worlds: Map<Int, WorldId>,
-        val shapes: Map<Int, BlockShape>,
-        val blockData: Map<Int, BlockDataKey>,
-        val holders: Map<Int, HolderId>,
-        val entityTypes: Map<Int, EntityTypeKey>,
+        val worlds: Int2ObjectMap<WorldId>,
+        val shapes: Int2ObjectMap<BlockShape>,
+        val blockData: Int2ObjectMap<BlockDataKey>,
+        val holders: Int2ObjectMap<HolderId>,
+        val entityTypes: Int2ObjectMap<EntityTypeKey>,
     )
 
     private fun resolveAll(unit: StorageUnit, records: List<MemorySegment>, pick: BooleanArray?): Resolved {
-        val worldIds = HashSet<Int>()
-        val dataIds = HashSet<Int>()
-        val holderIds = HashSet<Int>()
-        val typeIds = HashSet<Int>()
+        val worldIds = IntOpenHashSet()
+        val dataIds = IntOpenHashSet()
+        val holderIds = IntOpenHashSet()
+        val typeIds = IntOpenHashSet()
         for (i in records.indices) {
             if (pick != null && !pick[i]) continue
             val record = records[i]
-            worldIds += Records.wchgWorldId(record)
+            worldIds.add(Records.wchgWorldId(record))
             val causedBy = Records.wchgCausedBy(record)
-            if (causedBy != 0) holderIds += causedBy
+            if (causedBy != 0) holderIds.add(causedBy)
             when (Records.wchgKind(record)) {
                 Records.CHANGE_BLOCK -> {
-                    dataIds += Records.blockChangeBefore(record)
-                    dataIds += Records.blockChangeAfter(record)
+                    dataIds.add(Records.blockChangeBefore(record))
+                    dataIds.add(Records.blockChangeAfter(record))
                 }
 
                 Records.CHANGE_SECTION -> {
                     val palette = Records.sectionPaletteSize(record)
-                    for (slot in 0 until palette) dataIds += Records.sectionPaletteAt(record, slot)
+                    for (slot in 0 until palette) dataIds.add(Records.sectionPaletteAt(record, slot))
                 }
 
-                else -> typeIds += Records.entityChangeTypeId(record)
+                else -> typeIds.add(Records.entityChangeTypeId(record))
             }
         }
 
-        val worlds = HashMap<Int, WorldId>(worldIds.size * 2)
-        for (id in worldIds) worlds[id] = interning.resolveWorld(unit, id)
-        val blockData = HashMap<Int, BlockDataKey>(dataIds.size * 2)
-        val shapes = HashMap<Int, BlockShape>(dataIds.size * 2)
-        for (id in dataIds) {
+        val worlds = Int2ObjectOpenHashMap<WorldId>(worldIds.size)
+        for (id in worldIds.toIntArray()) worlds.put(id, interning.resolveWorld(unit, id))
+        val blockData = Int2ObjectOpenHashMap<BlockDataKey>(dataIds.size)
+        val shapes = Int2ObjectOpenHashMap<BlockShape>(dataIds.size)
+        for (id in dataIds.toIntArray()) {
             val data = interning.resolveBlockData(unit, id)
-            blockData[id] = data
-            shapes[id] = simpleShapes.getOrPut(data) { BlockShape(data) }
+            blockData.put(id, data)
+            shapes.put(id, simpleShapes.getOrPut(data) { BlockShape(data) })
         }
-        val holders = HashMap<Int, HolderId>(holderIds.size * 2)
-        for (id in holderIds) holders[id] = interning.resolveHolder(unit, id)
-        val entityTypes = HashMap<Int, EntityTypeKey>(typeIds.size * 2)
-        for (id in typeIds) entityTypes[id] = interning.resolveEntityType(unit, id)
+        val holders = Int2ObjectOpenHashMap<HolderId>(holderIds.size)
+        for (id in holderIds.toIntArray()) holders.put(id, interning.resolveHolder(unit, id))
+        val entityTypes = Int2ObjectOpenHashMap<EntityTypeKey>(typeIds.size)
+        for (id in typeIds.toIntArray()) entityTypes.put(id, interning.resolveEntityType(unit, id))
         return Resolved(worlds, shapes, blockData, holders, entityTypes)
     }
 

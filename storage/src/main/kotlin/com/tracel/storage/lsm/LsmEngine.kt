@@ -11,6 +11,7 @@ import com.tracel.storage.lsm.write.MemTable
 import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.write.WalSet
 import com.tracel.storage.spi.*
+import it.unimi.dsi.fastutil.longs.LongArrayList
 import java.lang.foreign.MemorySegment
 import java.nio.file.Files
 import java.nio.file.Path
@@ -417,10 +418,10 @@ class LsmEngine(
 
     private fun flush(frozen: MemTable) {
         try {
-            val ids = ArrayList<Long>()
+            val ids = LongArrayList()
             try {
                 val readers =
-                    segmentWriter.seal(frozen, { reserveSegmentId().also { ids += it } }, retirement.horizon())
+                    segmentWriter.seal(frozen, { reserveSegmentId().also { ids.add(it) } }, retirement.horizon())
 
                 lock.withLock {
                     if (closed) {
@@ -432,12 +433,12 @@ class LsmEngine(
                     val at = generation.incrementAndGet()
                     version = version.flushed(frozen, readers, at)
                     retirement.retire(frozen, at)
-                    writing -= ids.toSet()
+                    writing.removeAll(ids)
                     publish()
                     flushed.signalAll()
                 }
             } finally {
-                writing -= ids.toSet()
+                writing.removeAll(ids)
             }
             flushCount.incrementAndGet()
             runCatching { compactor.execute { compactWhileNeeded() } }

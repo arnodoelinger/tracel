@@ -2,6 +2,7 @@ package com.tracel.storage.lsm.state
 
 import com.tracel.storage.lsm.segment.SegmentReader
 import com.tracel.storage.lsm.write.MemTable
+import it.unimi.dsi.fastutil.longs.Long2IntRBTreeMap
 import java.nio.file.Files
 import java.util.*
 
@@ -17,28 +18,26 @@ import java.util.*
  */
 internal class Retirement {
     private val pins = Any()
-    private val generations = TreeMap<Long, Int>()
-    private val sequences = TreeMap<Long, Int>()
+    private val generations = Long2IntRBTreeMap()
+    private val sequences = Long2IntRBTreeMap()
 
     private val segments = ArrayList<Pair<SegmentReader, Long>>()
     private val tables = ArrayList<Pair<MemTable, Long>>()
 
     /** Records a reader taking hold of [generation] as of sequence [at]. */
     fun pin(generation: Long, at: Long) = synchronized(pins) {
-        generations.merge(generation, 1, Int::plus)
-        sequences.merge(at, 1, Int::plus)
+        generations.put(generation, generations.get(generation) + 1)
+        sequences.put(at, sequences.get(at) + 1)
     }
 
     /** The mirror of [pin]. The caller sweeps afterwards, under the engine's lock. */
     fun release(generation: Long, at: Long) = synchronized(pins) {
-        generations.computeIfPresent(generation) { _, count -> if (count <= 1) null else count - 1 }
-        sequences.computeIfPresent(at) { _, count -> if (count <= 1) null else count - 1 }
+        unpin(generations, generation)
+        unpin(sequences, at)
     }
 
     /** The oldest sequence any open reader can still see — the horizon a merge collapses to. */
-    fun horizon(): Long = synchronized(pins) { sequences.firstEntry()?.key ?: Long.MAX_VALUE }
-
-    private fun oldestPinned(): Long = synchronized(pins) { generations.firstEntry()?.key ?: Long.MAX_VALUE }
+    fun horizon(): Long = synchronized(pins) { if (sequences.isEmpty()) Long.MAX_VALUE else sequences.firstLongKey() }
 
     /** Hands [segment] over, to be unmapped and deleted once nobody is reading generation [at]. */
     fun retire(segment: SegmentReader, at: Long) {
@@ -84,5 +83,13 @@ internal class Retirement {
         tables.forEach { (table, _) -> runCatching { table.close() } }
         segments.clear()
         tables.clear()
+    }
+
+    private fun oldestPinned(): Long =
+        synchronized(pins) { if (generations.isEmpty()) Long.MAX_VALUE else generations.firstLongKey() }
+
+    private fun unpin(counts: Long2IntRBTreeMap, key: Long) {
+        val count = counts.get(key)
+        if (count == 1) counts.remove(key) else if (count > 1) counts.put(key, count - 1)
     }
 }

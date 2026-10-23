@@ -5,6 +5,8 @@ import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.records.RolledSet
 import com.tracel.storage.util.eachRow
 import com.tracel.engine.log.RolledBack as RolledBackPort
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
+import it.unimi.dsi.fastutil.longs.LongArrayList
 
 /**
  * Which log records a rollback took back, and when.
@@ -39,11 +41,11 @@ class RolledBack(private val storage: TracelStorage) : RolledBackPort {
     override suspend fun restore(job: Long) {
         do {
             val done = storage.write {
-                val buckets = ArrayList<Long>(CHUNK)
+                val buckets = LongArrayList(CHUNK)
                 eachRow(Keys.rolledSetJobPrefix(job)) { cursor ->
-                    if (buckets.size < CHUNK) buckets += cursor.keyU64(9)
+                    if (buckets.size < CHUNK) buckets.add(cursor.keyU64(9))
                 }
-                for (bucket in buckets) {
+                for (bucket in buckets.toLongArray()) {
                     delete(Keys.rolledSet(bucket, job))
                     delete(Keys.rolledSetJob(job, bucket))
                 }
@@ -55,14 +57,14 @@ class RolledBack(private val storage: TracelStorage) : RolledBackPort {
     override suspend fun of(seqs: Collection<Long>): Map<Long, Long> {
         if (seqs.isEmpty()) return emptyMap()
         return storage.read {
-            val out = HashMap<Long, Long>()
+            val out = Long2LongOpenHashMap().apply { defaultReturnValue(Long.MIN_VALUE) }
             for ((bucket, asked) in seqs.groupBy(RolledSet::bucketOf)) {
                 eachRow(Keys.rolledSetPrefix(bucket)) { cursor ->
                     val value = cursor.value()
                     val millis = RolledSet.millis(value)
                     val slots = RolledSet.slots(value)
                     for (seq in asked) {
-                        if (RolledSet.has(slots, RolledSet.slotOf(seq))) out.merge(seq, millis, ::maxOf)
+                        if (RolledSet.has(slots, RolledSet.slotOf(seq)) && millis > out.get(seq)) out.put(seq, millis)
                     }
                 }
             }

@@ -27,6 +27,13 @@ import com.tracel.storage.ports.log.QueryProbe
 import com.tracel.storage.ports.log.walkWanted
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
+import it.unimi.dsi.fastutil.ints.Int2LongOpenHashMap
+import it.unimi.dsi.fastutil.ints.Int2ObjectLinkedOpenHashMap
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
+import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
+import it.unimi.dsi.fastutil.longs.LongArrayList
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.atomic.AtomicLong
 import com.tracel.engine.ledger.repository.LotRepository as LotRepositoryPort
@@ -214,13 +221,15 @@ class LotRepository(
         val sorted = rawsOf(unique)
         return storage.read {
             val out = HashMap<LotId, HolderId>(unique.size)
-            val holderOfPack = HashMap<Long, HolderId?>()
+            val holderOfPack = Long2ObjectOpenHashMap<HolderId>()
             QueryProbe.cursors(1)
             QueryProbe.scanned(sorted.size.toLong())
             walkWanted(Keys.LOT_PACK, sorted, 0, sorted.size, Keys::lotPack) { at, cursor ->
                 val packId = Records.asLong(cursor.value())
-                val holder = holderOfPack.getOrPut(packId) {
-                    packs.holderIdOf(this, packId)?.let { interning.resolveHolder(this, it) }
+                var holder = holderOfPack.get(packId)
+                if (holder == null) {
+                    holder = packs.holderIdOf(this, packId)?.let { interning.resolveHolder(this, it) }
+                    if (holder != null) holderOfPack.put(packId, holder)
                 }
                 if (holder != null) out[LotId(at)] = holder
             }
@@ -233,15 +242,25 @@ class LotRepository(
         val unique = roots.distinct()
         val sorted = rawsOf(unique)
         return storage.read {
-            val edged = HashSet<Long>()
-            walkWanted(Keys.EDGE_FROM, sorted, 0, sorted.size, Keys::edgeFromPrefix) { at, _ -> edged += at }
-            val byPack = LinkedHashMap<Long, HashSet<Long>>()
+            val edged = LongOpenHashSet()
+            walkWanted(Keys.EDGE_FROM, sorted, 0, sorted.size, Keys::edgeFromPrefix) { at, _ -> edged.add(at) }
+            val byPack = Long2ObjectLinkedOpenHashMap<LongOpenHashSet>()
             walkWanted(Keys.LOT_PACK, sorted, 0, sorted.size, Keys::lotPack) { at, cursor ->
-                if (at !in edged) byPack.getOrPut(Records.asLong(cursor.value())) { HashSet() } += at
+                if (at !in edged) {
+                    val packId = Records.asLong(cursor.value())
+                    var chosen = byPack.get(packId)
+                    if (chosen == null) {
+                        chosen = LongOpenHashSet()
+                        byPack.put(packId, chosen)
+                    }
+                    chosen.add(at)
+                }
             }
             val runs = ArrayList<PlacedRun>(byPack.size)
-            val taken = HashSet<Long>()
-            for ((packId, chosen) in byPack) {
+            val taken = LongOpenHashSet()
+            for (entry in byPack.long2ObjectEntrySet()) {
+                val packId = entry.longKey
+                val chosen = entry.value
                 val pack = packs.read(this, packId) ?: continue
                 val lots = LongArray(chosen.size)
                 val quantities = LongArray(chosen.size)
@@ -253,7 +272,7 @@ class LotRepository(
                 }
                 if (n == 0) continue
                 runs += PlacedRun(interning.resolveHolder(this, pack.holderId), lots.copyOf(n), quantities.copyOf(n))
-                for (k in 0 until n) taken += lots[k]
+                for (k in 0 until n) taken.add(lots[k])
             }
             PlacedRuns(runs, unique.filter { it.raw !in taken })
         }
@@ -328,7 +347,7 @@ class LotRepository(
         var d = 0
         var still = wants[0]
         var spent = 0L
-        val touched = ArrayList<Long>()
+        val touched = LongArrayList()
         var done = false
         for (pack in queue) {
             if (done) break
@@ -338,7 +357,7 @@ class LotRepository(
             for (i in 0 until pack.size) {
                 var lot = pack.lots[i]
                 var left = pack.remaining[i]
-                touched += lot
+                touched.add(lot)
                 while (left > 0L) {
                     while (still == 0L && d + 1 < wants.size) still = wants[++d]
                     if (still == 0L) {
@@ -460,15 +479,22 @@ class LotRepository(
         if (portions.isEmpty()) return
         storage.write {
             val holderId = interning.internHolder(this, holder)
-            val seen = HashSet<Long>(portions.size * 2)
-            val byItem = LinkedHashMap<Int, Entries>()
+            val seen = LongOpenHashSet(portions.size)
+            val byItem = Int2ObjectLinkedOpenHashMap<Entries>()
             for ((lotId, quantity) in portions) {
                 check(seen.add(lotId.raw)) { "lot $lotId is already placed at $holder." }
                 notPlaced(this, lotId)
                 val itemKeyId = interning.internItemKey(this, readLot(this, lotId).itemKey)
-                byItem.getOrPut(itemKeyId) { Entries() }.add(lotId.raw, quantity.raw, counters.nextFifoSeqOn(this))
+                var entries = byItem.get(itemKeyId)
+                if (entries == null) {
+                    entries = Entries()
+                    byItem.put(itemKeyId, entries)
+                }
+                entries.add(lotId.raw, quantity.raw, counters.nextFifoSeqOn(this))
             }
-            for ((itemKeyId, entries) in byItem) {
+            for (entry in byItem.int2ObjectEntrySet()) {
+                val itemKeyId = entry.intKey
+                val entries = entry.value
                 packs.insert(this, holderId, itemKeyId, entries.lots(), entries.remaining(), entries.fifo())
                 addToTotal(this, holderId, itemKeyId, entries.sum)
             }
@@ -504,24 +530,32 @@ class LotRepository(
             val fromId = interning.findHolderId(this, from)
                 ?: error("lot ${lotIds.first()} is not currently placed at $from.")
             val sorted = rawsOf(lotIds)
-            val packOf = HashMap<Long, Long>(lotIds.size * 2)
+            val packOf = Long2LongOpenHashMap(lotIds.size).apply { defaultReturnValue(NO_PACK) }
             walkWanted(Keys.LOT_PACK, sorted, 0, sorted.size, Keys::lotPack) { at, cursor ->
-                packOf[at] = Records.asLong(cursor.value())
+                packOf.put(at, Records.asLong(cursor.value()))
             }
-            val byPack = LinkedHashMap<Long, ArrayList<Long>>()
+            val byPack = Long2ObjectLinkedOpenHashMap<LongArrayList>()
             for (lotId in lotIds) {
-                val packId = packOf[lotId.raw] ?: error("lot $lotId is not currently placed at $from.")
-                byPack.getOrPut(packId) { ArrayList() } += lotId.raw
+                val packId = packOf.get(lotId.raw)
+                if (packId == NO_PACK) error("lot $lotId is not currently placed at $from.")
+                var chosen = byPack.get(packId)
+                if (chosen == null) {
+                    chosen = LongArrayList()
+                    byPack.put(packId, chosen)
+                }
+                chosen.add(lotId.raw)
             }
             val toId = if (from == to) fromId else interning.internHolder(this, to)
             val moved = HashMap<LotId, Quantity>(lotIds.size * 2)
-            val delta = HashMap<Int, Long>()
-            for ((packId, chosen) in byPack) {
+            val delta = Int2LongOpenHashMap()
+            for (entry in byPack.long2ObjectEntrySet()) {
+                val packId = entry.longKey
+                val chosen = entry.value
                 val pack = packs.read(this, packId)?.takeIf { it.holderId == fromId }
-                    ?: error("lot ${LotId(chosen.first())} is not currently placed at $from.")
+                    ?: error("lot ${LotId(chosen.getLong(0))} is not currently placed at $from.")
                 val take = BooleanArray(pack.size)
                 var sum = 0L
-                for (lot in chosen) {
+                for (lot in chosen.toLongArray()) {
                     val i = pack.indexOf(lot)
                     check(i >= 0) { "lot ${LotId(lot)} is not currently placed at $from." }
                     take[i] = true
@@ -536,11 +570,11 @@ class LotRepository(
                     val chosenPack = pack.keeping(take)!!
                     packs.insert(this, toId, pack.itemKeyId, chosenPack.lots, chosenPack.remaining, chosenPack.fifo)
                 }
-                delta.merge(pack.itemKeyId, sum, Long::plus)
+                delta.addTo(pack.itemKeyId, sum)
             }
-            for ((itemKeyId, sum) in delta) {
-                addToTotal(this, fromId, itemKeyId, -sum)
-                addToTotal(this, toId, itemKeyId, sum)
+            for (entry in delta.int2LongEntrySet()) {
+                addToTotal(this, fromId, entry.intKey, -entry.longValue)
+                addToTotal(this, toId, entry.intKey, entry.longValue)
             }
             if (toId != fromId) changed(*LongArray(lotIds.size) { lotIds[it].raw })
             moved
@@ -559,12 +593,12 @@ class LotRepository(
             eachRow(Keys.packAtHolderPrefix(fromId)) { cursor ->
                 moving += packs.decode(fromId, KeyReader.u32(cursor.key(), 5), cursor.value())
             }
-            val lots = ArrayList<Long>()
+            val lots = LongArrayList()
             for (pack in moving) {
                 packs.move(this, pack, toId)
                 addToTotal(this, fromId, pack.itemKeyId, -pack.sum)
                 addToTotal(this, toId, pack.itemKeyId, pack.sum)
-                for (lot in pack.lots) lots += lot
+                for (lot in pack.lots) lots.add(lot)
             }
             if (lots.isNotEmpty()) changed(*lots.toLongArray())
         }
@@ -624,16 +658,16 @@ class LotRepository(
 
 
     private class Entries {
-        private val lots = ArrayList<Long>()
-        private val remaining = ArrayList<Long>()
-        private val fifo = ArrayList<Long>()
+        private val lots = LongArrayList()
+        private val remaining = LongArrayList()
+        private val fifo = LongArrayList()
         var sum = 0L
             private set
 
         fun add(lot: Long, left: Long, at: Long) {
-            lots += lot
-            remaining += left
-            fifo += at
+            lots.add(lot)
+            remaining.add(left)
+            fifo.add(at)
             sum += left
         }
 
@@ -727,5 +761,6 @@ class LotRepository(
 
     private companion object {
         val EMPTY = ByteArray(0)
+        const val NO_PACK = Long.MIN_VALUE
     }
 }

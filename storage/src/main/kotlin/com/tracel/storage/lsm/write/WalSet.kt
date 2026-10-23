@@ -2,6 +2,7 @@ package com.tracel.storage.lsm.write
 
 import com.tracel.storage.lsm.state.Manifest
 import com.tracel.storage.spi.MutationBatch
+import it.unimi.dsi.fastutil.longs.LongArrayList
 import java.nio.file.Path
 
 /**
@@ -18,11 +19,11 @@ internal class WalSet(
     firstId: Long,
 ) {
     private var current: Wal = Wal.create(Manifest.walPath(directory, firstId))
-    private var live = arrayListOf(firstId)
+    private var live = LongArrayList().apply { add(firstId) }
     private var closedSyncs = 0L
     private var lastSyncMillis = System.currentTimeMillis()
 
-    val ids: List<Long> get() = live.toList()
+    val ids: List<Long> get() = LongArrayList(live)
 
     val bytes: Long get() = current.bytes
 
@@ -57,20 +58,20 @@ internal class WalSet(
     /** Closes the current log and opens [id]. The older ones stay: their tables are still in memory. */
     fun rollTo(id: Long) {
         closeCurrent()
-        live += id
+        live.add(id)
         current = Wal.create(Manifest.walPath(directory, id))
     }
 
     /** The same, and drops every older log — for a wipe, where those tables are being thrown away. */
     fun restartAt(id: Long) {
         closeCurrent()
-        live = arrayListOf(id)
+        live = LongArrayList().apply { add(id) }
         current = Wal.create(Manifest.walPath(directory, id))
     }
 
     /** This log's memtable is on disk now, so a restart no longer needs it. */
     fun forget(id: Long) {
-        live.remove(id)
+        live.rem(id)
     }
 
     /** Nothing is left in memory, so nothing needs replaying. Shutdown, after sealing. */

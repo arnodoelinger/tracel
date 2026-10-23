@@ -6,6 +6,7 @@ import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.util.eachRow
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import java.lang.foreign.MemorySegment
 import com.tracel.engine.rollback.journal.Journal as JournalPort
 
@@ -31,11 +32,11 @@ class Journal(private val storage: TracelStorage, private val kind: Byte) : Jour
     }
 
     override suspend fun completed(job: RollbackJobId, count: Int): Set<Int> = storage.read {
-        val out = HashSet<Int>()
+        val out = IntOpenHashSet()
         eachRow(Keys.appliedPrefix(kind, job.raw)) { cursor ->
             val first = KeyReader.u32(cursor.key(), 10)
             val until = minOf(untilOf(first, cursor.value()), count)
-            for (index in first until until) out += index
+            for (index in first until until) out.add(index)
         }
         out
     }

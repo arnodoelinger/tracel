@@ -18,6 +18,7 @@ import com.tracel.storage.ffm.Bytes.putI8
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.ffm.Bytes.writeBytes
 import com.tracel.storage.intern.Interning
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import java.lang.foreign.MemorySegment
 import com.tracel.engine.event.EventLog as EventLogPort
 
@@ -53,7 +54,8 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
         if (kinds.isEmpty() || filter.material != null || filter.blockMaterials.isNotEmpty()) return@read emptyList()
         val holderIds = filter.holders.map { interning.findHolderId(this, it) ?: return@map null }
         if (filter.holders.isNotEmpty() && holderIds.all { it == null }) return@read emptyList()
-        val excluded = filter.excludedHolders.mapNotNullTo(HashSet()) { interning.findHolderId(this, it) }
+        val excluded = IntOpenHashSet()
+        for (holder in filter.excludedHolders) interning.findHolderId(this, holder)?.let(excluded::add)
         val worldId = (filter.region?.world ?: filter.world)?.takeIf { filter.entity == null }
             ?.let { interning.findWorldId(this, it) ?: return@read emptyList() }
         val until = filter.until ?: Long.MAX_VALUE
