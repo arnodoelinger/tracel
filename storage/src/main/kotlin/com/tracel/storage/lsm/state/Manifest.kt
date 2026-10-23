@@ -125,6 +125,37 @@ data class Manifest(
             return Manifest(lastSequence, nextFileId, walIds, segments)
         }
 
+        /**
+         * Refuses a directory that holds data but no manifest.
+         *
+         * A missing manifest reads as [EMPTY], and [sweep] then deletes every segment and log it does not list.
+         *
+         * That is right for a new database... but a disaster for one whose index went missing.
+         */
+        fun requireNotLost(directory: Path) {
+            if (Files.exists(directory.resolve(NAME))) return
+            val first = walPath(directory, EMPTY.walIds.single()).fileName
+            val orphans = ArrayList<String>()
+            Files.newDirectoryStream(directory).use { stream ->
+                for (path in stream) {
+                    val name = path.fileName
+                    if (name.toString().endsWith(LOG_SUFFIX) && name != first) orphans += name.toString()
+                }
+            }
+            val segments = segmentsDirectory(directory)
+            if (Files.isDirectory(segments)) {
+                Files.newDirectoryStream(segments).use { stream ->
+                    for (path in stream) {
+                        if (path.fileName.toString().endsWith(SEGMENT_SUFFIX)) orphans += path.fileName.toString()
+                    }
+                }
+            }
+            check(orphans.isEmpty()) {
+                "$directory has ${orphans.size} data files (${orphans.take(3).joinToString()}...) but no $NAME. " +
+                        "Restore the manifest from a backup; starting would delete all of them."
+            }
+        }
+
         /** @return the path to the segments directory, creating it if necessary. */
         fun segmentsDirectory(directory: Path): Path = directory.resolve(SEGMENTS)
 

@@ -110,4 +110,29 @@ class CorruptionTest {
             "a segment from a newer build must not be guessed at, got $failure"
         )
     }
+
+    @Test
+    fun `a missing manifest does not make the engine delete the data`(@TempDir dir: Path) {
+        engine(dir).use { engine ->
+            repeat(20) { i ->
+                MutationBatch().apply { put(key(i), "value-$i".toByteArray()) }.let { engine.write(it, durable = true) }
+            }
+            engine.flushNow()
+        }
+        Files.delete(dir.resolve(Manifest.NAME))
+
+        val failure = runCatching { engine(dir).close() }.exceptionOrNull()
+        assertTrue(failure is IllegalStateException, "a lost manifest must stop the start, got $failure")
+        val survivors = Files.list(Manifest.segmentsDirectory(dir)).use { stream ->
+            stream.filter { it.toString().endsWith(Manifest.SEGMENT_SUFFIX) }.count()
+        }
+        assertTrue(survivors > 0, "the segments must still be on disk")
+    }
+
+    @Test
+    fun `a fresh directory with only the first log still starts`(@TempDir dir: Path) {
+        Files.createDirectories(Manifest.segmentsDirectory(dir))
+        Files.createFile(Manifest.walPath(dir, 1))
+        engine(dir).close()
+    }
 }

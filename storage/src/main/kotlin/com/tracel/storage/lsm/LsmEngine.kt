@@ -99,9 +99,11 @@ class LsmEngine(
     private var version: Version
 
     // region Startup and recovery
+
     init {
         Files.createDirectories(directory)
         Files.createDirectories(Manifest.segmentsDirectory(directory))
+        Manifest.requireNotLost(directory)
         val manifest = Manifest.read(directory)
         Manifest.sweep(directory, manifest)
 
@@ -153,7 +155,7 @@ class LsmEngine(
             if (!fits(version.active, batch)) rotate(batch)
             check(fits(version.active, batch)) {
                 "a ${needs(batch)}-byte batch does not fit a freshly rotated " +
-                        "${version.active.capacity}-byte memtable; the size accounting is wrong"
+                        "${version.active.capacity}-byte memtable; the size accounting is wrong."
             }
 
             val seq = sequence.incrementAndGet()
@@ -171,7 +173,7 @@ class LsmEngine(
             val table = version.active
             batch.forEach { key, value ->
                 check(table.put(key, value, seq)) {
-                    "memtable overflowed mid-batch — the fit check above exists so this cannot happen"
+                    "memtable overflowed mid-batch; the fit check above exists so this cannot happen."
                 }
             }
             version.lastSequence = seq
