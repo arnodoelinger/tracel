@@ -96,17 +96,17 @@ data class Manifest(
             val path = directory.resolve(NAME)
             if (!Files.exists(path)) return EMPTY
             val bytes = Files.readAllBytes(path)
-            require(bytes.size >= 12) { "$path is truncated" }
+            require(bytes.size >= 12) { "$path is truncated." }
 
             val stated = ByteBuffer.wrap(bytes, bytes.size - 4, 4).order(ByteOrder.LITTLE_ENDIAN).int
             require(Bytes.checksum(bytes.copyOf(bytes.size - 4)) == stated) {
-                "$path failed its checksum — the manifest was never the file that got torn, so this is disk corruption"
+                "$path failed its checksum; the manifest was never the file that got torn, so this is disk corruption."
             }
 
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            require(ByteArray(4).also(buffer::get).contentEquals(MAGIC)) { "$path is not a Tracel manifest" }
+            require(ByteArray(4).also(buffer::get).contentEquals(MAGIC)) { "$path is not a Tracel manifest." }
             val version = buffer.int
-            require(version == VERSION) { "$path is manifest v$version, this build reads v$VERSION" }
+            require(version == VERSION) { "$path is manifest v$version, this build reads v$VERSION." }
 
             val lastSequence = buffer.long
             val nextFileId = buffer.long
