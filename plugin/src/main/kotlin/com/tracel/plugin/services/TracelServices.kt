@@ -44,6 +44,7 @@ import com.tracel.plugin.command.action.support.PurgeGate
 import com.tracel.plugin.config.*
 import com.tracel.plugin.governor.GovernorSettings
 import com.tracel.plugin.governor.TickGovernor
+import com.tracel.plugin.command.scrub.Scrubs
 import com.tracel.plugin.listener.session.InspectorState
 import com.tracel.plugin.listener.support.drop.BlockDrop
 import com.tracel.plugin.listener.support.drop.BlockReleaseQueue
@@ -188,6 +189,7 @@ class TracelServices(
     val hullDrops: HullDrop = HullDrop()
     val blockReleases: BlockReleaseQueue = BlockReleaseQueue(this)
     val inspectors: InspectorState = InspectorState()
+    internal val scrubs: Scrubs = Scrubs(plugin)
     val lookup: LookupAction by lazy { LookupAction(this) }
     val coreProtectImport: CoreProtectImportAction by lazy { CoreProtectImportAction(this) }
     internal val borrows: Borrows = Borrows()

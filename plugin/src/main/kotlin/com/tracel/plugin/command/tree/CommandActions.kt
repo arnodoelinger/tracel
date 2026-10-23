@@ -15,6 +15,7 @@ internal class CommandActions(val services: TracelServices) {
     val rollback = RollbackAction(services, highlights)
     val lookup: LookupAction = services.lookup
     val inspect = InspectAction(services)
+    val scrub = ScrubAction(services)
     val purge = PurgeAction(services)
     val status = StatusAction(services)
     val export = ExportAction(services)

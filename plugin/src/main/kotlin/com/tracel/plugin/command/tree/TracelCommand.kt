@@ -18,6 +18,7 @@ object TracelCommand {
 
             helpBranch(actions)
             rollbackBranch(actions)
+            scrubBranch(actions)
             lookupBranch(actions)
             teleportBranch(actions)
             presetBranch(actions)

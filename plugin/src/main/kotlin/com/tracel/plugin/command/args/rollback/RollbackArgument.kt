@@ -20,6 +20,7 @@ object RollbackArgument {
     fun build(
         sender: CommandSender,
         parsed: ParsedLookupArgs,
+        wholeWorld: Boolean = false,
     ): FilterResult {
         val reasons = mutableListOf<Component>()
 
@@ -35,9 +36,9 @@ object RollbackArgument {
 
         val scope = parsed.scope
         val center = if (scope != null) (sender as? Player)?.location else null
-        scopeProblem(scope, center, namedWorld, ScopeLimits.rollbackMaxBlocks)?.let { reasons += it }
+        scopeProblem(scope, center, namedWorld, if (wholeWorld) null else ScopeLimits.rollbackMaxBlocks)?.let { reasons += it }
 
-        reasons += missingBounds(parsed)
+        reasons += missingBounds(parsed, wholeWorld)
         if (parsed.since != null && parsed.until != null && parsed.since > parsed.until) {
             reasons += tr("common.reason.no_window")
         }
@@ -54,9 +55,10 @@ object RollbackArgument {
     }
 
     /** A rollback with no time or no place undoes the history of the server, so it is refused. */
-    internal fun missingBounds(parsed: ParsedLookupArgs): List<Component> = buildList {
+    internal fun missingBounds(parsed: ParsedLookupArgs, wholeWorld: Boolean = false): List<Component> = buildList {
         if (parsed.since == null) add(tr("common.reason.need_time"))
-        if (parsed.scope == null && !parsed.partsLimitArea) add(tr("common.reason.need_scope"))
+        val placed = parsed.scope != null || parsed.partsLimitArea || (wholeWorld && parsed.world != null)
+        if (!placed) add(tr("common.reason.need_scope"))
     }
 
     private fun resolvePlayers(names: Set<String>, reasons: MutableList<Component>): List<UUID> =

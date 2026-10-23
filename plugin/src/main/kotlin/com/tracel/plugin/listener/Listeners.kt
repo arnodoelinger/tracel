@@ -79,9 +79,14 @@ private fun itemListeners(services: TracelServices): List<TracelListener> = list
     CompostListener(services),
 )
 
-/** The inspect wand, offline rollback deliveries, snapshot eviction. Always on. */
+/**
+ * The inspect wand, the scrub wheel, offline rollback deliveries, snapshot eviction.
+ *
+ * Always on.
+ */
 private fun sessionListeners(services: TracelServices): List<TracelListener> = listOf(
     InspectListener(services),
+    ScrubListener(services),
     PendingDeliveryListener(services),
     SnapshotEvictionListener(services),
     FreezeGuardListener(services),
