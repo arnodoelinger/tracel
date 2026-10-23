@@ -188,7 +188,7 @@ object Rollback {
                 decodeShape(v, entityType)
             )
 
-            else -> error("unrecognized structure step kind: $kind")
+            else -> error("unrecognized structure step kind: $kind.")
         }
     }
 
@@ -227,7 +227,7 @@ object Rollback {
             Double.fromBits(v.i64(base + 16)),
             Float.fromBits(v.i32(base + 24)),
             Float.fromBits(v.i32(base + 28)),
-            World.decodeEntityExtras(v.readBytes(base + 34, extras)),
+            World.decodeEntityExtras(v, base + 34, extras),
         )
     }
 
@@ -272,7 +272,7 @@ object Rollback {
         Double.fromBits(v.i64(53)),
         Float.fromBits(v.i32(61)),
         Float.fromBits(v.i32(65)),
-        World.decodeEntityExtras(v.readBytes(71, v.i16(69).toInt() and 0xFFFF)),
+        World.decodeEntityExtras(v, 71L, v.i16(69).toInt() and 0xFFFF),
     )
 
     private fun MemorySegment.position(kind: Byte, worldId: Int, at: BlockPos) {

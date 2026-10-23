@@ -1119,18 +1119,14 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 val action = Records.wchgAction(record)
                 val typeId = Records.entityChangeTypeId(record)
                 val type = resolved?.entityTypes?.get(typeId) ?: interning.resolveEntityType(unit, typeId)
-                val beforeLen = Records.entityChangeBeforeExtrasLength(record)
-                val afterLen = Records.entityChangeAfterExtrasLength(record)
-                val beforePayload = Records.entityChangeBeforeExtras(record).takeIf { beforeLen > 0 } ?: ByteArray(0)
-                val afterPayload = Records.entityChangeAfterExtras(record).takeIf { afterLen > 0 } ?: ByteArray(0)
-                val before = Records.decodeEntityShape(type, at, beforePayload)
+                val before = Records.entityChangeBeforeShape(type, at, record)
                     ?: if (action == ActionKind.ENTITY_SPAWN) null else EntityShape(
                         type,
                         at.x + 0.5,
                         at.y.toDouble(),
                         at.z + 0.5
                     )
-                val after = Records.decodeEntityShape(type, at, afterPayload)
+                val after = Records.entityChangeAfterShape(type, at, record)
                     ?: if (action == ActionKind.ENTITY_REMOVE) null else EntityShape(
                         type,
                         at.x + 0.5,
@@ -1173,9 +1169,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         if (extrasLen == 0) {
             return simpleShapes.getOrPut(data) { BlockShape(data) }
         }
-        val extras = Records.decodeBlockExtras(
-            if (before) Records.blockChangeBeforeExtras(record) else Records.blockChangeAfterExtras(record),
-        )
+        val extras =
+            if (before) Records.blockChangeBeforeBlockExtras(record) else Records.blockChangeAfterBlockExtras(record)
         return BlockShape(data, extras)
     }
 
