@@ -3,10 +3,12 @@ package com.tracel.storage.lsm
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.lsm.read.SegmentRun
 import com.tracel.storage.lsm.segment.SegmentFile
+import com.tracel.storage.lsm.segment.SegmentMeta
 import com.tracel.storage.lsm.segment.SegmentReader
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Files
 import java.nio.file.Path
 
 class SegmentBlocksTest {
@@ -86,5 +88,20 @@ class SegmentBlocksTest {
         val small = write(dir, "small.seg", 4096).use { it.meta.fileBytes }
         val big = write(dir, "big.seg", SegmentFile.BLOCK_TARGET).use { it.meta.fileBytes }
         assertTrue(big < small, "$big against $small")
+    }
+
+    @Test
+    fun `a flipped byte in a block is reported, not read`(@TempDir dir: Path) {
+        write(dir, "rot.seg", 4096).close()
+        val path = dir.resolve("rot.seg")
+        val bytes = Files.readAllBytes(path)
+        bytes[20] = (bytes[20].toInt() xor 0x01).toByte()
+        Files.write(path, bytes)
+
+        val meta = SegmentMeta(1, 0, rows, bytes.size.toLong(), ByteArray(0), ByteArray(0))
+        SegmentFile.open(path, meta).use { reader ->
+            val failure = runCatching { assertReadsWhole(reader) }.exceptionOrNull()
+            assertTrue(failure is IllegalStateException, "rot must stop the read, got $failure")
+        }
     }
 }

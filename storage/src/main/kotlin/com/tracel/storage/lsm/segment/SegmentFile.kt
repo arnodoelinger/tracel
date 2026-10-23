@@ -19,14 +19,16 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.zip.CRC32C
 
 /**
  * An immutable sorted run.
  *
  * ```
  * data   -> repeated block:
- *           [u32 uncompressed][u32 flags|payload][payload]
+ *           [u32 uncompressed][u32 flags|payload][payload][u32 crc32c]
  *           payload, uncompressed: the records, then [u32 offset] per restart, then [u32 restarts]
+ *           crc32c covers the eight header bytes and the payload as stored; absent before v2
  * index  -> [u32 keyLen][internal key][u64 blockOffset]  ... one per block
  * bloom  -> [u32 bitCount][u32 hashCount][bits]
  * footer -> 52 bytes, at EOF
@@ -40,6 +42,8 @@ object SegmentFile {
     const val VERSION = Versions.Format.SEGMENT
     const val OLDEST_VERSION = 1
     const val RESTARTS_SINCE = 2
+    const val CHECKSUMS_SINCE = 2
+    const val CHECKSUM_BYTES = 4
     const val RESTART_INTERVAL = 32
     const val FOOTER_BYTES = 40
     const val BLOCK_TARGET = 32 * 1024
@@ -61,6 +65,7 @@ object SegmentFile {
         private val pointRead: (keyTag: Int) -> Boolean = { true },
     ) : AutoCloseable {
         private val tabled = version >= RESTARTS_SINCE
+        private val summed = version >= CHECKSUMS_SINCE
 
         private val file = java.io.FileOutputStream(path.toFile())
         private val out: OutputStream = BufferedOutputStream(file, 1 shl 16)
@@ -90,7 +95,7 @@ object SegmentFile {
 
         /** Adds a key / value pair to the segment. The key must be greater than the last one added. */
         fun add(internalKey: ByteArray, value: ByteArray?) {
-            require(internalKey.size <= 0xFFFF) { "internal key ${internalKey.size} does not fit a u16 length" }
+            require(internalKey.size <= 0xFFFF) { "internal key ${internalKey.size} does not fit a u16 length." }
             if (blockUsed >= blockTarget) flushBlock()
             val first = blockUsed == 0
             val restart = if (tabled) blockEntries % RESTART_INTERVAL == 0 else first
@@ -174,7 +179,7 @@ object SegmentFile {
 
         private fun flushBlock() {
             if (blockUsed == 0) return
-            val first = blockFirstKey ?: error("a non-empty block has no first key")
+            val first = blockFirstKey ?: error("a non-empty block has no first key.")
             stageIndex(first, dataBytes)
             if (tabled) {
                 ensureBlock(restartCount * 4 + 4)
@@ -203,6 +208,15 @@ object SegmentFile {
             out.write(header, 0, 8)
             out.write(body, 0, payload)
             dataBytes += 8L + payload
+            if (summed) {
+                val crc = CRC32C().apply {
+                    update(header, 0, 8)
+                    update(body, 0, payload)
+                }.value.toInt()
+                LE_INT.set(header, 0, crc)
+                out.write(header, 0, CHECKSUM_BYTES)
+                dataBytes += CHECKSUM_BYTES
+            }
         }
 
         private fun ensureBlock(more: Int) {
@@ -285,6 +299,7 @@ object SegmentFile {
             bloom = if (bloomBytes > 0) Bloom(segment, bloomOffset) else null,
             cache = cache,
             restarts = version >= RESTARTS_SINCE,
+            checksums = version >= CHECKSUMS_SINCE,
         )
     }
 }
@@ -326,6 +341,7 @@ class SegmentReader internal constructor(
     private val bloom: Bloom?,
     private val cache: BlockCache,
     val restarts: Boolean,
+    private val checksums: Boolean,
 ) : AutoCloseable {
     private val firstUserKey: ByteArray = meta.firstKey.copyOf(maxOf(0, meta.firstKey.size - InternalKey.TRAILER_BYTES))
     private val lastUserKey: ByteArray = meta.lastKey.copyOf(maxOf(0, meta.lastKey.size - InternalKey.TRAILER_BYTES))
@@ -402,21 +418,37 @@ class SegmentReader internal constructor(
         if (offset < 0 || offset >= dataEnd) return dataEnd
         val packed = segment.i32(offset + 4)
         val payload = packed and SegmentFile.PAYLOAD_MASK
-        return offset + 8 + payload
+        return offset + 8 + payload + trailer()
     }
+
+    private fun trailer(): Int = if (checksums) SegmentFile.CHECKSUM_BYTES else 0
 
     private fun decodeBlock(offset: Long): ByteArray {
         val uncompressed = segment.i32(offset)
         val packed = segment.i32(offset + 4)
         val compressed = packed and SegmentFile.FLAG_ZSTD != 0
         val payload = packed and SegmentFile.PAYLOAD_MASK
+        check(offset + 8L + payload + trailer() <= dataEnd) {
+            "segment ${path.fileName} block at $offset is corrupt: its length runs past the data."
+        }
         val src = ByteArray(payload)
         MemorySegment.copy(segment, Bytes.I8, offset + 8, src, 0, payload)
+        if (checksums) {
+            val head = ByteArray(8)
+            MemorySegment.copy(segment, Bytes.I8, offset, head, 0, 8)
+            val crc = CRC32C().apply {
+                update(head)
+                update(src)
+            }.value.toInt()
+            check(crc == segment.i32(offset + 8 + payload)) {
+                "segment ${path.fileName} block at $offset is corrupt: checksum mismatch."
+            }
+        }
         if (!compressed) return if (payload == uncompressed) src else src.copyOf(uncompressed)
         val dest = ByteArray(uncompressed)
         val got = Zstd.decompressByteArray(dest, 0, uncompressed, src, 0, payload)
         check(!Zstd.isError(got) && got == uncompressed.toLong()) {
-            "segment ${path.fileName} block at $offset is corrupt: ${if (Zstd.isError(got)) Zstd.getErrorName(got) else "$got of $uncompressed bytes"}"
+            "segment ${path.fileName} block at $offset is corrupt: ${if (Zstd.isError(got)) Zstd.getErrorName(got) else "$got of $uncompressed bytes"}."
         }
         return dest
     }
@@ -574,7 +606,7 @@ class Bloom internal constructor(
 internal object Varints {
     /** Writes [value] to [dst] starting at [at], returning the index after the last byte written. */
     fun write(dst: ByteArray, at: Int, value: Int): Int {
-        require(value >= 0) { "varint is unsigned, got $value" }
+        require(value >= 0) { "varint is unsigned, got $value." }
         var v = value
         var i = at
         while (v >= 0x80) {
@@ -600,7 +632,7 @@ internal object Varints {
             result = result or ((b and 0x7F) shl shift)
             if (b and 0x80 == 0) break
             shift += 7
-            check(shift <= 28) { "varint too long at $offset" }
+            check(shift <= 28) { "varint too long at $offset." }
         }
         return ((at - offset) shl 32) or (result.toLong() and 0xFFFFFFFFL)
     }
