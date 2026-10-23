@@ -73,9 +73,6 @@ object SegmentFile {
         private var lastTag = -1
         private var lastTagRead = true
 
-        // The index is staged as the bytes it will become, not as a list of arrays to be
-        // re-encoded at the end. Two ArrayLists meant one boxed Long and one retained key
-        // reference per index point, and a second pass over both at finish().
         private var index = ByteArray(1 shl 14)
         private var indexUsed = 0
 

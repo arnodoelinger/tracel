@@ -3,6 +3,7 @@ package com.tracel.storage.util
 import java.util.concurrent.ForkJoinPool
 import java.util.concurrent.ForkJoinTask
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.function.IntConsumer
 
 private const val MIN_BATCH = 256
 
@@ -36,10 +37,35 @@ internal fun interface IndexSlice {
  * Here a worker takes the next batch from one counter, so it costs a handful of tasks
  * however long the range, and a slow batch holds up nobody else.
  */
-internal fun eachBatch(count: Int, slice: IndexSlice) {
+internal fun eachBatch(count: Int, slice: IndexSlice) = eachBatch(count, 0, slice)
+
+/** [eachBatch] where every index is a task of its own, for a few big pieces of work rather than many small ones. */
+internal fun eachTask(count: Int, body: IntConsumer) = eachBatch(count, 1) { from, to ->
+    for (i in from until to) body.accept(i)
+}
+
+/** Loads [seqs] (ascending) newest-first, dropping whatever [load] cannot find. */
+@Suppress("UNCHECKED_CAST")
+internal inline fun <T : Any> collectNewestFirst(
+    seqs: LongArray,
+    crossinline load: (Long) -> T?,
+): ArrayList<T> {
+    val n = seqs.size
+    if (n == 0) return ArrayList()
+    val slots = arrayOfNulls<Any>(n)
+    eachIndex(n) { i -> slots[i] = load(seqs[i]) }
+    val out = ArrayList<T>(n)
+    for (i in n - 1 downTo 0) {
+        val hit = slots[i] as T?
+        if (hit != null) out += hit
+    }
+    return out
+}
+
+private fun eachBatch(count: Int, fixedBatch: Int, slice: IndexSlice) {
     if (count <= 0) return
     val pool = ForkJoinPool.commonPool()
-    val batch = maxOf(MIN_BATCH, count / (pool.parallelism * 64))
+    val batch = if (fixedBatch > 0) fixedBatch else maxOf(MIN_BATCH, count / (pool.parallelism * 64))
     val helpers = minOf(pool.parallelism, (count + batch - 1) / batch - 1)
     val next = AtomicInteger()
     val worker = Runnable {
@@ -70,22 +96,4 @@ internal fun eachBatch(count: Int, slice: IndexSlice) {
         }
     }
     failure?.let { throw it }
-}
-
-/** Loads [seqs] (ascending) newest-first, dropping whatever [load] cannot find. */
-@Suppress("UNCHECKED_CAST")
-internal inline fun <T : Any> collectNewestFirst(
-    seqs: LongArray,
-    crossinline load: (Long) -> T?,
-): ArrayList<T> {
-    val n = seqs.size
-    if (n == 0) return ArrayList()
-    val slots = arrayOfNulls<Any>(n)
-    eachIndex(n) { i -> slots[i] = load(seqs[i]) }
-    val out = ArrayList<T>(n)
-    for (i in n - 1 downTo 0) {
-        val hit = slots[i] as T?
-        if (hit != null) out += hit
-    }
-    return out
 }
