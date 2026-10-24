@@ -20,6 +20,7 @@ import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
 import com.tracel.storage.intern.Interning
+import com.tracel.storage.util.Accepted
 import com.tracel.storage.util.ascending
 import com.tracel.storage.util.eachBatch
 import com.tracel.storage.util.eachIndex
@@ -448,14 +449,23 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 filter.material == null && filter.itemKeys.isEmpty() && filter.offset == 0 && filter.limit == Int.MAX_VALUE
         val worldRows = if (inlineWorld) SpatialRows() else null
 
-        val (worldSeqs, txnSeqs) = if (scans != null && scans.isEmpty()) {
-            return@read emptyList<WorldChange>() to emptyList()
-        } else {
-            QueryProbe.phase("index") {
+        val piped = scans == null && includeWorld && filter.offset == 0 && filter.limit == Int.MAX_VALUE
+        var fetched: Accepted? = null
+        val (worldSeqs, txnSeqs) = when {
+            scans != null && scans.isEmpty() -> return@read emptyList<WorldChange>() to emptyList()
+            piped -> QueryProbe.phase("index + fetch") {
+                val (world, txns) = fetchByTime(filter.since, filter.until, filter.excludedCauses) { record ->
+                    accepts(record, filter, ids)
+                }
+                fetched = world
+                LongArrayList() to txns
+            }
+
+            else -> QueryProbe.phase("index") {
                 gatherForFilter(scans, filter.since, filter.until, filter.excludedCauses, region, worldRows)
             }
         }
-        val worldArr = if (inlineWorld) LongArray(0) else ascending(worldSeqs)
+        val worldArr = if (inlineWorld || piped) LongArray(0) else ascending(worldSeqs)
         val txnLog = transactions as TransactionLog
         val byItem =
             if (scans == null) txnLog.itemKeyIdsFor(this, filter) else null
@@ -480,6 +490,10 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                     !includeWorld -> emptyList()
                     worldRows != null -> QueryProbe.phase("world rows") {
                         fromRows(unit, worldRows, filter, ids, regionWorldId!!, structureEnds)
+                    }
+
+                    fetched != null -> QueryProbe.phase("world records") {
+                        decodeAccepted(unit, fetched!!, filter, structureEnds)
                     }
 
                     else -> QueryProbe.phase("world records") {
@@ -563,7 +577,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         worldId: Int,
         structureEnds: Boolean,
     ): List<WorldChange> {
-        val order = rows.ascendingOrder()
+        val order = QueryProbe.phase("rows order") { rows.ascendingOrder() }
         val n = order.size
         val keep = BooleanArray(n)
         val dataIds = IntArray(n * 2)
@@ -572,6 +586,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         var holderCount = 0
         var kept = 0
         var deferredCount = 0
+        val acceptAt = System.nanoTime()
         for (i in 0 until n) {
             val row = order[i]
             if (!acceptsRow(rows, row, filter, ids)) continue
@@ -585,6 +600,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 if (rows.causedByIds[row] != 0) holderIdsSeen[holderCount++] = rows.causedByIds[row]
             }
         }
+        QueryProbe.record("rows accept", System.nanoTime() - acceptAt)
         if (kept == 0) return emptyList()
         QueryProbe.opened(deferredCount.toLong())
         QueryProbe.inlined((kept - deferredCount).toLong())
@@ -600,6 +616,26 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val holderValues = arrayOfNulls<HolderId>(holderKeys.size)
         for (i in holderKeys.indices) holderValues[i] = interning.resolveHolder(unit, holderKeys[i])
 
+        val records = arrayOfNulls<MemorySegment>(n)
+        if (deferredCount > 0) QueryProbe.phase("rows fetch") {
+            val at = IntArray(deferredCount)
+            val seqs = LongArray(deferredCount)
+            var d = 0
+            for (i in 0 until n) {
+                if (!keep[i] || !rows.deferred[order[i]]) continue
+                at[d] = i
+                seqs[d++] = rows.seqs[order[i]]
+            }
+            val recordIds = ids.copy(regionWorld = worldId, world = null)
+            val got = unit.fetchSlices(Keys.WCHG, seqs, Keys::wchg) { unit.accepts(it, filter, recordIds) }
+            var j = 0
+            for (k in 0 until got.seqs.size) {
+                val seq = got.seqs.getLong(k)
+                while (seqs[j] != seq) j++
+                records[at[j++]] = got.records[k]
+            }
+        }
+
         // A row that needed its record can turn into any number of changes — a section delta is
         // one row standing for thousands of blocks — so a slot holds a list, not a change.
         val built = arrayOfNulls<WorldChange>(n)
@@ -608,17 +644,10 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             if (keep[i]) {
                 val row = order[i]
                 if (rows.deferred[row]) {
-                    val seq = rows.seqs[row]
-                    unit.get(Keys.wchg(seq))?.let { record ->
-                        // The index row said nothing about who did this or what action it was —
-                        // that is why it deferred. Those questions belong to the record and have
-                        // to be asked of it, or a rollback scoped to one player quietly takes in
-                        // somebody else's explosion.
-                        if (unit.accepts(record, filter, ids.copy(regionWorld = worldId, world = null))) {
-                            val out = ArrayList<WorldChange>(1)
-                            expandInto(unit, seq, record, null, filter, out)
-                            expanded[i] = out
-                        }
+                    records[i]?.let { record ->
+                        val out = ArrayList<WorldChange>(1)
+                        expandInto(unit, rows.seqs[row], record, null, filter, out)
+                        expanded[i] = out
                     }
                 } else {
                     val causedBy = rows.causedByIds[row]
@@ -637,14 +666,25 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 }
             }
         }
-        eachIndex(n, work = kept, body = build)
+        QueryProbe.phase("rows build") { eachIndex(n, work = kept, body = build) }
 
-        val ordered = ArrayList<WorldChange>(kept)
-        for (i in 0 until n) {
-            built[i]?.let { ordered += it }
-            expanded[i]?.let { ordered += it }
+        val ordered = QueryProbe.phase("rows gather") { gathered(n, built, expanded) }
+        return if (structureEnds) QueryProbe.phase("rows ends") { structureEndsOf(ordered) } else ordered.asReversed()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun gathered(n: Int, built: Array<WorldChange?>, expanded: Array<MutableList<WorldChange>?>): List<WorldChange> {
+        val starts = IntArray(n + 1)
+        for (i in 0 until n) starts[i + 1] = starts[i] + (if (built[i] != null) 1 else 0) + (expanded[i]?.size ?: 0)
+        val all = arrayOfNulls<WorldChange>(starts[n])
+        eachBatch(n) { from, to ->
+            for (i in from until to) {
+                var at = starts[i]
+                built[i]?.let { all[at++] = it }
+                expanded[i]?.let { for (change in it) all[at++] = change }
+            }
         }
-        return if (structureEnds) structureEndsOf(ordered) else ordered.asReversed()
+        return (all as Array<WorldChange>).asList()
     }
 
     private fun distinctOf(ids: IntArray, count: Int): IntArray {
@@ -801,29 +841,21 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val accepted = QueryProbe.phase("world records fetch") {
             pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
                 QueryProbe.opened(slice.size.toLong())
-                val n = slice.size
-                if (worthScanning(slice)) {
-                    QueryProbe.scanned(n.toLong())
-                    unit.fetchAscending(Keys.WCHG, slice, Keys::wchg) { seq, record ->
-                        if (unit.accepts(record, filter, ids)) keep(seq, record)
-                    }
-                } else {
-                    QueryProbe.pointGot(n.toLong())
-                    val hits = arrayOfNulls<MemorySegment>(n)
-                    eachIndex(n) { i ->
-                        val record = unit.get(Keys.wchg(slice[i]))
-                        if (record != null && unit.accepts(record, filter, ids)) hits[i] = record
-                    }
-                    for (i in 0 until n) keep(slice[i], hits[i] ?: continue)
-                }
+                val got = unit.fetchSlices(Keys.WCHG, slice, Keys::wchg) { unit.accepts(it, filter, ids) }
+                for (i in 0 until got.seqs.size) keep(got.seqs.getLong(i), got.records[i])
             }
         }
-        val matched = accepted.seqs
-        val records = accepted.records
-        return QueryProbe.phase("world records decode") {
-            if (structureEnds) decodeStructureEnds(unit, matched, records, filter)
-            else decodeNewestFirst(unit, matched, records, filter)
-        }
+        return decodeAccepted(unit, accepted, filter, structureEnds)
+    }
+
+    private fun decodeAccepted(
+        unit: StorageUnit,
+        accepted: Accepted,
+        filter: LookupFilter,
+        structureEnds: Boolean,
+    ): List<WorldChange> = QueryProbe.phase("world records decode") {
+        if (structureEnds) decodeStructureEnds(unit, accepted.seqs, accepted.records, filter)
+        else decodeNewestFirst(unit, accepted.seqs, accepted.records, filter)
     }
 
     private fun decodeNewestFirst(

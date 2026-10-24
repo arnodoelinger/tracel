@@ -5,6 +5,7 @@ import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.spi.EngineSnapshot
 import com.tracel.storage.spi.MutationBatch
 import java.lang.foreign.MemorySegment
+import java.util.Arrays
 import java.util.logging.Level
 import java.util.logging.Logger
 
@@ -86,10 +87,13 @@ class StorageUnit(
         }
     }
 
-    fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor {
-        if (batch.isEmpty()) return snapshot.scan(prefix, from)
-        return OverlayCursor(batch, snapshot.scan(prefix, from), prefix, from)
+    fun scan(prefix: ByteArray, from: ByteArray = prefix, to: ByteArray? = null): EngineCursor {
+        if (batch.isEmpty()) return snapshot.scan(prefix, from, to)
+        return OverlayCursor(batch, snapshot.scan(prefix, from, to), prefix, from, to)
     }
+
+    fun splitKeys(prefix: ByteArray, from: ByteArray, to: ByteArray?, parts: Int): List<ByteArray> =
+        snapshot.splitKeys(prefix, from, to, parts)
 
     override fun close() {
         snapshot.close()
@@ -101,6 +105,7 @@ private class OverlayCursor(
     private val committed: EngineCursor,
     private val prefix: ByteArray,
     from: ByteArray,
+    private val to: ByteArray?,
 ) : EngineCursor {
     private var pending = batch.keysFrom(Key(from))
     private var pendingKey: Key? = null
@@ -200,6 +205,7 @@ private class OverlayCursor(
         while (pending.hasNext()) {
             val key = pending.next()
             if (!key.startsWith(prefix)) break
+            if (to != null && Arrays.compareUnsigned(key.bytes, to) >= 0) break
             pendingKey = key
             pendingValue = batch.valueOf(key)
             return

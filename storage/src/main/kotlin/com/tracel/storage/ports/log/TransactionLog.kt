@@ -254,20 +254,8 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         if (seqs.isEmpty()) return emptyList()
         val accepted = pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
             QueryProbe.opened(slice.size.toLong())
-            if (worthScanning(slice)) {
-                QueryProbe.scanned(slice.size.toLong())
-                unit.fetchAscending(Keys.TXN, slice, Keys::txn) { seq, record ->
-                    if (unit.accepts(record, filter, ids, materialIds)) keep(seq, record)
-                }
-            } else {
-                QueryProbe.pointGot(slice.size.toLong())
-                val hits = arrayOfNulls<MemorySegment>(slice.size)
-                eachIndex(slice.size) { i ->
-                    val record = unit.get(Keys.txn(slice[i]))
-                    if (record != null && unit.accepts(record, filter, ids, materialIds)) hits[i] = record
-                }
-                for (i in slice.indices) keep(slice[i], hits[i] ?: continue)
-            }
+            val got = unit.fetchSlices(Keys.TXN, slice, Keys::txn) { unit.accepts(it, filter, ids, materialIds) }
+            for (i in 0 until got.seqs.size) keep(got.seqs.getLong(i), got.records[i])
         }
         val n = accepted.seqs.size
         if (n == 0) return emptyList()

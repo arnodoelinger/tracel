@@ -78,7 +78,16 @@ interface EngineSnapshot : AutoCloseable {
      * There is deliberately no reverse cursor: every index that wants newest-first stores its
      * sequence inverted instead. See [Keys][com.tracel.storage.codec.Keys].
      */
-    fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor
+    fun scan(prefix: ByteArray, from: ByteArray = prefix): EngineCursor = scan(prefix, from, null)
+
+    /** [scan], stopping before [to] when it is not `null`. */
+    fun scan(prefix: ByteArray, from: ByteArray, to: ByteArray?): EngineCursor
+
+    /**
+     * Up to `parts - 1` keys, ascending, that cut what is under [prefix] from [from] up to [to] into [parts] runs of
+     * roughly equal size, so as many cursors can walk them at once.
+     */
+    fun splitKeys(prefix: ByteArray, from: ByteArray, to: ByteArray?, parts: Int): List<ByteArray> = emptyList()
 }
 
 /** A forward cursor. Not thread-safe; one per reader, one at a time. */

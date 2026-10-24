@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm
 
+import com.tracel.storage.StorageUnit
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.lsm.state.Manifest
 import com.tracel.storage.lsm.write.SyncPolicy
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Arrays
 
 class LsmEngineTest {
     private fun key(i: Int): ByteArray = byteArrayOf(1) + longBe(i.toLong())
@@ -121,6 +123,69 @@ class LsmEngineTest {
                     }
                     assertEquals(100, seen)
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `a bounded scan stops before its bound across memtable, segments and an unwritten batch`(@TempDir dir: Path) {
+        engine(dir).use { engine ->
+            repeat(6000) { i ->
+                MutationBatch().apply { put(key(i), value(i)) }.let { engine.write(it, durable = false) }
+            }
+            MutationBatch().apply { put(byteArrayOf(2) + longBe(0), value(0)) }.let { engine.write(it, durable = true) }
+            assertTrue(engine.stats().segmentCount > 1, "the range has to span segments")
+
+            engine.snapshot().use { snapshot ->
+                snapshot.scan(byteArrayOf(1), key(1000), key(3000)).use { cursor ->
+                    var expected = 1000
+                    while (cursor.next()) assertArrayEquals(key(expected++), cursor.key())
+                    assertEquals(3000, expected, "exactly the keys from the start up to the bound")
+                }
+                snapshot.scan(byteArrayOf(1), key(5990), key(9000)).use { cursor ->
+                    var seen = 0
+                    while (cursor.next()) seen++
+                    assertEquals(10, seen, "a bound past the prefix still stops at the prefix")
+                }
+            }
+
+            val overlay = MutationBatch().apply {
+                put(key(1500), value(-1))
+                delete(key(1501))
+                put(key(3000), value(-1))
+            }
+            StorageUnit(engine.snapshot(), overlay).use { unit ->
+                unit.scan(byteArrayOf(1), key(1499), key(1503)).use { cursor ->
+                    val seen = ArrayList<ByteArray>()
+                    while (cursor.next()) seen += cursor.key()
+                    assertEquals(listOf(1499, 1500, 1502).map { key(it).toList() }, seen.map { it.toList() })
+                }
+                unit.scan(byteArrayOf(1), key(2999), key(3000)).use { cursor ->
+                    assertTrue(cursor.next())
+                    assertArrayEquals(key(2999), cursor.key())
+                    assertFalse(cursor.next(), "a batch row on the bound is past it")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `split keys cut a range at block starts, ascending and inside it`(@TempDir dir: Path) {
+        engine(dir).use { engine ->
+            repeat(20_000) { i ->
+                MutationBatch().apply { put(key(i), value(i)) }.let { engine.write(it, durable = false) }
+            }
+            engine.flushNow()
+            engine.snapshot().use { snapshot ->
+                val cuts = snapshot.splitKeys(byteArrayOf(1), key(2000), key(18_000), 8)
+                assertTrue(cuts.size in 2..7, "a range of many blocks gets cut, at most parts - 1 times: ${cuts.size}")
+                var previous = key(2000)
+                for (cut in cuts) {
+                    assertTrue(Arrays.compareUnsigned(cut, previous) > 0, "ascending and past the start")
+                    assertTrue(Arrays.compareUnsigned(cut, key(18_000)) < 0, "before the end")
+                    previous = cut
+                }
+                assertEquals(emptyList<ByteArray>(), snapshot.splitKeys(byteArrayOf(1), key(0), null, 1))
             }
         }
     }

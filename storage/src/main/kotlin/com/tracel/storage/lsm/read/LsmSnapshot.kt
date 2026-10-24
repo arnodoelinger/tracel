@@ -9,6 +9,7 @@ import com.tracel.storage.lsm.write.MemTable
 import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.spi.EngineSnapshot
 import java.lang.foreign.MemorySegment
+import java.util.Arrays
 
 /**
  * One consistent view of the store, for as long as somebody holds it.
@@ -51,11 +52,27 @@ internal class LsmSnapshot(
         return null
     }
 
-    override fun scan(prefix: ByteArray, from: ByteArray): EngineCursor {
-        val runs = pinned.runs(from, prefix)
+    override fun scan(prefix: ByteArray, from: ByteArray, to: ByteArray?): EngineCursor {
+        val runs = pinned.runs(from, prefix, to)
         val target = InternalKey.seekTarget(from)
         runs.forEach { it.seek(target) }
-        return MergingCursor(runs, prefix, at) { }
+        return MergingCursor(runs, prefix, at, to) { }
+    }
+
+    override fun splitKeys(prefix: ByteArray, from: ByteArray, to: ByteArray?, parts: Int): List<ByteArray> {
+        if (parts < 2) return emptyList()
+        val starts = ArrayList<ByteArray>()
+        for (segment in pinned.segments) {
+            if (segment.mayHoldFrom(from, prefix)) segment.blockKeys(prefix, from, to, starts)
+        }
+        if (starts.size < 2) return emptyList()
+        starts.sortWith(Arrays::compareUnsigned)
+        val out = ArrayList<ByteArray>(parts - 1)
+        for (i in 1 until parts) {
+            val key = starts[(i.toLong() * starts.size / parts).toInt()]
+            if (Arrays.compareUnsigned(key, out.lastOrNull() ?: from) > 0) out += key
+        }
+        return out
     }
 
     override fun close() {

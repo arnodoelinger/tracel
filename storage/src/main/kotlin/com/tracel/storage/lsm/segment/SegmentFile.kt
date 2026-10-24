@@ -396,6 +396,27 @@ class SegmentReader internal constructor(
         return !beyond
     }
 
+    /** @return whether this segment holds anything before [to]. */
+    fun startsBefore(to: ByteArray): Boolean = meta.entries > 0 && compareUnsigned(firstUserKey, to) < 0
+
+    /**
+     * The user key each block starts with, for the blocks starting at or after [from], before [to]
+     * and under [prefix].
+     */
+    fun blockKeys(prefix: ByteArray, from: ByteArray, to: ByteArray?, into: MutableList<ByteArray>) {
+        for (i in indexEntries.indices) {
+            val entry = indexOffset + indexEntries[i]
+            val length = segment.i32(entry) - InternalKey.TRAILER_BYTES
+            if (SegmentCompare.compare(segment, entry + 4, length, from) < 0) continue
+            if (!SegmentCompare.startsWith(segment, entry + 4, length, prefix)) {
+                if (SegmentCompare.compare(segment, entry + 4, length, prefix) > 0) return
+                continue
+            }
+            if (to != null && SegmentCompare.compare(segment, entry + 4, length, to) >= 0) return
+            into += segment.readBytes(entry + 4, length)
+        }
+    }
+
     /** @return true if the segment's bloom filter says the key might be present, or if there is no filter. */
     fun mightContain(userKey: ByteArray): Boolean = bloom?.mightContain(userKey) ?: true
 
