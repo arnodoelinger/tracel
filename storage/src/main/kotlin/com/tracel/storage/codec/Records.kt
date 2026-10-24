@@ -137,6 +137,17 @@ object Records {
     fun decodeEntityShape(type: EntityTypeKey, at: BlockPos, payload: ByteArray) =
         World.decodeEntityShape(type, at, payload)
 
+    fun entityChangeBeforeShape(type: EntityTypeKey, at: BlockPos, v: MemorySegment) =
+        World.entityChangeBeforeShape(type, at, v)
+
+    fun entityChangeAfterShape(type: EntityTypeKey, at: BlockPos, v: MemorySegment) =
+        World.entityChangeAfterShape(type, at, v)
+
+    fun entityChangeUuidHigh(v: MemorySegment) = World.entityChangeUuidHigh(v)
+    fun entityChangeUuidLow(v: MemorySegment) = World.entityChangeUuidLow(v)
+    fun blockChangeBeforeBlockExtras(v: MemorySegment) = World.blockChangeBeforeBlockExtras(v)
+    fun blockChangeAfterBlockExtras(v: MemorySegment) = World.blockChangeAfterBlockExtras(v)
+
     fun blockChange(
         action: ActionKind, cause: CauseKind, causedByHolderId: Int, worldId: Int,
         x: Int, y: Int, z: Int, epochMillis: Long, beforeDataId: Int, afterDataId: Int,

@@ -7,6 +7,7 @@ import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.*
 import com.tracel.storage.codec.records.SectionExtras
+import com.tracel.storage.codec.records.World
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.foreign.MemorySegment
@@ -219,5 +220,27 @@ class SectionDeltaCodecTest {
             ),
         )
         assertEquals(shape, Records.decodeEntityShape(type, at, Records.entityShapePayload(shape)))
+    }
+
+    @Test
+    fun `a shape is read where it lies in a bigger record, nested links and all`() {
+        val type = EntityTypeKey("minecraft:horse")
+        val at = BlockPos(WorldId(UUID.randomUUID()), 4, 5, 6)
+        val shape = EntityShape(
+            type, 8.5, 64.0, -3.5, 10f, 20f,
+            EntityExtras.Riding(
+                UUID.randomUUID(),
+                EntityExtras.Leashed(UUID.randomUUID(), EntityExtras.Opaque(ByteArray(5) { (it + 1).toByte() })),
+            ),
+        )
+        val payload = Records.entityShapePayload(shape)
+        val lead = 37
+        val record = ByteArray(lead + payload.size + 9)
+        System.arraycopy(payload, 0, record, lead, payload.size)
+
+        val read = World.decodeEntityShape(type, at, MemorySegment.ofArray(record), lead.toLong(), payload.size)
+        assertEquals(shape, read)
+        assertNull(World.decodeEntityShape(type, at, MemorySegment.ofArray(record), lead.toLong(), 0))
+        assertNull(World.decodeEntityExtras(MemorySegment.ofArray(record), lead.toLong(), 0))
     }
 }

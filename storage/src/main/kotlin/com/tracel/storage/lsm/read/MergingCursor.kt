@@ -40,6 +40,7 @@ internal class MergingCursor(
     initial: Array<Run>,
     private val prefix: ByteArray,
     private val snapshotSequence: Long,
+    private val to: ByteArray? = null,
     private val onClose: () -> Unit,
 ) : EngineCursor {
     private var runs: Array<Run> = initial
@@ -63,6 +64,7 @@ internal class MergingCursor(
         for (run in runs) {
             if (!run.valid) continue
             if (!SegmentCompare.startsWith(run.keySegment, run.keyOffset, run.userKeyLength, prefix)) continue
+            if (to != null && SegmentCompare.compare(run.keySegment, run.keyOffset, run.userKeyLength, to) >= 0) continue
             runs[kept++] = run
         }
         if (kept != runs.size) runs = runs.copyOf(kept) as Array<Run>
@@ -79,6 +81,9 @@ internal class MergingCursor(
             if (first < 0) return finish()
             val head = runs[first]
             if (!SegmentCompare.startsWith(head.keySegment, head.keyOffset, head.userKeyLength, prefix)) {
+                return finish()
+            }
+            if (to != null && SegmentCompare.compare(head.keySegment, head.keyOffset, head.userKeyLength, to) >= 0) {
                 return finish()
             }
             val userKeyLength = head.userKeyLength

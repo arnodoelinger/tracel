@@ -78,7 +78,9 @@ internal suspend fun StructureRestorer.restoreSteps(
                         worldOf(anchor.world)?.let { world ->
                             val cx = anchor.x shr 4
                             val cz = anchor.z shr 4
-                            runCatching { world.getChunkAtAsync(cx, cz).await() }
+                            if (!runCatching { world.isChunkLoaded(cx, cz) }.getOrDefault(false)) {
+                                runCatching { world.getChunkAtAsync(cx, cz).await() }
+                            }
                             if (runCatching {
                                     world.addPluginChunkTicket(
                                         cx,

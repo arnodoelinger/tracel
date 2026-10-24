@@ -38,6 +38,8 @@ object World {
     private const val EXTRAS_LEASHED: Byte = 3
     private const val EXTRAS_RIDING: Byte = 4
     private const val POSE_BYTES = 33
+    private const val BLOCK_EXTRAS_AT = 44L
+    private const val ENTITY_EXTRAS_AT = 56L
 
     const val LINK_BYTES = OpaqueBytes.LINK_BYTES
 
@@ -46,11 +48,20 @@ object World {
         is BlockExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.bytes)
     }
 
-    fun decodeBlockExtras(bytes: ByteArray): BlockExtras? = when {
-        bytes.isEmpty() -> null
-        bytes[0] == EXTRAS_OPAQUE -> BlockExtras.Opaque(bytes.copyOfRange(1, bytes.size))
-        else -> error("unrecognized block extras tag: ${bytes[0]}")
+    fun decodeBlockExtras(bytes: ByteArray): BlockExtras? = decodeBlockExtras(MemorySegment.ofArray(bytes), 0L, bytes.size)
+
+    fun decodeBlockExtras(v: MemorySegment, at: Long, length: Int): BlockExtras? {
+        if (length == 0) return null
+        val tag = v.i8(at)
+        if (tag != EXTRAS_OPAQUE) error("unrecognized block extras tag: $tag.")
+        return BlockExtras.Opaque(v.readBytes(at + 1, length - 1))
     }
+
+    fun blockChangeBeforeBlockExtras(v: MemorySegment): BlockExtras? =
+        decodeBlockExtras(v, BLOCK_EXTRAS_AT, blockChangeBeforeExtrasLength(v))
+
+    fun blockChangeAfterBlockExtras(v: MemorySegment): BlockExtras? =
+        decodeBlockExtras(v, BLOCK_EXTRAS_AT + blockChangeBeforeExtrasLength(v), blockChangeAfterExtrasLength(v))
 
     fun entityExtras(extras: EntityExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
@@ -70,30 +81,26 @@ object World {
         }
     }
 
-    fun decodeEntityExtras(bytes: ByteArray): EntityExtras? = when {
-        bytes.isEmpty() -> null
-        bytes[0] == EXTRAS_OPAQUE -> EntityExtras.Opaque(bytes.copyOfRange(1, bytes.size))
-        bytes[0] == EXTRAS_FALLING ->
-            EntityExtras.Falling(BlockDataKey(String(bytes, 1, bytes.size - 1, Charsets.UTF_8)))
+    fun decodeEntityExtras(bytes: ByteArray): EntityExtras? = decodeEntityExtras(MemorySegment.ofArray(bytes), 0L, bytes.size)
 
-        bytes[0] == EXTRAS_LEASHED -> {
-            val (target, rest) = decodeLink(bytes)
-            EntityExtras.Leashed(target, rest)
+    fun decodeEntityExtras(v: MemorySegment, at: Long, length: Int): EntityExtras? {
+        if (length == 0) return null
+        return when (val tag = v.i8(at)) {
+            EXTRAS_OPAQUE -> EntityExtras.Opaque(v.readBytes(at + 1, length - 1))
+            EXTRAS_FALLING -> EntityExtras.Falling(BlockDataKey(String(v.readBytes(at + 1, length - 1), Charsets.UTF_8)))
+            EXTRAS_LEASHED -> EntityExtras.Leashed(linkTarget(v, at, length), linkRest(v, at, length))
+            EXTRAS_RIDING -> EntityExtras.Riding(linkTarget(v, at, length), linkRest(v, at, length))
+            else -> error("unrecognized entity extras tag: $tag")
         }
-
-        bytes[0] == EXTRAS_RIDING -> {
-            val (target, rest) = decodeLink(bytes)
-            EntityExtras.Riding(target, rest)
-        }
-
-        else -> error("unrecognized entity extras tag: ${bytes[0]}")
     }
 
-    private fun decodeLink(bytes: ByteArray): Pair<UUID, EntityExtras?> {
-        check(bytes.size >= LINK_BYTES) { "linked extras truncated at ${bytes.size} bytes" }
-        val v = MemorySegment.ofArray(bytes)
-        return UUID(v.i64(1), v.i64(9)) to decodeEntityExtras(bytes.copyOfRange(LINK_BYTES, bytes.size))
+    private fun linkTarget(v: MemorySegment, at: Long, length: Int): UUID {
+        check(length >= LINK_BYTES) { "linked extras truncated at $length bytes." }
+        return UUID(v.i64(at + 1), v.i64(at + 9))
     }
+
+    private fun linkRest(v: MemorySegment, at: Long, length: Int): EntityExtras? =
+        decodeEntityExtras(v, at + LINK_BYTES, length - LINK_BYTES)
 
     fun entityShapePayload(shape: EntityShape?): ByteArray {
         if (shape == null) return ByteArray(0)
@@ -109,22 +116,22 @@ object World {
         }
     }
 
-    fun decodeEntityShape(type: EntityTypeKey, at: BlockPos, payload: ByteArray): EntityShape? {
-        if (payload.isEmpty()) return null
-        val v = MemorySegment.ofArray(payload)
-        return when (payload[0]) {
+    fun decodeEntityShape(type: EntityTypeKey, at: BlockPos, payload: ByteArray): EntityShape? =
+        decodeEntityShape(type, at, MemorySegment.ofArray(payload), 0L, payload.size)
+
+    fun decodeEntityShape(type: EntityTypeKey, at: BlockPos, v: MemorySegment, offset: Long, length: Int): EntityShape? {
+        if (length == 0) return null
+        return when (val tag = v.i8(offset)) {
             EXTRAS_POSED -> {
-                check(payload.size >= POSE_BYTES) { "posed extras truncated at ${payload.size} bytes." }
-                val nested =
-                    if (payload.size == POSE_BYTES) ByteArray(0) else payload.copyOfRange(POSE_BYTES, payload.size)
+                check(length >= POSE_BYTES) { "posed extras truncated at $length bytes." }
                 EntityShape(
                     type,
-                    Double.fromBits(v.i64(1)),
-                    Double.fromBits(v.i64(9)),
-                    Double.fromBits(v.i64(17)),
-                    Float.fromBits(v.i32(25)),
-                    Float.fromBits(v.i32(29)),
-                    decodeEntityExtras(nested),
+                    Double.fromBits(v.i64(offset + 1)),
+                    Double.fromBits(v.i64(offset + 9)),
+                    Double.fromBits(v.i64(offset + 17)),
+                    Float.fromBits(v.i32(offset + 25)),
+                    Float.fromBits(v.i32(offset + 29)),
+                    decodeEntityExtras(v, offset + POSE_BYTES, length - POSE_BYTES),
                 )
             }
 
@@ -133,12 +140,20 @@ object World {
                 at.x + 0.5,
                 at.y.toDouble(),
                 at.z + 0.5,
-                extras = decodeEntityExtras(payload),
+                extras = decodeEntityExtras(v, offset, length),
             )
 
-            else -> error("unrecognized entity extras tag: ${payload[0]}.")
+            else -> error("unrecognized entity extras tag: $tag.")
         }
     }
+
+    fun entityChangeBeforeShape(type: EntityTypeKey, at: BlockPos, v: MemorySegment): EntityShape? =
+        decodeEntityShape(type, at, v, ENTITY_EXTRAS_AT, entityChangeBeforeExtrasLength(v))
+
+    fun entityChangeAfterShape(type: EntityTypeKey, at: BlockPos, v: MemorySegment): EntityShape? =
+        decodeEntityShape(
+            type, at, v, ENTITY_EXTRAS_AT + entityChangeBeforeExtrasLength(v), entityChangeAfterExtrasLength(v),
+        )
 
     fun blockChange(
         action: ActionKind,
@@ -208,17 +223,19 @@ object World {
     fun blockChangeAfter(v: MemorySegment): Int = v.i32(36)
     fun blockChangeBeforeExtrasLength(v: MemorySegment): Int = v.i16(40).toInt() and 0xFFFF
     fun blockChangeAfterExtrasLength(v: MemorySegment): Int = v.i16(42).toInt() and 0xFFFF
-    fun blockChangeBeforeExtras(v: MemorySegment): ByteArray = v.readBytes(44, blockChangeBeforeExtrasLength(v))
+    fun blockChangeBeforeExtras(v: MemorySegment): ByteArray = v.readBytes(BLOCK_EXTRAS_AT, blockChangeBeforeExtrasLength(v))
     fun blockChangeAfterExtras(v: MemorySegment): ByteArray =
-        v.readBytes(44L + blockChangeBeforeExtrasLength(v), blockChangeAfterExtrasLength(v))
+        v.readBytes(BLOCK_EXTRAS_AT + blockChangeBeforeExtrasLength(v), blockChangeAfterExtrasLength(v))
 
     fun entityChangeTypeId(v: MemorySegment): Int = v.i32(32)
     fun entityChangeUuid(v: MemorySegment): UUID = UUID(v.i64(36), v.i64(44))
+    fun entityChangeUuidHigh(v: MemorySegment): Long = v.i64(36)
+    fun entityChangeUuidLow(v: MemorySegment): Long = v.i64(44)
     fun entityChangeBeforeExtrasLength(v: MemorySegment): Int = v.i16(52).toInt() and 0xFFFF
     fun entityChangeAfterExtrasLength(v: MemorySegment): Int = v.i16(54).toInt() and 0xFFFF
-    fun entityChangeBeforeExtras(v: MemorySegment): ByteArray = v.readBytes(56, entityChangeBeforeExtrasLength(v))
+    fun entityChangeBeforeExtras(v: MemorySegment): ByteArray = v.readBytes(ENTITY_EXTRAS_AT, entityChangeBeforeExtrasLength(v))
     fun entityChangeAfterExtras(v: MemorySegment): ByteArray =
-        v.readBytes(56L + entityChangeBeforeExtrasLength(v), entityChangeAfterExtrasLength(v))
+        v.readBytes(ENTITY_EXTRAS_AT + entityChangeBeforeExtrasLength(v), entityChangeAfterExtrasLength(v))
 
     internal fun checkExtras(before: ByteArray, after: ByteArray) {
         require(before.size <= MAX_EXTRAS_BYTES && after.size <= MAX_EXTRAS_BYTES) {

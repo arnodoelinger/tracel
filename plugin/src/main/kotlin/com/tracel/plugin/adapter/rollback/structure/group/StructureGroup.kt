@@ -126,8 +126,7 @@ private suspend fun StructureRestorer.applySliced(
         if (throttle.spent()) hop()
     }
 
-    suspend fun blockCheckpoint() {
-        if (!throttle.spent()) return
+    suspend fun blockHop() {
         paste?.pause()
         hop()
         paste?.resume()
@@ -244,7 +243,7 @@ private suspend fun StructureRestorer.applySliced(
         for (list in arrayOf(standalone, hanging, gravity)) {
             for (step in list) {
                 write(step)
-                blockCheckpoint()
+                if (throttle.spent()) blockHop()
             }
         }
 
@@ -256,7 +255,7 @@ private suspend fun StructureRestorer.applySliced(
                     continue
                 }
                 if (step.target.unsupportedAt(world, step.at)) left += step else write(step)
-                blockCheckpoint()
+                if (throttle.spent()) blockHop()
             }
             return left
         }
@@ -268,7 +267,7 @@ private suspend fun StructureRestorer.applySliced(
             if (ready.isEmpty()) break
             for (step in ready) {
                 write(step)
-                blockCheckpoint()
+                if (throttle.spent()) blockHop()
             }
             waiting = still
         }
@@ -277,7 +276,7 @@ private suspend fun StructureRestorer.applySliced(
 
         val planned = lazy { blocks.associateBy { it.at } }
         for (list in arrayOf(standalone, attached, gravity)) for ((at, target) in list) {
-            blockCheckpoint()
+            if (throttle.spent()) blockHop()
             if (target.isAir() || (unwritten.isNotEmpty() && at in unwritten) || !owns(at)) continue
             val open = paste
             if (open != null) {

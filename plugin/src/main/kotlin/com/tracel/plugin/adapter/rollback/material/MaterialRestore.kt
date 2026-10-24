@@ -5,6 +5,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.adapter.rollback.material.holder.restoreEntityCargo
+import com.tracel.plugin.adapter.rollback.material.holder.layoutsFor
 import com.tracel.plugin.adapter.rollback.material.holder.restoreGroundItems
 import com.tracel.plugin.adapter.rollback.material.item.WornStacks
 import com.tracel.plugin.adapter.rollback.material.item.formsFor
@@ -158,7 +159,7 @@ private suspend fun MaterialRestorer.fanOut(
         }
         val cargoJob = async {
             if (cargo.isEmpty()) emptyList()
-            else restoreEntityCargo(
+            else withContext(layoutsFor(cargo.keys, asOf)) { restoreEntityCargo(
                 cargo,
                 forms,
                 gone,
@@ -166,10 +167,11 @@ private suspend fun MaterialRestorer.fanOut(
                 sink,
                 asOf,
                 worn
-            )
+            ) }
         }
         val others = rest.entries.groupBy { it.key.regionKey() }.values.map { group ->
             async {
+                val layouts = layoutsFor(group.map { it.key }.filterIsInstance<HolderId.Block>(), asOf)
                 val one = suspend { holder: HolderId, nonZero: Map<ItemKey, Long> ->
                     val taking = nonZero.values.all { it < 0L }
                     if (holder in gone && taking) holder to ENTITY_GONE_AT_PLAN
@@ -205,16 +207,16 @@ private suspend fun MaterialRestorer.fanOut(
                     }
                 }
                 when (val first = group.first().key) {
-                    is HolderId.Block -> withContext(services.schedulers.region(first)) {
+                    is HolderId.Block -> withContext(services.schedulers.region(first) + layouts) {
                         inTurns(worldOf(first.world), first)
                     }
 
                     is HolderId.PlacedBlock -> {
                         val at = HolderId.Block(first.world, first.x, first.y, first.z)
-                        withContext(services.schedulers.region(at)) { inTurns(worldOf(first.world), at) }
+                        withContext(services.schedulers.region(at) + layouts) { inTurns(worldOf(first.world), at) }
                     }
 
-                    else -> each()
+                    else -> withContext(layouts) { each() }
                 }
             }
         }

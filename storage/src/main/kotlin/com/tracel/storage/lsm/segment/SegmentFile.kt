@@ -73,9 +73,6 @@ object SegmentFile {
         private var lastTag = -1
         private var lastTagRead = true
 
-        // The index is staged as the bytes it will become, not as a list of arrays to be
-        // re-encoded at the end. Two ArrayLists meant one boxed Long and one retained key
-        // reference per index point, and a second pass over both at finish().
         private var index = ByteArray(1 shl 14)
         private var indexUsed = 0
 
@@ -399,6 +396,27 @@ class SegmentReader internal constructor(
         return !beyond
     }
 
+    /** @return whether this segment holds anything before [to]. */
+    fun startsBefore(to: ByteArray): Boolean = meta.entries > 0 && compareUnsigned(firstUserKey, to) < 0
+
+    /**
+     * The user key each block starts with, for the blocks starting at or after [from], before [to]
+     * and under [prefix].
+     */
+    fun blockKeys(prefix: ByteArray, from: ByteArray, to: ByteArray?, into: MutableList<ByteArray>) {
+        for (i in indexEntries.indices) {
+            val entry = indexOffset + indexEntries[i]
+            val length = segment.i32(entry) - InternalKey.TRAILER_BYTES
+            if (SegmentCompare.compare(segment, entry + 4, length, from) < 0) continue
+            if (!SegmentCompare.startsWith(segment, entry + 4, length, prefix)) {
+                if (SegmentCompare.compare(segment, entry + 4, length, prefix) > 0) return
+                continue
+            }
+            if (to != null && SegmentCompare.compare(segment, entry + 4, length, to) >= 0) return
+            into += segment.readBytes(entry + 4, length)
+        }
+    }
+
     /** @return true if the segment's bloom filter says the key might be present, or if there is no filter. */
     fun mightContain(userKey: ByteArray): Boolean = bloom?.mightContain(userKey) ?: true
 
@@ -421,6 +439,10 @@ class SegmentReader internal constructor(
         return offset + 8 + payload + trailer()
     }
 
+    override fun close() {
+        mapped.close()
+    }
+
     private fun trailer(): Int = if (checksums) SegmentFile.CHECKSUM_BYTES else 0
 
     private fun decodeBlock(offset: Long): ByteArray {
@@ -431,30 +453,44 @@ class SegmentReader internal constructor(
         check(offset + 8L + payload + trailer() <= dataEnd) {
             "segment ${path.fileName} block at $offset is corrupt: its length runs past the data."
         }
-        val src = ByteArray(payload)
-        MemorySegment.copy(segment, Bytes.I8, offset + 8, src, 0, payload)
+        val scratch = Scratch.current()
+        val length = 8 + payload
+        val buffer = scratch.buffer(length)
+        MemorySegment.copy(segment, Bytes.I8, offset, buffer, 0, length)
         if (checksums) {
-            val head = ByteArray(8)
-            MemorySegment.copy(segment, Bytes.I8, offset, head, 0, 8)
-            val crc = CRC32C().apply {
-                update(head)
-                update(src)
-            }.value.toInt()
-            check(crc == segment.i32(offset + 8 + payload)) {
+            scratch.crc.reset()
+            scratch.crc.update(buffer, 0, length)
+            check(scratch.crc.value.toInt() == segment.i32(offset + 8 + payload)) {
                 "segment ${path.fileName} block at $offset is corrupt: checksum mismatch."
             }
         }
-        if (!compressed) return if (payload == uncompressed) src else src.copyOf(uncompressed)
-        val dest = ByteArray(uncompressed)
-        val got = Zstd.decompressByteArray(dest, 0, uncompressed, src, 0, payload)
+        val block = ByteArray(uncompressed)
+        if (!compressed) {
+            System.arraycopy(buffer, 8, block, 0, minOf(payload, uncompressed))
+            return block
+        }
+        val got = Zstd.decompressByteArray(block, 0, uncompressed, buffer, 8, payload)
         check(!Zstd.isError(got) && got == uncompressed.toLong()) {
             "segment ${path.fileName} block at $offset is corrupt: ${if (Zstd.isError(got)) Zstd.getErrorName(got) else "$got of $uncompressed bytes"}."
         }
-        return dest
+        return block
     }
 
-    override fun close() {
-        mapped.close()
+    private class Scratch {
+        val crc = CRC32C()
+        private var bytes = ByteArray(INITIAL)
+
+        fun buffer(length: Int): ByteArray {
+            if (bytes.size < length) bytes = ByteArray(maxOf(length, bytes.size * 2))
+            return bytes
+        }
+
+        companion object {
+            private const val INITIAL = 1 shl 16
+            private val local = ThreadLocal.withInitial { Scratch() }
+
+            fun current(): Scratch = local.get()
+        }
     }
 
     private companion object {

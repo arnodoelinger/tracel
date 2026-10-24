@@ -4,14 +4,30 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.log.LogKind
 import com.tracel.storage.StorageUnit
-import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.spi.EngineCursor
+import com.tracel.storage.util.Accepted
+import com.tracel.storage.util.ascending
+import com.tracel.storage.util.concatenated
+import com.tracel.storage.util.eachIndex
+import com.tracel.storage.util.eachTask
+import com.tracel.storage.util.mergedAscending
 import com.tracel.storage.util.siftDown
 import com.tracel.storage.util.siftUp
 import it.unimi.dsi.fastutil.longs.LongArrayList
+import java.lang.foreign.MemorySegment
+
+private const val SLICES_PER_THREAD = 4
+private const val MIN_FETCH_SLICE = 4096
+
+private const val MIN_SCAN_BATCH = 64
+private const val SKIP_GAP = 64L
+private const val SCAN_DENSITY = 64
+private const val SEQ_TIME_SLACK_MILLIS = 5 * 60_000L
+
+internal const val BATCHED_FROM = 256
 
 /**
  * One cursor's worth of an index scan: what to walk, where to start, and — for a spatial column
@@ -26,6 +42,7 @@ internal class Scan(
     val prefix: ByteArray,
     val from: ByteArray = prefix,
     val bound: ColumnBound? = null,
+    val to: ByteArray? = null,
 )
 
 /**
@@ -73,7 +90,7 @@ internal class ColumnBound(
 internal fun scansOver(prefixes: List<ByteArray>): List<Scan> = prefixes.map { Scan(it) }
 
 /** When this row happened. Be aware that a spatial key already carries the timestamp. */
-internal fun millisOf(cursor: EngineCursor, value: java.lang.foreign.MemorySegment): Long? =
+internal fun millisOf(cursor: EngineCursor, value: MemorySegment): Long? =
     if (cursor.keyLength() > 0 && cursor.keyByte(0) == Keys.SPATIAL) {
         Keys.spatialMillis(cursor)
     } else {
@@ -247,7 +264,7 @@ internal fun StorageUnit.walkColumn(
 ) {
     var rows = 0L
     var kept = 0L
-    scan(scan.prefix, scan.from).use { cursor ->
+    scan(scan.prefix, scan.from, scan.to).use { cursor ->
         val bound = scan.bound
         while (cursor.next()) {
             if (bound != null) {
@@ -319,20 +336,21 @@ internal fun StorageUnit.gatherBoth(
     worldRows: SpatialRows? = null,
 ): Pair<LongArrayList, LongArrayList> {
     if (scans.isEmpty()) return LongArrayList() to LongArrayList()
-    if (scans.size == 1) {
+    val pieces = piecesOf(scans)
+    if (pieces.size == 1) {
         val world = LongArrayList()
         val txns = LongArrayList()
-        walkColumn(scans[0], since, until, excludedCauses, region, world, txns, worldRows)
+        walkColumn(pieces[0], since, until, excludedCauses, region, world, txns, worldRows)
         return world to txns
     }
-    val worlds = arrayOfNulls<LongArrayList>(scans.size)
-    val txns = arrayOfNulls<LongArrayList>(scans.size)
-    val rows = arrayOfNulls<SpatialRows>(scans.size)
-    java.util.stream.IntStream.range(0, scans.size).parallel().forEach { i ->
+    val worlds = arrayOfNulls<LongArrayList>(pieces.size)
+    val txns = arrayOfNulls<LongArrayList>(pieces.size)
+    val rows = arrayOfNulls<SpatialRows>(pieces.size)
+    eachTask(pieces.size) { i ->
         val world = LongArrayList()
         val txn = LongArrayList()
         val part = if (worldRows == null) null else SpatialRows()
-        walkColumn(scans[i], since, until, excludedCauses, region, world, txn, part)
+        walkColumn(pieces[i], since, until, excludedCauses, region, world, txn, part)
         worlds[i] = world
         txns[i] = txn
         rows[i] = part
@@ -340,7 +358,7 @@ internal fun StorageUnit.gatherBoth(
     var wN = 0
     var tN = 0
     var rN = 0
-    for (i in scans.indices) {
+    for (i in pieces.indices) {
         wN += worlds[i]!!.size
         tN += txns[i]!!.size
         rN += rows[i]?.size ?: 0
@@ -348,12 +366,45 @@ internal fun StorageUnit.gatherBoth(
     worldRows?.reserve(rN)
     val world = LongArrayList(wN)
     val txn = LongArrayList(tN)
-    for (i in scans.indices) {
+    for (i in pieces.indices) {
         world.addAll(worlds[i]!!)
         txn.addAll(txns[i]!!)
         worldRows?.addAll(rows[i]!!)
     }
     return world to txn
+}
+
+/**
+ * [scans] cut into a few pieces per thread, so a region of a dozen columns does not wait on its
+ * busiest one while the other threads sit idle.
+ */
+// TODO: improve this in future
+internal fun piecesOf(scans: List<Scan>): List<Scan> {
+    val want = Runtime.getRuntime().availableProcessors() * SLICES_PER_THREAD
+    val per = maxOf(1, (want + scans.size - 1) / scans.size)
+    val out = ArrayList<Scan>(scans.size * per)
+    for (scan in scans) {
+        val bound = scan.bound
+        if (bound == null) {
+            out += scan
+            continue
+        }
+        val x = Keys.spatialChunkX(scan.from)
+        val first = Keys.spatialChunkZ(scan.from)
+        val chunks = bound.lastChunkZ.toLong() - first + 1
+        val parts = minOf(per.toLong(), chunks).toInt().coerceAtLeast(1)
+        for (p in 0 until parts) {
+            val from = first + (p * chunks / parts).toInt()
+            val last = first + ((p + 1) * chunks / parts).toInt() - 1
+            out += Scan(
+                scan.prefix,
+                if (p == 0) scan.from else Keys.spatialChunkFrom(bound.worldId, x, from, bound.untilMillis),
+                ColumnBound(bound.worldId, last, bound.sinceMillis, bound.untilMillis),
+                if (last == Int.MAX_VALUE) null else Keys.spatialChunkPrefix(bound.worldId, x, last + 1),
+            )
+        }
+    }
+    return out
 }
 
 internal fun StorageUnit.gatherBothByTime(
@@ -364,12 +415,30 @@ internal fun StorageUnit.gatherBothByTime(
 ): Pair<LongArrayList, LongArrayList> {
     val world = LongArrayList()
     val txns = LongArrayList()
-    val prefix = byteArrayOf(Keys.TIME)
-    val from = if (until != null) Keys.timeFrom(until) else prefix
-    scan(prefix, from).use { cursor ->
+    walkTime(timeTop(until), null, since, excludedCauses, region, world, txns)
+    return world to txns
+}
+
+/** Where the time index starts for a window ending at [until]: newest first, so the top. */
+internal fun timeTop(until: Long?): ByteArray = if (until != null) Keys.timeFrom(until) else byteArrayOf(Keys.TIME)
+
+/** Where the time index stops for a window starting at [since], or null for its end. */
+internal fun timeBottom(since: Long?): ByteArray? =
+    if (since != null && since > Long.MIN_VALUE) Keys.timeFrom(since - 1) else null
+
+/** One stretch of the time index, [from] up to [to], sorted into world and transaction sequences. */
+internal fun StorageUnit.walkTime(
+    from: ByteArray,
+    to: ByteArray?,
+    since: Long?,
+    excludedCauses: Set<CauseKind>,
+    region: LookupRegion?,
+    world: LongArrayList,
+    txns: LongArrayList,
+) {
+    scan(byteArrayOf(Keys.TIME), from, to).use { cursor ->
         while (cursor.next()) {
-            val key = cursor.key()
-            if (since != null && Keys.invert(KeyReader.u64(key, 1)) < since) break
+            if (since != null && Keys.invert(cursor.keyU64(1)) < since) break
             val value = cursor.value()
             val dest = when (Records.asLogKind(value)) {
                 LogKind.WORLD -> world
@@ -387,10 +456,103 @@ internal fun StorageUnit.gatherBothByTime(
                     )
                 ) continue
             }
-            dest.add(Keys.invert(KeyReader.u64(key, 9)))
+            dest.add(Keys.invert(cursor.keyU64(9)))
         }
     }
-    return world to txns
+}
+
+/**
+ * The records for [sorted], fetched by as many cursors as the pool has threads, each over its own
+ * contiguous slice, and kept where [keep] says so, ascending.
+ */
+internal fun StorageUnit.fetchSlices(
+    tag: Byte,
+    sorted: LongArray,
+    key: (Long) -> ByteArray,
+    keep: (MemorySegment) -> Boolean,
+): Accepted {
+    val n = sorted.size
+    if (!worthScanning(sorted)) {
+        QueryProbe.pointGot(n.toLong())
+        val hits = arrayOfNulls<MemorySegment>(n)
+        eachIndex(n) { i -> get(key(sorted[i]))?.let { if (keep(it)) hits[i] = it } }
+        val out = Accepted(n)
+        for (i in 0 until n) {
+            val hit = hits[i] ?: continue
+            out.seqs.add(sorted[i])
+            out.records += hit
+        }
+        return out
+    }
+    val slices = minOf(sliceCount(n) * SLICES_PER_THREAD, maxOf(1, n / MIN_FETCH_SLICE))
+    if (slices <= 1) return fetchSlice(tag, sorted, key, keep)
+    val parts = arrayOfNulls<Accepted>(slices)
+    eachTask(slices) { s ->
+        val from = (s.toLong() * n / slices).toInt()
+        val to = ((s + 1).toLong() * n / slices).toInt()
+        parts[s] = fetchSlice(tag, sorted.copyOfRange(from, to), key, keep)
+    }
+    return concatenated(parts)
+}
+
+/** [fetchSlices] for one slice on this thread. */
+internal fun StorageUnit.fetchSlice(
+    tag: Byte,
+    sorted: LongArray,
+    key: (Long) -> ByteArray,
+    keep: (MemorySegment) -> Boolean,
+): Accepted {
+    val out = Accepted(sorted.size)
+    if (worthScanning(sorted)) {
+        QueryProbe.scanned(sorted.size.toLong())
+        walkWanted(tag, sorted, 0, sorted.size, key) { seq, cursor ->
+            val record = cursor.value()
+            if (keep(record)) {
+                out.seqs.add(seq)
+                out.records += record
+            }
+        }
+    } else {
+        QueryProbe.pointGot(sorted.size.toLong())
+        for (seq in sorted) {
+            val record = get(key(seq)) ?: continue
+            if (keep(record)) {
+                out.seqs.add(seq)
+                out.records += record
+            }
+        }
+    }
+    return out
+}
+
+/** The time index and the records it names, read as one pipeline. */
+internal fun StorageUnit.fetchByTime(
+    since: Long?,
+    until: Long?,
+    excludedCauses: Set<CauseKind>,
+    keep: (MemorySegment) -> Boolean,
+): Pair<Accepted, LongArrayList> {
+    val top = timeTop(until)
+    val bottom = timeBottom(since)
+    val parts = Runtime.getRuntime().availableProcessors() * SLICES_PER_THREAD
+    val cuts = splitKeys(byteArrayOf(Keys.TIME), top, bottom, parts)
+    val pieces = cuts.size + 1
+    val worlds = arrayOfNulls<Accepted>(pieces)
+    val txns = arrayOfNulls<LongArrayList>(pieces)
+    eachTask(pieces) { p ->
+        val world = LongArrayList()
+        val txn = LongArrayList()
+        val from = if (p == 0) top else cuts[p - 1]
+        val to = if (p == cuts.size) bottom else cuts[p]
+        walkTime(from, to, since, excludedCauses, null, world, txn)
+        worlds[p] = fetchSlice(Keys.WCHG, ascending(world), Keys::wchg, keep)
+        txns[p] = txn
+    }
+    var txnCount = 0
+    for (txn in txns) txnCount += txn!!.size
+    val txn = LongArrayList(txnCount)
+    for (part in txns) txn.addAll(part!!)
+    return mergedAscending(worlds) to txn
 }
 
 /**
@@ -510,32 +672,6 @@ internal inline fun StorageUnit.scanDescendingByTime(
 }
 
 
-/**
- * Fetches the records for [sorted] in one ordered walk of [tag]'s family, handing each to
- * [accept] oldest-first.
- */
-internal inline fun StorageUnit.fetchAscending(
-    tag: Byte,
-    sorted: LongArray,
-    key: (Long) -> ByteArray,
-    accept: (Long, java.lang.foreign.MemorySegment) -> Unit,
-) {
-    if (sorted.isEmpty()) return
-    var i = 0
-    scan(byteArrayOf(tag), key(sorted[0])).use { cursor ->
-        while (i < sorted.size && cursor.next()) {
-            val at = cursor.keyU64(1)
-            // A sequence with no record left, or named twice — skipped rather than waited for
-            while (i < sorted.size && sorted[i] < at) i++
-            if (i == sorted.size) break
-            if (sorted[i] == at) {
-                accept(at, cursor.value())
-                i++
-            }
-        }
-    }
-}
-
 /** Walks the [tag] family for the keys in `sorted[from until to]`, one cursor for all of them. */
 internal inline fun StorageUnit.walkWanted(
     tag: Byte,
@@ -547,7 +683,8 @@ internal inline fun StorageUnit.walkWanted(
 ) {
     if (from >= to) return
     var i = from
-    scan(byteArrayOf(tag), keyOf(sorted[from])).use { cursor ->
+    val last = sorted[to - 1]
+    scan(byteArrayOf(tag), keyOf(sorted[from]), if (last == Long.MAX_VALUE) null else keyOf(last + 1)).use { cursor ->
         while (i < to && cursor.next()) {
             val at = cursor.keyU64(1)
             while (i < to && sorted[i] < at) i++
@@ -577,13 +714,6 @@ internal fun worthScanning(sorted: LongArray): Boolean {
     val span = sorted.last() - sorted.first() + 1
     return span > 0 && sorted.size.toLong() * SCAN_DENSITY >= span
 }
-
-private const val MIN_SCAN_BATCH = 64
-private const val SKIP_GAP = 64L
-private const val SCAN_DENSITY = 64
-private const val SEQ_TIME_SLACK_MILLIS = 5 * 60_000L
-
-internal const val BATCHED_FROM = 256
 
 /**
  * The next sequence in [cursor] belonging to [want], or -1 once the cursor is spent — or has run
