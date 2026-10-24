@@ -77,10 +77,10 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
         unbacked.map {
             SkippedStep(
                 it.at,
-                "its item is no longer where the rollback left it, so it was not brought back"
+                "its item is no longer where the rollback left it, so it was not brought back."
             )
         } + staying.map {
-            SkippedStep(it.at, "it holds items that were put in after the rollback, so it stays where it is")
+            SkippedStep(it.at, "it holds items that were put in after the rollback, so it stays where it is.")
         },
     )
 
@@ -110,7 +110,7 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
                 written,
             )
         }
-        structureHalf.settleFluids(written)
+        services.scope.launch { structureHalf.settleFluids(written) }
         result
     }
 }
@@ -213,7 +213,7 @@ private suspend fun RollbackComposer.undoFrozen(
             putBackAgain()
             UndoResult.Failed(
                 "an earlier undo of job ${job.raw} took the ledger back and stopped before putting items back; " +
-                        "check the holders it touched by hand",
+                        "check the holders it touched by hand.",
             )
         }
 

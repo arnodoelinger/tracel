@@ -129,7 +129,8 @@ private suspend fun RollbackComposer.applyReserved(
     val later = checkNotNull(held.later) { "the ledger went through, so the material half ran" }
     val destroyed = first.destroyedPrompt + later.extra
     structureHalf.letGoOfArea()
-    structureHalf.settleFluids(first.created.applied + destroyed.applied, planned.asItStood)
+    val settling = first.created.applied + destroyed.applied
+    services.scope.launch { structureHalf.settleFluids(settling, planned.asItStood) }
 
     val waking = (first.created.applied + destroyed.applied).redstoneCells().toList()
     if (waking.isNotEmpty()) services.scope.launch { structureHalf.wakeRedstone(waking.asSequence()) }

@@ -11,6 +11,7 @@ import com.tracel.model.world.WorldChange
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.survey.NO_MATERIAL
+import com.tracel.plugin.rollback.survey.censusCandidates
 import com.tracel.plugin.rollback.survey.planMaterial
 import com.tracel.plugin.rollback.survey.rooting.awayFromAirToAir
 import com.tracel.plugin.rollback.survey.rooting.awayFromEntitiesGone
@@ -18,6 +19,8 @@ import com.tracel.plugin.rollback.survey.withStructuralPartners
 import com.tracel.plugin.rollback.survey.withTrails
 import com.tracel.plugin.specifics.world.VanillaWorldRules
 import com.tracel.plugin.util.geometry.chunkKey
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -34,7 +37,7 @@ internal suspend fun RollbackComposer.planRollback(
     filter: LookupFilter,
     structure: Boolean,
     material: Boolean,
-): Planned {
+): Planned = coroutineScope {
     val wide = filter.copy(
         limit = Int.MAX_VALUE,
         offset = 0,
@@ -67,6 +70,12 @@ internal suspend fun RollbackComposer.planRollback(
         )
     }
 
+    // The census is a region tick per entity's region. It needs only the transactions, so it runs while the structure
+    // half is planned instead of after it.
+    val census = if (!material || txns.isEmpty()) null else censusCandidates(txns).takeIf { it.isNotEmpty() }?.let {
+        async { worldCensus.vanishedEntities(it) }
+    }
+
     // Partner cells: double chest / bed / door / piston, other shit are two coords; "scope:" can land between
     // them and plan left-half only. Same filter, one extra cell.
     val partnered = if (!structure || changes.isEmpty()) changes else {
@@ -78,23 +87,27 @@ internal suspend fun RollbackComposer.planRollback(
     val paired = (if (!structure || partnered.isEmpty()) partnered else withTrails(partnered, wide))
         .filterNot { it.action == ActionKind.BLOCK_CLICK || it.seq.raw < importedBelow }
 
+    val everyChangeRead = if (!structure || changes.isEmpty()) null else async {
+        services.worldLog.query(wide)
+    }
+
     // Structure first, then material
     val outcome = if (!structure) null else StructurePlanner(VanillaWorldRules).planAll(paired)
     val create = outcome?.create?.inPlaceOrder() ?: emptyList()
     val destroy = outcome?.destroy?.inPlaceOrder() ?: emptyList()
     val keepCargoOn = create.mapNotNullTo(HashSet()) { (it as? StructureStep.SpawnEntity)?.entity }
     val covered = if (!structure) null else placedCovered(create + destroy) + LiveProjectile.holders()
-    val materials = if (!material) NO_MATERIAL else planMaterial(txns, keepCargoOn, structure, covered)
+    val materials = if (!material) NO_MATERIAL else planMaterial(txns, keepCargoOn, structure, covered, census)
     val vanishedCells = outcome?.emptyToEmpty ?: emptySet()
     val bornAndGone = outcome?.bornAndGone ?: emptySet()
     val target = materials.target.awayFromAirToAir(vanishedCells).awayFromEntitiesGone(bornAndGone)
-    val everyChange = if (!structure || changes.isEmpty()) emptyList() else services.worldLog.query(wide)
+    val everyChange = everyChangeRead?.await().orEmpty()
     val taken = HashSet<Long>(paired.size + txns.size).also { seqs ->
         for ((seq) in paired) seqs += seq.raw
         for (txn in txns) seqs += txn.seq.raw
         for (change in everyChange) if (change.seq.raw >= importedBelow && change.action != ActionKind.BLOCK_CLICK) seqs += change.seq.raw
     }.toLongArray()
-    return Planned(
+    Planned(
         CompositeRollbackPlan(create, materials.plan, destroy),
         target,
         materials.roots,
