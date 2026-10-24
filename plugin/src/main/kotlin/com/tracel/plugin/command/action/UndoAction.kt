@@ -43,7 +43,7 @@ class UndoAction internal constructor(private val services: TracelServices, priv
         when (outcome) {
             is Res.Ok -> {
                 val undone = outcome.value
-                Telemetry.undo(if (undone.skipped == 0 && undone.itemsRestored) "clean" else "partial")
+                Telemetry.undo(Telemetry.finish(undone.skipped, undone.itemsRestored))
                 RollbackPresenter.reportUndo(sender, undone, took)
             }
 

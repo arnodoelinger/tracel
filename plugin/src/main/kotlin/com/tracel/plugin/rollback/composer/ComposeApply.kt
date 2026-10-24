@@ -9,6 +9,7 @@ import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.adapter.rollback.structure.redstone.redstoneCells
+import com.tracel.plugin.metrics.Telemetry
 import com.tracel.plugin.rollback.result.outcome.*
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
@@ -137,7 +138,9 @@ private suspend fun RollbackComposer.applyReserved(
 
     services.rolledBack.mark(job.raw, planned.taken, System.currentTimeMillis())
 
-    return RollbackResult.Done(job, planned, first.created + destroyed, later.material)
+    val structure = first.created + destroyed
+    Telemetry.leftUndone(structure.skipped, later.material.failures)
+    return RollbackResult.Done(job, planned, structure, later.material)
 }
 
 private class Written(val first: FirstWait, val inverted: StructureReport?, val later: MaterialWait?)

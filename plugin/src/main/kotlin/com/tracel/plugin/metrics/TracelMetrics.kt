@@ -148,6 +148,7 @@ internal object TracelMetrics {
             Telemetry.ROLLBACK_WINDOW, Telemetry.ROLLBACK_OUTCOMES, Telemetry.ROLLBACK_SIZES, Telemetry.ROLLBACK_SPEED, Telemetry.UNDO_OUTCOMES, Telemetry.ERRORS, Telemetry.WARNINGS,
         )
         for (chart in counted) metrics.shares(chart) { Telemetry.drain(chart) }
+        metrics.drill(Telemetry.ROLLBACK_PARTIAL) { Telemetry.drainInside(Telemetry.ROLLBACK_PARTIAL) }
         metrics.drill(Telemetry.ROLLBACK_TIME) { Telemetry.drainInside(Telemetry.ROLLBACK_TIME) }
         metrics.line("rollbacks_done") { Telemetry.drainRollbacksDone().coerceAtMost(Int.MAX_VALUE.toLong()).toInt() }
     }

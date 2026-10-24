@@ -1,8 +1,10 @@
 package com.tracel.plugin.metrics
 
+import com.tracel.model.holder.HolderId
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.LookupScope
 import com.tracel.api.rollback.RollbackApplied
+import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.status.rollback.RollbackSize
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -15,6 +17,24 @@ import java.util.concurrent.atomic.LongAdder
  * Buckets and names only.
  */
 internal object Telemetry {
+    private const val DRILL = '\u001f'
+
+    private const val PARTIAL_PER_ROLLBACK = 12
+    private const val REASON_CHARS = 70
+    private val UUID_TEXT = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+    private val NAMESPACED = Regex("\\b[a-z0-9_.-]+:[a-z0-9_./-]+")
+    private val MATERIAL = Regex("\\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\\b|\\b[A-Z]{4,}\\b")
+    private val DIGITS = Regex("-?\\d+")
+    private val SPACES = Regex("\\s+")
+
+    private const val OWN_PACKAGE = "com.tracel."
+    private const val HOUR = 3_600_000L
+    private const val DAY = 24 * HOUR
+
+    private val charts = ConcurrentHashMap<String, ConcurrentHashMap<String, LongAdder>>()
+    private val peakBacklog = AtomicLong()
+    private val rollbacksDone = LongAdder()
+
     const val COMMANDS = "commands"
     const val LOOKUP_FLAGS = "lookup_flags"
     const val ROLLBACK_FLAGS = "rollback_flags"
@@ -24,23 +44,13 @@ internal object Telemetry {
     const val ROLLBACK_SIZES = "rollback_sizes"
     const val ROLLBACK_TIME = "rollback_time"
     const val ROLLBACK_SPEED = "rollback_speed"
+    const val ROLLBACK_PARTIAL = "rollback_partial"
     const val UNDO_OUTCOMES = "undo_outcomes"
     const val ERRORS = "errors"
     const val WARNINGS = "warnings"
 
     const val MAX_KEYS = 64
     const val OTHER = "other"
-
-    /** Joins a drilldown chart's slice to the exact value inside it, in the one counter key. */
-    private const val DRILL = '\u001f'
-
-    private const val OWN_PACKAGE = "com.tracel."
-    private const val HOUR = 3_600_000L
-    private const val DAY = 24 * HOUR
-
-    private val charts = ConcurrentHashMap<String, ConcurrentHashMap<String, LongAdder>>()
-    private val peakBacklog = AtomicLong()
-    private val rollbacksDone = LongAdder()
 
     /** One more of [key] on [chart]. Any thread. */
     fun count(chart: String, key: String) {
@@ -130,12 +140,45 @@ internal object Telemetry {
 
     /** A rollback that went through: clean or partial, how big, how long, how fast. */
     fun rollbackDone(done: RollbackApplied, tookMillis: Long) {
-        rollback(if (done.skipped == 0 && done.itemsRestored) "clean" else "partial")
+        rollback(finish(done.skipped, done.itemsRestored))
         val records = done.records.toLong()
         count(ROLLBACK_SIZES, RollbackSize.of(records).key)
         rollbacksDone.increment()
         countInside(ROLLBACK_TIME, tookBucket(tookMillis), tookExact(tookMillis))
         if (records > 0 && tookMillis >= 100) count(ROLLBACK_SPEED, speedBucket(records * 1000 / tookMillis))
+    }
+
+    /** What a rollback left undone. */
+    fun leftUndone(skipped: List<SkippedStep>, failures: Map<HolderId, String>) {
+        val seen = HashSet<String>()
+        fun note(group: String, reason: String) {
+            for (part in reason.split(';')) {
+                val key = reasonKey(part)
+                if (key.isNotEmpty() && seen.add(group + DRILL + key) && seen.size <= PARTIAL_PER_ROLLBACK) {
+                    countInside(ROLLBACK_PARTIAL, group, key)
+                }
+            }
+        }
+        for (step in skipped) note("blocks skipped", step.reason)
+        for ((holder, reason) in failures) note("items: " + (holder::class.simpleName ?: "holder"), reason)
+    }
+
+    /** A reason with what it names taken out: IDs, counts, materials. */
+    internal fun reasonKey(reason: String): String = reason
+        .replace(UUID_TEXT, "")
+        .replace(NAMESPACED, "<id>")
+        .replace(MATERIAL, "<item>")
+        .replace(DIGITS, "#")
+        .replace(SPACES, " ")
+        .trim()
+        .take(REASON_CHARS)
+
+    /** Clean, or partial and what was left undone: blocks that were skipped, items that stayed put, or both. */
+    fun finish(skipped: Int, itemsRestored: Boolean): String = when {
+        skipped == 0 && itemsRestored -> "clean"
+        itemsRestored -> "partial: blocks skipped"
+        skipped == 0 -> "partial: items not restored"
+        else -> "partial: blocks and items"
     }
 
     /** Rollbacks that went through since this was last asked, and back to zero. */
