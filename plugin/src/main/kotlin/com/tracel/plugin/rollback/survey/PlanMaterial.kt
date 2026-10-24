@@ -18,6 +18,7 @@ import com.tracel.plugin.rollback.survey.rooting.mintedStraightThrough
 import com.tracel.plugin.rollback.survey.rooting.pairedGapMints
 import com.tracel.plugin.rollback.survey.rooting.rootedByFlow
 import com.tracel.plugin.util.holder.namedByEntity
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import java.util.*
@@ -31,20 +32,15 @@ internal suspend fun RollbackComposer.planMaterial(
     keepCargoOn: Set<UUID> = emptySet(),
     structural: Boolean = true,
     covered: Set<HolderId>? = null,
+    census: Deferred<Set<HolderId>>? = null,
 ): MaterialSurvey = coroutineScope {
 
     // Census candidates from the log + current holders, before the graph walk. Asking after
     // planning serialized a Folia hop behind the walk and then walked twice.
-    val candidates = HashSet<HolderId>()
-    for ((_, _, _, _, _, flows) in txns) {
-        for ((_, _, source, destination) in flows) {
-            if (source.namedByEntity()) candidates += source
-            if (destination.namedByEntity()) candidates += destination
-        }
-    }
+    val candidates = HashSet(censusCandidates(txns))
     // Asked now, beside the storage reads below: the hop is a region tick, and it waited for them for nothing
     val fromLog = candidates.toSet()
-    val early = if (fromLog.isEmpty()) null else async { worldCensus.vanishedEntities(fromLog) }
+    val early = census ?: if (fromLog.isEmpty()) null else async { worldCensus.vanishedEntities(fromLog) }
 
     val byRoot = LinkedHashMap<LotId, HolderId>()
     val needLots = ArrayList<Seq>()
@@ -149,6 +145,21 @@ internal suspend fun RollbackComposer.planMaterial(
     }
 
     MaterialSurvey(plan, target, roots, vanished, witness, planner.placedAndUnreachable)
+}
+
+/**
+ * The entities the log names as holders:
+ * what the census has to look for, known before anything is planned.
+ */
+internal fun censusCandidates(txns: List<Transaction>): Set<HolderId> {
+    val out = HashSet<HolderId>()
+    for ((_, _, _, _, _, flows) in txns) {
+        for ((_, _, source, destination) in flows) {
+            if (source.namedByEntity()) out += source
+            if (destination.namedByEntity()) out += destination
+        }
+    }
+    return out
 }
 
 private fun Flow.isGapCorrection(): Boolean =

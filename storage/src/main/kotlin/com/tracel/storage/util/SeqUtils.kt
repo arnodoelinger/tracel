@@ -20,6 +20,59 @@ internal class Accepted(capacity: Int = 16) {
     val records = ArrayList<java.lang.foreign.MemorySegment>(capacity)
 }
 
+/** [parts] back to back, in order. They have to be disjoint and ascending already. */
+internal fun concatenated(parts: Array<Accepted?>): Accepted {
+    var n = 0
+    for (part in parts) n += part!!.seqs.size
+    val out = Accepted(n)
+    for (part in parts) {
+        out.seqs.addAll(part!!.seqs)
+        out.records += part.records
+    }
+    return out
+}
+
+/** Sorted runs merged into one ascending run, each sequence once. */
+internal fun mergedAscending(runs: Array<Accepted?>): Accepted {
+    val ordered = runs.filter { it!!.seqs.size > 0 }.sortedBy { it!!.seqs.getLong(0) }.toTypedArray()
+    var disjoint = true
+    for (i in 1 until ordered.size) {
+        val previous = ordered[i - 1]!!.seqs
+        if (ordered[i]!!.seqs.getLong(0) <= previous.getLong(previous.size - 1)) disjoint = false
+    }
+    if (disjoint) return concatenated(ordered)
+
+    var n = 0
+    for (run in ordered) n += run!!.seqs.size
+    val out = Accepted(n)
+    val at = IntArray(ordered.size)
+    val heads = LongArray(ordered.size) { -ordered[it]!!.seqs.getLong(0) }
+    val heap = IntArray(ordered.size)
+    for (i in ordered.indices) {
+        heap[i] = i
+        siftUp(heap, heads, i)
+    }
+    var size = ordered.size
+    var previous = Long.MIN_VALUE
+    while (size > 0) {
+        val best = heap[0]
+        val run = ordered[best]!!
+        val seq = run.seqs.getLong(at[best])
+        if (out.seqs.isEmpty || seq != previous) {
+            out.seqs.add(seq)
+            out.records += run.records[at[best]]
+            previous = seq
+        }
+        if (++at[best] < run.seqs.size) {
+            heads[best] = -run.seqs.getLong(at[best])
+        } else {
+            heap[0] = heap[--size]
+        }
+        siftDown(heap, heads, size)
+    }
+    return out
+}
+
 /** The newest-first page of the candidates the record-level filter keeps. */
 internal fun pageAccepted(
     seqs: LongArray,

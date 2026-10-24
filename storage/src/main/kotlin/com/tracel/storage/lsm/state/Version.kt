@@ -75,9 +75,9 @@ class Version internal constructor(
      * key present in two of them is the same key at two ages, and the first hit is the newest.
      */
     @Suppress("UNCHECKED_CAST")
-    internal fun runs(from: ByteArray? = null, prefix: ByteArray? = null): Array<Run> {
+    internal fun runs(from: ByteArray? = null, prefix: ByteArray? = null, to: ByteArray? = null): Array<Run> {
         val ordered = if (from == null || prefix == null) orderedSegments
-        else orderedSegments.filter { it.mayHoldFrom(from, prefix) }
+        else orderedSegments.filter { it.mayHoldFrom(from, prefix) && (to == null || it.startsBefore(to)) }
         val runs = arrayOfNulls<Run>(1 + frozen.size + ordered.size)
         var at = 0
         runs[at++] = MemTableRun(active)

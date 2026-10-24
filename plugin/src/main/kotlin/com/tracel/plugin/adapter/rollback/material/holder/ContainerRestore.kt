@@ -16,10 +16,17 @@ import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.specifics.inventory.BREWING_FUEL
 import com.tracel.plugin.specifics.inventory.BREWING_FUEL_CHARGES
 import io.papermc.paper.block.TileStateInventoryHolder
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import org.bukkit.Location
 import org.bukkit.block.*
 import org.bukkit.inventory.InventoryHolder
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 private const val NOT_A_CONTAINER = "block is no longer a container"
 private val NOT_A_CONTAINER_FAILURE = ApplyResult.Failed(NOT_A_CONTAINER)
@@ -121,8 +128,26 @@ internal suspend fun MaterialRestorer.applyToContainer(
 }
 
 /** Where [holder]'s stacks sat at [asOf]. */
-internal suspend fun MaterialRestorer.layoutFor(holder: HolderId, asOf: Long): List<ContainerSlotEntry>? =
-    services.containerSlots.layoutAt(holder, asOf) ?: services.containerSlots.layoutAt(holder, Long.MAX_VALUE)
+internal suspend fun MaterialRestorer.layoutFor(holder: HolderId, asOf: Long): List<ContainerSlotEntry>? {
+    currentCoroutineContext()[Layouts]?.takeIf { it.asOf == asOf && holder in it.byHolder }?.let { return it.byHolder[holder] }
+    return services.containerSlots.layoutAt(holder, asOf) ?: services.containerSlots.layoutAt(holder, Long.MAX_VALUE)
+}
+
+/** Layouts read before the hop onto a region or entity thread. */
+internal class Layouts(
+    val asOf: Long,
+    val byHolder: Map<HolderId, List<ContainerSlotEntry>?>,
+) : AbstractCoroutineContextElement(Layouts) {
+    companion object Key : CoroutineContext.Key<Layouts>
+}
+
+/** [layoutFor] of all of [holders] at once, off the region thread, ready for [Layouts] to carry across the hop. */
+internal suspend fun MaterialRestorer.layoutsFor(holders: Collection<HolderId>, asOf: Long?): CoroutineContext {
+    if (asOf == null || holders.isEmpty()) return EmptyCoroutineContext
+    val list = holders.toList()
+    val found = coroutineScope { list.map { async { layoutFor(it, asOf) } }.awaitAll() }
+    return Layouts(asOf, list.zip(found).toMap())
+}
 
 private fun primeBrewingStandFuel(state: BrewingStand) {
     if (state.fuelLevel > 0) return
