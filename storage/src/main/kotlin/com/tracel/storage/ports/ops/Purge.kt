@@ -10,6 +10,7 @@ import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
 import com.tracel.storage.codec.records.Lot as LotRecord
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
 
 /** Deletes the `Tracel`'s history. */
 suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
@@ -67,15 +68,17 @@ suspend fun rebuildTotals(storage: TracelStorage) {
         eachRow(Keys.tagPrefix(Keys.TOTAL)) { cursor -> keys += cursor.key() }
         keys.forEach(::delete)
 
-        val totals = HashMap<Long, Long>()
+        val totals = Long2LongOpenHashMap()
         eachRow(Keys.tagPrefix(Keys.PACK_ITEM)) { cursor ->
             val key = cursor.key()
             val itemKeyId = KeyReader.u32(key, 1)
             val holderId = KeyReader.u32(key, 5)
             val packed = (holderId.toLong() shl 32) or (itemKeyId.toLong() and 0xFFFFFFFFL) // -> 64
-            totals.merge(packed, LotRecord.sumOf(cursor.value()), Long::plus)
+            totals.addTo(packed, LotRecord.sumOf(cursor.value()))
         }
-        for ((packed, total) in totals) {
+        for (entry in totals.long2LongEntrySet()) {
+            val packed = entry.longKey
+            val total = entry.longValue
             if (total == 0L) continue
             put(
                 Keys.total((packed ushr 32).toInt(), packed.toInt()),

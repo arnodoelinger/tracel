@@ -12,6 +12,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.intern.Interning
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -115,11 +116,11 @@ class Drainer(
         val events = overflowed?.events ?: collected.events
         if (events.isEmpty()) return 0
 
-        val unparked = ArrayList<Int>()
+        val unparked = IntArrayList()
         storage.batched {
             for (event in events) {
                 if (event is RingEvent.Release && event.fromHolderId == CaptureRing.PARKED) {
-                    unparked += event.toHolderId
+                    unparked.add(event.toHolderId)
                     val parked = ring.parked(event.toHolderId) ?: continue
                     val mark = storage.read { mark() }
                     try {

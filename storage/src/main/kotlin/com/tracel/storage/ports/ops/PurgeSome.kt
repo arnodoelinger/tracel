@@ -11,7 +11,7 @@ import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.ContainerSlot
 import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.spi.HistorySegment
-import com.tracel.storage.util.LongSetUtils
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.lang.foreign.MemorySegment
@@ -62,7 +62,7 @@ private class Analysis {
     var matched = 0L
     var oldest = Long.MAX_VALUE
     var newest = Long.MIN_VALUE
-    var seqs: LongSetUtils? = null
+    var seqs: LongOpenHashSet? = null
     var keys: HashSet<ByteBuffer>? = null
 
     fun took(epoch: Long) {
@@ -177,7 +177,7 @@ private suspend fun analyze(
     everything: Boolean,
 ): Analysis = storage.read {
     val analysis = Analysis()
-    if (!everything && category != PurgeCategory.CONTAINERS) analysis.seqs = LongSetUtils()
+    if (!everything && category != PurgeCategory.CONTAINERS) analysis.seqs = LongOpenHashSet()
     when (category) {
         PurgeCategory.BLOCKS -> storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.WCHG)) { cursor ->
             while (cursor.next()) {

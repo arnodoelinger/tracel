@@ -11,6 +11,7 @@ import com.tracel.storage.intern.Interning
 import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.util.siftDown
 import com.tracel.storage.util.siftUp
+import it.unimi.dsi.fastutil.longs.LongArrayList
 
 /**
  * One cursor's worth of an index scan: what to walk, where to start, and — for a spatial column
@@ -192,8 +193,8 @@ internal fun StorageUnit.gatherSeqs(
     wanted: Int,
     excludedCauses: Set<CauseKind> = emptySet(),
     region: LookupRegion? = null,
-): ArrayList<Long> {
-    val out = ArrayList<Long>()
+): LongArrayList {
+    val out = LongArrayList()
     if (scans != null && scans.isEmpty()) return out
     if (scans != null && wanted >= BATCHED_FROM) {
         if (scans.size == 1) {
@@ -204,9 +205,9 @@ internal fun StorageUnit.gatherSeqs(
             )
             return out
         }
-        val parts = arrayOfNulls<ArrayList<Long>>(scans.size)
+        val parts = arrayOfNulls<LongArrayList>(scans.size)
         java.util.stream.IntStream.range(0, scans.size).parallel().forEach { i ->
-            val part = ArrayList<Long>()
+            val part = LongArrayList()
             walkColumn(
                 scans[i], since, until, excludedCauses, region,
                 worldOut = if (kind == LogKind.WORLD) part else null,
@@ -221,7 +222,7 @@ internal fun StorageUnit.gatherSeqs(
         return out
     }
 
-    val drive = { seq: Long -> out += seq; out.size }
+    val drive = { seq: Long -> out.add(seq); out.size }
     if (scans != null) {
         mergeDescending(
             scans, kind, wanted, drive,
@@ -240,8 +241,8 @@ internal fun StorageUnit.walkColumn(
     untilMillis: Long?,
     excludedCauses: Set<CauseKind>,
     region: LookupRegion?,
-    worldOut: ArrayList<Long>?,
-    txnOut: ArrayList<Long>?,
+    worldOut: LongArrayList?,
+    txnOut: LongArrayList?,
     worldRows: SpatialRows? = null,
 ) {
     var rows = 0L
@@ -287,7 +288,7 @@ internal fun StorageUnit.walkColumn(
             }
             kept++
             val seq = seqOf(cursor)
-            dest += seq
+            dest.add(seq)
             if (worldRows == null || kind != LogKind.WORLD) continue
             // The row is read here. Or not at all
             val inline = Records.logKindHasInline(value)
@@ -316,20 +317,20 @@ internal fun StorageUnit.gatherBoth(
     excludedCauses: Set<CauseKind>,
     region: LookupRegion? = null,
     worldRows: SpatialRows? = null,
-): Pair<ArrayList<Long>, ArrayList<Long>> {
-    if (scans.isEmpty()) return ArrayList<Long>() to ArrayList()
+): Pair<LongArrayList, LongArrayList> {
+    if (scans.isEmpty()) return LongArrayList() to LongArrayList()
     if (scans.size == 1) {
-        val world = ArrayList<Long>()
-        val txns = ArrayList<Long>()
+        val world = LongArrayList()
+        val txns = LongArrayList()
         walkColumn(scans[0], since, until, excludedCauses, region, world, txns, worldRows)
         return world to txns
     }
-    val worlds = arrayOfNulls<ArrayList<Long>>(scans.size)
-    val txns = arrayOfNulls<ArrayList<Long>>(scans.size)
+    val worlds = arrayOfNulls<LongArrayList>(scans.size)
+    val txns = arrayOfNulls<LongArrayList>(scans.size)
     val rows = arrayOfNulls<SpatialRows>(scans.size)
     java.util.stream.IntStream.range(0, scans.size).parallel().forEach { i ->
-        val world = ArrayList<Long>()
-        val txn = ArrayList<Long>()
+        val world = LongArrayList()
+        val txn = LongArrayList()
         val part = if (worldRows == null) null else SpatialRows()
         walkColumn(scans[i], since, until, excludedCauses, region, world, txn, part)
         worlds[i] = world
@@ -345,8 +346,8 @@ internal fun StorageUnit.gatherBoth(
         rN += rows[i]?.size ?: 0
     }
     worldRows?.reserve(rN)
-    val world = ArrayList<Long>(wN)
-    val txn = ArrayList<Long>(tN)
+    val world = LongArrayList(wN)
+    val txn = LongArrayList(tN)
     for (i in scans.indices) {
         world.addAll(worlds[i]!!)
         txn.addAll(txns[i]!!)
@@ -360,9 +361,9 @@ internal fun StorageUnit.gatherBothByTime(
     until: Long?,
     excludedCauses: Set<CauseKind>,
     region: LookupRegion? = null,
-): Pair<ArrayList<Long>, ArrayList<Long>> {
-    val world = ArrayList<Long>()
-    val txns = ArrayList<Long>()
+): Pair<LongArrayList, LongArrayList> {
+    val world = LongArrayList()
+    val txns = LongArrayList()
     val prefix = byteArrayOf(Keys.TIME)
     val from = if (until != null) Keys.timeFrom(until) else prefix
     scan(prefix, from).use { cursor ->
@@ -386,7 +387,7 @@ internal fun StorageUnit.gatherBothByTime(
                     )
                 ) continue
             }
-            dest += Keys.invert(KeyReader.u64(key, 9))
+            dest.add(Keys.invert(KeyReader.u64(key, 9)))
         }
     }
     return world to txns
@@ -403,7 +404,7 @@ internal fun StorageUnit.gatherForFilter(
     excludedCauses: Set<CauseKind>,
     region: LookupRegion?,
     worldRows: SpatialRows? = null,
-): Pair<ArrayList<Long>, ArrayList<Long>> = when {
+): Pair<LongArrayList, LongArrayList> = when {
     scans != null -> gatherBoth(scans, since, until, excludedCauses, region, worldRows)
     else -> gatherBothByTime(since, until, excludedCauses, region = null)
 }

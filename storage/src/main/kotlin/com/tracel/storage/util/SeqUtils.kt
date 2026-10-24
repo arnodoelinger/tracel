@@ -1,10 +1,12 @@
 package com.tracel.storage.util
 
+import it.unimi.dsi.fastutil.longs.LongArrayList
+
 private const val MIN_PAGE_SLICE = 256
 private const val MAX_PAGE_SLICE = 1 shl 20
 
 /** The candidates as a sorted array. Indexes hand back what they find, not what anyone asked for. */
-internal fun ascending(candidates: List<Long>): LongArray {
+internal fun ascending(candidates: LongArrayList): LongArray {
     val seqs = candidates.toLongArray()
     java.util.Arrays.sort(seqs)
     var kept = 0
@@ -14,7 +16,7 @@ internal fun ascending(candidates: List<Long>): LongArray {
 
 /** Candidates [pageAccepted] kept, ascending, with the record each one was accepted on. */
 internal class Accepted(capacity: Int = 16) {
-    val seqs = ArrayList<Long>(capacity)
+    val seqs = LongArrayList(capacity)
     val records = ArrayList<java.lang.foreign.MemorySegment>(capacity)
 }
 
@@ -36,7 +38,7 @@ internal fun pageAccepted(
         val start = (end - chunk).coerceAtLeast(0)
         val part = Accepted()
         fetch(if (start == 0 && end == seqs.size) seqs else seqs.copyOfRange(start, end)) { seq, record ->
-            part.seqs += seq
+            part.seqs.add(seq)
             part.records += record
         }
         slices += part
@@ -46,7 +48,7 @@ internal fun pageAccepted(
     }
     val all = Accepted(total.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
     for (part in slices.asReversed()) {
-        all.seqs += part.seqs
+        all.seqs.addAll(part.seqs)
         all.records += part.records
     }
     val n = all.seqs.size
@@ -54,7 +56,7 @@ internal fun pageAccepted(
     val from = (to - limit).coerceAtLeast(0)
     if (from == 0 && to == n) return all
     return Accepted(to - from).also {
-        it.seqs += all.seqs.subList(from, to)
+        it.seqs.addAll(all.seqs.subList(from, to))
         it.records += all.records.subList(from, to)
     }
 }

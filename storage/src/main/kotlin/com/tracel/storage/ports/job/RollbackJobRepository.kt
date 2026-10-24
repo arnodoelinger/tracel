@@ -21,6 +21,7 @@ import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
 import com.tracel.storage.util.eachRow
+import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap
 import java.lang.foreign.MemorySegment
 import com.tracel.engine.rollback.job.record.RollbackJobRepository as RollbackJobRepositoryPort
 
@@ -212,11 +213,17 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
         val dataOf = { data: BlockDataKey -> storage.interning.internBlockData(unit, data) }
         val typeOf = { type: EntityTypeKey -> storage.interning.internEntityType(unit, type) }
 
-        val bySection = LinkedHashMap<Long, MutableList<StructureStep.SetBlock>>()
+        val bySection = Long2ObjectLinkedOpenHashMap<MutableList<StructureStep.SetBlock>>()
         val loose = ArrayList<StructureStep>()
         for (step in steps) {
             if (step is StructureStep.SetBlock) {
-                bySection.getOrPut(sectionOf(step.at)) { ArrayList() } += step
+                val section = sectionOf(step.at)
+                var group = bySection.get(section)
+                if (group == null) {
+                    group = ArrayList()
+                    bySection.put(section, group)
+                }
+                group += step
             } else {
                 loose += step
             }

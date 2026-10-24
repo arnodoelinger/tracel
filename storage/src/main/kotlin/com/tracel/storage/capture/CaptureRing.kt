@@ -11,6 +11,7 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.storage.codec.CaptureSlot
 import com.tracel.storage.ffm.OffHeapRing
 import com.tracel.storage.intern.Interning
+import it.unimi.dsi.fastutil.ints.IntList
 import kotlinx.coroutines.delay
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -310,8 +311,8 @@ class CaptureRing(
 
     internal fun parked(token: Int): Any? = parked[token]
 
-    internal fun forgetParked(tokens: Collection<Int>) {
-        for (token in tokens) parked.remove(token)
+    internal fun forgetParked(tokens: IntList) {
+        for (i in 0 until tokens.size) parked.remove(tokens.getInt(i))
     }
 
     override fun close() {

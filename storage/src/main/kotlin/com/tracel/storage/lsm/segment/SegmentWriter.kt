@@ -8,6 +8,7 @@ import com.tracel.storage.lsm.read.Run
 import com.tracel.storage.lsm.read.minimumOf
 import com.tracel.storage.lsm.state.Manifest
 import com.tracel.storage.lsm.write.MemTable
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap
 import java.lang.foreign.ValueLayout
 import java.nio.file.Path
 
@@ -79,17 +80,18 @@ internal class SegmentWriter(
      * the window that is open right now. Flush, recovery and shutdown all mean exactly this.
      */
     fun seal(table: MemTable, nextId: () -> Long, horizon: Long): List<SegmentReader> {
-        val counts = HashMap<Int, Int>()
+        val counts = Int2IntOpenHashMap()
         val census = MemTableRun(table)
         census.seek(EMPTY)
         while (census.valid) {
-            counts.merge(categoryOf(census), 1, Int::plus)
+            counts.addTo(categoryOf(census), 1)
             census.next()
         }
         if (counts.isEmpty()) return emptyList()
 
         val window = config.windowOf(config.clock())
-        return counts.entries.sortedBy { it.key }.map { (category, entries) ->
+        return counts.keys.toIntArray().sorted().map { category ->
+            val entries = counts.get(category)
             write(
                 arrayOf(MemTableRun(table)),
                 nextId(),

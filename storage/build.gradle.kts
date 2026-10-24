@@ -10,6 +10,9 @@ dependencies {
     implementation(libs.caffeine)
     implementation(libs.zstd)
 
+    compileOnly(libs.fastutil)
+
+    testImplementation(libs.fastutil)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.hdrhistogram)
     testImplementation(testFixtures(project(":tests")))
