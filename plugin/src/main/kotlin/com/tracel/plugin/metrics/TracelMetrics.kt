@@ -10,11 +10,13 @@ import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.status.disk.DiskLevel
 import org.bstats.bukkit.Metrics
 import org.bstats.charts.AdvancedPie
+import org.bstats.charts.DrilldownPie
 import org.bstats.charts.SimplePie
 import org.bstats.charts.SingleLineChart
 import org.bstats.json.JsonObjectBuilder
 import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -99,8 +101,14 @@ internal object TracelMetrics {
 
     private fun state(metrics: Metrics, services: TracelServices, settings: Settings) {
         val store = StoreSample(services)
-        metrics.pie("database_size") { sizeBucket(store.read().liveBytes) }
-        metrics.pie("history_rows") { rowsBucket(store.read().rows) }
+        metrics.drill("database_size") {
+            val bytes = store.read().liveBytes
+            mapOf(sizeBucket(bytes) to mapOf(sizeExact(bytes) to 1))
+        }
+        metrics.drill("history_rows") {
+            val rows = store.read().rows
+            mapOf(rowsBucket(rows) to mapOf(rowsExact(rows) to 1))
+        }
         metrics.pie("bytes_per_row") {
             val now = store.read()
             if (now.rows < 100_000) null else perRowBucket(now.liveBytes / now.rows)
@@ -116,16 +124,19 @@ internal object TracelMetrics {
         metrics.pie("capture_ring_peak") {
             fillBucket(Telemetry.drainPeakBacklog() * 100 / settings.store.ringSlots.coerceAtLeast(1))
         }
-        metrics.pie("capture_losses") {
+        metrics.drill("capture_losses") {
             val ring = services.store.capture
-            when {
-                ring.dropped > 0 -> "events lost"
-                ring.ringFull > 0 -> "ring filled, nothing lost"
-                else -> "none"
+            val entities = services.entityCapture.dropped
+            val lost = buildMap {
+                if (ring.dropped > 0) put("capture queue", mapOf(lostBucket(ring.dropped) to 1))
+                if (entities > 0) put("entity queue", mapOf(lostBucket(entities) to 1))
+            }
+            lost.ifEmpty {
+                mapOf((if (ring.ringFull > 0) "queue filled, nothing lost" else "none") to mapOf("none lost" to 1))
             }
         }
         metrics.line("events_logged", since { services.counters.seqIssued })
-        metrics.line("events_lost", since { services.store.capture.dropped })
+        metrics.line("events_lost", since { services.store.capture.dropped + services.entityCapture.dropped })
         metrics.shares("player_languages") {
             Bukkit.getOnlinePlayers().groupingBy { it.locale().language.ifEmpty { "unknown" } }.eachCount()
         }
@@ -134,11 +145,11 @@ internal object TracelMetrics {
     private fun activity(metrics: Metrics, services: TracelServices) {
         val counted = listOf(
             Telemetry.COMMANDS, Telemetry.LOOKUP_FLAGS, Telemetry.ROLLBACK_FLAGS, Telemetry.ROLLBACK_RADIUS,
-            Telemetry.ROLLBACK_WINDOW, Telemetry.ROLLBACK_OUTCOMES, Telemetry.ROLLBACK_SIZES, Telemetry.ROLLBACK_TIME,
-            Telemetry.ROLLBACK_SPEED, Telemetry.UNDO_OUTCOMES, Telemetry.ERRORS, Telemetry.WARNINGS,
+            Telemetry.ROLLBACK_WINDOW, Telemetry.ROLLBACK_OUTCOMES, Telemetry.ROLLBACK_SIZES, Telemetry.ROLLBACK_SPEED, Telemetry.UNDO_OUTCOMES, Telemetry.ERRORS, Telemetry.WARNINGS,
         )
         for (chart in counted) metrics.shares(chart) { Telemetry.drain(chart) }
-        metrics.line("rollbacks_running") { services.composite.activeRollbacks.size }
+        metrics.drill(Telemetry.ROLLBACK_TIME) { Telemetry.drainInside(Telemetry.ROLLBACK_TIME) }
+        metrics.line("rollbacks_done") { Telemetry.drainRollbacksDone().coerceAtMost(Int.MAX_VALUE.toLong()).toInt() }
     }
 
     private fun Metrics.pie(id: String, read: () -> String?) =
@@ -146,6 +157,9 @@ internal object TracelMetrics {
 
     private fun Metrics.shares(id: String, read: () -> Map<String, Int>) =
         addCustomChart(AdvancedPie(id) { runCatching(read).getOrDefault(emptyMap()) })
+
+    private fun Metrics.drill(id: String, read: () -> Map<String, Map<String, Int>>) =
+        addCustomChart(DrilldownPie(id) { runCatching(read).getOrDefault(emptyMap()) })
 
     private fun Metrics.line(id: String, read: () -> Int) =
         addCustomChart(SingleLineChart(id) { runCatching(read).getOrDefault(0) })
@@ -175,18 +189,50 @@ internal object TracelMetrics {
 
     internal fun sizeBucket(bytes: Long): String = when {
         bytes < 100 * MIB -> "under 100 MiB"
-        bytes < GIB -> "100 MiB - 1 GiB"
-        bytes < 10 * GIB -> "1-10 GiB"
-        bytes < 50 * GIB -> "10-50 GiB"
-        else -> "50 GiB+"
+        bytes < 500 * MIB -> "100-500 MiB"
+        bytes < GIB -> "500 MiB-1 GiB"
+        bytes < 5 * GIB -> "1-5 GiB"
+        bytes < 10 * GIB -> "5-10 GiB"
+        bytes < 25 * GIB -> "10-25 GiB"
+        bytes < 50 * GIB -> "25-50 GiB"
+        bytes < 100 * GIB -> "50-100 GiB"
+        bytes < 250 * GIB -> "100-250 GiB"
+        bytes < 500 * GIB -> "250-500 GiB"
+        bytes < 1024 * GIB -> "500 GiB-1 TiB"
+        else -> "1 TiB+"
+    }
+
+    internal fun sizeExact(bytes: Long): String = when {
+        bytes < GIB -> "${bytes / MIB / 10 * 10} MiB"
+        bytes < 10 * GIB -> "%.1f GiB".format(Locale.ROOT, bytes / (GIB / 10) / 10.0)
+        bytes < 1024 * GIB -> "${bytes / GIB} GiB"
+        else -> "%.1f TiB".format(Locale.ROOT, bytes / (GIB * 1024 / 10) / 10.0)
     }
 
     internal fun rowsBucket(rows: Long): String = when {
         rows < 1_000_000 -> "under 1M"
         rows < 10_000_000 -> "1M-10M"
         rows < 100_000_000 -> "10M-100M"
-        rows < 1_000_000_000 -> "100M-1B"
-        else -> "1B+"
+        rows < 500_000_000 -> "100M-500M"
+        rows < 1_000_000_000 -> "500M-1B"
+        rows < 5_000_000_000 -> "1B-5B"
+        else -> "5B+"
+    }
+
+    internal fun rowsExact(rows: Long): String = when {
+        rows < 1_000_000 -> "${rows / 100_000 * 100}k"
+        rows < 10_000_000 -> "%.1fM".format(Locale.ROOT, rows / 500_000 * 0.5)
+        rows < 1_000_000_000 -> "${rows / 10_000_000 * 10}M"
+        else -> "%.1fB".format(Locale.ROOT, rows / 100_000_000 / 10.0)
+    }
+
+    internal fun lostBucket(lost: Long): String = when {
+        lost < 2 -> "1"
+        lost < 10 -> "2-9"
+        lost < 100 -> "10-99"
+        lost < 1_000 -> "100-999"
+        lost < 10_000 -> "1k-10k"
+        else -> "10k+"
     }
 
     internal fun perRowBucket(bytes: Long): String = when {

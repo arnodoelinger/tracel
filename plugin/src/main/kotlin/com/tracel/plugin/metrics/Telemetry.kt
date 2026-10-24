@@ -4,6 +4,7 @@ import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.LookupScope
 import com.tracel.api.rollback.RollbackApplied
 import com.tracel.plugin.status.rollback.RollbackSize
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.LongAdder
@@ -30,18 +31,36 @@ internal object Telemetry {
     const val MAX_KEYS = 64
     const val OTHER = "other"
 
+    /** Joins a drilldown chart's slice to the exact value inside it, in the one counter key. */
+    private const val DRILL = '\u001f'
+
     private const val OWN_PACKAGE = "com.tracel."
     private const val HOUR = 3_600_000L
     private const val DAY = 24 * HOUR
 
     private val charts = ConcurrentHashMap<String, ConcurrentHashMap<String, LongAdder>>()
     private val peakBacklog = AtomicLong()
+    private val rollbacksDone = LongAdder()
 
     /** One more of [key] on [chart]. Any thread. */
     fun count(chart: String, key: String) {
         val keys = charts.computeIfAbsent(chart) { ConcurrentHashMap() }
         val adder = keys[key] ?: keys.computeIfAbsent(if (keys.size >= MAX_KEYS) OTHER else key) { LongAdder() }
         adder.increment()
+    }
+
+    /** One more of [inner] inside the slice [outer] of a drilldown [chart]. */
+    fun countInside(chart: String, outer: String, inner: String) = count(chart, outer + DRILL + inner)
+
+    /** [drain] of a drilldown chart: its slices, each with the exact values counted inside. */
+    fun drainInside(chart: String): Map<String, Map<String, Int>> {
+        val out = HashMap<String, HashMap<String, Int>>()
+        for ((key, n) in drain(chart)) {
+            val outer = key.substringBefore(DRILL)
+            val inner = if (DRILL in key) key.substringAfter(DRILL) else key
+            out.getOrPut(outer) { HashMap() }.merge(inner, n, Int::plus)
+        }
+        return out
     }
 
     /** What [chart] counted since it was last asked, and back to zero. */
@@ -114,9 +133,13 @@ internal object Telemetry {
         rollback(if (done.skipped == 0 && done.itemsRestored) "clean" else "partial")
         val records = done.records.toLong()
         count(ROLLBACK_SIZES, RollbackSize.of(records).key)
-        count(ROLLBACK_TIME, tookBucket(tookMillis))
+        rollbacksDone.increment()
+        countInside(ROLLBACK_TIME, tookBucket(tookMillis), tookExact(tookMillis))
         if (records > 0 && tookMillis >= 100) count(ROLLBACK_SPEED, speedBucket(records * 1000 / tookMillis))
     }
+
+    /** Rollbacks that went through since this was last asked, and back to zero. */
+    fun drainRollbacksDone(): Long = rollbacksDone.sumThenReset()
 
     /** How an undo ended. */
     fun undo(outcome: String) = count(UNDO_OUTCOMES, outcome)
@@ -158,11 +181,26 @@ internal object Telemetry {
     }
 
     internal fun tookBucket(millis: Long): String = when {
-        millis < 1_000 -> "under 1s"
-        millis < 5_000 -> "1-5s"
-        millis < 30_000 -> "5-30s"
-        millis < 120_000 -> "30s-2m"
-        else -> "2m+"
+        millis < 300 -> "instantly"
+        millis < 1_000 -> "0.3-1s"
+        millis < 2_000 -> "1-2s"
+        millis < 3_000 -> "2-3s"
+        millis < 5_000 -> "3-5s"
+        millis < 10_000 -> "5-10s"
+        millis < 15_000 -> "10-15s"
+        millis < 30_000 -> "15-30s"
+        millis < 60_000 -> "30-60s"
+        millis < 120_000 -> "1-2m"
+        millis < 300_000 -> "2-5m"
+        else -> "5m+"
+    }
+
+    internal fun tookExact(millis: Long): String = when {
+        millis < 300 -> "%d ms".format(Locale.ROOT, millis / 100 * 100)
+        millis < 10_000 -> "%.1fs".format(Locale.ROOT, millis / 500 * 0.5)
+        millis < 60_000 -> "${millis / 5_000 * 5}s"
+        millis < 600_000 -> "${millis / 60_000}m${(millis % 60_000) / 30_000 * 30}s"
+        else -> "10m+"
     }
 
     internal fun speedBucket(perSecond: Long): String = when {
