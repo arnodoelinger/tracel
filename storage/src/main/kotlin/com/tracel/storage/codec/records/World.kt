@@ -37,6 +37,7 @@ object World {
     private const val EXTRAS_FALLING: Byte = 2
     private const val EXTRAS_LEASHED: Byte = 3
     private const val EXTRAS_RIDING: Byte = 4
+    private const val EXTRAS_INFLATED: Byte = 5
     private const val POSE_BYTES = 33
     private const val BLOCK_EXTRAS_AT = 44L
     private const val ENTITY_EXTRAS_AT = 56L
@@ -45,16 +46,18 @@ object World {
 
     fun blockExtras(extras: BlockExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
-        is BlockExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.bytes)
+        is BlockExtras.Opaque -> opaque(extras.bytes)
     }
 
     fun decodeBlockExtras(bytes: ByteArray): BlockExtras? = decodeBlockExtras(MemorySegment.ofArray(bytes), 0L, bytes.size)
 
     fun decodeBlockExtras(v: MemorySegment, at: Long, length: Int): BlockExtras? {
         if (length == 0) return null
-        val tag = v.i8(at)
-        if (tag != EXTRAS_OPAQUE) error("unrecognized block extras tag: $tag.")
-        return BlockExtras.Opaque(v.readBytes(at + 1, length - 1))
+        return when (val tag = v.i8(at)) {
+            EXTRAS_OPAQUE -> BlockExtras.Opaque(v.readBytes(at + 1, length - 1))
+            EXTRAS_INFLATED -> BlockExtras.Opaque(Gzipped.deflate(v.readBytes(at + 1, length - 1)))
+            else -> error("unrecognized block extras tag: $tag.")
+        }
     }
 
     fun blockChangeBeforeBlockExtras(v: MemorySegment): BlockExtras? =
@@ -65,7 +68,7 @@ object World {
 
     fun entityExtras(extras: EntityExtras?): ByteArray = when (extras) {
         null -> ByteArray(0)
-        is EntityExtras.Opaque -> tagged(EXTRAS_OPAQUE, extras.bytes)
+        is EntityExtras.Opaque -> opaque(extras.bytes)
         is EntityExtras.Falling -> tagged(EXTRAS_FALLING, extras.data.value.toByteArray(Charsets.UTF_8))
         is EntityExtras.Leashed -> link(EXTRAS_LEASHED, extras.holder, extras.rest)
         is EntityExtras.Riding -> link(EXTRAS_RIDING, extras.vehicle, extras.rest)
@@ -87,6 +90,7 @@ object World {
         if (length == 0) return null
         return when (val tag = v.i8(at)) {
             EXTRAS_OPAQUE -> EntityExtras.Opaque(v.readBytes(at + 1, length - 1))
+            EXTRAS_INFLATED -> EntityExtras.Opaque(Gzipped.deflate(v.readBytes(at + 1, length - 1)))
             EXTRAS_FALLING -> EntityExtras.Falling(BlockDataKey(String(v.readBytes(at + 1, length - 1), Charsets.UTF_8)))
             EXTRAS_LEASHED -> EntityExtras.Leashed(linkTarget(v, at, length), linkRest(v, at, length))
             EXTRAS_RIDING -> EntityExtras.Riding(linkTarget(v, at, length), linkRest(v, at, length))
@@ -135,7 +139,7 @@ object World {
                 )
             }
 
-            EXTRAS_OPAQUE -> EntityShape(
+            EXTRAS_OPAQUE, EXTRAS_INFLATED -> EntityShape(
                 type,
                 at.x + 0.5,
                 at.y.toDouble(),
@@ -243,7 +247,10 @@ object World {
         }
     }
 
-    @Suppress("SameParameterValue")
+    private fun opaque(bytes: ByteArray): ByteArray =
+        Gzipped.inflate(bytes, limit = MAX_EXTRAS_BYTES / 2)?.let { tagged(EXTRAS_INFLATED, it) }
+            ?: tagged(EXTRAS_OPAQUE, bytes)
+
     private fun tagged(tag: Byte, payload: ByteArray): ByteArray =
         ByteArray(1 + payload.size).also { it[0] = tag; payload.copyInto(it, 1) }
 }

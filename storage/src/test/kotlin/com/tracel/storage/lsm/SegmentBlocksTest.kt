@@ -8,8 +8,12 @@ import com.tracel.storage.lsm.segment.SegmentReader
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Arrays
+import kotlin.random.Random
 
 class SegmentBlocksTest {
     private val rows = 5_000
@@ -102,6 +106,53 @@ class SegmentBlocksTest {
         SegmentFile.open(path, meta).use { reader ->
             val failure = runCatching { assertReadsWhole(reader) }.exceptionOrNull()
             assertTrue(failure is IllegalStateException, "rot must stop the read, got $failure")
+        }
+    }
+
+    @Test
+    fun `index rows go to disk as planes and read back the same`(@TempDir dir: Path) {
+        fun indexKey(i: Int): ByteArray {
+            val position = i / 7
+            val seq = (i * 2_654_435_761L) and 0xFFFFFF
+            return byteArrayOf(0x18, 0, 0, 0, 1) + ByteArray(12) { (position ushr ((11 - it) * 4)).toByte() } +
+                ByteArray(8) { ((Long.MAX_VALUE - seq) ushr (56 - it * 8)).toByte() }
+        }
+
+        val keys = (0 until rows).map(::indexKey).distinctBy { it.toList() }.sortedWith(Arrays::compareUnsigned)
+        fun written(version: Int): SegmentReader {
+            val path = dir.resolve("index-v$version.seg")
+            val meta = SegmentFile.Writer(path, keys.size, version = version).use { writer ->
+                for ((i, key) in keys.withIndex()) writer.add(internal(key), if (i % 11 == 0) null else ByteArray(0))
+                writer.finish(1, 0)
+            }
+            return SegmentFile.open(path, meta)
+        }
+
+        written(SegmentFile.PLANES_SINCE - 1).use { rows ->
+            written(SegmentFile.VERSION).use { planes ->
+                assertTrue(planes.meta.fileBytes < rows.meta.fileBytes, "${planes.meta.fileBytes} against ${rows.meta.fileBytes}")
+                val bytes = Files.readAllBytes(dir.resolve("index-v${SegmentFile.VERSION}.seg"))
+                val flags = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).getInt(4)
+                assertTrue(flags and SegmentFile.FLAG_PLANES != 0, "first block is not planes")
+
+                val a = SegmentRun(rows).apply { seek(ByteArray(0)) }
+                val b = SegmentRun(planes).apply { seek(ByteArray(0)) }
+                var count = 0
+                while (a.valid) {
+                    assertTrue(b.valid, "row $count")
+                    assertArrayEquals(a.userKeyBytes(), b.userKeyBytes(), "row $count")
+                    assertEquals(a.isDeletion(), b.isDeletion(), "row $count")
+                    a.next()
+                    b.next()
+                    count++
+                }
+                assertFalse(b.valid)
+                assertEquals(keys.size, count)
+                for (key in keys.shuffled(Random(7)).take(500)) {
+                    b.seek(InternalKey.seekTarget(key))
+                    assertArrayEquals(key, b.userKeyBytes())
+                }
+            }
         }
     }
 }

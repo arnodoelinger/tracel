@@ -28,6 +28,7 @@ import java.util.zip.CRC32C
  * data   -> repeated block:
  *           [u32 uncompressed][u32 flags|payload][payload][u32 crc32c]
  *           payload, uncompressed: the records, then [u32 offset] per restart, then [u32 restarts]
+ *           or, with FLAG_PLANES, the same block as [BlockPlanes]; v3 on
  *           crc32c covers the eight header bytes and the payload as stored; absent before v2
  * index  -> [u32 keyLen][internal key][u64 blockOffset]  ... one per block
  * bloom  -> [u32 bitCount][u32 hashCount][bits]
@@ -43,12 +44,14 @@ object SegmentFile {
     const val OLDEST_VERSION = 1
     const val RESTARTS_SINCE = 2
     const val CHECKSUMS_SINCE = 2
+    const val PLANES_SINCE = 3
     const val CHECKSUM_BYTES = 4
     const val RESTART_INTERVAL = 32
     const val FOOTER_BYTES = 40
     const val BLOCK_TARGET = 32 * 1024
     const val FLAG_ZSTD = 1 shl 31
-    const val PAYLOAD_MASK = 0x7FFFFFFF
+    const val FLAG_PLANES = 1 shl 30
+    const val PAYLOAD_MASK = 0x3FFFFFFF
     const val FLUSH_ZSTD_LEVEL = 5
     const val COMPACTION_ZSTD_LEVEL = 19
 
@@ -66,6 +69,7 @@ object SegmentFile {
     ) : AutoCloseable {
         private val tabled = version >= RESTARTS_SINCE
         private val summed = version >= CHECKSUMS_SINCE
+        private val planed = version >= PLANES_SINCE
 
         private val file = java.io.FileOutputStream(path.toFile())
         private val out: OutputStream = BufferedOutputStream(file, 1 shl 16)
@@ -192,15 +196,27 @@ object SegmentFile {
         }
 
         private fun writeBlock(raw: ByteArray, length: Int) {
-            val bound = Zstd.compressBound(length.toLong()).toInt()
-            val packedBuf = ByteArray(bound)
-            val packed = Zstd.compressByteArray(packedBuf, 0, bound, raw, 0, length, zstdLevel).toInt()
-            val worthIt = packed in 1 until length
-            val payload = if (worthIt) packed else length
-            val flags = if (worthIt) payload or FLAG_ZSTD else payload
-            val body = if (worthIt) packedBuf else raw
+            var inputLength = length
+            var body = zstd(raw, length)
+            var flags = FLAG_ZSTD
+            if (planed) {
+                val turned = BlockPlanes.encode(raw, length)
+                val packed = zstd(turned, turned.size)
+                if (packed != null && (body == null || packed.size < body.size)) {
+                    inputLength = turned.size
+                    body = packed
+                    flags = FLAG_ZSTD or FLAG_PLANES
+                }
+            }
+            if (body == null || body.size >= length) {
+                inputLength = length
+                body = raw.copyOf(length)
+                flags = 0
+            }
+            val payload = body.size
+            flags = flags or payload
 
-            LE_INT.set(header, 0, length)
+            LE_INT.set(header, 0, inputLength)
             LE_INT.set(header, 4, flags)
             out.write(header, 0, 8)
             out.write(body, 0, payload)
@@ -214,6 +230,13 @@ object SegmentFile {
                 out.write(header, 0, CHECKSUM_BYTES)
                 dataBytes += CHECKSUM_BYTES
             }
+        }
+
+        private fun zstd(input: ByteArray, length: Int): ByteArray? {
+            val bound = Zstd.compressBound(length.toLong()).toInt()
+            val packed = ByteArray(bound)
+            val size = Zstd.compressByteArray(packed, 0, bound, input, 0, length, zstdLevel)
+            return if (Zstd.isError(size) || size <= 0) null else packed.copyOf(size.toInt())
         }
 
         private fun ensureBlock(more: Int) {
@@ -473,6 +496,7 @@ class SegmentReader internal constructor(
         check(!Zstd.isError(got) && got == uncompressed.toLong()) {
             "segment ${path.fileName} block at $offset is corrupt: ${if (Zstd.isError(got)) Zstd.getErrorName(got) else "$got of $uncompressed bytes"}."
         }
+        if (packed and SegmentFile.FLAG_PLANES != 0) return BlockPlanes.decode(block)
         return block
     }
 
@@ -673,7 +697,22 @@ internal object Varints {
         return ((at - offset) shl 32) or (result.toLong() and 0xFFFFFFFFL)
     }
 
-    /** @return the number of bytes read from the varint. */
+    /** [read], from an array. */
+    fun read(data: ByteArray, offset: Int): Long {
+        var result = 0
+        var shift = 0
+        var at = offset
+        while (true) {
+            val b = data[at++].toInt() and 0xFF
+            result = result or ((b and 0x7F) shl shift)
+            if (b and 0x80 == 0) break
+            shift += 7
+            check(shift <= 28) { "varint too long at $offset." }
+        }
+        return ((at - offset).toLong() shl 32) or (result.toLong() and 0xFFFFFFFFL)
+    }
+
+    /** @return the value of the varint. */
     fun valueOf(packed: Long): Int = packed.toInt()
 
     /** @return the number of bytes read from the varint. */
