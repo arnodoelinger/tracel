@@ -62,16 +62,9 @@ tasks {
     runServer {
         minecraftVersion("26.3")
         jvmArgs(
-            "-Xms4G",
+            "-Xms128M",
             "-Xmx4G",
             "-XX:+UseG1GC",
-            "-XX:+ParallelRefProcEnabled",
-            "-XX:MaxGCPauseMillis=200",
-            "-XX:+UnlockExperimentalVMOptions",
-            "-XX:+DisableExplicitGC",
-            "-XX:+AlwaysPreTouch",
-            "-XX:+UnlockDiagnosticVMOptions",
-            "-XX:+DebugNonSafepoints"
         )
     }
 }
