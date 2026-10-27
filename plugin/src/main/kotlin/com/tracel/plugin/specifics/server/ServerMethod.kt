@@ -4,7 +4,7 @@ package com.tracel.plugin.specifics.server
  * Server methods the section paste calls, by name.
  *
  * None of this is `Paper` API. A Minecraft update that renames one is fixed here; what it takes and
- * returns is spelled out where it is looked up, in `PasteBridge`.
+ * returns is spelled out where it is looked up, in the handle groups of `PasteBridge`'s package.
  */
 internal enum class ServerMethod(val id: String) {
     GET_HANDLE("getHandle"),
@@ -15,7 +15,6 @@ internal enum class ServerMethod(val id: String) {
     GET_MIN_Y("getMinY"),
     GET_BLOCK_STATE("getBlockState"),
     SET_BLOCK_STATE("setBlockState"),
-    HAS_ONLY_AIR("hasOnlyAir"),
     IS_AIR("isAir"),
     HAS_BLOCK_ENTITY("hasBlockEntity"),
     LIQUID("liquid"),
@@ -35,8 +34,6 @@ internal enum class ServerMethod(val id: String) {
     HAS_POI("hasPoi"),
     UPDATE_POI_ON_BLOCK_STATE_CHANGE("updatePOIOnBlockStateChange"),
     HAS_DIFFERENT_LIGHT_PROPERTIES("hasDifferentLightProperties"),
-    OF("of"),
-    UPDATE_SECTION_STATUS("updateSectionStatus"),
     GET_POS("getPos"),
     MAYBE_HAS("maybeHas"),
     STARLIGHT_SERVER_RELIGHT_CHUNKS("starlight\$serverRelightChunks"),

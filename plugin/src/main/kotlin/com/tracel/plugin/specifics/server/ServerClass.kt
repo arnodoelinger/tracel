@@ -24,7 +24,6 @@ internal enum class ServerClass(val className: String) {
     CHUNK_HOLDER("net.minecraft.server.level.ChunkHolder"),
     BLOCK_POS("net.minecraft.core.BlockPos"),
     MUTABLE_BLOCK_POS("net.minecraft.core.BlockPos\$MutableBlockPos"),
-    SECTION_POS("net.minecraft.core.SectionPos"),
     POI_TYPES("net.minecraft.world.entity.ai.village.poi.PoiTypes"),
     LIGHT_ENGINE("net.minecraft.world.level.lighting.LightEngine"),
     CRAFT_ENTITY("org.bukkit.craftbukkit.entity.CraftEntity"),

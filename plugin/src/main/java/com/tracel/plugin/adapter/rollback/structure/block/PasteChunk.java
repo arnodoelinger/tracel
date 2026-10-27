@@ -1,5 +1,9 @@
 package com.tracel.plugin.adapter.rollback.structure.block;
 
+import com.tracel.plugin.adapter.rollback.structure.block.bridge.ChunkHandles;
+import com.tracel.plugin.adapter.rollback.structure.block.bridge.HeightmapHandles;
+import com.tracel.plugin.adapter.rollback.structure.block.bridge.NotifyHandles;
+
 import java.util.Arrays;
 import java.util.Map;
 
@@ -9,24 +13,30 @@ import java.util.Map;
 final class PasteChunk {
     final Object nms;
     final Object[] sections;
+
     final int minSection;
     final int cx;
     final int cz;
+
     final Object holder;
     final Object motion;
     final Object motionNoLeaves;
     final Object ocean;
     final Object surface;
+
     final long[] columns = new long[4];
     final int[] columnTop = new int[256];
+
     boolean listed;
     boolean unsaved;
     boolean armed;
+
     int lightEdges;
     int[] changes;
     int changeCount;
     byte watch;
     int cachedIndex = Integer.MIN_VALUE;
+
     Object cachedSection;
 
     private PasteChunk(
@@ -55,12 +65,12 @@ final class PasteChunk {
     }
 
     @SuppressWarnings("unchecked")
-    static PasteChunk open(PasteBridge nms, Object chunk, Object chunkMap, int cx, int cz) throws Throwable {
-        Object sections = nms.getSections.invokeExact(chunk);
-        int minY = (int) nms.getMinY.invokeExact(chunk);
-        Map<Object, Object> maps = (Map<Object, Object>) nms.heightmaps.invokeExact(chunk);
-        long packed = (long) nms.pack.invokeExact(cx, cz);
-        Object holder = nms.visible.invokeExact(chunkMap, packed);
+    static PasteChunk open(Object chunk, Object chunkMap, int cx, int cz) throws Throwable {
+        Object sections = ChunkHandles.GET_SECTIONS.invokeExact(chunk);
+        int minY = (int) ChunkHandles.GET_MIN_Y.invokeExact(chunk);
+        Map<Object, Object> maps = (Map<Object, Object>) HeightmapHandles.HEIGHTMAPS.invokeExact(chunk);
+        long packed = (long) NotifyHandles.PACK.invokeExact(cx, cz);
+        Object holder = NotifyHandles.VISIBLE.invokeExact(chunkMap, packed);
         return new PasteChunk(
                 chunk,
                 (Object[]) sections,
@@ -68,10 +78,10 @@ final class PasteChunk {
                 cx,
                 cz,
                 holder,
-                maps.get(nms.motion),
-                maps.get(nms.motionNoLeaves),
-                maps.get(nms.ocean),
-                maps.get(nms.surface)
+                maps.get(HeightmapHandles.MOTION),
+                maps.get(HeightmapHandles.MOTION_NO_LEAVES),
+                maps.get(HeightmapHandles.OCEAN),
+                maps.get(HeightmapHandles.SURFACE)
         );
     }
 
@@ -90,11 +100,11 @@ final class PasteChunk {
         return cachedSection;
     }
 
-    Object stateAt(PasteBridge nms, int localX, int y, int localZ) throws Throwable {
+    Object stateAt(int localX, int y, int localZ) throws Throwable {
         int index = PalettePaste.sectionIndex(y, minSection);
         if (index < 0 || index >= sections.length) return null;
         Object section = sections[index];
         if (section == null) return null;
-        return nms.getState.invokeExact(section, localX, y & 15, localZ);
+        return ChunkHandles.GET_STATE.invokeExact(section, localX, y & 15, localZ);
     }
 }

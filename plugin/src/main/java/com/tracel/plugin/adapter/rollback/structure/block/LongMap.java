@@ -7,9 +7,18 @@ package com.tracel.plugin.adapter.rollback.structure.block;
  */
 final class LongMap<T> {
     private long[] keys = new long[16];
+
     private Object[] values = new Object[16];
+
     private int mask = 15;
     private int size;
+
+    /**
+     * Packs chunk coordinates into one key.
+     */
+    static long key(int x, int z) {
+        return ((long) x << 32) ^ (z & 0xffffffffL);
+    }
 
     private static int mix(long key) {
         long hashed = key * 0x9E3779B97F4A7C15L;
