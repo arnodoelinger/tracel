@@ -72,30 +72,30 @@ internal fun CaptureRing.collectPublished(maxBatch: Int): Collected {
         when (val type = CaptureSlot.type(payload, at)) {
             CaptureSlot.RELEASE -> {
                 out += RingEvent.Release(
-                    CaptureSlot.cause(payload, at),
-                    CaptureSlot.causedBy(payload, at),
-                    CaptureSlot.epochMillis(payload, at),
-                    CaptureSlot.releaseFrom(payload, at),
-                    CaptureSlot.releaseTo(payload, at),
+                    CaptureSlot.Release.cause[payload, at].toInt(),
+                    CaptureSlot.Release.causedBy[payload, at],
+                    CaptureSlot.Release.epochMillis[payload, at],
+                    CaptureSlot.Release.from[payload, at],
+                    CaptureSlot.Release.to[payload, at],
                 )
                 cursor += 1
             }
 
             CaptureSlot.HEADER -> {
-                val count = CaptureSlot.deltaCount(payload, at)
+                val count = CaptureSlot.Header.deltaCount[payload, at]
                 val holders = IntArray(count)
                 val itemKeys = IntArray(count)
                 val amounts = LongArray(count)
                 for (i in 0 until count) {
                     val slot = payloadOffset(cursor + 1 + i)
-                    holders[i] = CaptureSlot.holderId(payload, slot)
-                    itemKeys[i] = CaptureSlot.itemKeyId(payload, slot)
-                    amounts[i] = CaptureSlot.delta(payload, slot)
+                    holders[i] = CaptureSlot.Delta.holderId[payload, slot]
+                    itemKeys[i] = CaptureSlot.Delta.itemKeyId[payload, slot]
+                    amounts[i] = CaptureSlot.Delta.delta[payload, slot]
                 }
                 out += RingEvent.Items(
-                    CaptureSlot.cause(payload, at),
-                    CaptureSlot.causedBy(payload, at),
-                    CaptureSlot.epochMillis(payload, at),
+                    CaptureSlot.Header.cause[payload, at].toInt(),
+                    CaptureSlot.Header.causedBy[payload, at],
+                    CaptureSlot.Header.epochMillis[payload, at],
                     holders,
                     itemKeys,
                     amounts,
@@ -104,24 +104,24 @@ internal fun CaptureRing.collectPublished(maxBatch: Int): Collected {
             }
 
             CaptureSlot.WORLD_HEADER -> {
-                val count = CaptureSlot.worldCount(payload, at)
+                val count = CaptureSlot.WorldHeader.count[payload, at]
                 val coordinates = IntArray(count * 3)
                 val befores = IntArray(count)
                 val afters = IntArray(count)
                 for (i in 0 until count) {
                     val slot = payloadOffset(cursor + 1 + i)
-                    coordinates[i * 3] = CaptureSlot.blockX(payload, slot)
-                    coordinates[i * 3 + 1] = CaptureSlot.blockY(payload, slot)
-                    coordinates[i * 3 + 2] = CaptureSlot.blockZ(payload, slot)
-                    befores[i] = CaptureSlot.blockBefore(payload, slot)
-                    afters[i] = CaptureSlot.blockAfter(payload, slot)
+                    coordinates[i * 3] = CaptureSlot.WorldBlock.x[payload, slot]
+                    coordinates[i * 3 + 1] = CaptureSlot.WorldBlock.y[payload, slot]
+                    coordinates[i * 3 + 2] = CaptureSlot.WorldBlock.z[payload, slot]
+                    befores[i] = CaptureSlot.WorldBlock.before[payload, slot]
+                    afters[i] = CaptureSlot.WorldBlock.after[payload, slot]
                 }
                 out += RingEvent.World(
-                    CaptureSlot.cause(payload, at),
-                    CaptureSlot.causedBy(payload, at),
-                    CaptureSlot.epochMillis(payload, at),
-                    CaptureSlot.action(payload, at),
-                    CaptureSlot.worldId(payload, at),
+                    CaptureSlot.WorldHeader.cause[payload, at].toInt(),
+                    CaptureSlot.WorldHeader.causedBy[payload, at],
+                    CaptureSlot.WorldHeader.epochMillis[payload, at],
+                    CaptureSlot.WorldHeader.action[payload, at].toInt(),
+                    CaptureSlot.WorldHeader.worldId[payload, at],
                     coordinates,
                     befores,
                     afters,

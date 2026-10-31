@@ -8,7 +8,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
 import java.util.*
 import com.tracel.engine.actor.ActorFacts as ActorFactsPort
 
@@ -23,16 +23,16 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
             val latest = scan(Tag.ACTOR_MODE[holder]).use { cursor ->
-                if (cursor.next()) Records.asInt(cursor.value()) else null
+                if (cursor.next()) Scalar.asInt(cursor.value()) else null
             }
-            if (latest != mode) put(Tag.ACTOR_MODE[holder, millis], Records.int(mode))
+            if (latest != mode) put(Tag.ACTOR_MODE[holder, millis], Scalar.int(mode))
         }
     }
 
     override suspend fun openVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
-            put(Tag.ACTOR_VISIT[holder, millis], Records.long(VisitTimeline.OPEN))
+            put(Tag.ACTOR_VISIT[holder, millis], Scalar.long(VisitTimeline.OPEN))
         }
     }
 
@@ -40,9 +40,9 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
         storage.write {
             val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: return@write
             val (key, open) = scan(Tag.ACTOR_VISIT[holder]).use { cursor ->
-                if (cursor.next()) cursor.key() to (Records.asLong(cursor.value()) == VisitTimeline.OPEN) else return@write
+                if (cursor.next()) cursor.key() to (Scalar.asLong(cursor.value()) == VisitTimeline.OPEN) else return@write
             }
-            if (open) put(key, Records.long(millis))
+            if (open) put(key, Scalar.long(millis))
         }
     }
 
@@ -55,7 +55,7 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
                 val rows = TreeMap<Long, Long>()
                 scan(Tag.ACTOR_VISIT[holder]).use { cursor ->
                     while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] =
-                        Records.asLong(cursor.value())
+                        Scalar.asLong(cursor.value())
                 }
                 if (rows.isNotEmpty()) out[player] = VisitTimeline(rows)
             }
@@ -72,7 +72,7 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
                 val rows = TreeMap<Long, Int>()
                 scan(Tag.ACTOR_MODE[holder]).use { cursor ->
                     while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] =
-                        Records.asInt(cursor.value())
+                        Scalar.asInt(cursor.value())
                 }
                 if (rows.isNotEmpty()) out[player] = ModeTimeline(rows)
             }
@@ -87,7 +87,7 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
             for (entity in entities) {
                 val holder = storage.interning.findHolderId(this, HolderId.Entity(entity)) ?: continue
                 val record = get(Tag.ACTOR_KIND[holder]) ?: continue
-                out[entity] = storage.interning.resolveEntityType(this, Records.asInt(record))
+                out[entity] = storage.interning.resolveEntityType(this, Scalar.asInt(record))
             }
             out
         }

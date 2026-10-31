@@ -6,7 +6,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Lease
 import com.tracel.storage.util.eachRow
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
@@ -98,7 +98,7 @@ class Leases(private val storage: TracelStorage) : LeasesPort() {
         eachRow(Tag.LEASE.prefix) { cursor ->
             val value = cursor.value()
             val lot = KeyReader.u64(cursor.key(), 1)
-            adopt(Records.leaseJobId(value), LongOpenHashSet().apply { add(lot) }, Records.leaseAcquiredAt(value), legacy = true)
+            adopt(Lease.jobId[value], LongOpenHashSet().apply { add(lot) }, Lease.acquiredAt[value], legacy = true)
         }
         loaded = true
     }

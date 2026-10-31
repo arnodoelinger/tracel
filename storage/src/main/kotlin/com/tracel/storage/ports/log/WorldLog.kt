@@ -1,5 +1,9 @@
 package com.tracel.storage.ports.log
 
+import com.tracel.storage.codec.records.Extras
+import com.tracel.storage.codec.records.EntityChange
+import com.tracel.storage.codec.records.BlockChange
+import com.tracel.storage.codec.records.Wchg
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.world.edit.BlockEdit
@@ -18,7 +22,9 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.RawBlockEdits
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Index
+import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.records.Section
 import com.tracel.storage.codec.records.SectionExtras
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.util.Accepted
@@ -66,14 +72,14 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
             var beforeDataId = -1
             var afterDataId = -1
-            var inlineFlags = Records.INLINE_NEEDS_RECORD
+            var inlineFlags = Index.INLINE_NEEDS_RECORD
 
             val record = when (subject) {
                 is ChangeSubject.Block -> {
                     beforeDataId = interning.internBlockData(this, subject.before.data)
                     afterDataId = interning.internBlockData(this, subject.after.data)
                     if (subject.before.extras == null && subject.after.extras == null) inlineFlags = 0
-                    Records.blockChange(
+                    BlockChange.of(
                         change.action,
                         change.cause,
                         causedById,
@@ -82,12 +88,12 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                         change.epochMillis,
                         beforeDataId,
                         afterDataId,
-                        Records.blockExtras(subject.before.extras),
-                        Records.blockExtras(subject.after.extras),
+                        Extras.block(subject.before.extras),
+                        Extras.block(subject.after.extras),
                     )
                 }
 
-                is ChangeSubject.Entity -> Records.entityChange(
+                is ChangeSubject.Entity -> EntityChange.of(
                     change.action,
                     change.cause,
                     causedById,
@@ -96,8 +102,8 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                     change.epochMillis,
                     interning.internEntityType(this, subject.type),
                     subject.entity,
-                    Records.entityShapePayload(subject.before),
-                    Records.entityShapePayload(subject.after),
+                    Extras.shape(subject.before),
+                    Extras.shape(subject.after),
                 )
             }
 
@@ -107,12 +113,12 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             if (change.cause.isBookkeeping) return@write
             if (causedById != 0) put(
                 Tag.ACTOR[causedById, seq],
-                Records.logKindTimed(LogKind.WORLD, change.epochMillis, change.cause)
+                Index.timed(LogKind.WORLD, change.epochMillis, change.cause)
             )
             put(Tag.TIME[change.epochMillis, seq], OWN_LOG)
             put(
                 Tag.SPATIAL[worldId, x shr 4, z shr 4, change.epochMillis, Keys.yBin(y), seq],
-                Records.logKindInline(
+                Index.inline(
                     LogKind.WORLD, change.cause, x, y, z,
                     change.action, beforeDataId, afterDataId, causedById, inlineFlags,
                 ),
@@ -154,7 +160,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     }
 
     private suspend fun appendSection(group: List<BlockEdit>, edits: BlockEdits, base: Seq) {
-        val ordered = group.sortedBy { Records.packSectionPosition(it.at.x, it.at.y, it.at.z) }
+        val ordered = group.sortedBy { Section.position(it.at.x, it.at.y, it.at.z) }
         val count = ordered.size
         val first = ordered.first().at
         val sectionX = first.x shr 4
@@ -175,21 +181,21 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             val extras = ArrayList<SectionExtras>()
             for (i in 0 until count) {
                 val edit = ordered[i]
-                positions[i] = Records.packSectionPosition(edit.at.x, edit.at.y, edit.at.z)
+                positions[i] = Section.position(edit.at.x, edit.at.y, edit.at.z)
                 before[i] = interning.internBlockData(this, edit.before.data)
                 after[i] = interning.internBlockData(this, edit.after.data)
                 if (edit.before.extras != null || edit.after.extras != null) {
                     extras += SectionExtras(
                         i,
-                        Records.blockExtras(edit.before.extras),
-                        Records.blockExtras(edit.after.extras),
+                        Extras.block(edit.before.extras),
+                        Extras.block(edit.after.extras),
                     )
                 }
             }
 
             put(
                 Tag.WCHG[baseSeq],
-                Records.sectionDelta(
+                Section.delta(
                     edits.action, edits.cause, causedById, worldId,
                     sectionX, sectionY, sectionZ, edits.epochMillis, baseSeq,
                     positions, count, before, after, extras,
@@ -199,12 +205,12 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             if (edits.cause.isBookkeeping) return@write
             if (causedById != 0) put(
                 Tag.ACTOR[causedById, baseSeq],
-                Records.logKindTimed(LogKind.WORLD, edits.epochMillis, edits.cause)
+                Index.timed(LogKind.WORLD, edits.epochMillis, edits.cause)
             )
             put(Tag.TIME[edits.epochMillis, baseSeq], OWN_LOG)
             put(
                 Tag.SPATIAL[worldId, sectionX, sectionZ, edits.epochMillis, Keys.yBin(first.y), baseSeq],
-                Records.logKindSection(
+                Index.section(
                     LogKind.WORLD, edits.cause, edits.action,
                     sectionX shl 4, sectionY shl 4, sectionZ shl 4, count, causedById,
                 ),
@@ -234,7 +240,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 section = sectionIds.size
                 sectionIds.put(sectionKey, section)
             }
-            keys[i] = (section.toLong() shl 32) or (Records.packSectionPosition(x, y, z).toLong() shl 20) or i.toLong()
+            keys[i] = (section.toLong() shl 32) or (Section.position(x, y, z).toLong() shl 20) or i.toLong()
         }
         keys.sort()
 
@@ -247,7 +253,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             val worldId = raw.worldId
             val causedById = raw.causedById
             val millis = raw.epochMillis
-            val noExtras = Records.blockExtras(null)
+            val noExtras = Extras.block(null)
             var seq = base
             var from = 0
             while (from < n) {
@@ -276,7 +282,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                     val sectionZ = z0 shr 4
                     put(
                         Tag.WCHG[seq],
-                        Records.sectionDelta(
+                        Section.delta(
                             raw.action, raw.cause, causedById, worldId,
                             sectionX, sectionY, sectionZ, millis, seq,
                             positions, count, before, after, emptyList(),
@@ -286,12 +292,12 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                     if (!bookkeeping) {
                         if (causedById != 0) put(
                             Tag.ACTOR[causedById, seq],
-                            Records.logKindTimed(LogKind.WORLD, millis, raw.cause)
+                            Index.timed(LogKind.WORLD, millis, raw.cause)
                         )
                         put(Tag.TIME[millis, seq], OWN_LOG)
                         put(
                             Tag.SPATIAL[worldId, sectionX, sectionZ, millis, Keys.yBin(y0), seq],
-                            Records.logKindSection(
+                            Index.section(
                                 LogKind.WORLD, raw.cause, raw.action,
                                 sectionX shl 4, sectionY shl 4, sectionZ shl 4, count, causedById,
                             ),
@@ -306,7 +312,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                         val z = coordinates[i * 3 + 2]
                         put(
                             Tag.WCHG[seq],
-                            Records.blockChange(
+                            BlockChange.of(
                                 raw.action, raw.cause, causedById, worldId, x, y, z, millis,
                                 raw.befores[i], raw.afters[i], noExtras, noExtras,
                             ),
@@ -315,12 +321,12 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                         if (!bookkeeping) {
                             if (causedById != 0) put(
                                 Tag.ACTOR[causedById, seq],
-                                Records.logKindTimed(LogKind.WORLD, millis, raw.cause)
+                                Index.timed(LogKind.WORLD, millis, raw.cause)
                             )
                             put(Tag.TIME[millis, seq], OWN_LOG)
                             put(
                                 Tag.SPATIAL[worldId, x shr 4, z shr 4, millis, Keys.yBin(y), seq],
-                                Records.logKindInline(
+                                Index.inline(
                                     LogKind.WORLD, raw.cause, x, y, z,
                                     raw.action, raw.befores[i], raw.afters[i], causedById, 0,
                                 ),
@@ -369,13 +375,13 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             }
         }
 
-        val packed = Records.packSectionPosition(pos.x, pos.y, pos.z)
+        val packed = Section.position(pos.x, pos.y, pos.z)
         val fromSections = ArrayList<WorldChange>()
         scan(Tag.WCHG_AT_SECTION[worldId, pos.x shr 4, pos.y shr 4, pos.z shr 4]).use { cursor ->
             while (fromSections.size < limit && cursor.next()) {
                 val baseSeq = Keys.invert(cursor.keyU64(17))
                 val record = get(Tag.WCHG[baseSeq]) ?: continue
-                val index = Records.sectionIndexOf(record, packed)
+                val index = Section.indexOf(record, packed)
                 if (index < 0) continue
                 fromSections += sectionChangeAt(this, record, index, packed)
             }
@@ -404,24 +410,24 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         index: Int,
         packed: Int,
     ): WorldChange {
-        val worldId = Records.wchgWorldId(record)
-        val causedById = Records.wchgCausedBy(record)
-        val extras = Records.sectionExtras(record, index)
+        val worldId = Wchg.world[record]
+        val causedById = Wchg.causedBy[record]
+        val extras = Section.extras(record, index)
         return WorldChange(
-            Seq(Records.sectionBaseSeq(record) + index),
-            Records.wchgAction(record),
-            Records.wchgCause(record),
+            Seq(Section.baseSeq(record) + index),
+            Wchg.action[record],
+            Wchg.cause[record],
             if (causedById == 0) null else interning.resolveHolder(unit, causedById),
-            Records.wchgEpochMillis(record),
+            Wchg.epochMillis[record],
             BlockPos(
                 interning.resolveWorld(unit, worldId),
-                Records.wchgX(record) + Records.sectionPositionX(packed),
-                Records.wchgY(record) + Records.sectionPositionY(packed),
-                Records.wchgZ(record) + Records.sectionPositionZ(packed),
+                Wchg.x[record] + Section.positionX(packed),
+                Wchg.y[record] + Section.positionY(packed),
+                Wchg.z[record] + Section.positionZ(packed),
             ),
             ChangeSubject.Block(
-                sectionShape(unit, Records.sectionBefore(record, index), extras?.before, null),
-                sectionShape(unit, Records.sectionAfter(record, index), extras?.after, null),
+                sectionShape(unit, Section.before(record, index), extras?.before, null),
+                sectionShape(unit, Section.after(record, index), extras?.after, null),
             ),
         )
     }
@@ -893,23 +899,23 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             var sectionRows = 0
             for (i in from until to) {
                 val record = records[i]
-                when (Records.wchgKind(record)) {
-                    Records.CHANGE_SECTION -> {
+                when (Wchg.kind[record]) {
+                    Wchg.SECTION -> {
                         pick[i] = true
                         sectionRows++
                     }
 
-                    Records.CHANGE_BLOCK -> {
-                        ends.k1[i] = (Records.wchgX(record).toLong() shl 32) or
-                                (Records.wchgZ(record).toLong() and 0xFFFFFFFFL)
-                        ends.k2[i] = (Records.wchgY(record).toLong() shl 32) or
-                                (Records.wchgWorldId(record).toLong() and 0xFFFFFFFFL)
+                    Wchg.BLOCK -> {
+                        ends.k1[i] = (Wchg.x[record].toLong() shl 32) or
+                                (Wchg.z[record].toLong() and 0xFFFFFFFFL)
+                        ends.k2[i] = (Wchg.y[record].toLong() shl 32) or
+                                (Wchg.world[record].toLong() and 0xFFFFFFFFL)
                         ends.kind[i] = BLOCK_KEY
                     }
 
                     else -> {
-                        ends.k1[i] = Records.entityChangeUuidHigh(record)
-                        ends.k2[i] = Records.entityChangeUuidLow(record)
+                        ends.k1[i] = EntityChange.entity.high(record)
+                        ends.k2[i] = EntityChange.entity.low(record)
                         ends.kind[i] = ENTITY_KEY
                     }
                 }
@@ -938,7 +944,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         record: MemorySegment,
         resolved: Resolved?,
         filter: LookupFilter?,
-    ): Any = if (Records.wchgKind(record) != Records.CHANGE_SECTION) {
+    ): Any = if (Wchg.kind[record] != Wchg.SECTION) {
         decode(unit, seq, record, resolved)
     } else {
         ArrayList<WorldChange>().also { expandInto(unit, seq, record, resolved, filter, it) }
@@ -959,46 +965,46 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val regionWorldId = ids.regionWorld
         val filterWorldId = ids.world
         val unit = this
-        val epochMillis = Records.wchgEpochMillis(record)
+        val epochMillis = Wchg.epochMillis[record]
         val since = filter.since
         val until = filter.until
         if (since != null && epochMillis < since) return false
         if (until != null && epochMillis > until) return false
-        val cause = Records.wchgCause(record)
+        val cause = Wchg.cause[record]
         if (cause.isBookkeeping) return false
         val causes = filter.worldCauses ?: filter.causes
         if (causes.isNotEmpty() && cause !in causes) return false
         if (filter.excludedCauses.isNotEmpty() && cause in filter.excludedCauses) return false
-        if (filter.actions.isNotEmpty() && Records.wchgAction(record) !in filter.actions) return false
-        val causedBy = Records.wchgCausedBy(record)
+        if (filter.actions.isNotEmpty() && Wchg.action[record] !in filter.actions) return false
+        val causedBy = Wchg.causedBy[record]
         if (holderIds.isNotEmpty() && causedBy !in holderIds) return false
         if (excludedIds.isNotEmpty() && causedBy in excludedIds) return false
 
-        val worldId = Records.wchgWorldId(record)
+        val worldId = Wchg.world[record]
         if (filterWorldId != null && worldId != filterWorldId) return false
         val region = filter.region
         if (region != null && (regionWorldId == null || worldId != regionWorldId)) return false
-        if (Records.wchgKind(record) == Records.CHANGE_SECTION) {
+        if (Wchg.kind[record] == Wchg.SECTION) {
             if (region != null && !sectionMeets(record, region)) return false
             val material = filter.material ?: return true
-            for (slot in 0 until Records.sectionPaletteSize(record)) {
-                val data = interning.resolveBlockData(unit, Records.sectionPaletteAt(record, slot)).value
+            for (slot in 0 until Section.paletteSize(record)) {
+                val data = interning.resolveBlockData(unit, Section.paletteAt(record, slot)).value
                 if (data.matchesAny(material, filter.blockMaterials)) return true
             }
             return false
         }
 
         if (region != null &&
-            !region.containsBlock(Records.wchgX(record), Records.wchgY(record), Records.wchgZ(record))
+            !region.containsBlock(Wchg.x[record], Wchg.y[record], Wchg.z[record])
         ) {
             return false
         }
 
         val material = filter.material
         if (material != null) {
-            if (Records.wchgKind(record) != Records.CHANGE_BLOCK) return false
-            val before = interning.resolveBlockData(unit, Records.blockChangeBefore(record)).value
-            val after = interning.resolveBlockData(unit, Records.blockChangeAfter(record)).value
+            if (Wchg.kind[record] != Wchg.BLOCK) return false
+            val before = interning.resolveBlockData(unit, BlockChange.before[record]).value
+            val after = interning.resolveBlockData(unit, BlockChange.after[record]).value
             if (!before.matchesAny(material, filter.blockMaterials) && !after.matchesAny(
                     material,
                     filter.blockMaterials
@@ -1009,9 +1015,9 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     }
 
     private fun sectionMeets(record: MemorySegment, region: LookupRegion): Boolean {
-        val x = Records.wchgX(record)
-        val y = Records.wchgY(record)
-        val z = Records.wchgZ(record)
+        val x = Wchg.x[record]
+        val y = Wchg.y[record]
+        val z = Wchg.z[record]
         if ((x shr 4) !in region.minTileX..region.maxTileX) return false
         if ((z shr 4) !in region.minTileZ..region.maxTileZ) return false
         return x + 15 >= region.minX && x <= region.maxX &&
@@ -1035,21 +1041,21 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         for (i in records.indices) {
             if (pick != null && !pick[i]) continue
             val record = records[i]
-            worldIds.add(Records.wchgWorldId(record))
-            val causedBy = Records.wchgCausedBy(record)
+            worldIds.add(Wchg.world[record])
+            val causedBy = Wchg.causedBy[record]
             if (causedBy != 0) holderIds.add(causedBy)
-            when (Records.wchgKind(record)) {
-                Records.CHANGE_BLOCK -> {
-                    dataIds.add(Records.blockChangeBefore(record))
-                    dataIds.add(Records.blockChangeAfter(record))
+            when (Wchg.kind[record]) {
+                Wchg.BLOCK -> {
+                    dataIds.add(BlockChange.before[record])
+                    dataIds.add(BlockChange.after[record])
                 }
 
-                Records.CHANGE_SECTION -> {
-                    val palette = Records.sectionPaletteSize(record)
-                    for (slot in 0 until palette) dataIds.add(Records.sectionPaletteAt(record, slot))
+                Wchg.SECTION -> {
+                    val palette = Section.paletteSize(record)
+                    for (slot in 0 until palette) dataIds.add(Section.paletteAt(record, slot))
                 }
 
-                else -> typeIds.add(Records.entityChangeTypeId(record))
+                else -> typeIds.add(EntityChange.type[record])
             }
         }
 
@@ -1077,50 +1083,50 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         filter: LookupFilter?,
         out: MutableList<WorldChange>,
     ) {
-        if (Records.wchgKind(record) != Records.CHANGE_SECTION) {
+        if (Wchg.kind[record] != Wchg.SECTION) {
             out += decode(unit, seq, record, resolved)
             return
         }
 
-        val worldId = Records.wchgWorldId(record)
+        val worldId = Wchg.world[record]
         val world = resolved?.worlds?.get(worldId) ?: interning.resolveWorld(unit, worldId)
-        val cornerX = Records.wchgX(record)
-        val cornerY = Records.wchgY(record)
-        val cornerZ = Records.wchgZ(record)
-        val action = Records.wchgAction(record)
-        val cause = Records.wchgCause(record)
-        val millis = Records.wchgEpochMillis(record)
-        val causedById = Records.wchgCausedBy(record)
+        val cornerX = Wchg.x[record]
+        val cornerY = Wchg.y[record]
+        val cornerZ = Wchg.z[record]
+        val action = Wchg.action[record]
+        val cause = Wchg.cause[record]
+        val millis = Wchg.epochMillis[record]
+        val causedById = Wchg.causedBy[record]
         val causedBy = when {
             causedById == 0 -> null
             else -> resolved?.holders?.get(causedById) ?: interning.resolveHolder(unit, causedById)
         }
-        val baseSeq = Records.sectionBaseSeq(record)
-        QueryProbe.expandedDelta(Records.sectionCount(record).toLong())
+        val baseSeq = Section.baseSeq(record)
+        QueryProbe.expandedDelta(Section.count(record).toLong())
         val region = filter?.region
         val material = filter?.material
 
         // Palette resolved once per delta, slots read in one go: per block only the position is left to decode
-        val palette = Records.sectionPalette(record)
+        val palette = Section.palette(record)
         val shapes = Array(palette.size) { sectionShape(unit, palette[it], null, resolved) }
         val wanted = if (material == null) null else {
             val aliases = filter.blockMaterials
             BooleanArray(palette.size) { shapes[it].data.value.matchesAny(material, aliases) }
         }
-        val slots = Records.sectionSlots(record)
+        val slots = Section.slots(record)
         val count = slots.size / 2
-        val extrasAll = Records.sectionExtrasAll(record)
+        val extrasAll = Section.extrasAll(record)
         if (out is ArrayList<WorldChange>) out.ensureCapacity(out.size + count)
 
-        Records.forEachSectionPosition(record) { index, packed ->
-            val x = cornerX + Records.sectionPositionX(packed)
-            val y = cornerY + Records.sectionPositionY(packed)
-            val z = cornerZ + Records.sectionPositionZ(packed)
-            if (region != null && !region.containsBlock(x, y, z)) return@forEachSectionPosition
+        Section.forEachPosition(record) { index, packed ->
+            val x = cornerX + Section.positionX(packed)
+            val y = cornerY + Section.positionY(packed)
+            val z = cornerZ + Section.positionZ(packed)
+            if (region != null && !region.containsBlock(x, y, z)) return@forEachPosition
 
             val beforeSlot = slots[index]
             val afterSlot = slots[count + index]
-            if (wanted != null && !wanted[beforeSlot] && !wanted[afterSlot]) return@forEachSectionPosition
+            if (wanted != null && !wanted[beforeSlot] && !wanted[afterSlot]) return@forEachPosition
 
             val extras = extrasAll?.get(index)
             out += WorldChange(
@@ -1158,77 +1164,77 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         if (extras == null || extras.isEmpty()) {
             return simpleShapes.getOrPut(data) { BlockShape(data) }
         }
-        return BlockShape(data, Records.decodeBlockExtras(extras))
+        return BlockShape(data, Extras.decodeBlock(extras))
     }
 
     private fun decode(unit: StorageUnit, seq: Long, record: MemorySegment, resolved: Resolved? = null): WorldChange {
-        val version = Records.wchgVersion(record)
-        check(version == Records.VERSION) {
-            "world change at seq $seq was written by codec v$version, this build reads v${Records.VERSION}."
+        val version = Wchg.version[record]
+        check(version == Scalar.VERSION) {
+            "world change at seq $seq was written by codec v$version, this build reads v${Scalar.VERSION}."
         }
 
-        val worldId = Records.wchgWorldId(record)
+        val worldId = Wchg.world[record]
         val at = BlockPos(
             resolved?.worlds?.get(worldId) ?: interning.resolveWorld(unit, worldId),
-            Records.wchgX(record),
-            Records.wchgY(record),
-            Records.wchgZ(record),
+            Wchg.x[record],
+            Wchg.y[record],
+            Wchg.z[record],
         )
 
-        val subject = when (val kind = Records.wchgKind(record)) {
-            Records.CHANGE_BLOCK -> ChangeSubject.Block(
+        val subject = when (val kind = Wchg.kind[record]) {
+            Wchg.BLOCK -> ChangeSubject.Block(
                 blockShape(
                     unit,
-                    Records.blockChangeBefore(record),
-                    Records.blockChangeBeforeExtrasLength(record),
+                    BlockChange.before[record],
+                    BlockChange.beforeExtras.length(record),
                     record,
                     before = true,
                     resolved = resolved
                 ),
                 blockShape(
                     unit,
-                    Records.blockChangeAfter(record),
-                    Records.blockChangeAfterExtrasLength(record),
+                    BlockChange.after[record],
+                    BlockChange.afterExtras.length(record),
                     record,
                     before = false,
                     resolved = resolved
                 ),
             )
 
-            Records.CHANGE_ENTITY -> {
-                val action = Records.wchgAction(record)
-                val typeId = Records.entityChangeTypeId(record)
+            Wchg.ENTITY -> {
+                val action = Wchg.action[record]
+                val typeId = EntityChange.type[record]
                 val type = resolved?.entityTypes?.get(typeId) ?: interning.resolveEntityType(unit, typeId)
-                val before = Records.entityChangeBeforeShape(type, at, record)
+                val before = Extras.decodeShape(type, at, EntityChange.beforeExtras.slice(record))
                     ?: if (action == ActionKind.ENTITY_SPAWN) null else EntityShape(
                         type,
                         at.x + 0.5,
                         at.y.toDouble(),
                         at.z + 0.5
                     )
-                val after = Records.entityChangeAfterShape(type, at, record)
+                val after = Extras.decodeShape(type, at, EntityChange.afterExtras.slice(record))
                     ?: if (action == ActionKind.ENTITY_REMOVE) null else EntityShape(
                         type,
                         at.x + 0.5,
                         at.y.toDouble(),
                         at.z + 0.5
                     )
-                ChangeSubject.Entity(Records.entityChangeUuid(record), type, before, after)
+                ChangeSubject.Entity(EntityChange.entity[record], type, before, after)
             }
 
             else -> error("unrecognized world change kind: $kind.")
         }
 
-        val causedById = Records.wchgCausedBy(record)
+        val causedById = Wchg.causedBy[record]
         return WorldChange(
             Seq(seq),
-            Records.wchgAction(record),
-            Records.wchgCause(record),
+            Wchg.action[record],
+            Wchg.cause[record],
             when {
                 causedById == 0 -> null
                 else -> resolved?.holders?.get(causedById) ?: interning.resolveHolder(unit, causedById)
             },
-            Records.wchgEpochMillis(record),
+            Wchg.epochMillis[record],
             at,
             subject,
         )
@@ -1250,13 +1256,13 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             return simpleShapes.getOrPut(data) { BlockShape(data) }
         }
         val extras =
-            if (before) Records.blockChangeBeforeBlockExtras(record) else Records.blockChangeAfterBlockExtras(record)
+            if (before) Extras.decodeBlock(BlockChange.beforeExtras.slice(record)) else Extras.decodeBlock(BlockChange.afterExtras.slice(record))
         return BlockShape(data, extras)
     }
 
     private companion object {
         val NONE = ByteArray(0)
-        val OWN_LOG = Records.logKind(LogKind.WORLD)
+        val OWN_LOG = Index.bare(LogKind.WORLD)
 
         const val INITIAL_CAPACITY = 32
         const val SECTION_DELTA_FROM = 2

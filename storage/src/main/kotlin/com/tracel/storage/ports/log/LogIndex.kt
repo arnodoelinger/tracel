@@ -6,7 +6,7 @@ import com.tracel.model.log.LogKind
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Index
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.util.Accepted
@@ -99,7 +99,7 @@ internal fun millisOf(cursor: EngineCursor, value: MemorySegment): Long? =
     if (cursor.keyLength() > 0 && cursor.keyByte(0) == Tag.SPATIAL.byte) {
         Tag.SPATIAL.long(cursor, 3)
     } else {
-        Records.logKindMillis(value)
+        Index.millis(value)
     }
 
 /** The sequence a log index row names, which every family parks in the last eight bytes. */
@@ -285,7 +285,7 @@ internal fun StorageUnit.walkColumn(
             }
             rows++
             val value = cursor.value()
-            val kind = Records.asLogKind(value)
+            val kind = Index.kind(value)
             val dest = when (kind) {
                 LogKind.WORLD -> worldOut
                 LogKind.TRANSACTION -> txnOut
@@ -296,15 +296,15 @@ internal fun StorageUnit.walkColumn(
                 continue
             }
             if (untilMillis != null && at != null && at > untilMillis) continue
-            val cause = Records.logKindCause(value)
+            val cause = Index.cause(value)
             if (cause != null && cause.isBookkeeping) continue
             if (excludedCauses.isNotEmpty() && cause != null && cause in excludedCauses) continue
             if (region != null && kind == LogKind.WORLD) {
-                val x = Records.logKindX(value)
+                val x = Index.x(value)
                 if (x != null && !region.containsBlock(
                         x,
-                        Records.logKindY(value)!!,
-                        Records.logKindZ(value)!!
+                        Index.y(value)!!,
+                        Index.z(value)!!
                     )
                 ) continue
             }
@@ -313,18 +313,18 @@ internal fun StorageUnit.walkColumn(
             dest.add(seq)
             if (worldRows == null || kind != LogKind.WORLD) continue
             // The row is read here. Or not at all
-            val inline = Records.logKindHasInline(value)
+            val inline = Index.hasInline(value)
             worldRows.add(
                 seq,
                 at ?: 0L,
-                Records.logKindX(value) ?: 0,
-                Records.logKindY(value) ?: 0,
-                Records.logKindZ(value) ?: 0,
+                Index.x(value) ?: 0,
+                Index.y(value) ?: 0,
+                Index.z(value) ?: 0,
                 (cause?.ordinal ?: 0).toByte(),
-                if (inline) Records.logKindAction(value).ordinal.toByte() else 0,
-                if (inline) Records.logKindBefore(value) else 0,
-                if (inline) Records.logKindAfter(value) else 0,
-                if (inline) Records.logKindCausedBy(value) else 0,
+                if (inline) Index.action(value).ordinal.toByte() else 0,
+                if (inline) Index.before(value) else 0,
+                if (inline) Index.after(value) else 0,
+                if (inline) Index.causedBy(value) else 0,
                 needsRecord = !inline,
             )
         }
@@ -445,19 +445,19 @@ internal fun StorageUnit.walkTime(
         while (cursor.next()) {
             if (since != null && Keys.invert(cursor.keyU64(1)) < since) break
             val value = cursor.value()
-            val dest = when (Records.asLogKind(value)) {
+            val dest = when (Index.kind(value)) {
                 LogKind.WORLD -> world
                 LogKind.TRANSACTION -> txns
             }
-            val cause = Records.logKindCause(value)
+            val cause = Index.cause(value)
             if (cause != null && cause.isBookkeeping) continue
             if (excludedCauses.isNotEmpty() && cause != null && cause in excludedCauses) continue
             if (region != null) {
-                val x = Records.logKindX(value)
+                val x = Index.x(value)
                 if (x != null && !region.containsBlock(
                         x,
-                        Records.logKindY(value)!!,
-                        Records.logKindZ(value)!!
+                        Index.y(value)!!,
+                        Index.z(value)!!
                     )
                 ) continue
             }
@@ -668,7 +668,7 @@ internal inline fun StorageUnit.scanDescendingByTime(
     scan(prefix, from).use { cursor ->
         while (cursor.next()) {
             if (since != null && Keys.invert(cursor.keyU64(1)) < since) break
-            if (Records.asLogKind(cursor.value()) != want) continue
+            if (Index.kind(cursor.value()) != want) continue
             if (accept(Keys.invert(cursor.keyU64(9))) >= wanted) break
         }
     }
@@ -732,14 +732,14 @@ internal fun headOf(
     while (cursor.next()) {
         if (bound != null && bound.past(cursor)) return -1
         val value = cursor.value()
-        if (Records.asLogKind(value) != want) continue
+        if (Index.kind(value) != want) continue
         val at = millisOf(cursor, value)
         if (sinceMillis != null && at != null && at < sinceMillis) {
             if (bound == null && at < sinceMillis - SEQ_TIME_SLACK_MILLIS) return -1
             continue
         }
         if (untilMillis != null && at != null && at > untilMillis) continue
-        val cause = Records.logKindCause(value)
+        val cause = Index.cause(value)
         if (cause != null && cause.isBookkeeping) continue
         if (excludedCauses.isNotEmpty() && cause != null && cause in excludedCauses) continue
         return seqOf(cursor)

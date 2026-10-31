@@ -9,38 +9,12 @@ import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.storage.codec.Packed.BLOCK
-import com.tracel.storage.codec.Packed.ENTITY
-import com.tracel.storage.codec.Packed.ITEM_ENTITY
-import com.tracel.storage.codec.Packed.PLACED_BLOCK
-import com.tracel.storage.codec.Packed.PLACED_ENTITY
-import com.tracel.storage.codec.Packed.PLAYER
-import com.tracel.storage.ffm.Bytes.i32
-import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8
-import com.tracel.storage.ffm.Bytes.putI32
-import com.tracel.storage.ffm.Bytes.putI64
-import com.tracel.storage.ffm.Bytes.putI8
 import com.tracel.storage.ffm.Bytes.readBytes
 import java.lang.foreign.MemorySegment
 import java.util.*
 
-/**
- * Binary encodings of the two things worth interning.
- *
- * | Category / Type                         | Tag                   | Size (bytes)                | Memory Layout                                                                                     |
- * | :-------------------------------------- | :-------------------- | :-------------------------- | :------------------------------------------------------------------------------------------------ |
- * | Holder: Block / PlacedBlock             | `0` / `1` / 29        | `+0` tag (u8)               | `+1` world UUID (i64 + i64) / `+17` x (i32) / `+21` y (i32) / `+25` z (i32)                       |
- * | Holder: Player / Entity / ItemEntity    | `2` / `3` / `4` | 17  | `+0` tag (u8)               | `+1` entity UUID (i64 + i64)                                                                      |
- * | Holder: PlacedEntity / EnderChest       | `8` / `9` / 17        | `+0` tag (u8)               | `+1` entity UUID (i64 + i64)                                                                      |
- * | Holder: Escrow                          | `5` / 9               | `+0` tag (u8)               | `+1` jobId (i64)                                                                                  |
- * | Holder: Source / Sink                   | `6` / `7` / 2         | `+0` tag (u8)               | `+1` kind ordinal (u8)                                                                            |
- * | Holder: Plugin                          | `10` / `3 + N`        | `+0` tag (u8)               | `+1` length (u16 BE) / `+3` name (UTF-8)                                                          |
- * | Holder: Custom                          | `11` / `5 + K + I`    | `+0` tag (u8)               | `+1` kind length (u16 BE) / `+3` kind (UTF-8) / `+3+K` id length (u16 BE) / `+5+K` id (UTF-8) |
- * | WorldId                                 | —       / 16          | `+0` world UUID (i64 + i64) | —                                                                                                 |
- * | ItemKey                                 | —       / `4 + M + D` | `+0` materialLen (u16 BE)   | `+2` material (UTF-8) / `+2+M` decorationLen (u16 BE) / `+4+M` decoration (UTF-8)                 |
- * | BlockDataKey / EntityTypeKey            | —       / `2 + N`     | `+0` length (u16 BE)        | `+2` text (UTF-8)                                                                                 |
- */
+/** The binary forms of what gets interned: holders, item keys, worlds, block data and entity types. */
 object Packed {
     private const val BLOCK: Byte = 0
     private const val PLACED_BLOCK: Byte = 1
@@ -55,184 +29,91 @@ object Packed {
     private const val PLUGIN: Byte = 10
     private const val CUSTOM: Byte = 11
 
-    /**
-     * Encodes a [HolderId] into its compact fixed-size binary representation.
-     *
-     * @param holder the typed domain holder identifier
-     * @return a newly allocated byte array containing the tag and raw payload
-     */
-    fun holder(holder: HolderId): ByteArray = when (holder) {
-        is HolderId.Block -> block(BLOCK, holder.world, holder.x, holder.y, holder.z)
-        is HolderId.PlacedBlock -> block(PLACED_BLOCK, holder.world, holder.x, holder.y, holder.z)
-        is HolderId.Player -> uuid(PLAYER, holder.uuid)
-        is HolderId.PlayerStash -> uuid(ENDER_CHEST, holder.uuid)
-        is HolderId.Entity -> uuid(ENTITY, holder.uuid)
-        is HolderId.PlacedEntity -> uuid(PLACED_ENTITY, holder.uuid)
-        is HolderId.ItemEntity -> uuid(ITEM_ENTITY, holder.uuid)
-        is HolderId.Escrow -> ByteArray(9).also {
-            val s = MemorySegment.ofArray(it)
-            s.putI8(0, ESCROW); s.putI64(1, holder.job.raw)
-        }
+    private object At : Record() {
+        val tag = i8()
+        val world = uuid()
+        val x = i32()
+        val y = i32()
+        val z = i32()
+    }
 
+    private object Id : Record() {
+        val tag = i8()
+        val uuid = uuid()
+    }
+
+    private object Escrow : Record() {
+        val tag = i8()
+        val job = i64()
+    }
+
+    private object WorldAt : Record() {
+        val uuid = uuid()
+    }
+
+    fun holder(holder: HolderId): ByteArray = when (holder) {
+        is HolderId.Block -> at(BLOCK, holder.world, holder.x, holder.y, holder.z)
+        is HolderId.PlacedBlock -> at(PLACED_BLOCK, holder.world, holder.x, holder.y, holder.z)
+        is HolderId.Player -> id(PLAYER, holder.uuid)
+        is HolderId.PlayerStash -> id(ENDER_CHEST, holder.uuid)
+        is HolderId.Entity -> id(ENTITY, holder.uuid)
+        is HolderId.PlacedEntity -> id(PLACED_ENTITY, holder.uuid)
+        is HolderId.ItemEntity -> id(ITEM_ENTITY, holder.uuid)
+        is HolderId.Escrow -> Escrow.build { Escrow.tag(ESCROW); Escrow.job(holder.job.raw) }
         is HolderId.Source -> byteArrayOf(SOURCE, holder.kind.ordinal.toByte())
         is HolderId.Sink -> byteArrayOf(SINK, holder.kind.ordinal.toByte())
         is HolderId.Plugin -> byteArrayOf(PLUGIN) + text(holder.name)
         is HolderId.Custom -> byteArrayOf(CUSTOM) + text(holder.kind) + text(holder.id)
     }
 
-    /**
-     * Decodes a [HolderId] directly from an off-heap memory segment.
-     *
-     * @param v segment pointing to the start of the encoded holder
-     * @return reconstituted domain object
-     * @throws IllegalStateException if the leading tag byte is unknown
-     */
     fun decodeHolder(v: MemorySegment): HolderId = when (val tag = v.i8(0)) {
-        BLOCK -> HolderId.Block(WorldId(UUID(v.i64(1), v.i64(9))), v.i32(17), v.i32(21), v.i32(25))
-        PLACED_BLOCK -> HolderId.PlacedBlock(WorldId(UUID(v.i64(1), v.i64(9))), v.i32(17), v.i32(21), v.i32(25))
-        PLAYER -> HolderId.Player(UUID(v.i64(1), v.i64(9)))
-        ENDER_CHEST -> HolderId.PlayerStash(UUID(v.i64(1), v.i64(9)))
-        ENTITY -> HolderId.Entity(UUID(v.i64(1), v.i64(9)))
-        PLACED_ENTITY -> HolderId.PlacedEntity(UUID(v.i64(1), v.i64(9)))
-        ITEM_ENTITY -> HolderId.ItemEntity(UUID(v.i64(1), v.i64(9)))
-        ESCROW -> HolderId.Escrow(RollbackJobId(v.i64(1)))
+        BLOCK -> HolderId.Block(WorldId(At.world[v]), At.x[v], At.y[v], At.z[v])
+        PLACED_BLOCK -> HolderId.PlacedBlock(WorldId(At.world[v]), At.x[v], At.y[v], At.z[v])
+        PLAYER -> HolderId.Player(Id.uuid[v])
+        ENDER_CHEST -> HolderId.PlayerStash(Id.uuid[v])
+        ENTITY -> HolderId.Entity(Id.uuid[v])
+        PLACED_ENTITY -> HolderId.PlacedEntity(Id.uuid[v])
+        ITEM_ENTITY -> HolderId.ItemEntity(Id.uuid[v])
+        ESCROW -> HolderId.Escrow(RollbackJobId(Escrow.job[v]))
         SOURCE -> HolderId.Source(SourceKind.entries[v.i8(1).toInt()])
         SINK -> HolderId.Sink(SinkKind.entries[v.i8(1).toInt()])
-        PLUGIN -> HolderId.Plugin(decodeText(v.asSlice(1)))
-        CUSTOM -> {
-            val kind = decodeText(v.asSlice(1))
-            HolderId.Custom(kind, decodeText(v.asSlice(3L + kind.toByteArray(Charsets.UTF_8).size)))
-        }
-        else -> error("unrecognized holder tag: $tag")
+        PLUGIN -> HolderId.Plugin(text(v, 1))
+        CUSTOM -> HolderId.Custom(text(v, 1), text(v, 3L + length(v, 1)))
+        else -> error("unrecognized holder tag: $tag.")
     }
 
-    /**
-     * Encodes an [ItemKey] into a length-prefixed binary layout.
-     *
-     * Writes material UTF-8 bytes prefixed by `u16 BE` length, followed by optional
-     * decoration hash UTF-8 bytes prefixed by `u16 BE` length (or zero length if null).
-     *
-     * @param itemKey item descriptor containing material name and optional hash
-     * @return byte array of size `4 + materialLength + decorationLength`
-     */
-    fun itemKey(itemKey: ItemKey): ByteArray {
-        val material = itemKey.material.toByteArray(Charsets.UTF_8)
-        val decoration = itemKey.decoration?.hex?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
-        val out = ByteArray(4 + material.size + decoration.size)
-        out[0] = (material.size ushr 8).toByte()                  // Material length high byte
-        out[1] = material.size.toByte()                           // Material length low byte
-        material.copyInto(out, 2)
+    fun itemKey(itemKey: ItemKey): ByteArray = text(itemKey.material) + text(itemKey.decoration?.hex ?: "")
 
-        var at = 2 + material.size
-        out[at] = (decoration.size ushr 8).toByte()               // Decoration length high byte
-        out[at + 1] = decoration.size.toByte()                    // Decoration length low byte
-        at += 2
-        decoration.copyInto(out, at)
-        return out
-    }
-
-    /**
-     * Decodes an [ItemKey] from an off-heap memory segment.
-     *
-     * @param v segment containing the length-prefixed item payload
-     * @return parsed [ItemKey] instance
-     */
     fun decodeItemKey(v: MemorySegment): ItemKey {
-        val materialLen = ((v.i8(0).toInt() and 0xFF) shl 8) or (v.i8(1).toInt() and 0xFF)
-        val material = String(v.readBytes(2, materialLen), Charsets.UTF_8)
-        val at = 2L + materialLen
-        val decorationLen = ((v.i8(at).toInt() and 0xFF) shl 8) or (v.i8(at + 1).toInt() and 0xFF)
-        val decoration =
-            if (decorationLen == 0) null else ContentHash(String(v.readBytes(at + 2, decorationLen), Charsets.UTF_8))
-        return ItemKey(material, decoration)
+        val material = text(v, 0)
+        val decoration = text(v, 2L + length(v, 0))
+        return ItemKey(material, decoration.ifEmpty { null }?.let(::ContentHash))
     }
 
-    /** Encodes a [BlockDataKey]. */
     fun blockData(blockData: BlockDataKey): ByteArray = text(blockData.value)
+    fun decodeBlockData(v: MemorySegment): BlockDataKey = BlockDataKey(text(v, 0))
 
-    /** Decodes block data. */
-    fun decodeBlockData(v: MemorySegment): BlockDataKey = BlockDataKey(decodeText(v))
-
-    /** Encodes an [EntityTypeKey] — `minecraft:chest_boat`. Same shape as [blockData]. */
     fun entityType(entityType: EntityTypeKey): ByteArray = text(entityType.value)
+    fun decodeEntityType(v: MemorySegment): EntityTypeKey = EntityTypeKey(text(v, 0))
 
-    /** Decodes entity type. */
-    fun decodeEntityType(v: MemorySegment): EntityTypeKey = EntityTypeKey(decodeText(v))
+    fun world(world: WorldId): ByteArray = WorldAt.build { WorldAt.uuid(world.uuid) }
+    fun decodeWorld(v: MemorySegment): WorldId = WorldId(WorldAt.uuid[v])
 
-    /**
-     * Serializes a [WorldId] into 16 raw big-endian bytes (128-bit UUID).
-     *
-     * @param world domain world wrapper
-     * @return 16-byte array containing most and least significant bits
-     */
-    fun world(world: WorldId): ByteArray = ByteArray(16).also {
-        val s = MemorySegment.ofArray(it)
-        s.putI64(0, world.uuid.mostSignificantBits)     // Bits 0–63
-        s.putI64(8, world.uuid.leastSignificantBits)    // Bits 64–127
-    }
+    private fun at(tag: Byte, world: WorldId, x: Int, y: Int, z: Int) =
+        At.build { At.tag(tag); At.world(world.uuid); At.x(x); At.y(y); At.z(z) }
 
-    /**
-     * Encodes a UTF-8 string with a 2-byte big-endian length prefix.
-     *
-     * @return byte array of size `2 + utf8.length`
-     */
+    private fun id(tag: Byte, uuid: UUID) = Id.build { Id.tag(tag); Id.uuid(uuid) }
+
     private fun text(value: String): ByteArray {
         val utf8 = value.toByteArray(Charsets.UTF_8)
-        val out = ByteArray(2 + utf8.size)
-        out[0] = (utf8.size ushr 8).toByte()
-        out[1] = utf8.size.toByte()
-        utf8.copyInto(out, 2)
-        return out
+        return ByteArray(2 + utf8.size).also {
+            it[0] = (utf8.size ushr 8).toByte()
+            it[1] = utf8.size.toByte()
+            utf8.copyInto(it, 2)
+        }
     }
 
-    /**
-     * Decodes a UTF-8 string from a 2-byte big-endian length prefix.
-     *
-     * @param v segment containing the length-prefixed UTF-8 string
-     * @return reconstituted string
-     */
-    private fun decodeText(v: MemorySegment): String {
-        val length = ((v.i8(0).toInt() and 0xFF) shl 8) or (v.i8(1).toInt() and 0xFF)
-        return String(v.readBytes(2, length), Charsets.UTF_8)
-    }
+    private fun length(v: MemorySegment, at: Long): Int = ((v.i8(at).toInt() and 0xFF) shl 8) or (v.i8(at + 1).toInt() and 0xFF)
 
-    /**
-     * Reads back what [world] wrote.
-     *
-     * @param v segment containing the world identifier
-     * @return decoded world identifier
-     */
-    fun decodeWorld(v: MemorySegment): WorldId = WorldId(UUID(v.i64(0), v.i64(8)))
-
-    /**
-     * Helper for encoding spatial block holders (29 bytes).
-     *
-     * @param tag discriminator byte ([BLOCK] or [PLACED_BLOCK])
-     * @param world world identifier
-     * @param x block X coordinate
-     * @param y block Y coordinate
-     * @param z block Z coordinate
-     */
-    private fun block(tag: Byte, world: WorldId, x: Int, y: Int, z: Int): ByteArray = ByteArray(29).also {
-        val s = MemorySegment.ofArray(it)
-        s.putI8(0, tag)                                 // Offset +0
-        s.putI64(1, world.uuid.mostSignificantBits)     // Offset +1
-        s.putI64(9, world.uuid.leastSignificantBits)    // Offset +9
-        s.putI32(17, x)                                 // Offset +17
-        s.putI32(21, y)                                 // Offset +21
-        s.putI32(25, z)                                 // Offset +25
-    }
-
-    /**
-     * Helper for encoding UUID-based entity holders (17 bytes).
-     *
-     * @param tag discriminator byte ([PLAYER], [ENTITY], [PLACED_ENTITY], or [ITEM_ENTITY])
-     * @param uuid entity unique identifier
-     */
-    private fun uuid(tag: Byte, uuid: UUID): ByteArray = ByteArray(17).also {
-        val s = MemorySegment.ofArray(it)
-        s.putI8(0, tag)                           // Offset +0
-        s.putI64(1, uuid.mostSignificantBits)     // Offset +1
-        s.putI64(9, uuid.leastSignificantBits)    // Offset +9
-    }
+    private fun text(v: MemorySegment, at: Long): String = String(v.readBytes(at + 2, length(v, at)), Charsets.UTF_8)
 }

@@ -1,5 +1,11 @@
 package com.tracel.storage.codec
 
+import com.tracel.storage.codec.records.EntityChange
+import com.tracel.storage.codec.records.BlockChange
+import com.tracel.storage.codec.records.Wchg
+import com.tracel.storage.codec.records.Index
+import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.records.Txn
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId
@@ -83,35 +89,35 @@ class CodecGoldensTest {
 
     @Test
     fun `the transaction record is a 40-byte header and 24 bytes per flow`() {
-        assertEquals(1.toByte(), Records.VERSION, "the codec version is pinned; bumping it means wiping the store")
-        assertEquals(40, Records.transactionSize(0))
-        assertEquals(64, Records.transactionSize(1))
-        assertEquals(88, Records.transactionSize(2))
+        assertEquals(1.toByte(), Scalar.VERSION, "the codec version is pinned; bumping it means wiping the store")
+        assertEquals(40, Txn.size(0))
+        assertEquals(64, Txn.size(1))
+        assertEquals(88, Txn.size(2))
     }
 
     @Test
     fun `a two-flow transaction round-trips every packed field`() {
-        val bytes = ByteArray(Records.transactionSize(2))
+        val bytes = ByteArray(Txn.size(2))
         val into = MemorySegment.ofArray(bytes)
-        Records.writeTransactionHeader(into, CauseKind.EXPLOSION, 2, 77, 1234L, 1_700_000_000_000L, 3, -140, 71, 208)
-        Records.writeFlow(into, 0, 5, 6, 7, FlowKind.BURN, 42L)
-        Records.writeFlow(into, 1, 8, 9, 10, FlowKind.TRANSFORM_OUT, -3L)
+        Txn.writeHeader(into, CauseKind.EXPLOSION, 2, 77, 1234L, 1_700_000_000_000L, 3, -140, 71, 208)
+        Txn.writeFlow(into, 0, 5, 6, 7, FlowKind.BURN, 42L)
+        Txn.writeFlow(into, 1, 8, 9, 10, FlowKind.TRANSFORM_OUT, -3L)
 
-        assertEquals(3, Records.txnWorldId(into))
-        assertEquals(-140, Records.txnX(into))
-        assertEquals(71, Records.txnY(into))
-        assertEquals(208, Records.txnZ(into))
+        assertEquals(3, Txn.world[into])
+        assertEquals(-140, Txn.x[into])
+        assertEquals(71, Txn.y[into])
+        assertEquals(208, Txn.z[into])
 
-        assertEquals(CauseKind.EXPLOSION, Records.txnCause(into))
-        assertEquals(2, Records.txnFlowCount(into))
-        assertEquals(77, Records.txnCausedBy(into))
-        assertEquals(1234L, Records.txnId(into))
-        assertEquals(1_700_000_000_000L, Records.txnEpochMillis(into))
-        assertEquals(5, Records.flowItemKeyId(into, 0))
-        assertEquals(FlowKind.BURN, Records.flowKind(into, 0))
-        assertEquals(42L, Records.flowQuantity(into, 0))
-        assertEquals(10, Records.flowDestination(into, 1))
-        assertEquals(-3L, Records.flowQuantity(into, 1))
+        assertEquals(CauseKind.EXPLOSION, Txn.cause[into])
+        assertEquals(2, Txn.flowCount[into])
+        assertEquals(77, Txn.causedBy[into])
+        assertEquals(1234L, Txn.id[into])
+        assertEquals(1_700_000_000_000L, Txn.epochMillis[into])
+        assertEquals(5, Txn.item[into, 0])
+        assertEquals(FlowKind.BURN, Txn.kind[into, 0])
+        assertEquals(42L, Txn.quantity[into, 0])
+        assertEquals(10, Txn.destination[into, 1])
+        assertEquals(-3L, Txn.quantity[into, 1])
     }
 
     @Test
@@ -154,26 +160,26 @@ class CodecGoldensTest {
         val before = byteArrayOf(1, 2, 3)
         val after = byteArrayOf(4, 5)
         val record = MemorySegment.ofArray(
-            Records.blockChange(
+            BlockChange.of(
                 ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, 77, 3,
                 -30_000_000, -64, 30_000_000, 1_700_000_000_000L, 11, 0, before, after,
             )
         )
 
-        assertEquals(Records.VERSION, Records.wchgVersion(record))
-        assertEquals(Records.CHANGE_BLOCK, Records.wchgKind(record))
-        assertEquals(ActionKind.BLOCK_BREAK, Records.wchgAction(record))
-        assertEquals(CauseKind.EXPLOSION, Records.wchgCause(record))
-        assertEquals(77, Records.wchgCausedBy(record))
-        assertEquals(3, Records.wchgWorldId(record))
-        assertEquals(-30_000_000, Records.wchgX(record))
-        assertEquals(-64, Records.wchgY(record))
-        assertEquals(30_000_000, Records.wchgZ(record))
-        assertEquals(1_700_000_000_000L, Records.wchgEpochMillis(record))
-        assertEquals(11, Records.blockChangeBefore(record))
-        assertEquals(0, Records.blockChangeAfter(record))
-        assertArrayEquals(before, Records.blockChangeBeforeExtras(record))
-        assertArrayEquals(after, Records.blockChangeAfterExtras(record))
+        assertEquals(Scalar.VERSION, Wchg.version[record])
+        assertEquals(Wchg.BLOCK, Wchg.kind[record])
+        assertEquals(ActionKind.BLOCK_BREAK, Wchg.action[record])
+        assertEquals(CauseKind.EXPLOSION, Wchg.cause[record])
+        assertEquals(77, Wchg.causedBy[record])
+        assertEquals(3, Wchg.world[record])
+        assertEquals(-30_000_000, Wchg.x[record])
+        assertEquals(-64, Wchg.y[record])
+        assertEquals(30_000_000, Wchg.z[record])
+        assertEquals(1_700_000_000_000L, Wchg.epochMillis[record])
+        assertEquals(11, BlockChange.before[record])
+        assertEquals(0, BlockChange.after[record])
+        assertArrayEquals(before, BlockChange.beforeExtras[record])
+        assertArrayEquals(after, BlockChange.afterExtras[record])
     }
 
     @Test
@@ -181,35 +187,35 @@ class CodecGoldensTest {
         val entity = UUID(12, 34)
         val after = byteArrayOf(7, 7, 7, 7)
         val record = MemorySegment.ofArray(
-            Records.entityChange(
+            EntityChange.of(
                 ActionKind.ENTITY_SPAWN, CauseKind.PLAYER_ACTION, 5, 1,
                 10, 70, -10, 42L, 9, entity, ByteArray(0), after,
             )
         )
 
-        assertEquals(Records.CHANGE_ENTITY, Records.wchgKind(record))
-        assertEquals(ActionKind.ENTITY_SPAWN, Records.wchgAction(record))
-        assertEquals(9, Records.entityChangeTypeId(record))
-        assertEquals(entity, Records.entityChangeUuid(record))
-        assertArrayEquals(ByteArray(0), Records.entityChangeBeforeExtras(record))
-        assertArrayEquals(after, Records.entityChangeAfterExtras(record))
+        assertEquals(Wchg.ENTITY, Wchg.kind[record])
+        assertEquals(ActionKind.ENTITY_SPAWN, Wchg.action[record])
+        assertEquals(9, EntityChange.type[record])
+        assertEquals(entity, EntityChange.entity[record])
+        assertArrayEquals(ByteArray(0), EntityChange.beforeExtras[record])
+        assertArrayEquals(after, EntityChange.afterExtras[record])
     }
 
     @Test
     fun `a shared index value says which log its sequence belongs to`() {
         for (kind in LogKind.entries) {
-            assertEquals(kind, Records.asLogKind(MemorySegment.ofArray(Records.logKind(kind))))
+            assertEquals(kind, Index.kind(MemorySegment.ofArray(Index.bare(kind))))
         }
-        assertEquals(1, Records.logKind(LogKind.WORLD).size, "one byte per index entry, not four")
-        val spatial = Records.logKind(LogKind.WORLD, 1_700_000_000_000L, CauseKind.PLAYER_ACTION, 3, 64, -5)
+        assertEquals(1, Index.bare(LogKind.WORLD).size, "one byte per index entry, not four")
+        val spatial = Index.at(LogKind.WORLD, 1_700_000_000_000L, CauseKind.PLAYER_ACTION, 3, 64, -5)
         val packed = MemorySegment.ofArray(spatial)
         assertEquals(22, spatial.size)
-        assertEquals(LogKind.WORLD, Records.asLogKind(packed))
-        assertEquals(1_700_000_000_000L, Records.logKindMillis(packed))
-        assertEquals(CauseKind.PLAYER_ACTION, Records.logKindCause(packed))
-        assertEquals(3, Records.logKindX(packed))
-        assertEquals(64, Records.logKindY(packed))
-        assertEquals(-5, Records.logKindZ(packed))
+        assertEquals(LogKind.WORLD, Index.kind(packed))
+        assertEquals(1_700_000_000_000L, Index.millis(packed))
+        assertEquals(CauseKind.PLAYER_ACTION, Index.cause(packed))
+        assertEquals(3, Index.x(packed))
+        assertEquals(64, Index.y(packed))
+        assertEquals(-5, Index.z(packed))
     }
 
     @Test

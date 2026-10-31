@@ -37,13 +37,13 @@ class ContainerSlotLog(
             scan(Tag.CONTAINER_SLOT[holderId]).use { cursor ->
                 while (cursor.next()) {
                     val record = cursor.value()
-                    if (ContainerSlot.layoutEpochMillis(record) <= asOfMillis) {
-                        val count = ContainerSlot.layoutCount(record)
+                    if (ContainerSlot.epochMillis[record] <= asOfMillis) {
+                        val count = ContainerSlot.count[record]
                         result = List(count) { index ->
                             ContainerSlotEntry(
-                                ContainerSlot.layoutSlot(record, index),
-                                storage.interning.resolveItemKey(this, ContainerSlot.layoutItemKeyId(record, index)),
-                                ContainerSlot.layoutQuantity(record, index),
+                                ContainerSlot.slot[record, index],
+                                storage.interning.resolveItemKey(this, ContainerSlot.itemKeyId[record, index]),
+                                ContainerSlot.quantity[record, index],
                             )
                         }
                         return@use

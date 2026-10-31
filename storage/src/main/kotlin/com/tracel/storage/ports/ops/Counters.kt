@@ -7,7 +7,7 @@ import com.tracel.model.transaction.TxnId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.storage.spi.MutationBatch
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
@@ -64,7 +64,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         }
         if (cached != null) return cached
         return storage.read {
-            get(Tag.COUNTER[TXN])?.let(Records::asLong) ?: 1L
+            get(Tag.COUNTER[TXN])?.let(Scalar::asLong) ?: 1L
         }
     }
 
@@ -97,8 +97,8 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
 
     private suspend fun nextRange(name: Int, count: Int): Long = storage.write {
         val key = Tag.COUNTER[name]
-        val value = get(key)?.let(Records::asLong) ?: first(name)
-        putPinned(key, Records.long(value + count))
+        val value = get(key)?.let(Scalar::asLong) ?: first(name)
+        putPinned(key, Scalar.long(value + count))
         keepSpent(this, key, value + count)
         value
     }
@@ -107,8 +107,8 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         val reservation = reserved[name]
         if (reservation != null && reservation.next < reservation.exhaustedAt) return reservation.next++
         val key = Tag.COUNTER[name]
-        val start = unit.get(key)?.let(Records::asLong) ?: first(name)
-        unit.putPinned(key, Records.long(start + blockSize))
+        val start = unit.get(key)?.let(Scalar::asLong) ?: first(name)
+        unit.putPinned(key, Scalar.long(start + blockSize))
         keepSpent(unit, key, start + blockSize)
         reserved[name] = Reservation(start + 1, start + blockSize)
         start
@@ -116,17 +116,17 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
 
     private suspend fun reserve(name: Int): Long = storage.write {
         val key = Tag.COUNTER[name]
-        val value = get(key)?.let(Records::asLong) ?: first(name)
-        putPinned(key, Records.long(value + blockSize))
+        val value = get(key)?.let(Scalar::asLong) ?: first(name)
+        putPinned(key, Scalar.long(value + blockSize))
         keepSpent(this, key, value + blockSize)
         value
     }
 
     private fun keepSpent(unit: StorageUnit, key: ByteArray, until: Long) {
         unit.afterAbort {
-            val durable = storage.engine.snapshot().use { it.get(key)?.let(Records::asLong) } ?: 0L
+            val durable = storage.engine.snapshot().use { it.get(key)?.let(Scalar::asLong) } ?: 0L
             if (durable < until) storage.engine.write(
-                MutationBatch().apply { put(key, Records.long(until)) },
+                MutationBatch().apply { put(key, Scalar.long(until)) },
                 durable = true
             )
         }

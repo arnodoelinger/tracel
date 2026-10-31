@@ -1,16 +1,16 @@
 package com.tracel.storage.ports.ops
 
+import com.tracel.storage.codec.records.PackSum
 import com.tracel.engine.store.PurgeSummary
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
-import com.tracel.storage.codec.records.Lot as LotRecord
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
 
 /** Deletes the `Tracel`'s history. */
@@ -38,13 +38,13 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
                 }
             }
             val seqKey = Tag.COUNTER[Counters.SEQ]
-            val used = unit.get(seqKey)?.let(Records::asLong)
+            val used = unit.get(seqKey)?.let(Scalar::asLong)
             if (used != null && used < Counters.SEQ_BASE) {
                 val importKey = Tag.COUNTER[Counters.IMPORT_SEQ]
-                val imported = unit.get(importKey)?.let(Records::asLong) ?: 1L
+                val imported = unit.get(importKey)?.let(Scalar::asLong) ?: 1L
                 kept.removeAll { (key, _) -> key.contentEquals(seqKey) || key.contentEquals(importKey) }
-                kept += seqKey to Records.long(Counters.SEQ_BASE)
-                kept += importKey to Records.long(maxOf(imported, used))
+                kept += seqKey to Scalar.long(Counters.SEQ_BASE)
+                kept += importKey to Scalar.long(maxOf(imported, used))
             }
         }
         storage.engine.wipe(MutationBatch().apply { for ((key, value) in kept) put(key, value) })
@@ -75,7 +75,7 @@ suspend fun rebuildTotals(storage: TracelStorage) {
             val itemKeyId = KeyReader.u32(key, 1)
             val holderId = KeyReader.u32(key, 5)
             val packed = (holderId.toLong() shl 32) or (itemKeyId.toLong() and 0xFFFFFFFFL) // -> 64
-            totals.addTo(packed, LotRecord.sumOf(cursor.value()))
+            totals.addTo(packed, PackSum.sum[cursor.value()])
         }
         for (entry in totals.long2LongEntrySet()) {
             val packed = entry.longKey
@@ -83,7 +83,7 @@ suspend fun rebuildTotals(storage: TracelStorage) {
             if (total == 0L) continue
             put(
                 Tag.TOTAL[(packed ushr 32).toInt(), packed.toInt()],
-                Records.long(total),
+                Scalar.long(total),
             )
         }
     }

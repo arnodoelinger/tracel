@@ -22,7 +22,9 @@ import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Packed
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Index
+import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.records.Txn
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.util.ascending
 import com.tracel.storage.util.eachIndex
@@ -56,11 +58,11 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
 
             val seq = transaction.seq.raw
             val causedById = transaction.causedBy?.let { interning.internHolder(this, it) } ?: 0
-            val record = ByteArray(Records.transactionSize(transaction.flows.size))
+            val record = ByteArray(Txn.size(transaction.flows.size))
             val into = MemorySegment.ofArray(record)
             val at = transaction.at
             val atWorldId = at?.let { interning.internWorld(this, it.world) } ?: 0
-            Records.writeTransactionHeader(
+            Txn.writeHeader(
                 into,
                 transaction.cause,
                 transaction.flows.size,
@@ -91,7 +93,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
                 val itemKeyId = interning.internItemKey(this, flow.itemKey)
                 val sourceId = interning.internHolder(this, flow.source)
                 val destinationId = interning.internHolder(this, flow.destination)
-                Records.writeFlow(into, i, itemKeyId, sourceId, destinationId, flow.kind, flow.quantity.raw)
+                Txn.writeFlow(into, i, itemKeyId, sourceId, destinationId, flow.kind, flow.quantity.raw)
                 if (bookkeeping) return@forEachIndexed
                 if (holders.add(sourceId)) index(this, flow.source, seq, transaction.epochMillis, transaction.cause)
                 if (holders.add(destinationId)) index(
@@ -105,26 +107,26 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             }
 
             put(Tag.TXN[seq], record)
-            put(Tag.TXN_BY_ID[transaction.id.raw], Records.long(seq))
+            put(Tag.TXN_BY_ID[transaction.id.raw], Scalar.long(seq))
             if (bookkeeping) return@write
-            val timed = Records.logKindTimed(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause)
+            val timed = Index.timed(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause)
             for (holderId in holders.toIntArray()) put(Tag.ACTOR[holderId, seq], timed)
             for (itemKeyId in itemKeys.toIntArray()) put(Tag.ITEM[itemKeyId, seq], timed)
             put(Tag.TIME[transaction.epochMillis, seq], OWN_LOG)
             if (at != null && atWorldId != 0) {
                 put(
                     Tag.SPATIAL[atWorldId, at.x shr 4, at.z shr 4, transaction.epochMillis, Keys.yBin(at.y), seq],
-                    Records.logKind(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause, at.x, at.y, at.z),
+                    Index.at(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause, at.x, at.y, at.z),
                 )
             }
             for ((flowIndex, lotId, quantity) in transaction.lots) {
-                put(Tag.TXN_LOT[seq, flowIndex, lotId.raw], Records.long(quantity.raw))
+                put(Tag.TXN_LOT[seq, flowIndex, lotId.raw], Scalar.long(quantity.raw))
             }
         }
     }
 
     override suspend fun find(id: TxnId): Transaction? = storage.read {
-        val seq = get(Tag.TXN_BY_ID[id.raw])?.let(Records::asLong) ?: return@read null
+        val seq = get(Tag.TXN_BY_ID[id.raw])?.let(Scalar::asLong) ?: return@read null
         get(Tag.TXN[seq])?.let { decode(this, seq, it) }
     }
 
@@ -134,7 +136,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             out += FlowLot(
                 cursor.keyU32(9),
                 LotId(cursor.keyU64(13)),
-                Quantity(Records.asLong(cursor.value())),
+                Quantity(Scalar.asLong(cursor.value())),
             )
         }
         out
@@ -169,7 +171,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
                 lots += FlowLot(
                     cursor.keyU32(9),
                     LotId(cursor.keyU64(13)),
-                    Quantity(Records.asLong(cursor.value())),
+                    Quantity(Scalar.asLong(cursor.value())),
                 )
             }
             parts[s] = out
@@ -298,22 +300,22 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val excludedIds = ids.excluded
         val regionWorldId = ids.regionWorld
         val filterWorldId = ids.world
-        val epochMillis = Records.txnEpochMillis(record)
+        val epochMillis = Txn.epochMillis[record]
         val since = filter.since
         val until = filter.until
         if (since != null && epochMillis < since) return false
         if (until != null && epochMillis > until) return false
-        val cause = Records.txnCause(record)
+        val cause = Txn.cause[record]
         if (cause.isBookkeeping) return false
         if (filter.causes.isNotEmpty() && cause !in filter.causes) return false
         if (filter.excludedCauses.isNotEmpty() && cause in filter.excludedCauses) return false
 
-        val flowCount = Records.txnFlowCount(record)
+        val flowCount = Txn.flowCount[record]
         if (holderIds.isNotEmpty()) {
-            var hit = Records.txnCausedBy(record) in holderIds
+            var hit = Txn.causedBy[record] in holderIds
             if (!hit) {
                 for (i in 0 until flowCount) {
-                    if (Records.flowSource(record, i) in holderIds || Records.flowDestination(record, i) in holderIds) {
+                    if (Txn.source[record, i] in holderIds || Txn.destination[record, i] in holderIds) {
                         hit = true
                         break
                     }
@@ -322,16 +324,16 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             if (!hit) return false
         }
         if (excludedIds.isNotEmpty()) {
-            if (Records.txnCausedBy(record) in excludedIds) return false
+            if (Txn.causedBy[record] in excludedIds) return false
             for (i in 0 until flowCount) {
-                if (Records.flowSource(record, i) in excludedIds) return false
-                if (Records.flowDestination(record, i) in excludedIds) return false
+                if (Txn.source[record, i] in excludedIds) return false
+                if (Txn.destination[record, i] in excludedIds) return false
             }
         }
         if (materialIds != null) {
             var hit = false
             for (i in 0 until flowCount) {
-                if (Records.flowItemKeyId(record, i) in materialIds) {
+                if (Txn.item[record, i] in materialIds) {
                     hit = true
                     break
                 }
@@ -352,25 +354,25 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         region: LookupRegion,
         regionWorldId: Int,
     ): Boolean {
-        if (Records.txnWorldId(record) == regionWorldId &&
-            region.containsBlock(Records.txnX(record), Records.txnY(record), Records.txnZ(record))
+        if (Txn.world[record] == regionWorldId &&
+            region.containsBlock(Txn.x[record], Txn.y[record], Txn.z[record])
         ) {
             return true
         }
-        if (holderInRegion(Records.txnCausedBy(record), region, regionWorldId)) return true
+        if (holderInRegion(Txn.causedBy[record], region, regionWorldId)) return true
         for (i in 0 until flowCount) {
-            if (holderInRegion(Records.flowSource(record, i), region, regionWorldId)) return true
-            if (holderInRegion(Records.flowDestination(record, i), region, regionWorldId)) return true
+            if (holderInRegion(Txn.source[record, i], region, regionWorldId)) return true
+            if (holderInRegion(Txn.destination[record, i], region, regionWorldId)) return true
         }
         return false
     }
 
     private fun StorageUnit.inWorld(record: MemorySegment, flowCount: Int, worldId: Int): Boolean {
-        if (Records.txnWorldId(record) == worldId) return true
-        if (holderWorldId(Records.txnCausedBy(record)) == worldId) return true
+        if (Txn.world[record] == worldId) return true
+        if (holderWorldId(Txn.causedBy[record]) == worldId) return true
         for (i in 0 until flowCount) {
-            if (holderWorldId(Records.flowSource(record, i)) == worldId) return true
-            if (holderWorldId(Records.flowDestination(record, i)) == worldId) return true
+            if (holderWorldId(Txn.source[record, i]) == worldId) return true
+            if (holderWorldId(Txn.destination[record, i]) == worldId) return true
         }
         return false
     }
@@ -420,45 +422,45 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val worldId = interning.internWorld(unit, world)
         unit.put(
             Tag.SPATIAL[worldId, x shr 4, z shr 4, epochMillis, Keys.yBin(y), seq],
-            Records.logKind(LogKind.TRANSACTION, epochMillis, cause, x, y, z),
+            Index.at(LogKind.TRANSACTION, epochMillis, cause, x, y, z),
         )
     }
 
     private fun decode(unit: StorageUnit, seq: Long, record: MemorySegment): Transaction {
-        val version = Records.txnVersion(record)
-        check(version == Records.VERSION) {
-            "transaction at seq $seq was written by codec v$version, this build reads v${Records.VERSION}"
+        val version = Txn.version[record]
+        check(version == Scalar.VERSION) {
+            "transaction at seq $seq was written by codec v$version, this build reads v${Scalar.VERSION}"
         }
-        val flowCount = Records.txnFlowCount(record)
+        val flowCount = Txn.flowCount[record]
         val flows = ArrayList<Flow>(flowCount)
         for (i in 0 until flowCount) {
             flows += Flow(
-                interning.resolveItemKey(unit, Records.flowItemKeyId(record, i)),
-                Quantity(Records.flowQuantity(record, i)),
-                interning.resolveHolder(unit, Records.flowSource(record, i)),
-                interning.resolveHolder(unit, Records.flowDestination(record, i)),
-                Records.flowKind(record, i),
+                interning.resolveItemKey(unit, Txn.item[record, i]),
+                Quantity(Txn.quantity[record, i]),
+                interning.resolveHolder(unit, Txn.source[record, i]),
+                interning.resolveHolder(unit, Txn.destination[record, i]),
+                Txn.kind[record, i],
             )
         }
-        val causedById = Records.txnCausedBy(record)
-        val atWorldId = Records.txnWorldId(record)
+        val causedById = Txn.causedBy[record]
+        val atWorldId = Txn.world[record]
         return Transaction(
-            TxnId(Records.txnId(record)),
+            TxnId(Txn.id[record]),
             Seq(seq),
-            Records.txnEpochMillis(record),
-            Records.txnCause(record),
+            Txn.epochMillis[record],
+            Txn.cause[record],
             if (causedById == 0) null else interning.resolveHolder(unit, causedById),
             flows,
             at = if (atWorldId == 0) null else BlockPos(
                 interning.resolveWorld(unit, atWorldId),
-                Records.txnX(record),
-                Records.txnY(record),
-                Records.txnZ(record),
+                Txn.x[record],
+                Txn.y[record],
+                Txn.z[record],
             ),
         )
     }
 
     private companion object {
-        val OWN_LOG = Records.logKind(LogKind.TRANSACTION)
+        val OWN_LOG = Index.bare(LogKind.TRANSACTION)
     }
 }

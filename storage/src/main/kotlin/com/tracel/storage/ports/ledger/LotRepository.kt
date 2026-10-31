@@ -1,5 +1,6 @@
 package com.tracel.storage.ports.ledger
 
+import com.tracel.storage.codec.records.PackSum
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.tracel.engine.ledger.LotPortion
@@ -20,7 +21,9 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.LotRecord
+import com.tracel.storage.codec.records.EdgeRecord
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.storage.ffm.Key
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.ports.log.QueryProbe
@@ -37,7 +40,6 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.atomic.AtomicLong
 import com.tracel.engine.ledger.repository.LotRepository as LotRepositoryPort
-import com.tracel.storage.codec.records.Lot as LotRecord
 
 /** [LotRepositoryPort] over the packed keyspace. */
 class LotRepository(
@@ -83,7 +85,7 @@ class LotRepository(
         val id = counters.nextLotId()
         return storage.write {
             val itemKeyId = interning.internItemKey(this, itemKey)
-            put(Tag.LOT[id.raw], Records.lot(itemKeyId, quantity.raw, createdBy.raw))
+            put(Tag.LOT[id.raw], LotRecord.of(itemKeyId, quantity.raw, createdBy.raw))
             changed(id.raw)
             Lot(id, itemKey, quantity, createdBy).also { cache(id, it) }
         }
@@ -94,16 +96,16 @@ class LotRepository(
     override suspend fun recordEdge(edge: LotEdge) {
         storage.write {
             val packed = when (edge) {
-                is LotEdge.Split -> Records.edge(Records.EDGE_SPLIT, edge.quantity.raw, 0, 0)
-                is LotEdge.Transform -> Records.edge(
-                    Records.EDGE_TRANSFORM,
+                is LotEdge.Split -> EdgeRecord.of(EdgeRecord.SPLIT, edge.quantity.raw, 0, 0)
+                is LotEdge.Transform -> EdgeRecord.of(
+                    EdgeRecord.TRANSFORM,
                     edge.quantity.raw,
                     edge.craftedBy.raw,
                     interning.internHolder(this, edge.producedAt),
                 )
 
-                is LotEdge.Compensate -> Records.edge(
-                    Records.EDGE_COMPENSATE,
+                is LotEdge.Compensate -> EdgeRecord.of(
+                    EdgeRecord.COMPENSATE,
                     edge.quantity.raw,
                     edge.rollbackJob.raw,
                     0,
@@ -131,12 +133,12 @@ class LotRepository(
         storage.read {
             eachRow(Tag.EDGE_FROM[originalLotId.raw]) { cursor ->
                 val value = cursor.value()
-                if (Records.edgeKind(value) != Records.EDGE_COMPENSATE) return@eachRow
-                if (Records.edgeReference(value) != job.raw) return@eachRow
+                if (EdgeRecord.kind[value] != EdgeRecord.COMPENSATE) return@eachRow
+                if (EdgeRecord.reference[value] != job.raw) return@eachRow
                 return@read LotEdge.Compensate(
                     LotId(KeyReader.u64(cursor.key(), 9)),
                     originalLotId,
-                    Quantity(Records.edgeQuantity(value)),
+                    Quantity(EdgeRecord.quantity[value]),
                     job,
                 )
             }
@@ -225,7 +227,7 @@ class LotRepository(
             QueryProbe.cursors(1)
             QueryProbe.scanned(sorted.size.toLong())
             walkWanted(Tag.LOT_PACK, sorted, 0, sorted.size) { at, cursor ->
-                val packId = Records.asLong(cursor.value())
+                val packId = Scalar.asLong(cursor.value())
                 var holder = holderOfPack.get(packId)
                 if (holder == null) {
                     holder = packs.holderIdOf(this, packId)?.let { interning.resolveHolder(this, it) }
@@ -247,7 +249,7 @@ class LotRepository(
             val byPack = Long2ObjectLinkedOpenHashMap<LongOpenHashSet>()
             walkWanted(Tag.LOT_PACK, sorted, 0, sorted.size) { at, cursor ->
                 if (at !in edged) {
-                    val packId = Records.asLong(cursor.value())
+                    val packId = Scalar.asLong(cursor.value())
                     var chosen = byPack.get(packId)
                     if (chosen == null) {
                         chosen = LongOpenHashSet()
@@ -378,7 +380,7 @@ class LotRepository(
                         lots[i] = split.keptLotId
                         remaining[i] = split.keptRemaining
                         unit.delete(Tag.LOT_PACK[lot])
-                        unit.put(Tag.LOT_PACK[split.keptLotId], Records.long(pack.id))
+                        unit.put(Tag.LOT_PACK[split.keptLotId], Scalar.long(pack.id))
                         out[d] += split.taken
                         spent += still
                         left = split.keptRemaining
@@ -400,14 +402,14 @@ class LotRepository(
     override suspend fun totalOf(holder: HolderId, itemKey: ItemKey): Long = storage.read {
         val holderId = interning.findHolderId(this, holder) ?: return@read 0L
         val itemKeyId = interning.findItemKeyId(this, itemKey) ?: return@read 0L
-        get(Tag.TOTAL[holderId, itemKeyId])?.let(Records::asLong) ?: 0L
+        get(Tag.TOTAL[holderId, itemKeyId])?.let(Scalar::asLong) ?: 0L
     }
 
     override suspend fun totalsAt(holder: HolderId): Map<ItemKey, Long> = storage.read {
         val holderId = interning.findHolderId(this, holder) ?: return@read emptyMap()
         val out = LinkedHashMap<ItemKey, Long>()
         eachRow(Tag.TOTAL[holderId]) { cursor ->
-            val total = Records.asLong(cursor.value())
+            val total = Scalar.asLong(cursor.value())
             if (total > 0) out[interning.resolveItemKey(this, KeyReader.u32(cursor.key(), 5))] = total
         }
         out
@@ -426,7 +428,7 @@ class LotRepository(
         eachRow(Tag.PACK_ITEM[itemKeyId]) { cursor ->
             when (interning.resolveHolder(this, KeyReader.u32(cursor.key(), 5))) {
                 is HolderId.Source, is HolderId.Sink -> return@eachRow
-                else -> total += LotRecord.sumOf(cursor.value())
+                else -> total += PackSum.sum[cursor.value()]
             }
         }
         total
@@ -460,7 +462,7 @@ class LotRepository(
 
     override suspend fun currentHolderOf(lotId: LotId): HolderId? = storage.read {
         val pointer = get(Tag.LOT_PACK[lotId.raw]) ?: return@read null
-        packs.holderIdOf(this, Records.asLong(pointer))?.let { interning.resolveHolder(this, it) }
+        packs.holderIdOf(this, Scalar.asLong(pointer))?.let { interning.resolveHolder(this, it) }
     }
 
     override suspend fun place(holder: HolderId, lotId: LotId, quantity: Quantity): AccountLot = storage.write {
@@ -504,7 +506,7 @@ class LotRepository(
 
     private fun notPlaced(unit: StorageUnit, lotId: LotId) {
         val pointer = unit.get(Tag.LOT_PACK[lotId.raw]) ?: return
-        val holderId = packs.holderIdOf(unit, Records.asLong(pointer)) ?: return
+        val holderId = packs.holderIdOf(unit, Scalar.asLong(pointer)) ?: return
         error("lot $lotId is already placed at ${interning.resolveHolder(unit, holderId)}.")
     }
 
@@ -532,7 +534,7 @@ class LotRepository(
             val sorted = rawsOf(lotIds)
             val packOf = Long2LongOpenHashMap(lotIds.size).apply { defaultReturnValue(NO_PACK) }
             walkWanted(Tag.LOT_PACK, sorted, 0, sorted.size) { at, cursor ->
-                packOf.put(at, Records.asLong(cursor.value()))
+                packOf.put(at, Scalar.asLong(cursor.value()))
             }
             val byPack = Long2ObjectLinkedOpenHashMap<LongArrayList>()
             for (lotId in lotIds) {
@@ -619,7 +621,7 @@ class LotRepository(
             val left = pack.remaining.copyOf().also { it[i] = remaining.raw }
             packs.swap(this, pack, Pack(pack.id, holderId, pack.itemKeyId, lots, left, pack.fifo))
             delete(Tag.LOT_PACK[retiredLotId.raw])
-            put(Tag.LOT_PACK[newLotId.raw], Records.long(pack.id))
+            put(Tag.LOT_PACK[newLotId.raw], Scalar.long(pack.id))
             addToTotal(this, holderId, pack.itemKeyId, remaining.raw - previous)
             changed(retiredLotId.raw, newLotId.raw)
         }
@@ -691,12 +693,12 @@ class LotRepository(
         val keptId = counters.nextLotIdOn(unit)
         val takenQty = Quantity(take)
         val keptQty = Quantity(remaining - take)
-        unit.put(Tag.LOT[takenId.raw], Records.lot(itemKeyId, takenQty.raw, txn.raw))
-        unit.put(Tag.LOT[keptId.raw], Records.lot(itemKeyId, keptQty.raw, txn.raw))
+        unit.put(Tag.LOT[takenId.raw], LotRecord.of(itemKeyId, takenQty.raw, txn.raw))
+        unit.put(Tag.LOT[keptId.raw], LotRecord.of(itemKeyId, keptQty.raw, txn.raw))
         unit.cache(takenId, Lot(takenId, itemKey, takenQty, txn))
         unit.cache(keptId, Lot(keptId, itemKey, keptQty, txn))
-        val splitTaken = Records.edge(Records.EDGE_SPLIT, takenQty.raw, 0, 0)
-        val splitKept = Records.edge(Records.EDGE_SPLIT, keptQty.raw, 0, 0)
+        val splitTaken = EdgeRecord.of(EdgeRecord.SPLIT, takenQty.raw, 0, 0)
+        val splitKept = EdgeRecord.of(EdgeRecord.SPLIT, keptQty.raw, 0, 0)
         unit.put(Tag.EDGE_FROM[parentLotId, takenId.raw], splitTaken)
         unit.put(Tag.EDGE_INTO[takenId.raw, parentLotId], splitTaken)
         unit.put(Tag.EDGE_FROM[parentLotId, keptId.raw], splitKept)
@@ -707,8 +709,8 @@ class LotRepository(
     private fun addToTotal(unit: StorageUnit, holderId: Int, itemKeyId: Int, delta: Long) {
         if (delta == 0L) return
         val key = Tag.TOTAL[holderId, itemKeyId]
-        val updated = (unit.get(key)?.let(Records::asLong) ?: 0L) + delta
-        if (updated == 0L) unit.delete(key) else unit.put(key, Records.long(updated))
+        val updated = (unit.get(key)?.let(Scalar::asLong) ?: 0L) + delta
+        if (updated == 0L) unit.delete(key) else unit.put(key, Scalar.long(updated))
     }
 
     private fun accountLot(unit: StorageUnit, holder: HolderId, pack: Pack, i: Int): AccountLot = AccountLot(
@@ -726,9 +728,9 @@ class LotRepository(
 
     private fun decodeLot(unit: StorageUnit, id: LotId, value: MemorySegment): Lot = Lot(
         id,
-        interning.resolveItemKey(unit, Records.lotItemKeyId(value)),
-        Quantity(Records.lotQuantity(value)),
-        TxnId(Records.lotCreatedBy(value)),
+        interning.resolveItemKey(unit, LotRecord.itemKeyId[value]),
+        Quantity(LotRecord.quantity[value]),
+        TxnId(LotRecord.createdBy[value]),
     )
 
     private fun decodeEdge(
@@ -737,22 +739,22 @@ class LotRepository(
         parent: Long,
         child: Long,
     ): LotEdge {
-        val quantity = Quantity(Records.edgeQuantity(value))
-        return when (val kind = Records.edgeKind(value)) {
-            Records.EDGE_SPLIT -> LotEdge.Split(LotId(child), LotId(parent), quantity)
-            Records.EDGE_TRANSFORM -> LotEdge.Transform(
+        val quantity = Quantity(EdgeRecord.quantity[value])
+        return when (val kind = EdgeRecord.kind[value]) {
+            EdgeRecord.SPLIT -> LotEdge.Split(LotId(child), LotId(parent), quantity)
+            EdgeRecord.TRANSFORM -> LotEdge.Transform(
                 LotId(child),
                 LotId(parent),
                 quantity,
-                TxnId(Records.edgeReference(value)),
-                interning.resolveHolder(unit, Records.edgeProducedAt(value)),
+                TxnId(EdgeRecord.reference[value]),
+                interning.resolveHolder(unit, EdgeRecord.producedAt[value]),
             )
 
-            Records.EDGE_COMPENSATE -> LotEdge.Compensate(
+            EdgeRecord.COMPENSATE -> LotEdge.Compensate(
                 LotId(child),
                 LotId(parent),
                 quantity,
-                RollbackJobId(Records.edgeReference(value)),
+                RollbackJobId(EdgeRecord.reference[value]),
             )
 
             else -> error("unrecognized lot edge kind: $kind.")

@@ -1,5 +1,6 @@
 package com.tracel.storage.ports.job
 
+import com.tracel.storage.codec.records.Extras
 import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.job.record.SaveHandle
 import com.tracel.engine.rollback.plan.RollbackPlan
@@ -19,7 +20,10 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.records.RbJob
+import com.tracel.storage.codec.records.Rollback
+import com.tracel.storage.codec.records.Section
 import com.tracel.storage.codec.records.SectionExtras
 import com.tracel.storage.util.eachRow
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap
@@ -52,7 +56,7 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                     bytes += 4 + parts[until].size
                     until++
                 }
-                write(index++, Records.packed(parts.subList(from, until)))
+                write(index++, Scalar.packed(parts.subList(from, until)))
                 from = until
             }
         }
@@ -76,13 +80,13 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                     val holder = runCatching { target.destinationFor(record.plan, lot) }.getOrNull() ?: continue
                     put(
                         Tag.RB_TARGET[record.id.raw, lot.raw],
-                        Records.int(storage.interning.internHolder(this, holder)),
+                        Scalar.int(storage.interning.internHolder(this, holder)),
                     )
                 }
             }
 
             runs(record.plan.steps.map { step ->
-                Records.step(step) { holder ->
+                Rollback.step(step) { holder ->
                     storage.interning.internHolder(
                         this,
                         holder
@@ -150,27 +154,27 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
 
     override suspend fun find(id: RollbackJobId): RollbackJobRecord? = storage.read {
         val header = get(Tag.RB_JOB[id.raw]) ?: return@read null
-        val uniformHolder = Records.rbJobRestoreTo(header)
+        val uniformHolder = RbJob.restoreTo[header]
         val target = if (uniformHolder != 0) {
             RollbackTarget.Uniform(storage.interning.resolveHolder(this, uniformHolder))
         } else {
             val byLot = mutableMapOf<LotId, HolderId>()
             eachRow(Tag.RB_TARGET[id.raw]) { cursor ->
                 val lot = LotId(KeyReader.u64(cursor.key(), 9))
-                byLot[lot] = storage.interning.resolveHolder(this, Records.asInt(cursor.value()))
+                byLot[lot] = storage.interning.resolveHolder(this, Scalar.asInt(cursor.value()))
             }
             RollbackTarget.PerRoot(byLot)
         }
-        val steps = ArrayList<RollbackStep>(Records.rbJobStepCount(header))
+        val steps = ArrayList<RollbackStep>(RbJob.stepCount[header])
         eachRow(Tag.RB_STEP[id.raw]) { cursor ->
-            Records.forEachPacked(cursor.value()) { part ->
-                steps += Records.decodeStep(part) { holderId -> storage.interning.resolveHolder(this, holderId) }
+            Scalar.forEachPacked(cursor.value()) { part ->
+                steps += Rollback.decodeStep(part) { holderId -> storage.interning.resolveHolder(this, holderId) }
             }
         }
-        val structure = ArrayList<StructureStep>(Records.rbJobCreateCount(header) + Records.rbJobDestroyCount(header))
+        val structure = ArrayList<StructureStep>(RbJob.createCount[header] + RbJob.destroyCount[header])
         eachRow(Tag.RB_STRUCT[id.raw]) { cursor ->
-            Records.forEachPacked(cursor.value()) { part ->
-                Records.decodeStructureInto(
+            Scalar.forEachPacked(cursor.value()) { part ->
+                Rollback.decodeStructureInto(
                     part,
                     { worldId -> storage.interning.resolveWorld(this, worldId) },
                     { dataId -> storage.interning.resolveBlockData(this, dataId) },
@@ -179,7 +183,7 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                 )
             }
         }
-        val createCount = Records.rbJobCreateCount(header)
+        val createCount = RbJob.createCount[header]
         val by = get(Tag.RB_RECENT[id.raw])?.let(::ownerOf)?.takeIf { it > CONSOLE }
             ?.let { storage.interning.resolveHolder(this, it) }
 
@@ -189,8 +193,8 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
             target,
             structure.take(createCount),
             structure.drop(createCount),
-            Records.rbJobTargetTime(header),
-            Records.rbJobExecutedAt(header),
+            RbJob.targetTime(header),
+            RbJob.executedAt(header),
             by,
         )
     }
@@ -202,7 +206,7 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
         }
         put(
             Tag.RB_JOB[record.id.raw],
-            Records.rbJob(
+            RbJob.of(
                 uniformHolder, record.plan.steps.size, record.create.size, destroyCount,
                 record.targetTimeMillis ?: 0L, record.targetTimeMillis != null, record.executedAtMillis,
             ),
@@ -233,10 +237,10 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
         val out = ArrayList<ByteArray>(steps.size)
         for (group in bySection.values) {
             if (group.size < SECTION_FROM) {
-                for (step in group) out += Records.structureStep(step, worldOf, dataOf, typeOf)
+                for (step in group) out += Rollback.structureStep(step, worldOf, dataOf, typeOf)
                 continue
             }
-            val ordered = group.sortedBy { Records.packSectionPosition(it.at.x, it.at.y, it.at.z) }
+            val ordered = group.sortedBy { Section.position(it.at.x, it.at.y, it.at.z) }
             val count = ordered.size
             val positions = IntArray(count)
             val target = IntArray(count)
@@ -244,24 +248,24 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
             val extras = ArrayList<SectionExtras>()
             for (i in 0 until count) {
                 val step = ordered[i]
-                positions[i] = Records.packSectionPosition(step.at.x, step.at.y, step.at.z)
+                positions[i] = Section.position(step.at.x, step.at.y, step.at.z)
                 target[i] = dataOf(step.target.data)
                 expected[i] = dataOf(step.expected.data)
                 if (step.target.extras != null || step.expected.extras != null) {
                     extras += SectionExtras(
                         i,
-                        Records.blockExtras(step.target.extras),
-                        Records.blockExtras(step.expected.extras),
+                        Extras.block(step.target.extras),
+                        Extras.block(step.expected.extras),
                     )
                 }
             }
             val first = ordered.first().at
-            out += Records.structureSection(
+            out += Section.structure(
                 worldOf(first.world), first.x shr 4, first.y shr 4, first.z shr 4,
                 positions, count, target, expected, extras,
             )
         }
-        for (step in loose) out += Records.structureStep(step, worldOf, dataOf, typeOf)
+        for (step in loose) out += Rollback.structureStep(step, worldOf, dataOf, typeOf)
         return out
     }
 
@@ -272,10 +276,10 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
                 ((at.y shr 4).toLong() and 0x1FFFFF)
 
     private fun StorageUnit.ownerValue(by: HolderId?): ByteArray =
-        Records.int(if (by == null) CONSOLE else storage.interning.internHolder(this, by))
+        Scalar.int(if (by == null) CONSOLE else storage.interning.internHolder(this, by))
 
     private fun ownerOf(value: MemorySegment): Int =
-        if (value.byteSize() < Int.SIZE_BYTES) UNOWNED else Records.asInt(value)
+        if (value.byteSize() < Int.SIZE_BYTES) UNOWNED else Scalar.asInt(value)
 
     private fun StorageUnit.forget(id: RollbackJobId) {
         val doomed = ArrayList<ByteArray>()
@@ -293,7 +297,7 @@ class RollbackJobRepository(private val storage: TracelStorage) : RollbackJobRep
 
     private fun StorageUnit.evictPastDepth(owner: ByteArray) {
         val doomed = ArrayList<RollbackJobId>()
-        val mine = Records.asInt(MemorySegment.ofArray(owner))
+        val mine = Scalar.asInt(MemorySegment.ofArray(owner))
         var seen = 0
         eachRow(Tag.RB_RECENT.prefix) { cursor ->
             if (ownerOf(cursor.value()) != mine) return@eachRow

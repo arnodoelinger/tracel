@@ -1,5 +1,6 @@
 package com.tracel.storage.ports.ops
 
+import com.tracel.storage.codec.records.Wchg
 import com.tracel.engine.store.*
 import com.tracel.model.holder.HolderId
 import com.tracel.storage.StorageUnit
@@ -8,7 +9,7 @@ import com.tracel.storage.codec.History
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Txn
 import com.tracel.storage.codec.records.ContainerSlot
 import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.spi.HistorySegment
@@ -184,8 +185,8 @@ private suspend fun analyze(
             while (cursor.next()) {
                 val v = cursor.value()
                 analysis.total++
-                val epoch = Records.wchgEpochMillis(v)
-                if (everything || wanted.accepts(epoch, Records.wchgWorldId(v), Records.wchgCausedBy(v))) {
+                val epoch = Wchg.epochMillis[v]
+                if (everything || wanted.accepts(epoch, Wchg.world[v], Wchg.causedBy[v])) {
                     analysis.took(epoch)
                     analysis.seqs?.add(KeyReader.u64(cursor.key(), 1))
                 }
@@ -196,8 +197,8 @@ private suspend fun analyze(
             while (cursor.next()) {
                 val v = cursor.value()
                 analysis.total++
-                val epoch = Records.txnEpochMillis(v)
-                if (everything || wanted.accepts(epoch, Records.txnWorldId(v), Records.txnCausedBy(v))) {
+                val epoch = Txn.epochMillis[v]
+                if (everything || wanted.accepts(epoch, Txn.world[v], Txn.causedBy[v])) {
                     analysis.took(epoch)
                     analysis.seqs?.add(KeyReader.u64(cursor.key(), 1))
                 }
@@ -234,7 +235,7 @@ private fun StorageUnit.analyzeContainers(
     storage.engine.readSegment(segment.id, Tag.CONTAINER_SLOT.prefix) { cursor ->
         while (cursor.next()) {
             analysis.total++
-            val epoch = ContainerSlot.layoutEpochMillis(cursor.value())
+            val epoch = ContainerSlot.epochMillis[cursor.value()]
             val holderId = cursor.keyU32(1)
             val taken = everything || (
                     (before == null || epoch < before) &&

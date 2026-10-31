@@ -28,18 +28,18 @@ class GzippedTest {
     @Test
     fun `gzipped block extras are kept inflated and come back exactly`() {
         val bytes = gzip(nbt)
-        val stored = World.blockExtras(BlockExtras.Opaque(bytes))
+        val stored = Extras.block(BlockExtras.Opaque(bytes))
         assertEquals(5, stored[0].toInt(), "kept inflated")
         assertTrue(stored.size > bytes.size)
-        assertArrayEquals(bytes, (World.decodeBlockExtras(stored) as BlockExtras.Opaque).bytes)
+        assertArrayEquals(bytes, (Extras.decodeBlock(stored) as BlockExtras.Opaque).bytes)
     }
 
     @Test
     fun `gzipped entity extras nested in a link come back exactly`() {
         val bytes = gzip(nbt)
         val holder = UUID.randomUUID()
-        val stored = World.entityExtras(EntityExtras.Leashed(holder, EntityExtras.Opaque(bytes)))
-        val back = World.decodeEntityExtras(stored) as EntityExtras.Leashed
+        val stored = Extras.entity(EntityExtras.Leashed(holder, EntityExtras.Opaque(bytes)))
+        val back = Extras.decodeEntity(stored) as EntityExtras.Leashed
         assertEquals(holder, back.holder)
         assertArrayEquals(bytes, (back.rest as EntityExtras.Opaque).bytes)
     }
@@ -47,12 +47,12 @@ class GzippedTest {
     @Test
     fun `gzip that would not come back the same stays as it is`() {
         val odd = gzip(nbt, level = 1)
-        val stored = World.blockExtras(BlockExtras.Opaque(odd))
+        val stored = Extras.block(BlockExtras.Opaque(odd))
         assertEquals(0, stored[0].toInt())
-        assertArrayEquals(odd, (World.decodeBlockExtras(stored) as BlockExtras.Opaque).bytes)
+        assertArrayEquals(odd, (Extras.decodeBlock(stored) as BlockExtras.Opaque).bytes)
 
-        val plain = World.blockExtras(BlockExtras.Opaque(nbt))
+        val plain = Extras.block(BlockExtras.Opaque(nbt))
         assertEquals(0, plain[0].toInt())
-        assertArrayEquals(nbt, (World.decodeBlockExtras(plain) as BlockExtras.Opaque).bytes)
+        assertArrayEquals(nbt, (Extras.decodeBlock(plain) as BlockExtras.Opaque).bytes)
     }
 }

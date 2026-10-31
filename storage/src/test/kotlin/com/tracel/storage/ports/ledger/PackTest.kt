@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.ledger
 
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.storage.support.Stack
 import com.tracel.storage.util.eachRow
 import com.tracel.tests.support.Fixtures.block
@@ -17,7 +17,7 @@ class PackTest {
     private suspend fun Stack.rows(tag: Tag): Map<String, String> = storage.read {
         val out = LinkedHashMap<String, String>()
         eachRow(tag.prefix) { cursor ->
-            out[cursor.key().joinToString("") { "%02x".format(it) }] = Records.asLong(cursor.value()).toString()
+            out[cursor.key().joinToString("") { "%02x".format(it) }] = Scalar.asLong(cursor.value()).toString()
         }
         out
     }

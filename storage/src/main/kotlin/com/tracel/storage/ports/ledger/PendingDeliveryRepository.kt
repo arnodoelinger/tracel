@@ -6,7 +6,7 @@ import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Pending
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
 import java.util.*
@@ -28,7 +28,7 @@ class PendingDeliveryRepository(
             deltas.entries.forEachIndexed { index, (itemKey, delta) ->
                 put(
                     Tag.PENDING[player, ids[index]],
-                    Records.pending(
+                    Pending.of(
                         storage.interning.internItemKey(this, itemKey),
                         delta,
                         job.raw,
@@ -47,10 +47,10 @@ class PendingDeliveryRepository(
             val value = cursor.value()
             out += PendingDelivery(
                 KeyReader.u64(cursor.key(), 17),
-                storage.interning.resolveItemKey(this, Records.pendingItemKeyId(value)),
-                Records.pendingDelta(value),
-                RollbackJobId(Records.pendingJobId(value)),
-                Records.pendingEnderChest(value),
+                storage.interning.resolveItemKey(this, Pending.itemKeyId[value]),
+                Pending.delta[value],
+                RollbackJobId(Pending.jobId[value]),
+                Pending.enderChest(value),
             )
             keys += cursor.key()
         }

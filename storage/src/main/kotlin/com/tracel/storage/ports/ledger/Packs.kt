@@ -1,13 +1,15 @@
 package com.tracel.storage.ports.ledger
 
+import com.tracel.storage.codec.records.PackSum
+import com.tracel.storage.codec.records.PackLocation
+import com.tracel.storage.codec.records.PackRecord
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.storage.ports.ops.Counters
 import java.lang.foreign.MemorySegment
-import com.tracel.storage.codec.records.Lot as LotRecord
 
-/** How many lots one pack holds at most: the ceiling on what any single-lot edit has to rewrite. */
+/** How many lots one pack holds at most. */
 internal const val PACK_CAP = 256
 
 /**
@@ -60,35 +62,35 @@ internal class Pack(
 internal class Packs(private val counters: Counters) {
     /** Decodes a memory segment into a [Pack] object, extracting lot, remaining, and FIFO values. */
     fun decode(holderId: Int, itemKeyId: Int, value: MemorySegment): Pack {
-        val n = LotRecord.packCount(value)
+        val n = PackRecord.count[value]
         val lots = LongArray(n)
         val remaining = LongArray(n)
         val fifo = LongArray(n)
         for (i in 0 until n) {
-            lots[i] = LotRecord.packLot(value, i)
-            remaining[i] = LotRecord.packRemaining(value, i)
-            fifo[i] = LotRecord.packFifo(value, i)
+            lots[i] = PackRecord.lot[value, i]
+            remaining[i] = PackRecord.remaining[value, i]
+            fifo[i] = PackRecord.fifo[value, i]
         }
-        return Pack(LotRecord.packId(value), holderId, itemKeyId, lots, remaining, fifo)
+        return Pack(PackRecord.id[value], holderId, itemKeyId, lots, remaining, fifo)
     }
 
     /** Reads a pack from the given storage unit using its ID. */
     fun read(unit: StorageUnit, packId: Long): Pack? {
         val location = unit.get(Tag.PACK[packId]) ?: return null
-        val holderId = LotRecord.locationHolderId(location)
-        val itemKeyId = LotRecord.locationItemKeyId(location)
-        val slot = unit.get(Tag.PACK_AT[holderId, itemKeyId, LotRecord.locationTail(location)])
+        val holderId = PackLocation.holderId[location]
+        val itemKeyId = PackLocation.itemKeyId[location]
+        val slot = unit.get(Tag.PACK_AT[holderId, itemKeyId, PackLocation.tail[location]])
             ?: error("pack $packId points at a queue slot that is empty.")
         return decode(holderId, itemKeyId, slot)
     }
 
     /** Retrieves a pack from the specified storage unit that corresponds to the given lot. */
     fun of(unit: StorageUnit, lot: Long): Pack? =
-        unit.get(Tag.LOT_PACK[lot])?.let { read(unit, Records.asLong(it)) }
+        unit.get(Tag.LOT_PACK[lot])?.let { read(unit, Scalar.asLong(it)) }
 
     /** Retrieves the holder ID of the pack with the given ID. */
     fun holderIdOf(unit: StorageUnit, packId: Long): Int? =
-        unit.get(Tag.PACK[packId])?.let(LotRecord::locationHolderId)
+        unit.get(Tag.PACK[packId])?.let { PackLocation.holderId[it] }
 
     /** [old] becomes [new], or goes. Lot pointers are the caller's. */
     fun swap(unit: StorageUnit, old: Pack, new: Pack?) {
@@ -149,7 +151,7 @@ internal class Packs(private val counters: Counters) {
         unit.scan(Tag.PACK_AT[holderId, itemKeyId], Tag.PACK_AT[holderId, itemKeyId, head]).use { cursor ->
             while (cursor.next()) {
                 val value = cursor.value()
-                if (LotRecord.packFifo(value, 0) > tail) break
+                if (PackRecord.fifo[value, 0] > tail) break
                 (out ?: ArrayList<Pack>().also { out = it }) += decode(holderId, itemKeyId, value)
             }
         }
@@ -176,7 +178,7 @@ internal class Packs(private val counters: Counters) {
                 fifo.copyOfRange(from, until),
             )
             write(unit, pack)
-            val pointer = Records.long(pack.id)
+            val pointer = Scalar.long(pack.id)
             for (lot in pack.lots) unit.put(Tag.LOT_PACK[lot], pointer)
             from = until
         }
@@ -185,9 +187,9 @@ internal class Packs(private val counters: Counters) {
     private fun write(unit: StorageUnit, pack: Pack) {
         unit.put(
             Tag.PACK_AT[pack.holderId, pack.itemKeyId, pack.tail],
-            LotRecord.pack(pack.id, pack.lots, pack.remaining, pack.fifo, pack.size),
+            PackRecord.of(pack.id, pack.lots, pack.remaining, pack.fifo, pack.size),
         )
-        unit.put(Tag.PACK[pack.id], LotRecord.packLocation(pack.holderId, pack.itemKeyId, pack.tail))
-        unit.put(Tag.PACK_ITEM[pack.itemKeyId, pack.holderId, pack.tail], LotRecord.packSum(pack.id, pack.sum))
+        unit.put(Tag.PACK[pack.id], PackLocation.of(pack.holderId, pack.itemKeyId, pack.tail))
+        unit.put(Tag.PACK_ITEM[pack.itemKeyId, pack.holderId, pack.tail], PackSum.of(pack.id, pack.sum))
     }
 }

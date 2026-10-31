@@ -12,7 +12,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Packed
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.storage.ffm.Key
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
@@ -227,7 +227,7 @@ class Interning(cacheSize: Long = DEFAULT_CACHE_SIZE) {
     private fun noteKind(unit: StorageUnit, holder: HolderId, id: Int) {
         val uuid = (holder as? HolderId.Entity)?.uuid ?: return
         val kind = entityKinds?.kindOf(uuid) ?: return
-        unit.put(Tag.ACTOR_KIND[id], Records.int(internEntityType(unit, kind)))
+        unit.put(Tag.ACTOR_KIND[id], Scalar.int(internEntityType(unit, kind)))
     }
 
     private companion object {
@@ -274,8 +274,8 @@ private class Interned<T : Any>(
         val id = counter.incrementAndGet()
         check(id > 0) { "intern namespace $namespace ran out of IDs." }
         unit.putPinned(Tag.INTERN_FORWARD[namespace, id], packed)
-        unit.putPinned(Tag.INTERN_REVERSE[namespace, packed], Records.int(id))
-        unit.putPinned(Tag.COUNTER[COUNTER_BASE + namespace], Records.long(id.toLong()))
+        unit.putPinned(Tag.INTERN_REVERSE[namespace, packed], Scalar.int(id))
+        unit.putPinned(Tag.COUNTER[COUNTER_BASE + namespace], Scalar.long(id.toLong()))
         unit.afterCommit { remember(value, id) }
         onAssigned?.invoke(unit, value, id)
         return id
@@ -294,11 +294,11 @@ private class Interned<T : Any>(
 
     /** Restores the counter from the store. */
     fun restore(unit: StorageUnit) {
-        counter.set(unit.get(Tag.COUNTER[COUNTER_BASE + namespace])?.let(Records::asLong)?.toInt() ?: 0)
+        counter.set(unit.get(Tag.COUNTER[COUNTER_BASE + namespace])?.let(Scalar::asLong)?.toInt() ?: 0)
     }
 
     private fun idOf(unit: StorageUnit, packed: ByteArray): Int? =
-        unit.get(Tag.INTERN_REVERSE[namespace, packed])?.let(Records::asInt)
+        unit.get(Tag.INTERN_REVERSE[namespace, packed])?.let(Scalar::asInt)
 
     /** Whether [id] came out of [unit]'s own batch and has not landed yet. */
     fun isPending(unit: StorageUnit, id: Int): Boolean = unit.batch.touches(Key(Tag.INTERN_FORWARD[namespace, id]))

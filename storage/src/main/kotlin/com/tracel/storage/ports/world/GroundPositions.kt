@@ -3,7 +3,7 @@ package com.tracel.storage.ports.world
 import com.tracel.model.holder.HolderId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.engine.world.GroundPositions as GroundPositionsPort
 
@@ -20,7 +20,7 @@ class GroundPositions(private val storage: TracelStorage) : GroundPositionsPort 
             for ((item, at) in positions) {
                 val itemId = storage.interning.internHolder(this, item)
                 val atId = storage.interning.internHolder(this, at)
-                put(Tag.GROUND_AT[itemId], Records.int(atId))
+                put(Tag.GROUND_AT[itemId], Scalar.int(atId))
             }
         }
     }

@@ -5,7 +5,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Records
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.storage.util.eachRow
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import java.lang.foreign.MemorySegment
@@ -20,7 +20,7 @@ class Journal(private val storage: TracelStorage, private val kind: Byte) : Jour
     override suspend fun markCompleted(job: RollbackJobId, from: Int, until: Int) {
         if (until <= from) return
         if (until == from + 1) return markCompleted(job, from)
-        storage.write { put(Tag.APPLIED[kind, job.raw, from], Records.int(until)) }
+        storage.write { put(Tag.APPLIED[kind, job.raw, from], Scalar.int(until)) }
     }
 
     override suspend fun isCompleted(job: RollbackJobId, stepIndex: Int): Boolean = storage.read {
@@ -43,7 +43,7 @@ class Journal(private val storage: TracelStorage, private val kind: Byte) : Jour
     }
 
     private fun untilOf(first: Int, value: MemorySegment): Int =
-        if (value.byteSize() == 0L) first + 1 else Records.asInt(value)
+        if (value.byteSize() == 0L) first + 1 else Scalar.asInt(value)
 
     companion object {
         fun forRollback(storage: TracelStorage): Journal = Journal(storage, Keys.PROGRESS_ROLLBACK)

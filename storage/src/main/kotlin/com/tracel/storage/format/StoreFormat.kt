@@ -41,7 +41,7 @@ class Migration(
 ) {
     init {
         require(from.major == to.major && to.minor == from.minor + 1) {
-            "a migration goes from $from to the next minor version, not to $to"
+            "a migration goes from $from to the next minor version, not to $to."
         }
     }
 }

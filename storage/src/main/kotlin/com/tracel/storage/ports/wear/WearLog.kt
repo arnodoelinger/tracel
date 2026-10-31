@@ -36,9 +36,9 @@ class WearLog(
                 val lot = LotId(at)
                 out.getOrPut(lot) { ArrayList() } += WearMark(
                     lot,
-                    Wear.epochMillis(value),
-                    Wear.before(value),
-                    Wear.after(value)
+                    Wear.epochMillis[value],
+                    Wear.before[value],
+                    Wear.after[value]
                 )
             }
             out

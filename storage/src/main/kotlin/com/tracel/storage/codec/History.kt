@@ -1,5 +1,6 @@
 package com.tracel.storage.codec
 
+import com.tracel.storage.codec.records.Scalar
 import com.tracel.model.log.LogKind
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.SegmentClassifier
@@ -35,7 +36,7 @@ object History {
     /** The sequence number the record behind this row has, or `-1` for a row that is not tied to one. */
     fun seqOf(key: ByteArray, value: MemorySegment?): Long = when (key[0]) {
         Tag.WCHG.byte, Tag.TXN.byte, Tag.TXN_LOT.byte, Tag.EVENT.byte -> KeyReader.u64(key, 1)
-        Tag.TXN_BY_ID.byte -> value?.let(Records::asLong) ?: -1L
+        Tag.TXN_BY_ID.byte -> value?.let(Scalar::asLong) ?: -1L
         Tag.WCHG_AT.byte, Tag.WCHG_AT_SECTION.byte, Tag.WCHG_ENTITY.byte,
         Tag.ACTOR.byte, Tag.ITEM.byte, Tag.TIME.byte, Tag.SPATIAL.byte, Tag.EVENT_ACTOR.byte, Tag.EVENT_TIME.byte,
         Tag.EVENT_ENTITY.byte,
