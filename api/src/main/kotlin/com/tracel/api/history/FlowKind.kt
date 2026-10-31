@@ -2,7 +2,11 @@ package com.tracel.api.history
 
 import com.tracel.api.Unstable
 
-/** What an [ItemFlow] is. */
+/**
+ * What an [ItemFlow] is.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public enum class FlowKind {
     /** Items relocated from one holder to another; nothing created or destroyed. */

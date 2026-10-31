@@ -19,6 +19,8 @@ import org.bukkit.plugin.Plugin
  * ```
  *
  * Usable once `Tracel` has enabled; [register] and [onReady] wait for it, so they are safe to call earlier.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public object Tracel {

@@ -9,7 +9,11 @@ import com.tracel.api.world.NamespacedName
 import java.time.Instant
 import java.util.UUID
 
-/** One thing that happened, as history keeps it. */
+/**
+ * One thing that happened, as history keeps it.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public sealed interface HistoryRecord {
     /** When it happened. */
@@ -34,6 +38,8 @@ public sealed interface HistoryRecord {
 /**
  * A block changing. [before] and [after] are block data as `Bukkit.createBlockData` reads it,
  * `minecraft:oak_stairs[facing=east,...]`.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class BlockRecord(
@@ -50,7 +56,11 @@ public data class BlockRecord(
     public val afterText: String? = null,
 ) : HistoryRecord
 
-/** An entity appearing, going away or changing in place. [place] is the block it was in. */
+/**
+ * An entity appearing, going away or changing in place. [place] is the block it was in.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class EntityRecord(
     override val at: Instant,
@@ -61,7 +71,6 @@ public data class EntityRecord(
     override val cursor: HistoryCursor,
     public val action: ActionKind,
     public val entity: UUID,
-    /** The entity type key, `minecraft:armor_stand`. */
     public val type: String,
     public val existedBefore: Boolean,
     public val existsAfter: Boolean,
@@ -72,6 +81,8 @@ public data class EntityRecord(
 /**
  * Items moving from one [ItemHolder] to another. One transaction that moved several stacks reads as several flows
  * with the same [cursor].
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class ItemFlow(
@@ -91,6 +102,8 @@ public data class ItemFlow(
 /**
  * Something said, typed or done that moved nothing: a chat line, a join, a death. Never rolled back, so
  * [rolledBack] will be always `null`.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class EventRecord(

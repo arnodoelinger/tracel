@@ -3,7 +3,11 @@ package com.tracel.api.admin
 import com.tracel.api.Unstable
 import java.nio.file.Path
 
-/** Why an admin call did nothing, or did not finish. */
+/**
+ * Why an admin call did nothing, or did not finish.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public sealed interface AdminError {
     /** A purge, import or migration is running already, or a rollback holds what it needs. */

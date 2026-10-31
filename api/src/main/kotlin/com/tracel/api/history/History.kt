@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.Flow
  *
  * Nothing is read until [records] is collected or [page] is called, and each
  * read sees history as it is then.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface History {
@@ -35,6 +37,10 @@ public interface History {
     }
 }
 
-/** One page of a [History]: the [records], and where the next page starts, `null` after the last. */
+/**
+ * One page of a [History]: the [records], and where the next page starts, `null` after the last.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class HistoryPage(public val records: List<HistoryRecord>, public val next: HistoryCursor?)

@@ -11,6 +11,8 @@ import com.tracel.api.Unstable
  * wear is not part of it.
  *
  * Get one off a stack with `stack.kind()` inside `HistoryReads`, or name a plain one with [of].
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class ItemKind(public val material: String, public val variant: String? = null) {

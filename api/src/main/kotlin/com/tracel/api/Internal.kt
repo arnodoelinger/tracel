@@ -4,6 +4,8 @@ package com.tracel.api
  * For `Tracel` itself.
  *
  * An addon that opts in here is writing `unsafe` and owns whatever breaks.
+ *
+ * @since 1.0.x
  */
 @RequiresOptIn(
     message = "This is Tracel's own wiring, not API. Addons must not touch it.",

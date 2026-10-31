@@ -6,6 +6,8 @@ import com.tracel.api.Unstable
  * Optional lifecycle hooks of an [Addon].
  *
  * An addon that only needs what it registers does not need this.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface TracelAddon {

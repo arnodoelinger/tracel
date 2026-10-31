@@ -10,6 +10,8 @@ import com.tracel.api.world.NamespacedName
  * the world move on before [apply], the answer is [RollbackError.Stale] with a fresh plan.
  *
  * Used once: a second [apply] answers [RollbackError.Moved].
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface RollbackReady {
@@ -62,10 +64,20 @@ public interface RollbackReady {
     public suspend fun apply(): Res<RollbackApplied, RollbackError>
 }
 
-/** Items a rollback moves: [taken] lots go back, [unmade] crafts come apart, [minted] lots are made anew. */
+/**
+ * Items a rollback moves: [taken] lots go back, [unmade] crafts come apart, [minted] lots are made anew.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class ItemBalance(public val taken: Int, public val unmade: Int, public val minted: Int)
 
-/** A block a rollback sets: [becomes] is what it will be, [was] what it is expected to be now. Both as block data. */
+/**
+ * A block a rollback sets: [becomes] is what it will be, [was] what it is expected to be now.
+ *
+ * Both as block data.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class PlannedBlock(public val place: BlockPlace, public val becomes: String, public val was: String)

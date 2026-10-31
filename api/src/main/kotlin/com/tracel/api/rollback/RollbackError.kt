@@ -9,6 +9,8 @@ import com.tracel.api.world.NamespacedName
  * Why a rollback step did not happen.
  *
  * Nothing was changed, unless [Failed] says something else.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public sealed interface RollbackError {

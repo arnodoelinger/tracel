@@ -28,7 +28,7 @@ import java.util.zip.CRC32C
  * data   -> repeated block:
  *           [u32 uncompressed][u32 flags|payload][payload][u32 crc32c]
  *           payload, uncompressed: the records, then [u32 offset] per restart, then [u32 restarts]
- *           or, with FLAG_PLANES, the same block as [BlockPlanes]; v3 on
+ *           or, with FLAG_PLANES, the same block as [BlockPlanes]; v2 on
  *           crc32c covers the eight header bytes and the payload as stored; absent before v2
  * index  -> [u32 keyLen][internal key][u64 blockOffset]  ... one per block
  * bloom  -> [u32 bitCount][u32 hashCount][bits]
@@ -44,7 +44,7 @@ object SegmentFile {
     const val OLDEST_VERSION = 1
     const val RESTARTS_SINCE = 2
     const val CHECKSUMS_SINCE = 2
-    const val PLANES_SINCE = 3
+    const val PLANES_SINCE = 2
     const val CHECKSUM_BYTES = 4
     const val RESTART_INTERVAL = 32
     const val FOOTER_BYTES = 40

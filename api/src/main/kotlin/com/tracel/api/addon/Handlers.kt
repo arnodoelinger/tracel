@@ -7,6 +7,8 @@ import com.tracel.api.history.RecordKind
  * A record was written. The method takes `(HistoryRecord)`.
  *
  * Fed from the same place as `watch`, so it arrives a second or two late, off the main thread.
+ *
+ * @since 1.0.x
  */
 @Unstable
 @Retention(AnnotationRetention.RUNTIME)
@@ -17,7 +19,11 @@ public annotation class OnRecord(
     val only: Array<RecordKind> = [],
 )
 
-/** A rollback is about to write. The method takes `(RollbackJob)`. */
+/**
+ * A rollback is about to write. The method takes `(RollbackJob)`.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 @Retention(AnnotationRetention.RUNTIME)
 @Target(AnnotationTarget.FUNCTION)
@@ -27,6 +33,8 @@ public annotation class OnRollbackStarted
 /**
  * A rollback is over, done or not. The method takes `(RollbackJob, RollbackOutcome)`; the job is the one
  * `@OnRollbackStarted` got.
+ *
+ * @since 1.0.x
  */
 @Unstable
 @Retention(AnnotationRetention.RUNTIME)
@@ -34,7 +42,11 @@ public annotation class OnRollbackStarted
 @MustBeDocumented
 public annotation class OnRollbackFinished
 
-/** A rollback was taken back. The method takes `(RollbackUndone)`, which names the job. */
+/**
+ * A rollback was taken back. The method takes `(RollbackUndone)`, which names the job.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 @Retention(AnnotationRetention.RUNTIME)
 @Target(AnnotationTarget.FUNCTION)
@@ -42,10 +54,12 @@ public annotation class OnRollbackFinished
 public annotation class OnUndo
 
 /**
- * Someone clicked a block with the inspector. The method takes `(BlockPlace, InspectLines)`; what it adds to the lines
- * is shown under the block's history.
+ * Someone clicked a block with the inspector. The method takes `(BlockPlace, InspectLines)`;
+ * what it adds to the lines is shown under the block's history.
  *
- * Runs on the region thread that owns the block, so the block may be read right there. Keep it quick: the click waits.
+ * Runs on the region thread that owns the block, so the block may be read right there.
+ *
+ * @since 1.0.x
  */
 @Unstable
 @Retention(AnnotationRetention.RUNTIME)

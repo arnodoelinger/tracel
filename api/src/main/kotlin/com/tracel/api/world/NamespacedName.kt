@@ -6,6 +6,8 @@ import com.tracel.api.result.getOrNull
 /**
  * A namespaced name, e.g., `backpacks:backpack`. Addons name everything they add with one, so two addons never fight
  * over `backpack`.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class NamespacedName(public val namespace: String, public val value: String) {

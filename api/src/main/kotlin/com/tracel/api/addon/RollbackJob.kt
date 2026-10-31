@@ -5,7 +5,11 @@ import com.tracel.api.actor.Actor
 import com.tracel.api.rollback.RollbackJobId
 import net.kyori.adventure.text.Component
 
-/** A rollback as `@OnRollbackStarted` and `@OnRollbackFinished` see it: the same value in both. */
+/**
+ * A rollback as `@OnRollbackStarted` and `@OnRollbackFinished` see it: the same value in both.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class RollbackJob(
     /** Counts rollbacks since `Tracel` started. Tells two apart, nothing more; not the job number. */
@@ -18,7 +22,11 @@ public data class RollbackJob(
     public val records: Int,
 )
 
-/** How a rollback ended. */
+/**
+ * How a rollback ended.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public sealed interface RollbackOutcome {
     /** It ran as rollback [job], for `Rollbacks.undo`. */
@@ -37,7 +45,11 @@ public sealed interface RollbackOutcome {
     public data class Failed(public val message: String) : RollbackOutcome
 }
 
-/** Lines an `@OnInspect` handler adds under a block's history. */
+/**
+ * Lines an `@OnInspect` handler adds under a block's history.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface InspectLines {
     /** Adds [line] at the end. */

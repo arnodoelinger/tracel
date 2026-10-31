@@ -3,7 +3,11 @@ package com.tracel.api.write
 import com.tracel.api.Unstable
 import com.tracel.api.result.Res
 
-/** Changing the world without history, for a plugin granted `quiet`. */
+/**
+ * Changing the world without history, for a plugin granted `quiet`.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface QuietWrites {
     /**

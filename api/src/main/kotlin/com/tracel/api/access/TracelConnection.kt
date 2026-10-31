@@ -20,6 +20,8 @@ import com.tracel.api.write.QuietWrites
  * ```
  *
  * Everything done through it is signed with the plugin's name. Closed with the plugin, or by [close].
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface TracelConnection : AutoCloseable {

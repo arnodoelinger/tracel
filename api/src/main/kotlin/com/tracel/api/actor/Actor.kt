@@ -12,6 +12,8 @@ import org.bukkit.entity.Player as BukkitPlayer
  * Who did something.
  *
  * Is's never a live [Player], but an ID, so it can cross threads and outlive a logout.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public sealed interface Actor {
@@ -40,6 +42,10 @@ public sealed interface Actor {
     }
 }
 
-/** This entity as an [Actor]. */
+/**
+ * This entity as an [Actor].
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public val BukkitEntity.actor: Actor get() = Actor.of(this)

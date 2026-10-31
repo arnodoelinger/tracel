@@ -2,7 +2,11 @@ package com.tracel.api.history
 
 import com.tracel.api.Unstable
 
-/** What a block or entity record did to the thing it names. */
+/**
+ * What a block or entity record did to the thing it names.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public enum class ActionKind {
     BLOCK_PLACE,

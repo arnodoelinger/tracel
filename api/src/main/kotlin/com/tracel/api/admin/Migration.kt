@@ -4,14 +4,22 @@ import com.tracel.api.Unstable
 import com.tracel.api.result.Res
 import java.time.Instant
 
-/** A foreign history that can be moved over, found on this server. */
+/**
+ * A foreign history that can be moved over, found on this server.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface MigrationSource {
     /** Where it lives, as the admin should read it. */
     override fun toString(): String
 }
 
-/** What moving a [MigrationSource] over would do, without doing it. */
+/**
+ * What moving a [MigrationSource] over would do, without doing it.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class MigrationOutlook(
     /** Rows still to read. */
@@ -21,7 +29,11 @@ public data class MigrationOutlook(
     public val span: Pair<Instant, Instant>?,
 )
 
-/** How a migration ended. */
+/**
+ * How a migration ended.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class MigrationOutcome(
     public val stopped: Boolean,
@@ -37,6 +49,8 @@ public data class MigrationOutcome(
  * Moving what `CoreProtect` recorded under what is recorded here.
  *
  * Nothing is replaced, and running twice takes nothing twice.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface Migration {

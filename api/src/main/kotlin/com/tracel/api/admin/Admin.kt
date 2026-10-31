@@ -16,6 +16,8 @@ import java.nio.file.Path
  * [api]
  * allow-destructive = true
  * ```
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface Admin {

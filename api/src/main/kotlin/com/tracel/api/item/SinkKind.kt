@@ -2,7 +2,11 @@ package com.tracel.api.item
 
 import com.tracel.api.Unstable
 
-/** Why items left for good. */
+/**
+ * Why items left for good.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public enum class SinkKind {
     HAZARD,

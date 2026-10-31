@@ -8,7 +8,11 @@ import com.tracel.api.history.HistoryReads
 import com.tracel.api.result.Res
 import org.bukkit.plugin.Plugin
 
-/** What `Tracel` plugs in behind the API. */
+/**
+ * What `Tracel` plugs in behind the API.
+ *
+ * @since 1.0.x
+ */
 @Internal
 public interface ApiBackend {
     /** Registers an [addon] instance. */
@@ -24,7 +28,11 @@ public interface ApiBackend {
     public fun connect(plugin: Plugin): Res<TracelConnection, AccessError>
 }
 
-/** Holds the live [ApiBackend]. */
+/**
+ * Holds the live [ApiBackend].
+ *
+ * @since 1.0.x
+ */
 @Internal
 public object ApiHolder {
     private val waiting = ArrayList<(ApiBackend) -> Unit>()

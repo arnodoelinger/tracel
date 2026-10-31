@@ -20,6 +20,8 @@ import com.tracel.api.Unstable
  *     override fun onEnable(context: AddonContext) { ... }
  * }
  * ```
+ *
+ * @since 1.0.x
  */
 @Unstable
 @Retention(AnnotationRetention.RUNTIME)

@@ -2,7 +2,11 @@ package com.tracel.api.item
 
 import com.tracel.api.Unstable
 
-/** Why items came out of nowhere. */
+/**
+ * Why items came out of nowhere.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public enum class SourceKind {
     MOB_DROP,

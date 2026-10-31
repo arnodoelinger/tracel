@@ -7,6 +7,8 @@ import java.util.UUID
  * Where a query looks.
  *
  * Plain coordinates, like [BlockPlace], so it is safe on any thread.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public sealed interface LookupArea {

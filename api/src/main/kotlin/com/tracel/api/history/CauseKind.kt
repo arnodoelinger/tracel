@@ -2,7 +2,11 @@ package com.tracel.api.history
 
 import com.tracel.api.Unstable
 
-/** Why something happened. Every record has one. */
+/**
+ * Why something happened. Every record has one.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public enum class CauseKind {
     PLAYER_ACTION,

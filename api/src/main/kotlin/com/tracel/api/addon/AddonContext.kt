@@ -10,6 +10,8 @@ import com.tracel.api.result.Res
  *
  * Everything registered through it belongs to it, and goes away when the addon
  * is disabled. History it wrote stays.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface AddonContext {

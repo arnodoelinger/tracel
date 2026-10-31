@@ -12,6 +12,8 @@ import com.tracel.api.Unstable
  * ```
  *
  * There `Arena` may only write, and `Shop` may only read. A plugin cannot widen its own list.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public enum class Grant(public val configName: String) {
@@ -21,7 +23,7 @@ public enum class Grant(public val configName: String) {
     /** Change blocks, give items and record events, in a player's name or the plugin's own. */
     ATTRIBUTE("attribute"),
 
-    /** Change the world without it being logged at all. History gets a hole; a later rollback will not see it. */
+    /** Change the world without it being logged at all. */
     QUIET("quiet");
 
     public companion object {

@@ -8,6 +8,8 @@ import java.time.Instant
  * The automatic purge.
  *
  * Off unless asked, and how long each category is kept; `null` is for ever.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class AutoPurgeStatus(
@@ -17,7 +19,11 @@ public data class AutoPurgeStatus(
     public val last: Instant?,
 )
 
-/** How the store is doing right now. */
+/**
+ * How the store is doing right now.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class StoreStatus(
     public val at: Instant,

@@ -4,7 +4,11 @@ import com.tracel.api.Unstable
 import com.tracel.api.actor.Actor
 import com.tracel.api.world.NamespacedName
 
-/** A kind of actor the addon brings: a `Citizens` NPC, a town, a bot. */
+/**
+ * A kind of actor the addon brings: a `Citizens` NPC, a town, a bot.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface ActorKind {
     /** What it is called; its namespace is the addon's ID. */
@@ -14,7 +18,11 @@ public interface ActorKind {
     public fun display(id: String): String?
 }
 
-/** An [ActorKind] once registered. */
+/**
+ * An [ActorKind] once registered.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface RegisteredActorKind {
     /** What was registered. */
@@ -24,7 +32,11 @@ public interface RegisteredActorKind {
     public operator fun get(id: String): Actor.Addon
 }
 
-/** Where actor kinds are registered. */
+/**
+ * Where actor kinds are registered.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface ActorKinds {
     /**

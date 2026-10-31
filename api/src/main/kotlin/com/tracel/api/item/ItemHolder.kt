@@ -5,7 +5,11 @@ import com.tracel.api.world.BlockPlace
 import com.tracel.api.world.NamespacedName
 import java.util.UUID
 
-/** Where items sat before or after an item flow. */
+/**
+ * Where items sat before or after an item flow.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public sealed interface ItemHolder {
     /** A container block: a chest, a furnace, a hopper. */

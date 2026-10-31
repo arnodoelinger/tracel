@@ -15,6 +15,8 @@ import net.kyori.adventure.text.Component
  *
  * Change what [encode] writes, and raise [version]; [decode] gets the version each record was written with, so old
  * records still read.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface CustomEventType<T : Any> {
@@ -34,7 +36,11 @@ public interface CustomEventType<T : Any> {
     public fun line(value: T): Component
 }
 
-/** A [CustomEventType] once registered. */
+/**
+ * A [CustomEventType] once registered.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface RegisteredEvent<T : Any> {
     /** What was registered. */
@@ -51,7 +57,11 @@ public interface RegisteredEvent<T : Any> {
     public fun read(record: EventRecord): T?
 }
 
-/** Where event types are registered. */
+/**
+ * Where event types are registered.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface EventTypes {
     /**

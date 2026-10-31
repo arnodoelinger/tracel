@@ -1,6 +1,10 @@
 package com.tracel.api
 
-/** Part of the API that may still change or go away before 1.0.0. */
+/**
+ * Part of the API that may still change or go away before 1.0.0.
+ *
+ * @since 1.0.x
+ */
 @RequiresOptIn(
     message = "Tracel API is unstable before 1.0.0: it may change without any warning.",
     level = RequiresOptIn.Level.WARNING,

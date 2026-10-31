@@ -12,6 +12,8 @@ import com.tracel.api.Unstable
  *     is Res.Err -> say("No: ${got.error}.")
  * }
  * ```
+ *
+ * @since 1.0.x
  */
 @Unstable
 public sealed interface Res<out T, out E> {
@@ -26,19 +28,35 @@ public sealed interface Res<out T, out E> {
     public data class Err<out E>(public val error: E) : Res<Nothing, E>
 }
 
-/** `true` for [Res.Ok]. */
+/**
+ * `true` for [Res.Ok].
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public val Res<*, *>.isOk: Boolean get() = this is Res.Ok
 
-/** The value, or `null` on [Res.Err]. */
+/**
+ * The value, or `null` on [Res.Err].
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public fun <T> Res<T, *>.getOrNull(): T? = (this as? Res.Ok)?.value
 
-/** The error, or `null` on [Res.Ok]. */
+/**
+ * The error, or `null` on [Res.Ok].
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public fun <E> Res<*, E>.errorOrNull(): E? = (this as? Res.Err)?.error
 
-/** The value, or what [fallback] makes of the error. */
+/**
+ * The value, or what [fallback] makes of the error.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public inline fun <T, E> Res<T, E>.getOrElse(fallback: (E) -> T): T = when (this) {
     is Res.Ok -> value
@@ -49,6 +67,8 @@ public inline fun <T, E> Res<T, E>.getOrElse(fallback: (E) -> T): T = when (this
  * The value, or a [TracelException] carrying the error.
  *
  * For code that would rather crash than think.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public fun <T> Res<T, *>.orThrow(): T = when (this) {
@@ -56,36 +76,60 @@ public fun <T> Res<T, *>.orThrow(): T = when (this) {
     is Res.Err -> throw TracelException(error)
 }
 
-/** Turns the value, leaves an error alone. */
+/**
+ * Turns the value, leaves an error alone.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public inline fun <T, R, E> Res<T, E>.map(transform: (T) -> R): Res<R, E> = when (this) {
     is Res.Ok -> Res.Ok(transform(value))
     is Res.Err -> this
 }
 
-/** Turns the error, leaves a value alone. */
+/**
+ * Turns the error, leaves a value alone.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public inline fun <T, E, F> Res<T, E>.mapErr(transform: (E) -> F): Res<T, F> = when (this) {
     is Res.Ok -> this
     is Res.Err -> Res.Err(transform(error))
 }
 
-/** The next step, taken only when this one worked. */
+/**
+ * The next step, taken only when this one worked.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public inline fun <T, R, E> Res<T, E>.andThen(next: (T) -> Res<R, E>): Res<R, E> = when (this) {
     is Res.Ok -> next(value)
     is Res.Err -> this
 }
 
-/** Runs [action] on the value, if there is one. */
+/**
+ * Runs [action] on the value, if there is one.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public inline fun <T, E> Res<T, E>.onOk(action: (T) -> Unit): Res<T, E> = also { if (it is Res.Ok) action(it.value) }
 
-/** Runs [action] on the error, if there is one. */
+/**
+ * Runs [action] on the error, if there is one.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public inline fun <T, E> Res<T, E>.onErr(action: (E) -> Unit): Res<T, E> = also { if (it is Res.Err) action(it.error) }
 
-/** Thrown by [orThrow]; [error] is what [Res.Err] held. */
+/**
+ * Thrown by [orThrow]; [error] is what [Res.Err] held.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public class TracelException(public val error: Any?) : RuntimeException(error.toString())
 
@@ -93,6 +137,8 @@ public class TracelException(public val error: Any?) : RuntimeException(error.to
  * Result scope: [bind] hands back the value or leaves the block with the error.
  *
  * A scope lives as long as its block.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public class ResScope<E> @PublishedApi internal constructor() {
@@ -112,7 +158,11 @@ public class ResScope<E> @PublishedApi internal constructor() {
     }
 }
 
-/** How [ResScope.fail] leaves its block. */
+/**
+ * How [ResScope.fail] leaves its block.
+ *
+ * @since 1.0.x
+ */
 @PublishedApi
 internal class ShortCircuit(val scope: ResScope<*>, val error: Any?) : RuntimeException(null, null, false, false)
 
@@ -127,6 +177,8 @@ internal class ShortCircuit(val scope: ResScope<*>, val error: Any?) : RuntimeEx
  *     ready.apply().bind()
  * }
  * ```
+ *
+ * @since 1.0.x
  */
 @Unstable
 @Suppress("UNCHECKED_CAST")

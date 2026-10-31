@@ -9,6 +9,8 @@ package com.tracel.api
  *     own(myWatcher)
  * }   // Closed here
  * ```
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface TracelSession : AutoCloseable {

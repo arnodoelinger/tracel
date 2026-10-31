@@ -11,6 +11,8 @@ import org.bukkit.inventory.ItemStack
  * Called from any thread, lookups render wherever they please.
  *
  * A lens reads the data it is given, never the world.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface BlockLens {
@@ -27,6 +29,8 @@ public interface BlockLens {
  * Lookups show the name, and `i:itemsadder:ruby` finds every stack the lens calls that, renamed or not.
  *
  * Called from any thread, with a copy of the stack as history keeps it; a lens reads it and nothing else.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface ItemLens {
@@ -34,7 +38,11 @@ public interface ItemLens {
     public fun name(item: ItemStack): NamespacedName?
 }
 
-/** Where lenses are registered. */
+/**
+ * Where lenses are registered.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface Lenses {
     /**

@@ -23,6 +23,8 @@ import org.bukkit.inventory.ItemStack
  *
  * Every call copies what it needs off the live object on the calling thread and touches the world no further.
  * What comes back is plain values, safe on any thread.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface HistoryReads {

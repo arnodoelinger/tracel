@@ -17,6 +17,8 @@ import org.bukkit.entity.Player
  * ```
  *
  * A rollback needs a time and an area, or it would undo the history of the server.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface Rollbacks {
@@ -59,7 +61,11 @@ public interface Rollbacks {
     public suspend fun latest(): RollbackJobId?
 }
 
-/** An area held by one plugin for the length of a `borrow` block. Its drafts must stay inside it. */
+/**
+ * An area held by one plugin for the length of a `borrow` block. Its drafts must stay inside it.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface BorrowedArea : Rollbacks {
     /** What is held. */
@@ -69,7 +75,11 @@ public interface BorrowedArea : Rollbacks {
     public val isExpired: Boolean
 }
 
-/** What an undo would do beyond blocks: [entityTypes] are the entities it would bring back, by type. */
+/**
+ * What an undo would do beyond blocks: [entityTypes] are the entities it would bring back, by type.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class UndoPreview(public val job: RollbackJobId, public val entityTypes: Map<NamespacedName, Int>) {
     /** How many entities it brings back. */

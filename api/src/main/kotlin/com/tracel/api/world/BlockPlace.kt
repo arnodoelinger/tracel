@@ -12,6 +12,8 @@ import org.bukkit.block.Block
  *
  * To touch the real block again, ask `Tracel` to run on the region that owns it. Otherwise,
  * go fuck yourself.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class BlockPlace(public val world: UUID, public val x: Int, public val y: Int, public val z: Int) {
@@ -29,6 +31,10 @@ public data class BlockPlace(public val world: UUID, public val x: Int, public v
     }
 }
 
-/** Where this block is, as a [BlockPlace]. */
+/**
+ * Where this block is, as a [BlockPlace].
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public val Block.place: BlockPlace get() = BlockPlace.of(this)

@@ -9,6 +9,8 @@ import java.util.UUID
  * A kind of history that a purge may take.
  *
  * Everything else, the item ledger included, is state and stays.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public enum class PurgeCategory {
@@ -29,6 +31,8 @@ public enum class PurgeCategory {
  * What to purge: [categories], narrowed by whatever of [before], [world] and [player] is set.
  *
  * A record that misses any of it stays.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class PurgeRequest(
@@ -48,6 +52,8 @@ public data class PurgeRequest(
 /**
  * One category's share of a purge: [matched] of its [total] records,
  * in [rows] rows that took [bytes] of disk.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class PurgeTally(
@@ -57,7 +63,11 @@ public data class PurgeTally(
     public val bytes: Long,
 )
 
-/** What a partial purge took, or would take. */
+/**
+ * What a partial purge took, or would take.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class PurgeReport(
     public val tallies: Map<PurgeCategory, PurgeTally>,
@@ -74,7 +84,11 @@ public data class PurgeReport(
     public val bytes: Long get() = tallies.values.sumOf { it.bytes }
 }
 
-/** What a purge of everything threw away. */
+/**
+ * What a purge of everything threw away.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class PurgeSummary(
     public val rows: Long,
@@ -83,11 +97,19 @@ public data class PurgeSummary(
     public val newest: Instant?,
 )
 
-/** A snapshot file in the export directory. */
+/**
+ * A snapshot file in the export directory.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class Snapshot(public val name: String, public val file: Path, public val bytes: Long)
 
-/** What an export wrote, or an import read. */
+/**
+ * What an export wrote, or an import read.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class TransferSummary(
     public val rows: Long,
@@ -97,7 +119,11 @@ public data class TransferSummary(
     public val newest: Instant?,
 )
 
-/** Asked while a snapshot is imported. */
+/**
+ * Asked while a snapshot is imported.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface ImportControl {
     /**

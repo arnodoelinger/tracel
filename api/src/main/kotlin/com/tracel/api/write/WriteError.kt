@@ -4,7 +4,11 @@ import com.tracel.api.Unstable
 import com.tracel.api.access.Grant
 import com.tracel.api.world.BlockPlace
 
-/** Why a write did not happen. */
+/**
+ * Why a write did not happen.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public sealed interface WriteError {
     /** The connection was closed or the plugin disabled. */

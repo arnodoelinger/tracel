@@ -3,7 +3,11 @@ package com.tracel.api.rollback
 import com.tracel.api.Unstable
 import com.tracel.api.result.Res
 
-/** A rollback that ran. Its [undo] is its exact inverse, and can be called once. */
+/**
+ * A rollback that ran. Its [undo] is its exact inverse, and can be called once.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface RollbackApplied {
     /** The job, for `Rollbacks.undo` after a restart. */
@@ -40,7 +44,11 @@ public interface RollbackApplied {
     public suspend fun undo(): Res<RollbackUndone, RollbackError>
 }
 
-/** A rollback that was taken back. */
+/**
+ * A rollback that was taken back.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class RollbackUndone(
     public val job: RollbackJobId,

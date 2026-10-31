@@ -18,6 +18,8 @@ import java.time.Duration as JavaDuration
  * ```
  *
  * The world's own doings, fire and water and growth, are left out unless [natural] is set.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class HistoryQuery(

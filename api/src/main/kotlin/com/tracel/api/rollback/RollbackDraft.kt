@@ -4,7 +4,11 @@ import com.tracel.api.Unstable
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.result.Res
 
-/** A rollback not yet planned. Immutable: each option gives a new draft. */
+/**
+ * A rollback not yet planned. Immutable: each option gives a new draft.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface RollbackDraft {
     /** What it rolls back. */
@@ -26,7 +30,11 @@ public interface RollbackDraft {
     public suspend fun preview(): Res<RollbackReady, RollbackError>
 }
 
-/** What a rollback does to a block somebody changed again after the history it rolls back. */
+/**
+ * What a rollback does to a block somebody changed again after the history it rolls back.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public enum class ConflictPolicy {
     /** Leave it as it is now. */

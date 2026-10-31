@@ -10,6 +10,8 @@ import org.bukkit.GameMode
  * What history knows about the players and mobs in the records it has been shown.
  *
  * Starts empty.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface ActorFacts {

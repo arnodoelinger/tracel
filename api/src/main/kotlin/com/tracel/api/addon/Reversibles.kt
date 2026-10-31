@@ -20,6 +20,8 @@ import com.tracel.api.Unstable
  * again with the same [RollbackStep.id], so keep the IDs you have done and skip a repeat.
  *
  * Throwing leaves the step for later.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface Reversible<T : Any> {
@@ -30,7 +32,11 @@ public interface Reversible<T : Any> {
     public fun redo(step: RollbackStep, value: T)
 }
 
-/** One call of [Reversible.undo] or [Reversible.redo]. */
+/**
+ * One call of [Reversible.undo] or [Reversible.redo].
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public data class RollbackStep(
     /** The same for a repeat of this call after a crash, but different for every other call. */
@@ -44,6 +50,8 @@ public data class RollbackStep(
  * Where reversible event types are registered.
  *
  * Needs the `rollback` grant.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface Reversibles {

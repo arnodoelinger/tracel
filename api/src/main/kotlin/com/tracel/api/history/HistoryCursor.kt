@@ -8,6 +8,8 @@ import com.tracel.api.Unstable
  *
  * Paging by it never skips or repeats a record, however much is written meanwhile,
  * which an offset cannot promise.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class HistoryCursor(public val millis: Long, public val seq: Long) : Comparable<HistoryCursor> {

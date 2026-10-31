@@ -2,7 +2,11 @@ package com.tracel.api.history
 
 import com.tracel.api.Unstable
 
-/** Why a read gave nothing back. */
+/**
+ * Why a read gave nothing back.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public sealed interface HistoryReadError {
     /** History holds no such thing. */

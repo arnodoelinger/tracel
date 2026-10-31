@@ -8,8 +8,12 @@ import org.bukkit.block.data.BlockData
 import org.bukkit.entity.Player
 
 /**
- * Writing down what no `Bukkit` event reports. An addon never listens for raw events to log them; it tells `Tracel`
- * here, and `Tracel` keeps the order with everything else it captures.
+ * Writing down what no `Bukkit` event reports.
+ *
+ * An addon never listens for raw events to log them; it tells `Tracel` here,
+ * and `Tracel` keeps the order with everything else it captures.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface AddonRecorder {
@@ -31,12 +35,19 @@ public interface AddonRecorder {
     public fun batch(by: Actor): BlockBatch
 }
 
-/** Block changes waiting to be written down. Safe to note from several threads. */
+/**
+ * Block changes waiting to be written down.
+ *
+ * Safe to note from several threads.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface BlockBatch : AutoCloseable {
     /**
-     * [place] went from [before] to [after]. A place noted twice is one change:
-     * the first before, the last after.
+     * [place] went from [before] to [after].
+     *
+     * A place noted twice is one change: the first before, the last after.
      */
     public fun block(place: BlockPlace, before: BlockData, after: BlockData)
 

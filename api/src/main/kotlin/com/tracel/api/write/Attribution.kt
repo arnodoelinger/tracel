@@ -25,6 +25,8 @@ import org.bukkit.inventory.ItemStack
  *
  * `by` is whose doing it was, the plugin's own when left out. Lookups show either with the plugin as cause.
  * A player, an entity, a block or the plugin itself can be named; another plugin cannot.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface Attribution {

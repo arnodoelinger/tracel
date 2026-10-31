@@ -22,6 +22,8 @@ import org.bukkit.inventory.ItemStack
  * ```
  *
  * [I] is the addon's own ID type. History keeps it as [encode] spells it, so that spelling must never change.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface ItemHolderType<I : Any> {
@@ -47,7 +49,11 @@ public interface ItemHolderType<I : Any> {
     public fun place(id: I): BlockPlace? = null
 }
 
-/** An [ItemHolderType] once registered. */
+/**
+ * An [ItemHolderType] once registered.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface RegisteredHolder<I : Any> {
     /** What was registered. */
@@ -60,7 +66,11 @@ public interface RegisteredHolder<I : Any> {
     public fun idOf(holder: ItemHolder.Custom): I?
 }
 
-/** Where holder types are registered. */
+/**
+ * Where holder types are registered.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface HolderTypes {
     /**

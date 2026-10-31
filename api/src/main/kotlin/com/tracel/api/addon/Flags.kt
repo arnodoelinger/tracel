@@ -11,27 +11,35 @@ import java.util.UUID
  * of the sender's own world.
  *
  * Both are `null` for the console.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public data class FlagInput(public val value: String, public val world: UUID?, public val player: UUID?)
 
-/** What a flag narrows a lookup or a rollback by. */
+/**
+ * What a flag narrows a lookup or a rollback by.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public fun interface QueryPart {
     /** Narrows what [query] reads. It only builds; nothing is read yet. */
     public fun narrow(query: HistoryQuery.Builder)
 
     public companion object {
-        /** A part that only looks inside [area]. It replaces the area a `scope:` flag set, if any. */
         @JvmStatic
         public fun within(area: LookupArea): QueryPart = QueryPart { it.within(area) }
     }
 }
 
 /**
- * A `name:value` token an addon adds to `/tracel lookup`, `near` and `rollback`: `region:spawn`, `town:Atlantis`.
+ * A `name:value` token an addon adds to `/tracel lookup`, `near` and `rollback`:
+ * `region:spawn`, `town:Atlantis`.
  *
  * Both calls are made where the command is typed, so keep them quick and never read the world.
+ *
+ * @since 1.0.x
  */
 @Unstable
 public interface QueryFlag {
@@ -54,7 +62,11 @@ public interface QueryFlag {
     public fun suggest(input: FlagInput): List<String>
 }
 
-/** What a [QueryFlag] is built from. */
+/**
+ * What a [QueryFlag] is built from.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public class FlagBuilder internal constructor() {
     private var parser: (FlagInput) -> Res<QueryPart, String> = { Res.Err("this flag takes no value") }
@@ -84,6 +96,7 @@ public class FlagBuilder internal constructor() {
 /**
  * A flag called [name], built by [build]:
  *
+ * Example:
  * ```
  * flag("region") {
  *     description = "A WorldGuard region"
@@ -91,11 +104,17 @@ public class FlagBuilder internal constructor() {
  *     suggest { input -> regions.names.filter { it.startsWith(input.value) } }
  * }
  * ```
+ *
+ * @since 1.0.x
  */
 @Unstable
 public fun flag(name: String, build: FlagBuilder.() -> Unit): QueryFlag = FlagBuilder().apply(build).build(name)
 
-/** Where flags are registered. */
+/**
+ * Where flags are registered.
+ *
+ * @since 1.0.x
+ */
 @Unstable
 public interface Flags {
     /** Registers [flag] until the addon is disabled. */
