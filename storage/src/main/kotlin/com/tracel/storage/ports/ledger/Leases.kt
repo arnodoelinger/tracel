@@ -5,7 +5,7 @@ import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.util.eachRow
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
@@ -48,7 +48,7 @@ class Leases(private val storage: TracelStorage) : LeasesPort() {
             before?.lots?.let(lots::addAll)
             for (lotId in lotIds) lots.add(lotId.raw)
             val now = System.currentTimeMillis()
-            put(Keys.leaseSet(job.raw), encode(now, lots))
+            put(Tag.LEASE_SET[job.raw], encode(now, lots))
             swap(job.raw, Held(lots, now, before?.legacy == true))
             emptyMap()
         }
@@ -72,7 +72,7 @@ class Leases(private val storage: TracelStorage) : LeasesPort() {
         val now = System.currentTimeMillis()
         forget(from.raw, moving)
         swap(from.raw, null)
-        put(Keys.leaseSet(to.raw), encode(now, lots))
+        put(Tag.LEASE_SET[to.raw], encode(now, lots))
         swap(to.raw, Held(lots, now, before?.legacy == true))
         moving.lots.toLongArray().mapTo(HashSet(), ::LotId)
     }
@@ -91,11 +91,11 @@ class Leases(private val storage: TracelStorage) : LeasesPort() {
 
     private fun StorageUnit.load() {
         if (loaded) return
-        eachRow(Keys.tagPrefix(Keys.LEASE_SET)) { cursor ->
+        eachRow(Tag.LEASE_SET.prefix) { cursor ->
             val (acquiredAt, lots) = decode(cursor.value())
             adopt(KeyReader.u64(cursor.key(), 1), lots, acquiredAt, legacy = false)
         }
-        eachRow(Keys.tagPrefix(Keys.LEASE)) { cursor ->
+        eachRow(Tag.LEASE.prefix) { cursor ->
             val value = cursor.value()
             val lot = KeyReader.u64(cursor.key(), 1)
             adopt(Records.leaseJobId(value), LongOpenHashSet().apply { add(lot) }, Records.leaseAcquiredAt(value), legacy = true)
@@ -112,11 +112,11 @@ class Leases(private val storage: TracelStorage) : LeasesPort() {
     }
 
     private fun StorageUnit.forget(job: Long, held: Held) {
-        delete(Keys.leaseSet(job))
+        delete(Tag.LEASE_SET[job])
         if (!held.legacy) return
         for (lot in held.lots.toLongArray()) {
-            delete(Keys.lease(lot))
-            delete(Keys.leaseJob(job, lot))
+            delete(Tag.LEASE[lot])
+            delete(Tag.LEASE_JOB[job, lot])
         }
     }
 

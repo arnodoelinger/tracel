@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.log
 
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.records.RolledSet
 import com.tracel.storage.util.eachRow
 import com.tracel.engine.log.RolledBack as RolledBackPort
@@ -24,13 +24,13 @@ class RolledBack(private val storage: TracelStorage) : RolledBackPort {
                 var buckets = 0
                 while (at < sorted.size && buckets < CHUNK) {
                     val bucket = RolledSet.bucketOf(sorted[at])
-                    val key = Keys.rolledSet(bucket, job)
+                    val key = Tag.ROLLED_SET[bucket, job]
                     val slots = RolledSet.slots(get(key))
                     while (at < sorted.size && RolledSet.bucketOf(sorted[at]) == bucket) {
                         RolledSet.add(slots, RolledSet.slotOf(sorted[at++]))
                     }
                     put(key, RolledSet.encode(millis, slots))
-                    put(Keys.rolledSetJob(job, bucket), ByteArray(0))
+                    put(Tag.ROLLED_SET_JOB[job, bucket], ByteArray(0))
                     buckets++
                 }
                 at
@@ -42,12 +42,12 @@ class RolledBack(private val storage: TracelStorage) : RolledBackPort {
         do {
             val done = storage.write {
                 val buckets = LongArrayList(CHUNK)
-                eachRow(Keys.rolledSetJobPrefix(job)) { cursor ->
+                eachRow(Tag.ROLLED_SET_JOB[job]) { cursor ->
                     if (buckets.size < CHUNK) buckets.add(cursor.keyU64(9))
                 }
                 for (bucket in buckets.toLongArray()) {
-                    delete(Keys.rolledSet(bucket, job))
-                    delete(Keys.rolledSetJob(job, bucket))
+                    delete(Tag.ROLLED_SET[bucket, job])
+                    delete(Tag.ROLLED_SET_JOB[job, bucket])
                 }
                 buckets.size < CHUNK
             }
@@ -59,7 +59,7 @@ class RolledBack(private val storage: TracelStorage) : RolledBackPort {
         return storage.read {
             val out = Long2LongOpenHashMap().apply { defaultReturnValue(Long.MIN_VALUE) }
             for ((bucket, asked) in seqs.groupBy(RolledSet::bucketOf)) {
-                eachRow(Keys.rolledSetPrefix(bucket)) { cursor ->
+                eachRow(Tag.ROLLED_SET[bucket]) { cursor ->
                     val value = cursor.value()
                     val millis = RolledSet.millis(value)
                     val slots = RolledSet.slots(value)

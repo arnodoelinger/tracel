@@ -2,7 +2,7 @@ package com.tracel.storage.format.migrations
 
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.KeyWriter
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.records.RolledSet
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.format.FormatVersion
@@ -24,13 +24,13 @@ internal object RolledSets {
     val STEP = Migration(FormatVersion(1, 0), FormatVersion(1, 1), groundwork = ::fold) { }
 
     private const val CHUNK = 20_000
-    private val ROLLED = byteArrayOf(Keys.ROLLED)
-    private val ROLLED_JOB = byteArrayOf(Keys.ROLLED_JOB)
+    private val ROLLED = Tag.ROLLED.prefix
+    private val ROLLED_JOB = Tag.ROLLED_JOB.prefix
 
-    private fun rolled(seq: Long): ByteArray = KeyWriter(9).tag(Keys.ROLLED).u64(seq).done()
+    private fun rolled(seq: Long): ByteArray = KeyWriter(9).tag(Tag.ROLLED.byte).u64(seq).done()
 
     private fun rolledJob(job: Long, seq: Long): ByteArray =
-        KeyWriter(17).tag(Keys.ROLLED_JOB).u64(job).u64(seq).done()
+        KeyWriter(17).tag(Tag.ROLLED_JOB.byte).u64(job).u64(seq).done()
 
     private fun fold(engine: KeyValueEngine) {
         var from = 0L
@@ -61,7 +61,7 @@ internal object RolledSets {
         for (i in 0 until count) {
             val bucket = RolledSet.bucketOf(seqs[i])
             val at = bucket to jobs[i]
-            val slots = sets.getOrPut(at) { RolledSet.slots(unit.get(Keys.rolledSet(bucket, jobs[i]))) }
+            val slots = sets.getOrPut(at) { RolledSet.slots(unit.get(Tag.ROLLED_SET[bucket, jobs[i]])) }
             RolledSet.add(slots, RolledSet.slotOf(seqs[i]))
             millis[at] = times[i]
             unit.delete(rolled(seqs[i]))
@@ -69,8 +69,8 @@ internal object RolledSets {
         }
         for ((at, slots) in sets) {
             val (bucket, job) = at
-            unit.put(Keys.rolledSet(bucket, job), RolledSet.encode(millis.getValue(at), slots))
-            unit.put(Keys.rolledSetJob(job, bucket), ByteArray(0))
+            unit.put(Tag.ROLLED_SET[bucket, job], RolledSet.encode(millis.getValue(at), slots))
+            unit.put(Tag.ROLLED_SET_JOB[job, bucket], ByteArray(0))
         }
         return if (count == CHUNK) seqs[count - 1] + 1 else -1L
     }

@@ -3,7 +3,7 @@ package com.tracel.storage.ports.wear
 import com.tracel.engine.wear.WearMark
 import com.tracel.model.lot.LotId
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.records.Wear
 import com.tracel.storage.ports.log.walkWanted
 import com.tracel.storage.ports.ops.Counters
@@ -20,7 +20,7 @@ class WearLog(
 ) : WearLogPort {
     override suspend fun record(mark: WearMark) {
         val seq = counters.nextSeq().raw
-        storage.write { put(Keys.wear(mark.lotId.raw, seq), Wear.mark(mark.epochMillis, mark.before, mark.after)) }
+        storage.write { put(Tag.WEAR[mark.lotId.raw, seq], Wear.mark(mark.epochMillis, mark.before, mark.after)) }
     }
 
     override suspend fun marksOf(lots: Collection<LotId>): Map<LotId, List<WearMark>> {
@@ -31,7 +31,7 @@ class WearLog(
         sorted.sort()
         return storage.read {
             val out = HashMap<LotId, MutableList<WearMark>>()
-            walkWanted(Keys.WEAR, sorted, 0, sorted.size, Keys::wearPrefix) { at, cursor ->
+            walkWanted(Tag.WEAR, sorted, 0, sorted.size) { at, cursor ->
                 val value = cursor.value()
                 val lot = LotId(at)
                 out.getOrPut(lot) { ArrayList() } += WearMark(

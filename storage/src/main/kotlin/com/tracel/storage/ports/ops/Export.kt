@@ -8,6 +8,7 @@ import com.tracel.platform.Versions
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
@@ -47,8 +48,8 @@ suspend fun exportTo(storage: TracelStorage, to: Path, stopped: () -> Boolean = 
                     eachRow(ByteArray(0)) { cursor ->
                         if (stopped()) throw StoppedByRequest()
                         val key = cursor.key()
-                        if (key.contentEquals(Keys.importProgress())) return@eachRow
-                        if (key.size == TIME_KEY_SIZE && key[0] == Keys.TIME) {
+                        if (key.contentEquals(Tag.META[1])) return@eachRow
+                        if (key.size == TIME_KEY_SIZE && key[0] == Tag.TIME.byte) {
                             val at = Keys.invert(KeyReader.u64(key, 1))
                             if (at < oldest) oldest = at
                             if (at > newest) newest = at
@@ -107,7 +108,7 @@ suspend fun importFrom(
         // The wipe and the record that an import is under way land as one commit: from here a crash is finished at
         // the next start from the file, and never leaves a database that is a part of it and says nothing.
         val progress = ImportProgress(from.toAbsolutePath().toString(), Files.size(from), rows, 0L)
-        storage.engine.wipe(MutationBatch().apply { put(Keys.importProgress(), progress.encode()) })
+        storage.engine.wipe(MutationBatch().apply { put(Tag.META[1], progress.encode()) })
         copyImportRows(storage.engine, from, progress, startAt = 0L)
         storage.reloadInterning()
     }

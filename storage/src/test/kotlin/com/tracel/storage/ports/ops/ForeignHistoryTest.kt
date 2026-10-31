@@ -22,7 +22,7 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.support.Stack
@@ -122,7 +122,7 @@ class ForeignHistoryTest {
     @Test
     fun `a database numbered from one has no room until it is empty`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
-            stack.storage.write { putPinned(Keys.counter(Counters.SEQ), Records.long(300)) }
+            stack.storage.write { putPinned(Tag.COUNTER[Counters.SEQ], Records.long(300)) }
             stack.worldLog.append(
                 WorldChange(
                     Seq(5),
@@ -141,7 +141,7 @@ class ForeignHistoryTest {
     @Test
     fun `an old but empty database is moved up and imports go above what it had used`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
-            stack.storage.write { putPinned(Keys.counter(Counters.SEQ), Records.long(300)) }
+            stack.storage.write { putPinned(Tag.COUNTER[Counters.SEQ], Records.long(300)) }
             val foreign = stack.foreign()
             assertNull(foreign.room(7).ownSince)
             assertTrue(stack.counters.nextSeq().raw >= Counters.SEQ_BASE)
@@ -197,7 +197,7 @@ class ForeignHistoryTest {
     fun `purging everything makes room, and what is recorded right after does not take it back`(@TempDir dir: Path) =
         runTest {
             Stack(dir).use { stack ->
-                stack.storage.write { putPinned(Keys.counter(Counters.SEQ), Records.long(300)) }
+                stack.storage.write { putPinned(Tag.COUNTER[Counters.SEQ], Records.long(300)) }
                 stack.own(here, 1_000, TestShapes.AIR, dirt)
                 assertThrows<NoRoomForImport> { stack.foreign().room(7) }
                 assertEquals(0L, stack.foreign().importedBelow(), "numbered from one, so what is down there is its own")

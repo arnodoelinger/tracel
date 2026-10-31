@@ -2,7 +2,7 @@ package com.tracel.storage.ports.ops
 
 import com.tracel.engine.store.ImportInterrupted
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.spi.MutationBatch
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
@@ -28,7 +28,7 @@ class ImportResumeTest {
         TracelStorage.open(target).use { storage ->
             storage.write { put(row(99), byteArrayOf(9)) }
             val progress = ImportProgress(file.toAbsolutePath().toString(), Files.size(file), 12, 0)
-            storage.engine.wipe(MutationBatch().apply { put(Keys.importProgress(), progress.encode()) })
+            storage.engine.wipe(MutationBatch().apply { put(Tag.META[1], progress.encode()) })
             assertThrows<IllegalStateException> {
                 copyImportRows(storage.engine, file, progress, startAt = 0, batchRows = 5) {
                     if (it >= 5) error("killed")

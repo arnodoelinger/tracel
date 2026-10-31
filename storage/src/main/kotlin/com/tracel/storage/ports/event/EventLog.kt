@@ -8,6 +8,7 @@ import com.tracel.model.world.BlockPos
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.records.recordBytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
@@ -29,12 +30,12 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
     override suspend fun append(event: ActorEvent) {
         storage.write {
             val seq = event.seq.raw
-            check(get(Keys.event(seq)) == null) { "event at ${event.seq} already appended; the log is append-only." }
+            check(get(Tag.EVENT[seq]) == null) { "event at ${event.seq} already appended; the log is append-only." }
             val byId = event.by?.let { interning.internHolder(this, it) } ?: 0
             val at = event.at
             val worldId = at?.let { interning.internWorld(this, it.world) } ?: 0
             val text = event.text?.toByteArray(Charsets.UTF_8) ?: NO_TEXT
-            put(Keys.event(seq), recordBytes(HEADER_BYTES + text.size) {
+            put(Tag.EVENT[seq], recordBytes(HEADER_BYTES + text.size) {
                 putI8(KIND, event.kind.ordinal.toByte())
                 putI32(BY, byId)
                 putI32(WORLD, worldId)
@@ -44,9 +45,9 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
                 putI64(EPOCH, event.epochMillis)
                 writeBytes(HEADER_BYTES.toLong(), text)
             })
-            if (byId != 0) put(Keys.eventActor(byId, event.epochMillis, seq), NONE)
-            put(Keys.eventTime(event.epochMillis, seq), NONE)
-            event.entity?.let { put(Keys.eventEntity(it, seq), NONE) }
+            if (byId != 0) put(Tag.EVENT_ACTOR[byId, event.epochMillis, seq], NONE)
+            put(Tag.EVENT_TIME[event.epochMillis, seq], NONE)
+            event.entity?.let { put(Tag.EVENT_ENTITY[it, seq], NONE) }
         }
     }
 
@@ -77,7 +78,7 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
                 while (taken < want && cursor.next()) {
                     if (Keys.invert(cursor.keyU64(millisAt)) < (filter.since ?: Long.MIN_VALUE)) break
                     val seq = Keys.invert(cursor.keyU64(millisAt + 8))
-                    val record = get(Keys.event(seq)) ?: continue
+                    val record = get(Tag.EVENT[seq]) ?: continue
                     if (!accepts(record)) continue
                     found += decode(this, seq, record)
                     taken++
@@ -87,11 +88,11 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
 
         val entity = filter.entity
         if (entity != null) {
-            val prefix = Keys.eventEntityPrefix(entity)
+            val prefix = Tag.EVENT_ENTITY[entity]
             scan(prefix, prefix).use { cursor ->
                 while (cursor.next()) {
                     val seq = Keys.invert(cursor.keyU64(17))
-                    val record = get(Keys.event(seq)) ?: continue
+                    val record = get(Tag.EVENT[seq]) ?: continue
                     if (record.i64(EPOCH) !in (filter.since ?: Long.MIN_VALUE)..until) continue
                     if (EventKind.entries[record.i8(KIND).toInt()] !in kinds) continue
                     found += decode(this, seq, record)
@@ -99,9 +100,9 @@ class EventLog(private val storage: TracelStorage) : EventLogPort {
             }
             found.sortWith(compareByDescending<ActorEvent> { it.epochMillis }.thenByDescending { it.seq })
         } else if (filter.holders.isEmpty()) {
-            walk(Keys.tagPrefix(Keys.EVENT_TIME), Keys.eventTimeFrom(until), 1)
+            walk(Tag.EVENT_TIME.prefix, Tag.EVENT_TIME[until], 1)
         } else {
-            for (id in holderIds.filterNotNull()) walk(Keys.eventActorPrefix(id), Keys.eventActorFrom(id, until), 5)
+            for (id in holderIds.filterNotNull()) walk(Tag.EVENT_ACTOR[id], Tag.EVENT_ACTOR[id, until], 5)
             found.sortWith(compareByDescending<ActorEvent> { it.epochMillis }.thenByDescending { it.seq })
         }
         found.drop(filter.offset).take(filter.limit)

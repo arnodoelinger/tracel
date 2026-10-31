@@ -5,6 +5,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.log.LogKind
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.spi.EngineCursor
@@ -61,38 +62,42 @@ internal class ColumnBound(
     val untilMillis: Long?,
 ) {
     /** Past the region's last chunk — this column is finished. */
-    fun past(cursor: EngineCursor): Boolean = Keys.spatialChunkZ(cursor) > lastChunkZ
+    fun past(cursor: EngineCursor): Boolean = Tag.SPATIAL.int(cursor, 2) > lastChunkZ
 
     /** Older than the window: everything below it in this chunk is older still. */
     fun spent(cursor: EngineCursor): Boolean =
-        sinceMillis != null && Keys.spatialMillis(cursor) < sinceMillis
+        sinceMillis != null && Tag.SPATIAL.long(cursor, 3) < sinceMillis
 
     /**
      * Newer than the window. Only the column's first chunk is seeked to `until`; every chunk
      * after it is entered at its own newest row, so each one needs the same jump.
      */
     fun tooNew(cursor: EngineCursor): Boolean =
-        untilMillis != null && Keys.spatialMillis(cursor) > untilMillis
+        untilMillis != null && Tag.SPATIAL.long(cursor, 3) > untilMillis
 
     /** The window's top edge in the chunk [key] is already inside. */
     fun windowTop(key: ByteArray): ByteArray =
-        Keys.spatialChunkFrom(worldId, Keys.spatialChunkX(key), Keys.spatialChunkZ(key), untilMillis)
+        chunkFrom(worldId, Tag.SPATIAL.int(key, 1), Tag.SPATIAL.int(key, 2), untilMillis)
 
     /** The top of the chunk after the one [key] names, or null when there is no next chunk. */
     fun nextChunk(key: ByteArray): ByteArray? {
-        val z = Keys.spatialChunkZ(key)
+        val z = Tag.SPATIAL.int(key, 2)
         if (z >= lastChunkZ) return null
-        return Keys.spatialChunkFrom(worldId, Keys.spatialChunkX(key), z + 1, untilMillis)
+        return chunkFrom(worldId, Tag.SPATIAL.int(key, 1), z + 1, untilMillis)
     }
 }
+
+/** The top of chunk [chunkX], [chunkZ] — or its newest row at or below [untilMillis]. */
+internal fun chunkFrom(worldId: Int, chunkX: Int, chunkZ: Int, untilMillis: Long?): ByteArray =
+    if (untilMillis == null) Tag.SPATIAL[worldId, chunkX, chunkZ] else Tag.SPATIAL[worldId, chunkX, chunkZ, untilMillis]
 
 /** Scans over whole keys, for indexes where a prefix is the whole story. */
 internal fun scansOver(prefixes: List<ByteArray>): List<Scan> = prefixes.map { Scan(it) }
 
 /** When this row happened. Be aware that a spatial key already carries the timestamp. */
 internal fun millisOf(cursor: EngineCursor, value: MemorySegment): Long? =
-    if (cursor.keyLength() > 0 && cursor.keyByte(0) == Keys.SPATIAL) {
-        Keys.spatialMillis(cursor)
+    if (cursor.keyLength() > 0 && cursor.keyByte(0) == Tag.SPATIAL.byte) {
+        Tag.SPATIAL.long(cursor, 3)
     } else {
         Records.logKindMillis(value)
     }
@@ -389,8 +394,8 @@ internal fun piecesOf(scans: List<Scan>): List<Scan> {
             out += scan
             continue
         }
-        val x = Keys.spatialChunkX(scan.from)
-        val first = Keys.spatialChunkZ(scan.from)
+        val x = Tag.SPATIAL.int(scan.from, 1)
+        val first = Tag.SPATIAL.int(scan.from, 2)
         val chunks = bound.lastChunkZ.toLong() - first + 1
         val parts = minOf(per.toLong(), chunks).toInt().coerceAtLeast(1)
         for (p in 0 until parts) {
@@ -398,9 +403,9 @@ internal fun piecesOf(scans: List<Scan>): List<Scan> {
             val last = first + ((p + 1) * chunks / parts).toInt() - 1
             out += Scan(
                 scan.prefix,
-                if (p == 0) scan.from else Keys.spatialChunkFrom(bound.worldId, x, from, bound.untilMillis),
+                if (p == 0) scan.from else chunkFrom(bound.worldId, x, from, bound.untilMillis),
                 ColumnBound(bound.worldId, last, bound.sinceMillis, bound.untilMillis),
-                if (last == Int.MAX_VALUE) null else Keys.spatialChunkPrefix(bound.worldId, x, last + 1),
+                if (last == Int.MAX_VALUE) null else Tag.SPATIAL[bound.worldId, x, last + 1],
             )
         }
     }
@@ -420,11 +425,11 @@ internal fun StorageUnit.gatherBothByTime(
 }
 
 /** Where the time index starts for a window ending at [until]: newest first, so the top. */
-internal fun timeTop(until: Long?): ByteArray = if (until != null) Keys.timeFrom(until) else byteArrayOf(Keys.TIME)
+internal fun timeTop(until: Long?): ByteArray = if (until != null) Tag.TIME[until] else Tag.TIME.prefix
 
 /** Where the time index stops for a window starting at [since], or null for its end. */
 internal fun timeBottom(since: Long?): ByteArray? =
-    if (since != null && since > Long.MIN_VALUE) Keys.timeFrom(since - 1) else null
+    if (since != null && since > Long.MIN_VALUE) Tag.TIME[since - 1] else null
 
 /** One stretch of the time index, [from] up to [to], sorted into world and transaction sequences. */
 internal fun StorageUnit.walkTime(
@@ -436,7 +441,7 @@ internal fun StorageUnit.walkTime(
     world: LongArrayList,
     txns: LongArrayList,
 ) {
-    scan(byteArrayOf(Keys.TIME), from, to).use { cursor ->
+    scan(Tag.TIME.prefix, from, to).use { cursor ->
         while (cursor.next()) {
             if (since != null && Keys.invert(cursor.keyU64(1)) < since) break
             val value = cursor.value()
@@ -466,16 +471,15 @@ internal fun StorageUnit.walkTime(
  * contiguous slice, and kept where [keep] says so, ascending.
  */
 internal fun StorageUnit.fetchSlices(
-    tag: Byte,
+    tag: Tag,
     sorted: LongArray,
-    key: (Long) -> ByteArray,
     keep: (MemorySegment) -> Boolean,
 ): Accepted {
     val n = sorted.size
     if (!worthScanning(sorted)) {
         QueryProbe.pointGot(n.toLong())
         val hits = arrayOfNulls<MemorySegment>(n)
-        eachIndex(n) { i -> get(key(sorted[i]))?.let { if (keep(it)) hits[i] = it } }
+        eachIndex(n) { i -> get(tag[sorted[i]])?.let { if (keep(it)) hits[i] = it } }
         val out = Accepted(n)
         for (i in 0 until n) {
             val hit = hits[i] ?: continue
@@ -485,27 +489,26 @@ internal fun StorageUnit.fetchSlices(
         return out
     }
     val slices = minOf(sliceCount(n) * SLICES_PER_THREAD, maxOf(1, n / MIN_FETCH_SLICE))
-    if (slices <= 1) return fetchSlice(tag, sorted, key, keep)
+    if (slices <= 1) return fetchSlice(tag, sorted, keep)
     val parts = arrayOfNulls<Accepted>(slices)
     eachTask(slices) { s ->
         val from = (s.toLong() * n / slices).toInt()
         val to = ((s + 1).toLong() * n / slices).toInt()
-        parts[s] = fetchSlice(tag, sorted.copyOfRange(from, to), key, keep)
+        parts[s] = fetchSlice(tag, sorted.copyOfRange(from, to), keep)
     }
     return concatenated(parts)
 }
 
 /** [fetchSlices] for one slice on this thread. */
 internal fun StorageUnit.fetchSlice(
-    tag: Byte,
+    tag: Tag,
     sorted: LongArray,
-    key: (Long) -> ByteArray,
     keep: (MemorySegment) -> Boolean,
 ): Accepted {
     val out = Accepted(sorted.size)
     if (worthScanning(sorted)) {
         QueryProbe.scanned(sorted.size.toLong())
-        walkWanted(tag, sorted, 0, sorted.size, key) { seq, cursor ->
+        walkWanted(tag, sorted, 0, sorted.size) { seq, cursor ->
             val record = cursor.value()
             if (keep(record)) {
                 out.seqs.add(seq)
@@ -515,7 +518,7 @@ internal fun StorageUnit.fetchSlice(
     } else {
         QueryProbe.pointGot(sorted.size.toLong())
         for (seq in sorted) {
-            val record = get(key(seq)) ?: continue
+            val record = get(tag[seq]) ?: continue
             if (keep(record)) {
                 out.seqs.add(seq)
                 out.records += record
@@ -535,7 +538,7 @@ internal fun StorageUnit.fetchByTime(
     val top = timeTop(until)
     val bottom = timeBottom(since)
     val parts = Runtime.getRuntime().availableProcessors() * SLICES_PER_THREAD
-    val cuts = splitKeys(byteArrayOf(Keys.TIME), top, bottom, parts)
+    val cuts = splitKeys(Tag.TIME.prefix, top, bottom, parts)
     val pieces = cuts.size + 1
     val worlds = arrayOfNulls<Accepted>(pieces)
     val txns = arrayOfNulls<LongArrayList>(pieces)
@@ -545,7 +548,7 @@ internal fun StorageUnit.fetchByTime(
         val from = if (p == 0) top else cuts[p - 1]
         val to = if (p == cuts.size) bottom else cuts[p]
         walkTime(from, to, since, excludedCauses, null, world, txn)
-        worlds[p] = fetchSlice(Keys.WCHG, ascending(world), Keys::wchg, keep)
+        worlds[p] = fetchSlice(Tag.WCHG, ascending(world), keep)
         txns[p] = txn
     }
     var txnCount = 0
@@ -587,8 +590,8 @@ internal fun regionScans(
     val out = ArrayList<Scan>(region.maxTileX - region.minTileX + 1)
     for (x in region.minTileX..region.maxTileX) {
         out += Scan(
-            prefix = Keys.spatialColumnPrefix(worldId, x),
-            from = Keys.spatialChunkFrom(worldId, x, region.minTileZ, until),
+            prefix = Tag.SPATIAL[worldId, x],
+            from = chunkFrom(worldId, x, region.minTileZ, until),
             bound = bound,
         )
     }
@@ -660,8 +663,8 @@ internal inline fun StorageUnit.scanDescendingByTime(
     wanted: Int,
     accept: (Long) -> Int,
 ) {
-    val prefix = byteArrayOf(Keys.TIME)
-    val from = if (until != null) Keys.timeFrom(until) else prefix
+    val prefix = Tag.TIME.prefix
+    val from = if (until != null) Tag.TIME[until] else prefix
     scan(prefix, from).use { cursor ->
         while (cursor.next()) {
             if (since != null && Keys.invert(cursor.keyU64(1)) < since) break
@@ -674,17 +677,16 @@ internal inline fun StorageUnit.scanDescendingByTime(
 
 /** Walks the [tag] family for the keys in `sorted[from until to]`, one cursor for all of them. */
 internal inline fun StorageUnit.walkWanted(
-    tag: Byte,
+    tag: Tag,
     sorted: LongArray,
     from: Int,
     to: Int,
-    keyOf: (Long) -> ByteArray,
     row: (Long, EngineCursor) -> Unit,
 ) {
     if (from >= to) return
     var i = from
     val last = sorted[to - 1]
-    scan(byteArrayOf(tag), keyOf(sorted[from]), if (last == Long.MAX_VALUE) null else keyOf(last + 1)).use { cursor ->
+    scan(tag.prefix, tag[sorted[from]], if (last == Long.MAX_VALUE) null else tag[last + 1]).use { cursor ->
         while (i < to && cursor.next()) {
             val at = cursor.keyU64(1)
             while (i < to && sorted[i] < at) i++
@@ -693,7 +695,7 @@ internal inline fun StorageUnit.walkWanted(
                 row(at, cursor)
                 continue
             }
-            if (sorted[i] - at > SKIP_GAP) cursor.skipTo(keyOf(sorted[i]))
+            if (sorted[i] - at > SKIP_GAP) cursor.skipTo(tag[sorted[i]])
         }
     }
 }

@@ -2,7 +2,7 @@ package com.tracel.storage.ports.log
 
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyWriter
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.records.RolledSet
 import com.tracel.storage.codec.records.recordBytes
 import com.tracel.storage.ffm.Bytes.putI64
@@ -51,7 +51,7 @@ class RolledBackTest {
             val seqs = LongArray(100_000) { 5_000L + it } + longArrayOf(9_000_000, 9_000_002)
             rolled.mark(job = 1, seqs = seqs, millis = 42)
 
-            assertTrue(storage.rows(Keys.ROLLED_SET) <= 27, "${storage.rows(Keys.ROLLED_SET)} rows")
+            assertTrue(storage.rows(Tag.ROLLED_SET.byte) <= 27, "${storage.rows(Tag.ROLLED_SET.byte)} rows")
             val found = rolled.of(listOf(4_999, 5_000, 104_999, 105_000, 9_000_000, 9_000_001, 9_000_002))
             assertEquals(mapOf(5_000L to 42L, 104_999L to 42L, 9_000_000L to 42L, 9_000_002L to 42L), found)
         }
@@ -80,16 +80,16 @@ class RolledBackTest {
 
             rolled.restore(1)
             assertTrue(rolled.of(listOf(10, 11, 12, 13)).isEmpty())
-            assertEquals(0, storage.rows(Keys.ROLLED_SET))
-            assertEquals(0, storage.rows(Keys.ROLLED_SET_JOB))
+            assertEquals(0, storage.rows(Tag.ROLLED_SET.byte))
+            assertEquals(0, storage.rows(Tag.ROLLED_SET_JOB.byte))
         }
     }
 
     @Test
     fun `a database from before sets keeps what was rolled back`(@TempDir dir: Path) = runTest {
         TracelStorage.open(dir).use { storage ->
-            fun old(seq: Long) = KeyWriter(9).tag(Keys.ROLLED).u64(seq).done()
-            fun oldJob(job: Long, seq: Long) = KeyWriter(17).tag(Keys.ROLLED_JOB).u64(job).u64(seq).done()
+            fun old(seq: Long) = KeyWriter(9).tag(Tag.ROLLED.byte).u64(seq).done()
+            fun oldJob(job: Long, seq: Long) = KeyWriter(17).tag(Tag.ROLLED_JOB.byte).u64(job).u64(seq).done()
             fun owner(job: Long, millis: Long) = recordBytes(16) {
                 putI64(0, job)
                 putI64(8, millis)
@@ -117,8 +117,8 @@ class RolledBackTest {
             assertEquals(StoreFormat.CURRENT, outcome.to)
             assertTrue(outcome.migrated)
 
-            assertEquals(0, storage.rows(Keys.ROLLED))
-            assertEquals(0, storage.rows(Keys.ROLLED_JOB))
+            assertEquals(0, storage.rows(Tag.ROLLED.byte))
+            assertEquals(0, storage.rows(Tag.ROLLED_JOB.byte))
             val rolled = RolledBack(storage)
             val asked = listOf(2_999L, 3_000L, 30_000L, 52_989L, 52_990L, 52_999L, 53_000L, 700_000L)
             assertEquals(

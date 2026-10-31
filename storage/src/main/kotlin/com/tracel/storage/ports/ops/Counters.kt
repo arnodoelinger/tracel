@@ -6,7 +6,7 @@ import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.spi.MutationBatch
 import java.util.concurrent.atomic.AtomicLong
@@ -64,7 +64,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
         }
         if (cached != null) return cached
         return storage.read {
-            get(Keys.counter(TXN))?.let(Records::asLong) ?: 1L
+            get(Tag.COUNTER[TXN])?.let(Records::asLong) ?: 1L
         }
     }
 
@@ -96,7 +96,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     }
 
     private suspend fun nextRange(name: Int, count: Int): Long = storage.write {
-        val key = Keys.counter(name)
+        val key = Tag.COUNTER[name]
         val value = get(key)?.let(Records::asLong) ?: first(name)
         putPinned(key, Records.long(value + count))
         keepSpent(this, key, value + count)
@@ -106,7 +106,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     private fun nextOn(unit: StorageUnit, name: Int): Long = lock.withLock {
         val reservation = reserved[name]
         if (reservation != null && reservation.next < reservation.exhaustedAt) return reservation.next++
-        val key = Keys.counter(name)
+        val key = Tag.COUNTER[name]
         val start = unit.get(key)?.let(Records::asLong) ?: first(name)
         unit.putPinned(key, Records.long(start + blockSize))
         keepSpent(unit, key, start + blockSize)
@@ -115,7 +115,7 @@ class Counters(private val storage: TracelStorage, private val blockSize: Long =
     }
 
     private suspend fun reserve(name: Int): Long = storage.write {
-        val key = Keys.counter(name)
+        val key = Tag.COUNTER[name]
         val value = get(key)?.let(Records::asLong) ?: first(name)
         putPinned(key, Records.long(value + blockSize))
         keepSpent(this, key, value + blockSize)

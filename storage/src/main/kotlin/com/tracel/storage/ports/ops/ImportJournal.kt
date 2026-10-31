@@ -3,7 +3,7 @@ package com.tracel.storage.ports.ops
 import com.tracel.engine.store.ImportInterrupted
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
 import java.nio.ByteBuffer
@@ -48,7 +48,7 @@ object InterruptedImport {
     /** The import this database is in the middle of, or `null` if it is not. */
     fun pending(storage: TracelStorage): ImportProgress? =
         StorageUnit(storage.engine.snapshot(), MutationBatch()).use { unit ->
-            unit.get(Keys.importProgress())?.let { value ->
+            unit.get(Tag.META[1])?.let { value ->
                 ImportProgress.decode(ByteArray(value.byteSize().toInt()).also { out ->
                     java.lang.foreign.MemorySegment.ofArray(out).copyFrom(value)
                 })
@@ -91,7 +91,7 @@ internal fun copyImportRows(
     batchRows: Int = IMPORT_BATCH_ROWS,
     afterBatch: (Long) -> Unit = {},
 ) {
-    val marker = Keys.importProgress()
+    val marker = Tag.META[1]
     var batch = MutationBatch()
     var inBatch = 0
     var read = 0L

@@ -3,7 +3,7 @@ package com.tracel.storage.ports.container
 import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.model.holder.HolderId
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.records.ContainerSlot
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.engine.container.ContainerSlotLog as ContainerSlotLogPort
@@ -24,7 +24,7 @@ class ContainerSlotLog(
             val packed = slots.map { entry ->
                 Triple(entry.slot, storage.interning.internItemKey(this, entry.itemKey), entry.quantity)
             }
-            put(Keys.cslot(holderId, seq), ContainerSlot.layout(epochMillis, packed))
+            put(Tag.CONTAINER_SLOT[holderId, seq], ContainerSlot.layout(epochMillis, packed))
         }
     }
 
@@ -34,7 +34,7 @@ class ContainerSlotLog(
             val holderId = storage.interning.findHolderId(this, holder) ?: return@read null
             var seen = 0
             var result: List<ContainerSlotEntry>? = null
-            scan(Keys.cslotPrefix(holderId)).use { cursor ->
+            scan(Tag.CONTAINER_SLOT[holderId]).use { cursor ->
                 while (cursor.next()) {
                     val record = cursor.value()
                     if (ContainerSlot.layoutEpochMillis(record) <= asOfMillis) {

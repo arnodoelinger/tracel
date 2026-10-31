@@ -4,7 +4,7 @@ import com.tracel.engine.store.StoreFormatException
 import com.tracel.platform.Versions
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.records.recordBytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.putI32
@@ -85,7 +85,7 @@ object StoreFormat {
     ): FormatOutcome {
         val engine = storage.engine
         val (stored, empty) = StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
-            unit.get(Keys.formatVersion())?.let(::decode) to !unit.scan(ByteArray(0)).use { it.next() }
+            unit.get(Tag.META[0])?.let(::decode) to !unit.scan(ByteArray(0)).use { it.next() }
         }
 
         if (stored == null) {
@@ -130,7 +130,7 @@ object StoreFormat {
         val engine = storage.engine
         StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
             step(unit)
-            unit.put(Keys.formatVersion(), encode(version))
+            unit.put(Tag.META[0], encode(version))
             engine.write(unit.batch, durable = true)
         }
     }

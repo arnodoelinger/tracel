@@ -7,6 +7,7 @@ import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import java.util.*
 import com.tracel.engine.actor.ActorFacts as ActorFactsPort
@@ -21,24 +22,24 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
     override suspend fun noteMode(player: UUID, mode: Int, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
-            val latest = scan(Keys.actorModePrefix(holder)).use { cursor ->
+            val latest = scan(Tag.ACTOR_MODE[holder]).use { cursor ->
                 if (cursor.next()) Records.asInt(cursor.value()) else null
             }
-            if (latest != mode) put(Keys.actorMode(holder, millis), Records.int(mode))
+            if (latest != mode) put(Tag.ACTOR_MODE[holder, millis], Records.int(mode))
         }
     }
 
     override suspend fun openVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
-            put(Keys.actorVisit(holder, millis), Records.long(VisitTimeline.OPEN))
+            put(Tag.ACTOR_VISIT[holder, millis], Records.long(VisitTimeline.OPEN))
         }
     }
 
     override suspend fun closeVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: return@write
-            val (key, open) = scan(Keys.actorVisitPrefix(holder)).use { cursor ->
+            val (key, open) = scan(Tag.ACTOR_VISIT[holder]).use { cursor ->
                 if (cursor.next()) cursor.key() to (Records.asLong(cursor.value()) == VisitTimeline.OPEN) else return@write
             }
             if (open) put(key, Records.long(millis))
@@ -52,7 +53,7 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
             for (player in players) {
                 val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: continue
                 val rows = TreeMap<Long, Long>()
-                scan(Keys.actorVisitPrefix(holder)).use { cursor ->
+                scan(Tag.ACTOR_VISIT[holder]).use { cursor ->
                     while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] =
                         Records.asLong(cursor.value())
                 }
@@ -69,7 +70,7 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
             for (player in players) {
                 val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: continue
                 val rows = TreeMap<Long, Int>()
-                scan(Keys.actorModePrefix(holder)).use { cursor ->
+                scan(Tag.ACTOR_MODE[holder]).use { cursor ->
                     while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] =
                         Records.asInt(cursor.value())
                 }
@@ -85,7 +86,7 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
             val out = HashMap<UUID, EntityTypeKey>()
             for (entity in entities) {
                 val holder = storage.interning.findHolderId(this, HolderId.Entity(entity)) ?: continue
-                val record = get(Keys.actorKind(holder)) ?: continue
+                val record = get(Tag.ACTOR_KIND[holder]) ?: continue
                 out[entity] = storage.interning.resolveEntityType(this, Records.asInt(record))
             }
             out

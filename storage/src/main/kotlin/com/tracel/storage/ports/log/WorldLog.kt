@@ -17,6 +17,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.RawBlockEdits
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.SectionExtras
 import com.tracel.storage.intern.Interning
@@ -54,7 +55,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     override suspend fun append(change: WorldChange) {
         storage.write {
             val seq = change.seq.raw
-            check(get(Keys.wchg(seq)) == null) {
+            check(get(Tag.WCHG[seq]) == null) {
                 "world change at ${change.seq} already appended; the log is append-only."
             }
 
@@ -100,17 +101,17 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 )
             }
 
-            put(Keys.wchg(seq), record)
-            put(Keys.wchgAt(worldId, x, y, z, seq), NONE)
-            if (subject is ChangeSubject.Entity) put(Keys.wchgEntity(subject.entity, seq), NONE)
+            put(Tag.WCHG[seq], record)
+            put(Tag.WCHG_AT[worldId, x, y, z, seq], NONE)
+            if (subject is ChangeSubject.Entity) put(Tag.WCHG_ENTITY[subject.entity, seq], NONE)
             if (change.cause.isBookkeeping) return@write
             if (causedById != 0) put(
-                Keys.actor(causedById, seq),
+                Tag.ACTOR[causedById, seq],
                 Records.logKindTimed(LogKind.WORLD, change.epochMillis, change.cause)
             )
-            put(Keys.time(change.epochMillis, seq), OWN_LOG)
+            put(Tag.TIME[change.epochMillis, seq], OWN_LOG)
             put(
-                Keys.spatial(worldId, x shr 4, z shr 4, y, seq, change.epochMillis),
+                Tag.SPATIAL[worldId, x shr 4, z shr 4, change.epochMillis, Keys.yBin(y), seq],
                 Records.logKindInline(
                     LogKind.WORLD, change.cause, x, y, z,
                     change.action, beforeDataId, afterDataId, causedById, inlineFlags,
@@ -162,7 +163,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
 
         storage.write {
             val baseSeq = base.raw
-            check(get(Keys.wchg(baseSeq)) == null) {
+            check(get(Tag.WCHG[baseSeq]) == null) {
                 "world change at $base already appended; the log is append-only."
             }
             val causedById = edits.causedBy?.let { interning.internHolder(this, it) } ?: 0
@@ -187,22 +188,22 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             }
 
             put(
-                Keys.wchg(baseSeq),
+                Tag.WCHG[baseSeq],
                 Records.sectionDelta(
                     edits.action, edits.cause, causedById, worldId,
                     sectionX, sectionY, sectionZ, edits.epochMillis, baseSeq,
                     positions, count, before, after, extras,
                 ),
             )
-            put(Keys.wchgAtSection(worldId, sectionX, sectionY, sectionZ, baseSeq), NONE)
+            put(Tag.WCHG_AT_SECTION[worldId, sectionX, sectionY, sectionZ, baseSeq], NONE)
             if (edits.cause.isBookkeeping) return@write
             if (causedById != 0) put(
-                Keys.actor(causedById, baseSeq),
+                Tag.ACTOR[causedById, baseSeq],
                 Records.logKindTimed(LogKind.WORLD, edits.epochMillis, edits.cause)
             )
-            put(Keys.time(edits.epochMillis, baseSeq), OWN_LOG)
+            put(Tag.TIME[edits.epochMillis, baseSeq], OWN_LOG)
             put(
-                Keys.spatial(worldId, sectionX, sectionZ, first.y, baseSeq, edits.epochMillis),
+                Tag.SPATIAL[worldId, sectionX, sectionZ, edits.epochMillis, Keys.yBin(first.y), baseSeq],
                 Records.logKindSection(
                     LogKind.WORLD, edits.cause, edits.action,
                     sectionX shl 4, sectionY shl 4, sectionZ shl 4, count, causedById,
@@ -240,7 +241,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val base = nextSeqRange(n).raw
         val bookkeeping = raw.cause.isBookkeeping
         storage.write {
-            check(get(Keys.wchg(base)) == null) {
+            check(get(Tag.WCHG[base]) == null) {
                 "world change at ${Seq(base)} already appended; the log is append-only."
             }
             val worldId = raw.worldId
@@ -274,22 +275,22 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                     val sectionY = y0 shr 4
                     val sectionZ = z0 shr 4
                     put(
-                        Keys.wchg(seq),
+                        Tag.WCHG[seq],
                         Records.sectionDelta(
                             raw.action, raw.cause, causedById, worldId,
                             sectionX, sectionY, sectionZ, millis, seq,
                             positions, count, before, after, emptyList(),
                         ),
                     )
-                    put(Keys.wchgAtSection(worldId, sectionX, sectionY, sectionZ, seq), NONE)
+                    put(Tag.WCHG_AT_SECTION[worldId, sectionX, sectionY, sectionZ, seq], NONE)
                     if (!bookkeeping) {
                         if (causedById != 0) put(
-                            Keys.actor(causedById, seq),
+                            Tag.ACTOR[causedById, seq],
                             Records.logKindTimed(LogKind.WORLD, millis, raw.cause)
                         )
-                        put(Keys.time(millis, seq), OWN_LOG)
+                        put(Tag.TIME[millis, seq], OWN_LOG)
                         put(
-                            Keys.spatial(worldId, sectionX, sectionZ, y0, seq, millis),
+                            Tag.SPATIAL[worldId, sectionX, sectionZ, millis, Keys.yBin(y0), seq],
                             Records.logKindSection(
                                 LogKind.WORLD, raw.cause, raw.action,
                                 sectionX shl 4, sectionY shl 4, sectionZ shl 4, count, causedById,
@@ -304,21 +305,21 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                         val y = coordinates[i * 3 + 1]
                         val z = coordinates[i * 3 + 2]
                         put(
-                            Keys.wchg(seq),
+                            Tag.WCHG[seq],
                             Records.blockChange(
                                 raw.action, raw.cause, causedById, worldId, x, y, z, millis,
                                 raw.befores[i], raw.afters[i], noExtras, noExtras,
                             ),
                         )
-                        put(Keys.wchgAt(worldId, x, y, z, seq), NONE)
+                        put(Tag.WCHG_AT[worldId, x, y, z, seq], NONE)
                         if (!bookkeeping) {
                             if (causedById != 0) put(
-                                Keys.actor(causedById, seq),
+                                Tag.ACTOR[causedById, seq],
                                 Records.logKindTimed(LogKind.WORLD, millis, raw.cause)
                             )
-                            put(Keys.time(millis, seq), OWN_LOG)
+                            put(Tag.TIME[millis, seq], OWN_LOG)
                             put(
-                                Keys.spatial(worldId, x shr 4, z shr 4, y, seq, millis),
+                                Tag.SPATIAL[worldId, x shr 4, z shr 4, millis, Keys.yBin(y), seq],
                                 Records.logKindInline(
                                     LogKind.WORLD, raw.cause, x, y, z,
                                     raw.action, raw.befores[i], raw.afters[i], causedById, 0,
@@ -361,19 +362,19 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
     override suspend fun at(pos: BlockPos, limit: Int): List<WorldChange> = storage.read {
         val worldId = interning.findWorldId(this, pos.world) ?: return@read emptyList()
         val single = ArrayList<WorldChange>(limit.coerceAtMost(INITIAL_CAPACITY))
-        scan(Keys.wchgAtPrefix(worldId, pos.x, pos.y, pos.z)).use { cursor ->
+        scan(Tag.WCHG_AT[worldId, pos.x, pos.y, pos.z]).use { cursor ->
             while (single.size < limit && cursor.next()) {
                 val seq = Keys.invert(cursor.keyU64(17))
-                get(Keys.wchg(seq))?.let { single += decode(this, seq, it) }
+                get(Tag.WCHG[seq])?.let { single += decode(this, seq, it) }
             }
         }
 
         val packed = Records.packSectionPosition(pos.x, pos.y, pos.z)
         val fromSections = ArrayList<WorldChange>()
-        scan(Keys.wchgAtSectionPrefix(worldId, pos.x shr 4, pos.y shr 4, pos.z shr 4)).use { cursor ->
+        scan(Tag.WCHG_AT_SECTION[worldId, pos.x shr 4, pos.y shr 4, pos.z shr 4]).use { cursor ->
             while (fromSections.size < limit && cursor.next()) {
                 val baseSeq = Keys.invert(cursor.keyU64(17))
-                val record = get(Keys.wchg(baseSeq)) ?: continue
+                val record = get(Tag.WCHG[baseSeq]) ?: continue
                 val index = Records.sectionIndexOf(record, packed)
                 if (index < 0) continue
                 fromSections += sectionChangeAt(this, record, index, packed)
@@ -441,7 +442,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val region = filter.region
         val scans: List<Scan>? = when {
             region != null -> regionScans(this, interning, region, filter.since, filter.until)
-            holderIds.isNotEmpty() -> scansOver(holderIds.map(Keys::actorPrefix))
+            holderIds.isNotEmpty() -> scansOver(holderIds.map { Tag.ACTOR[it] })
             else -> null
         }
         val inlineWorld = includeWorld && scans != null && region != null && regionWorldId != null &&
@@ -473,7 +474,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
             QueryProbe.phase("item index") {
                 gatherSeqs(
                     LogKind.TRANSACTION,
-                    scansOver(byItem.map(Keys::itemPrefix)),
+                    scansOver(byItem.map { Tag.ITEM[it] }),
                     filter.since,
                     filter.until,
                     Int.MAX_VALUE,
@@ -523,13 +524,13 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val batched = wanted >= BATCHED_FROM || region != null
         val scans: List<Scan>? = when {
             region != null -> regionScans(this, interning, region, filter.since, filter.until)
-            holderIds.isNotEmpty() -> scansOver(holderIds.map(Keys::actorPrefix))
+            holderIds.isNotEmpty() -> scansOver(holderIds.map { Tag.ACTOR[it] })
             else -> null
         }
         val matched = LongArrayList()
         val records = ArrayList<MemorySegment>()
         val take = { seq: Long ->
-            val record = get(Keys.wchg(seq))
+            val record = get(Tag.WCHG[seq])
             if (record != null && accepts(record, filter, ids)) {
                 matched.add(seq)
                 records += record
@@ -627,7 +628,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
                 seqs[d++] = rows.seqs[order[i]]
             }
             val recordIds = ids.copy(regionWorld = worldId, world = null)
-            val got = unit.fetchSlices(Keys.WCHG, seqs, Keys::wchg) { unit.accepts(it, filter, recordIds) }
+            val got = unit.fetchSlices(Tag.WCHG, seqs) { unit.accepts(it, filter, recordIds) }
             var j = 0
             for (k in 0 until got.seqs.size) {
                 val seq = got.seqs.getLong(k)
@@ -841,7 +842,7 @@ class WorldLog(private val storage: TracelStorage) : WorldLogPort {
         val accepted = QueryProbe.phase("world records fetch") {
             pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
                 QueryProbe.opened(slice.size.toLong())
-                val got = unit.fetchSlices(Keys.WCHG, slice, Keys::wchg) { unit.accepts(it, filter, ids) }
+                val got = unit.fetchSlices(Tag.WCHG, slice) { unit.accepts(it, filter, ids) }
                 for (i in 0 until got.seqs.size) keep(got.seqs.getLong(i), got.records[i])
             }
         }

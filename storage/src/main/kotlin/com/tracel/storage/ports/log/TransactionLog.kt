@@ -20,6 +20,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Records
 import com.tracel.storage.intern.Interning
@@ -49,7 +50,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
 
     override suspend fun append(transaction: Transaction) {
         storage.write {
-            check(get(Keys.txnById(transaction.id.raw)) == null) {
+            check(get(Tag.TXN_BY_ID[transaction.id.raw]) == null) {
                 "transaction ${transaction.id} already appended — the log is append-only"
             }
 
@@ -103,33 +104,33 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
                 itemKeys.add(itemKeyId)
             }
 
-            put(Keys.txn(seq), record)
-            put(Keys.txnById(transaction.id.raw), Records.long(seq))
+            put(Tag.TXN[seq], record)
+            put(Tag.TXN_BY_ID[transaction.id.raw], Records.long(seq))
             if (bookkeeping) return@write
             val timed = Records.logKindTimed(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause)
-            for (holderId in holders.toIntArray()) put(Keys.actor(holderId, seq), timed)
-            for (itemKeyId in itemKeys.toIntArray()) put(Keys.item(itemKeyId, seq), timed)
-            put(Keys.time(transaction.epochMillis, seq), OWN_LOG)
+            for (holderId in holders.toIntArray()) put(Tag.ACTOR[holderId, seq], timed)
+            for (itemKeyId in itemKeys.toIntArray()) put(Tag.ITEM[itemKeyId, seq], timed)
+            put(Tag.TIME[transaction.epochMillis, seq], OWN_LOG)
             if (at != null && atWorldId != 0) {
                 put(
-                    Keys.spatial(atWorldId, at.x shr 4, at.z shr 4, at.y, seq, transaction.epochMillis),
+                    Tag.SPATIAL[atWorldId, at.x shr 4, at.z shr 4, transaction.epochMillis, Keys.yBin(at.y), seq],
                     Records.logKind(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause, at.x, at.y, at.z),
                 )
             }
             for ((flowIndex, lotId, quantity) in transaction.lots) {
-                put(Keys.txnLot(seq, flowIndex, lotId.raw), Records.long(quantity.raw))
+                put(Tag.TXN_LOT[seq, flowIndex, lotId.raw], Records.long(quantity.raw))
             }
         }
     }
 
     override suspend fun find(id: TxnId): Transaction? = storage.read {
-        val seq = get(Keys.txnById(id.raw))?.let(Records::asLong) ?: return@read null
-        get(Keys.txn(seq))?.let { decode(this, seq, it) }
+        val seq = get(Tag.TXN_BY_ID[id.raw])?.let(Records::asLong) ?: return@read null
+        get(Tag.TXN[seq])?.let { decode(this, seq, it) }
     }
 
     override suspend fun lotsAt(seq: Seq): List<FlowLot> = storage.read {
         val out = ArrayList<FlowLot>()
-        eachRow(Keys.txnLotPrefix(seq.raw)) { cursor ->
+        eachRow(Tag.TXN_LOT[seq.raw]) { cursor ->
             out += FlowLot(
                 cursor.keyU32(9),
                 LotId(cursor.keyU64(13)),
@@ -159,9 +160,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val parts = arrayOfNulls<Long2ObjectOpenHashMap<MutableList<FlowLot>>>(slices)
         val take = { s: Int ->
             val out = Long2ObjectOpenHashMap<MutableList<FlowLot>>()
-            unit.walkWanted(
-                Keys.TXN_LOT, sorted, n * s / slices, n * (s + 1) / slices, Keys::txnLotPrefix,
-            ) { at, cursor ->
+            unit.walkWanted(Tag.TXN_LOT, sorted, n * s / slices, n * (s + 1) / slices) { at, cursor ->
                 var lots = out.get(at)
                 if (lots == null) {
                     lots = ArrayList()
@@ -209,14 +208,14 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
 
         val scans: List<Scan>? = when {
             region != null -> regionScans(this, interning, region, since, until)
-            holderIds.isNotEmpty() -> scansOver(holderIds.map(Keys::actorPrefix))
-            materialIds != null -> scansOver(materialIds.map(Keys::itemPrefix))
+            holderIds.isNotEmpty() -> scansOver(holderIds.map { Tag.ACTOR[it] })
+            materialIds != null -> scansOver(materialIds.map { Tag.ITEM[it] })
             else -> null
         }
         val matched = LongArrayList()
         val records = ArrayList<MemorySegment>()
         val take = { seq: Long ->
-            val record = get(Keys.txn(seq))
+            val record = get(Tag.TXN[seq])
             if (record != null && accepts(record, filter, ids, materialIds)) {
                 matched.add(seq)
                 records += record
@@ -254,7 +253,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         if (seqs.isEmpty()) return emptyList()
         val accepted = pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
             QueryProbe.opened(slice.size.toLong())
-            val got = unit.fetchSlices(Keys.TXN, slice, Keys::txn) { unit.accepts(it, filter, ids, materialIds) }
+            val got = unit.fetchSlices(Tag.TXN, slice) { unit.accepts(it, filter, ids, materialIds) }
             for (i in 0 until got.seqs.size) keep(got.seqs.getLong(i), got.records[i])
         }
         val n = accepted.seqs.size
@@ -275,7 +274,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val material = filter.material
         if (keys.isEmpty() && material == null) return null
         val out = IntOpenHashSet()
-        unit.eachRow(byteArrayOf(Keys.INTERN_FORWARD, Keys.NS_ITEM_KEY)) { cursor ->
+        unit.eachRow(byteArrayOf(Tag.INTERN_FORWARD.byte, Keys.NS_ITEM_KEY)) { cursor ->
             val key = Packed.decodeItemKey(cursor.value())
             val wanted = if (keys.isNotEmpty()) key in keys else material != null && key.material.namesMaterial(material)
             if (wanted) out.add(KeyReader.u32(cursor.key(), 2))
@@ -285,7 +284,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
 
     override suspend fun itemKeys(): List<ItemKey> = storage.read {
         val out = ArrayList<ItemKey>()
-        eachRow(byteArrayOf(Keys.INTERN_FORWARD, Keys.NS_ITEM_KEY)) { cursor -> out += Packed.decodeItemKey(cursor.value()) }
+        eachRow(byteArrayOf(Tag.INTERN_FORWARD.byte, Keys.NS_ITEM_KEY)) { cursor -> out += Packed.decodeItemKey(cursor.value()) }
         out
     }
 
@@ -420,7 +419,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         }
         val worldId = interning.internWorld(unit, world)
         unit.put(
-            Keys.spatial(worldId, x shr 4, z shr 4, y, seq, epochMillis),
+            Tag.SPATIAL[worldId, x shr 4, z shr 4, epochMillis, Keys.yBin(y), seq],
             Records.logKind(LogKind.TRANSACTION, epochMillis, cause, x, y, z),
         )
     }

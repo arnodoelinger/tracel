@@ -7,6 +7,7 @@ import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.ports.ops.rebuildTotals
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
@@ -201,7 +202,7 @@ class LotRepositoryTest {
 
     private fun internedCount(unit: StorageUnit, namespace: Byte): Int {
         var count = 0
-        unit.scan(byteArrayOf(Keys.INTERN_FORWARD, namespace)).use { cursor ->
+        unit.scan(byteArrayOf(Tag.INTERN_FORWARD.byte, namespace)).use { cursor ->
             while (cursor.next()) count++
         }
         return count

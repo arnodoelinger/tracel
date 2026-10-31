@@ -224,45 +224,45 @@ class CodecGoldensTest {
 
     @Test
     fun `keys sort the way scans assume they do`() {
-        assertTrue(Key(Keys.lot(0x7FL)) < Key(Keys.lot(0x80L)))
-        assertTrue(Key(Keys.lot(1L)) < Key(Keys.lot(Long.MAX_VALUE)))
+        assertTrue(Key(Tag.LOT[0x7FL]) < Key(Tag.LOT[0x80L]))
+        assertTrue(Key(Tag.LOT[1L]) < Key(Tag.LOT[Long.MAX_VALUE]))
 
-        assertTrue(Key(Keys.actor(1, 99)) < Key(Keys.actor(1, 98)))
-        assertTrue(Key(Keys.time(500, 1)) < Key(Keys.time(400, 1)))
+        assertTrue(Key(Tag.ACTOR[1, 99]) < Key(Tag.ACTOR[1, 98]))
+        assertTrue(Key(Tag.TIME[500, 1]) < Key(Tag.TIME[400, 1]))
 
-        assertTrue(Key(Keys.spatialChunkPrefix(1, -5, 0)) < Key(Keys.spatialChunkPrefix(1, 0, 0)))
-        assertTrue(Key(Keys.spatialChunkPrefix(1, 0, -5)) < Key(Keys.spatialChunkPrefix(1, 0, 0)))
-        assertTrue(Key(Keys.spatial(1, 0, 0, 70, 1, 5_000)) < Key(Keys.spatial(1, 0, 0, 70, 2, 4_000)))
-        assertTrue(Key(Keys.spatialChunkPrefix(1, 0, 9)) < Key(Keys.spatialChunkPrefix(1, 1, -9)))
+        assertTrue(Key(Tag.SPATIAL[1, -5, 0]) < Key(Tag.SPATIAL[1, 0, 0]))
+        assertTrue(Key(Tag.SPATIAL[1, 0, -5]) < Key(Tag.SPATIAL[1, 0, 0]))
+        assertTrue(Key(Tag.SPATIAL[1, 0, 0, 5_000, Keys.yBin(70), 1]) < Key(Tag.SPATIAL[1, 0, 0, 4_000, Keys.yBin(70), 2]))
+        assertTrue(Key(Tag.SPATIAL[1, 0, 9]) < Key(Tag.SPATIAL[1, 1, -9]))
 
-        assertTrue(Key(Keys.lot(Long.MAX_VALUE)) < Key(Keys.packAt(0, 0, 0)))
-        assertTrue(Key(Keys.internReverse(Keys.NS_ENTITY_TYPE, ByteArray(64) { -1 })) < Key(Keys.wchg(0)))
-        assertTrue(Key(Keys.wchg(Long.MAX_VALUE)) < Key(Keys.wchgAt(0, 0, 0, 0, 0)))
-        assertTrue(Key(Keys.txnLot(0, 0, 0)) < Key(Keys.blockLease(0, 0, 0, 0)))
-        assertTrue(Key(Keys.blockLease(0, 0, 0, 0)) < Key(Keys.rbStruct(0, 0)))
+        assertTrue(Key(Tag.LOT[Long.MAX_VALUE]) < Key(Tag.PACK_AT[0, 0, 0]))
+        assertTrue(Key(Tag.INTERN_REVERSE[Keys.NS_ENTITY_TYPE, ByteArray(64) { -1 }]) < Key(Tag.WCHG[0]))
+        assertTrue(Key(Tag.WCHG[Long.MAX_VALUE]) < Key(Tag.WCHG_AT[0, 0, 0, 0, 0]))
+        assertTrue(Key(Tag.TXN_LOT[0, 0, 0]) < Key(Tag.BLOCK_LEASE[0, 0, 0, 0]))
+        assertTrue(Key(Tag.BLOCK_LEASE[0, 0, 0, 0]) < Key(Tag.RB_STRUCT[0, 0]))
     }
 
     @Test
     fun `a block history scan reads newest first and never leaves its own coordinate`() {
-        assertTrue(Key(Keys.wchgAt(1, 10, 70, -3, 99)) < Key(Keys.wchgAt(1, 10, 70, -3, 98)))
+        assertTrue(Key(Tag.WCHG_AT[1, 10, 70, -3, 99]) < Key(Tag.WCHG_AT[1, 10, 70, -3, 98]))
 
-        assertTrue(Key(Keys.wchgAtPrefix(1, -1, 0, 0)) < Key(Keys.wchgAtPrefix(1, 0, 0, 0)))
-        assertTrue(Key(Keys.wchgAtPrefix(1, 0, -64, 0)) < Key(Keys.wchgAtPrefix(1, 0, 0, 0)))
-        assertTrue(Key(Keys.wchgAtPrefix(1, 0, 0, -1)) < Key(Keys.wchgAtPrefix(1, 0, 0, 0)))
+        assertTrue(Key(Tag.WCHG_AT[1, -1, 0, 0]) < Key(Tag.WCHG_AT[1, 0, 0, 0]))
+        assertTrue(Key(Tag.WCHG_AT[1, 0, -64, 0]) < Key(Tag.WCHG_AT[1, 0, 0, 0]))
+        assertTrue(Key(Tag.WCHG_AT[1, 0, 0, -1]) < Key(Tag.WCHG_AT[1, 0, 0, 0]))
 
-        val here = Keys.wchgAtPrefix(1, 10, 70, -3)
-        assertTrue(Key(Keys.wchgAt(1, 10, 70, -3, Long.MAX_VALUE)).startsWith(here))
-        assertFalse(Key(Keys.wchgAt(1, 10, 70, -2, 0)).startsWith(here))
-        assertFalse(Key(Keys.wchgAt(1, 11, 70, -3, 0)).startsWith(here))
+        val here = Tag.WCHG_AT[1, 10, 70, -3]
+        assertTrue(Key(Tag.WCHG_AT[1, 10, 70, -3, Long.MAX_VALUE]).startsWith(here))
+        assertFalse(Key(Tag.WCHG_AT[1, 10, 70, -2, 0]).startsWith(here))
+        assertFalse(Key(Tag.WCHG_AT[1, 11, 70, -3, 0]).startsWith(here))
     }
 
     @Test
     fun `a transaction's lots scan in flow order and stay inside their transaction`() {
-        val prefix = Keys.txnLotPrefix(7)
-        assertTrue(Key(Keys.txnLot(7, 0, 500)) < Key(Keys.txnLot(7, 1, 1)), "flow order, not lot order")
-        assertTrue(Key(Keys.txnLot(7, 0, 1)) < Key(Keys.txnLot(7, 0, 2)))
-        assertTrue(Key(Keys.txnLot(7, 3, 9)).startsWith(prefix))
-        assertFalse(Key(Keys.txnLot(8, 0, 0)).startsWith(prefix))
+        val prefix = Tag.TXN_LOT[7]
+        assertTrue(Key(Tag.TXN_LOT[7, 0, 500]) < Key(Tag.TXN_LOT[7, 1, 1]), "flow order, not lot order")
+        assertTrue(Key(Tag.TXN_LOT[7, 0, 1]) < Key(Tag.TXN_LOT[7, 0, 2]))
+        assertTrue(Key(Tag.TXN_LOT[7, 3, 9]).startsWith(prefix))
+        assertFalse(Key(Tag.TXN_LOT[8, 0, 0]).startsWith(prefix))
     }
 
     @Test

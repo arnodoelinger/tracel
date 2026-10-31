@@ -5,7 +5,7 @@ import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.storage.util.eachRow
@@ -27,7 +27,7 @@ class PendingDeliveryRepository(
         storage.write {
             deltas.entries.forEachIndexed { index, (itemKey, delta) ->
                 put(
-                    Keys.pending(player, ids[index]),
+                    Tag.PENDING[player, ids[index]],
                     Records.pending(
                         storage.interning.internItemKey(this, itemKey),
                         delta,
@@ -43,7 +43,7 @@ class PendingDeliveryRepository(
     override suspend fun claimFor(player: UUID): List<PendingDelivery> = storage.write {
         val out = ArrayList<PendingDelivery>()
         val keys = ArrayList<ByteArray>()
-        eachRow(Keys.pendingPrefix(player)) { cursor ->
+        eachRow(Tag.PENDING[player]) { cursor ->
             val value = cursor.value()
             out += PendingDelivery(
                 KeyReader.u64(cursor.key(), 17),

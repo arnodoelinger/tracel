@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.ledger
 
 import com.tracel.storage.StorageUnit
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ports.ops.Counters
 import java.lang.foreign.MemorySegment
@@ -74,31 +74,31 @@ internal class Packs(private val counters: Counters) {
 
     /** Reads a pack from the given storage unit using its ID. */
     fun read(unit: StorageUnit, packId: Long): Pack? {
-        val location = unit.get(Keys.pack(packId)) ?: return null
+        val location = unit.get(Tag.PACK[packId]) ?: return null
         val holderId = LotRecord.locationHolderId(location)
         val itemKeyId = LotRecord.locationItemKeyId(location)
-        val slot = unit.get(Keys.packAt(holderId, itemKeyId, LotRecord.locationTail(location)))
+        val slot = unit.get(Tag.PACK_AT[holderId, itemKeyId, LotRecord.locationTail(location)])
             ?: error("pack $packId points at a queue slot that is empty.")
         return decode(holderId, itemKeyId, slot)
     }
 
     /** Retrieves a pack from the specified storage unit that corresponds to the given lot. */
     fun of(unit: StorageUnit, lot: Long): Pack? =
-        unit.get(Keys.lotPack(lot))?.let { read(unit, Records.asLong(it)) }
+        unit.get(Tag.LOT_PACK[lot])?.let { read(unit, Records.asLong(it)) }
 
     /** Retrieves the holder ID of the pack with the given ID. */
     fun holderIdOf(unit: StorageUnit, packId: Long): Int? =
-        unit.get(Keys.pack(packId))?.let(LotRecord::locationHolderId)
+        unit.get(Tag.PACK[packId])?.let(LotRecord::locationHolderId)
 
     /** [old] becomes [new], or goes. Lot pointers are the caller's. */
     fun swap(unit: StorageUnit, old: Pack, new: Pack?) {
         val slotMoved =
             new == null || new.holderId != old.holderId || new.itemKeyId != old.itemKeyId || new.tail != old.tail
         if (slotMoved) {
-            unit.delete(Keys.packAt(old.holderId, old.itemKeyId, old.tail))
-            unit.delete(Keys.packItem(old.itemKeyId, old.holderId, old.tail))
+            unit.delete(Tag.PACK_AT[old.holderId, old.itemKeyId, old.tail])
+            unit.delete(Tag.PACK_ITEM[old.itemKeyId, old.holderId, old.tail])
         }
-        if (new == null || new.id != old.id) unit.delete(Keys.pack(old.id))
+        if (new == null || new.id != old.id) unit.delete(Tag.PACK[old.id])
         if (new != null) write(unit, new)
     }
 
@@ -146,7 +146,7 @@ internal class Packs(private val counters: Counters) {
 
     private fun overlapping(unit: StorageUnit, holderId: Int, itemKeyId: Int, head: Long, tail: Long): List<Pack> {
         var out: ArrayList<Pack>? = null
-        unit.scan(Keys.packAtPrefix(holderId, itemKeyId), Keys.packAt(holderId, itemKeyId, head)).use { cursor ->
+        unit.scan(Tag.PACK_AT[holderId, itemKeyId], Tag.PACK_AT[holderId, itemKeyId, head]).use { cursor ->
             while (cursor.next()) {
                 val value = cursor.value()
                 if (LotRecord.packFifo(value, 0) > tail) break
@@ -177,17 +177,17 @@ internal class Packs(private val counters: Counters) {
             )
             write(unit, pack)
             val pointer = Records.long(pack.id)
-            for (lot in pack.lots) unit.put(Keys.lotPack(lot), pointer)
+            for (lot in pack.lots) unit.put(Tag.LOT_PACK[lot], pointer)
             from = until
         }
     }
 
     private fun write(unit: StorageUnit, pack: Pack) {
         unit.put(
-            Keys.packAt(pack.holderId, pack.itemKeyId, pack.tail),
+            Tag.PACK_AT[pack.holderId, pack.itemKeyId, pack.tail],
             LotRecord.pack(pack.id, pack.lots, pack.remaining, pack.fifo, pack.size),
         )
-        unit.put(Keys.pack(pack.id), LotRecord.packLocation(pack.holderId, pack.itemKeyId, pack.tail))
-        unit.put(Keys.packItem(pack.itemKeyId, pack.holderId, pack.tail), LotRecord.packSum(pack.id, pack.sum))
+        unit.put(Tag.PACK[pack.id], LotRecord.packLocation(pack.holderId, pack.itemKeyId, pack.tail))
+        unit.put(Tag.PACK_ITEM[pack.itemKeyId, pack.holderId, pack.tail], LotRecord.packSum(pack.id, pack.sum))
     }
 }

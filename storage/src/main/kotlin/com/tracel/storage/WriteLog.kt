@@ -1,7 +1,7 @@
 package com.tracel.storage
 
 import com.tracel.annotations.Unstable
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.spi.MutationBatch
 import java.util.logging.Logger
 
@@ -17,7 +17,7 @@ internal object WriteLog {
         if (!enabled || batch.isEmpty()) return
         val lines = ArrayList<String>(batch.size)
         batch.forEach { key, value ->
-            val tag = if (key.isNotEmpty()) Keys.tagName(key[0]) else "?"
+            val tag = if (key.isNotEmpty()) Tag.labelOf(key[0]) else "?"
             val hex = key.joinToString("") { "%02x".format(it.toInt() and 0xff) }
             val bytes = value?.size ?: 0
             val verb = if (value == null) "del" else "put"

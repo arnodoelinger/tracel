@@ -3,7 +3,7 @@ package com.tracel.storage.ports.ledger
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import java.lang.foreign.ValueLayout.JAVA_BYTE
 import com.tracel.engine.ledger.ItemForms as ItemFormsPort
 
@@ -28,14 +28,14 @@ class ItemForms(private val storage: TracelStorage) : ItemFormsPort {
         if (forms.isEmpty()) return
         storage.write {
             for ((hash, bytes) in forms) {
-                val key = Keys.itemForm(hash.digest())
+                val key = Tag.ITEM_FORM[hash.digest()]
                 if (get(key) == null) put(key, bytes)
             }
         }
     }
 
     override suspend fun find(hash: ContentHash): ByteArray? = storage.read {
-        get(Keys.itemForm(hash.digest()))?.toArray(JAVA_BYTE)
+        get(Tag.ITEM_FORM[hash.digest()])?.toArray(JAVA_BYTE)
     }
 }
 

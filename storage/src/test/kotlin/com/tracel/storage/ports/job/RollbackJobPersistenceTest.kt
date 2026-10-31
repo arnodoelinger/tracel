@@ -23,7 +23,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.player
@@ -141,9 +141,9 @@ class RollbackJobPersistenceTest {
             val id = RollbackJobId(22)
             stack.jobs.save(RollbackJobRecord(id, plan, RollbackTarget.Uniform(player(1)), create, destroy))
 
-            val current = stack.storage.read { get(Keys.rbJob(id.raw))!! }
+            val current = stack.storage.read { get(Tag.RB_JOB[id.raw])!! }
             val legacy = ByteArray(16) { i -> current.get(ValueLayout.JAVA_BYTE, i.toLong()) }
-            stack.storage.write { put(Keys.rbJob(id.raw), legacy) }
+            stack.storage.write { put(Tag.RB_JOB[id.raw], legacy) }
 
             val read = stack.jobs.find(id)!!
             assertNull(read.targetTimeMillis)
@@ -361,9 +361,9 @@ class RollbackJobPersistenceTest {
             assertFalse(stack.jobs.isUndoable(id))
             assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoable(limit = 10))
             assertTrue(bytesIn(dir) >= 0 && before > 0)
-            assertEquals(0, keysUnder(stack, Keys.rbStructPrefix(id.raw)))
-            assertEquals(0, keysUnder(stack, Keys.rbStepPrefix(id.raw)))
-            assertEquals(0, keysUnder(stack, Keys.rbTargetPrefix(id.raw)))
+            assertEquals(0, keysUnder(stack, Tag.RB_STRUCT[id.raw]))
+            assertEquals(0, keysUnder(stack, Tag.RB_STEP[id.raw]))
+            assertEquals(0, keysUnder(stack, Tag.RB_TARGET[id.raw]))
         }
     }
 
@@ -388,7 +388,7 @@ class RollbackJobPersistenceTest {
 
             for (i in 1..5) {
                 assertNull(stack.jobs.find(RollbackJobId(i.toLong())), "job $i should have been evicted")
-                assertEquals(0, keysUnder(stack, Keys.rbStructPrefix(i.toLong())))
+                assertEquals(0, keysUnder(stack, Tag.RB_STRUCT[i.toLong()]))
             }
             val kept = stack.jobs.find(RollbackJobId(6))!!
             assertEquals(create, kept.create)
@@ -458,7 +458,7 @@ class RollbackJobPersistenceTest {
         runTest {
             Stack(dir).use { stack ->
                 stack.jobs.save(RollbackJobRecord(RollbackJobId(1), plan, RollbackTarget.Uniform(player(1))))
-                stack.storage.write { put(Keys.rbRecent(1), ByteArray(0)) }
+                stack.storage.write { put(Tag.RB_RECENT[1], ByteArray(0)) }
 
                 assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoableBy(null, limit = 5))
                 assertEquals(emptyList<RollbackJobId>(), stack.jobs.undoableBy(player(2), limit = 5))

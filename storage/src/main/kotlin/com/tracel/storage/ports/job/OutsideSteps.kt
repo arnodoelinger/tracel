@@ -2,7 +2,7 @@ package com.tracel.storage.ports.job
 
 import com.tracel.engine.rollback.outside.OutsideStep
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
@@ -20,7 +20,7 @@ class OutsideSteps(private val storage: TracelStorage) : OutsideStepsPort {
         if (steps.isEmpty()) return
         storage.write {
             for (step in steps) {
-                val key = Keys.outsideStep(step.seq)
+                val key = Tag.OUTSIDE_STEP[step.seq]
                 if (get(key) == null) put(key, encode(step))
             }
         }
@@ -30,7 +30,7 @@ class OutsideSteps(private val storage: TracelStorage) : OutsideStepsPort {
         if (seqs.isEmpty()) return
         storage.write {
             for (seq in seqs) {
-                val key = Keys.outsideStep(seq)
+                val key = Tag.OUTSIDE_STEP[seq]
                 val kept = get(key)?.let { decode(seq, it) } ?: continue
                 put(key, encode(kept.copy(job = job)))
             }
@@ -43,7 +43,7 @@ class OutsideSteps(private val storage: TracelStorage) : OutsideStepsPort {
 
     override suspend fun told(seq: Long, undone: Boolean, generation: Int) {
         storage.write {
-            val key = Keys.outsideStep(seq)
+            val key = Tag.OUTSIDE_STEP[seq]
             val kept = get(key)?.let { decode(seq, it) } ?: return@write
             if (generation <= kept.generation) return@write
             put(key, encode(kept.copy(undone = undone, generation = generation)))
@@ -52,7 +52,7 @@ class OutsideSteps(private val storage: TracelStorage) : OutsideStepsPort {
 
     private suspend fun all(): List<OutsideStep> = storage.read {
         val out = ArrayList<OutsideStep>()
-        eachRow(Keys.outsideStepPrefix()) { cursor -> out += decode(cursor.keyU64(1), cursor.value()) }
+        eachRow(Tag.OUTSIDE_STEP.prefix) { cursor -> out += decode(cursor.keyU64(1), cursor.value()) }
         out
     }
 

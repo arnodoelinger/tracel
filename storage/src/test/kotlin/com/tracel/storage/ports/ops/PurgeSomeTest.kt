@@ -25,6 +25,7 @@ import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.codec.History
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.diamond
@@ -49,8 +50,8 @@ class PurgeSomeTest {
     private val start = 1_000 * day
 
     private val touched = listOf(
-        Keys.TXN, Keys.TXN_BY_ID, Keys.ACTOR, Keys.ITEM, Keys.TIME, Keys.SPATIAL, Keys.TXN_LOT,
-        Keys.WCHG, Keys.WCHG_AT, Keys.WCHG_AT_SECTION, Keys.WCHG_ENTITY, Keys.CONTAINER_SLOT, Keys.ACTOR_VISIT,
+        Tag.TXN, Tag.TXN_BY_ID, Tag.ACTOR, Tag.ITEM, Tag.TIME, Tag.SPATIAL, Tag.TXN_LOT,
+        Tag.WCHG, Tag.WCHG_AT, Tag.WCHG_AT_SECTION, Tag.WCHG_ENTITY, Tag.CONTAINER_SLOT, Tag.ACTOR_VISIT,
     )
 
     private fun broke(seq: Long, world: WorldId, by: HolderId, epoch: Long, x: Int = seq.toInt()) = WorldChange(
@@ -97,38 +98,38 @@ class PurgeSomeTest {
         stack.containerSlots.record(HolderId.Block(overworld, 1, 64, 1), 630, listOf(ContainerSlotEntry(1, diamond, 1)))
     }
 
-    private suspend fun rows(stack: Stack): Map<Byte, Int> = stack.storage.read {
+    private suspend fun rows(stack: Stack): Map<Tag, Int> = stack.storage.read {
         touched.associateWith { tag ->
             var n = 0
-            scan(Keys.tagPrefix(tag)).use { while (it.next()) n++ }
+            scan(tag.prefix).use { while (it.next()) n++ }
             n
         }
     }
 
     private suspend fun orphans(stack: Stack): List<String> = stack.storage.read {
         val live = HashSet<Long>()
-        for (tag in listOf(Keys.TXN, Keys.WCHG)) {
-            scan(Keys.tagPrefix(tag)).use { while (it.next()) live += KeyReader.u64(it.key(), 1) }
+        for (tag in listOf(Tag.TXN, Tag.WCHG)) {
+            scan(tag.prefix).use { while (it.next()) live += KeyReader.u64(it.key(), 1) }
         }
         val lost = ArrayList<String>()
         for (tag in listOf(
-            Keys.ACTOR,
-            Keys.ITEM,
-            Keys.TIME,
-            Keys.SPATIAL,
-            Keys.WCHG_AT,
-            Keys.WCHG_AT_SECTION,
-            Keys.WCHG_ENTITY
+            Tag.ACTOR,
+            Tag.ITEM,
+            Tag.TIME,
+            Tag.SPATIAL,
+            Tag.WCHG_AT,
+            Tag.WCHG_AT_SECTION,
+            Tag.WCHG_ENTITY
         )) {
-            scan(Keys.tagPrefix(tag)).use {
+            scan(tag.prefix).use {
                 while (it.next()) {
                     val key = it.key()
                     val seq = Keys.invert(KeyReader.u64(key, key.size - 8))
-                    if (seq !in live) lost += "${Keys.tagName(tag)} of seq $seq"
+                    if (seq !in live) lost += "${tag.label} of seq $seq"
                 }
             }
         }
-        scan(Keys.tagPrefix(Keys.TXN_LOT)).use {
+        scan(Tag.TXN_LOT.prefix).use {
             while (it.next()) if (KeyReader.u64(it.key(), 1) !in live) lost += "txnLot of seq ${
                 KeyReader.u64(
                     it.key(),
@@ -250,7 +251,7 @@ class PurgeSomeTest {
 
             assertEquals(20_000L, report.matched)
             assertEquals(25_000L, report.tallies.getValue(PurgeCategory.BLOCKS).total)
-            assertEquals(5_000, rows(stack).getValue(Keys.WCHG))
+            assertEquals(5_000, rows(stack).getValue(Tag.WCHG))
             assertEquals(emptyList<String>(), orphans(stack))
         }
     }

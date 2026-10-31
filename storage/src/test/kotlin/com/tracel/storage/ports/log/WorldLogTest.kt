@@ -20,6 +20,7 @@ import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.ports.ops.purgeAll
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.diamond
@@ -336,7 +337,7 @@ class WorldLogTest {
                 var count = 0
                 scan(
                     byteArrayOf(
-                        Keys.INTERN_FORWARD,
+                        Tag.INTERN_FORWARD.byte,
                         Keys.NS_BLOCK_DATA
                     )
                 )
@@ -374,7 +375,7 @@ class WorldLogTest {
             )
             val spatialKeys = stack.storage.read {
                 var n = 0
-                scan(byteArrayOf(Keys.SPATIAL)).use { cursor -> while (cursor.next()) n++ }
+                scan(Tag.SPATIAL.prefix).use { cursor -> while (cursor.next()) n++ }
                 n
             }
             assertEquals(1, spatialKeys, "a restore must not add spatial keys for the next query to walk")

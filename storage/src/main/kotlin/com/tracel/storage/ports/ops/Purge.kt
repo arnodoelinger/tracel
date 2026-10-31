@@ -5,6 +5,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
@@ -24,22 +25,22 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
             unit.eachRow(ByteArray(0)) { cursor ->
                 total++
                 val key = cursor.key()
-                if (key.size == TIME_KEY_SIZE && key[0] == Keys.TIME) {
+                if (key.size == TIME_KEY_SIZE && key[0] == Tag.TIME.byte) {
                     val at = Keys.invert(KeyReader.u64(key, 1))
                     if (at < oldest) oldest = at
                     if (at > newest) newest = at
                 }
             }
-            for (family in Keys.KEEPS_ITS_NUMBERING) {
-                unit.eachRow(Keys.tagPrefix(family)) { cursor ->
+            for (family in Tag.KEEPS_NUMBERING) {
+                unit.eachRow(family.prefix) { cursor ->
                     val value = cursor.value()
                     kept += cursor.key() to value.readBytes(0, value.byteSize().toInt())
                 }
             }
-            val seqKey = Keys.counter(Counters.SEQ)
+            val seqKey = Tag.COUNTER[Counters.SEQ]
             val used = unit.get(seqKey)?.let(Records::asLong)
             if (used != null && used < Counters.SEQ_BASE) {
-                val importKey = Keys.counter(Counters.IMPORT_SEQ)
+                val importKey = Tag.COUNTER[Counters.IMPORT_SEQ]
                 val imported = unit.get(importKey)?.let(Records::asLong) ?: 1L
                 kept.removeAll { (key, _) -> key.contentEquals(seqKey) || key.contentEquals(importKey) }
                 kept += seqKey to Records.long(Counters.SEQ_BASE)
@@ -65,11 +66,11 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
 suspend fun rebuildTotals(storage: TracelStorage) {
     storage.write {
         val keys = ArrayList<ByteArray>()
-        eachRow(Keys.tagPrefix(Keys.TOTAL)) { cursor -> keys += cursor.key() }
+        eachRow(Tag.TOTAL.prefix) { cursor -> keys += cursor.key() }
         keys.forEach(::delete)
 
         val totals = Long2LongOpenHashMap()
-        eachRow(Keys.tagPrefix(Keys.PACK_ITEM)) { cursor ->
+        eachRow(Tag.PACK_ITEM.prefix) { cursor ->
             val key = cursor.key()
             val itemKeyId = KeyReader.u32(key, 1)
             val holderId = KeyReader.u32(key, 5)
@@ -81,7 +82,7 @@ suspend fun rebuildTotals(storage: TracelStorage) {
             val total = entry.longValue
             if (total == 0L) continue
             put(
-                Keys.total((packed ushr 32).toInt(), packed.toInt()),
+                Tag.TOTAL[(packed ushr 32).toInt(), packed.toInt()],
                 Records.long(total),
             )
         }

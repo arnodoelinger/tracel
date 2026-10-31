@@ -7,6 +7,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.History
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Records
 import com.tracel.storage.codec.records.ContainerSlot
 import com.tracel.storage.ports.event.EventLog
@@ -179,7 +180,7 @@ private suspend fun analyze(
     val analysis = Analysis()
     if (!everything && category != PurgeCategory.CONTAINERS) analysis.seqs = LongOpenHashSet()
     when (category) {
-        PurgeCategory.BLOCKS -> storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.WCHG)) { cursor ->
+        PurgeCategory.BLOCKS -> storage.engine.readSegment(segment.id, Tag.WCHG.prefix) { cursor ->
             while (cursor.next()) {
                 val v = cursor.value()
                 analysis.total++
@@ -191,7 +192,7 @@ private suspend fun analyze(
             }
         }
 
-        PurgeCategory.ITEMS -> storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.TXN)) { cursor ->
+        PurgeCategory.ITEMS -> storage.engine.readSegment(segment.id, Tag.TXN.prefix) { cursor ->
             while (cursor.next()) {
                 val v = cursor.value()
                 analysis.total++
@@ -203,7 +204,7 @@ private suspend fun analyze(
             }
         }
 
-        PurgeCategory.EVENTS -> storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.EVENT)) { cursor ->
+        PurgeCategory.EVENTS -> storage.engine.readSegment(segment.id, Tag.EVENT.prefix) { cursor ->
             while (cursor.next()) {
                 val v = cursor.value()
                 analysis.total++
@@ -230,7 +231,7 @@ private fun StorageUnit.analyzeContainers(
     val keys = HashSet<ByteBuffer>()
     val sitsIn = HashMap<Int, Boolean>()
     val before = filter.before
-    storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.CONTAINER_SLOT)) { cursor ->
+    storage.engine.readSegment(segment.id, Tag.CONTAINER_SLOT.prefix) { cursor ->
         while (cursor.next()) {
             analysis.total++
             val epoch = ContainerSlot.layoutEpochMillis(cursor.value())
@@ -248,7 +249,7 @@ private fun StorageUnit.analyzeContainers(
             }
         }
     }
-    storage.engine.readSegment(segment.id, Keys.tagPrefix(Keys.ACTOR_VISIT)) { cursor ->
+    storage.engine.readSegment(segment.id, Tag.ACTOR_VISIT.prefix) { cursor ->
         while (cursor.next()) {
             analysis.total++
             val epoch = Keys.invert(cursor.keyU64(5))
