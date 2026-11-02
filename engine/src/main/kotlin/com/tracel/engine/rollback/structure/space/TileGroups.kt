@@ -3,6 +3,7 @@ package com.tracel.engine.rollback.structure.space
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.TILE_SHIFT
 import com.tracel.model.world.WorldId
+import com.tracel.model.world.packPair
 
 /**
  * Splits [items] by the tile [at] puts each one in, in the order the tiles are first met. Items keep their order
@@ -19,7 +20,7 @@ public fun <T> groupByTile(items: List<T>, at: (T) -> BlockPos): List<List<T>> {
     var last: ArrayList<T>? = null
     for (item in items) {
         val pos = at(item)
-        val key = ((pos.x shr TILE_SHIFT).toLong() shl 32) or ((pos.z shr TILE_SHIFT).toLong() and 0xffffffffL)
+        val key = packPair(pos.x shr TILE_SHIFT, pos.z shr TILE_SHIFT)
         val current = last
         if (current != null && key == lastKey && pos.world == lastWorld) {
             current += item

@@ -1,6 +1,5 @@
-package com.tracel.engine.capture.material.flow
+package com.tracel.engine.ledger
 
-import com.tracel.engine.ledger.LotLedger
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 

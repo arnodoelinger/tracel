@@ -7,6 +7,7 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.putOrReset
 import org.bukkit.Material
 import org.bukkit.Nameable
 import org.bukkit.block.*
@@ -95,8 +96,7 @@ private fun rebuilt(nbt: ByteArray): ItemStack {
     val key = ByteBuffer.wrap(nbt)
     rebuiltExtras[key]?.let { return it }
     val item = ItemStack.deserializeBytes(nbt)
-    if (rebuiltExtras.size >= MAX_REBUILT_EXTRAS) rebuiltExtras.clear()
-    rebuiltExtras[key] = item
+    rebuiltExtras.putOrReset(MAX_REBUILT_EXTRAS, key, item)
     return item
 }
 

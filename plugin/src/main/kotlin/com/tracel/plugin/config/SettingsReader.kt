@@ -80,12 +80,12 @@ internal fun readSettings(
     val minTickTime = rollback.setting(
         "rollback", "min-tick-time", governorDefaults.minNanos / NANOS_PER_MILLI, complain,
     ) {
-        parseDuration(it.toString())?.takeIf { millis -> millis in 1..TICK_MILLIS }
+        parseDuration(it.toString().trim().lowercase())?.takeIf { millis -> millis in 1..TICK_MILLIS }
     }
     val maxTickTime = rollback.setting(
         "rollback", "max-tick-time", governorDefaults.maxNanos / NANOS_PER_MILLI, complain,
     ) {
-        parseDuration(it.toString())?.takeIf { millis -> millis in minTickTime..TICK_MILLIS }
+        parseDuration(it.toString().trim().lowercase())?.takeIf { millis -> millis in minTickTime..TICK_MILLIS }
     }
 
     val pasteUrl = paste.setting("paste", "paste-url", DEFAULT_PASTE_URL, complain) {
@@ -100,13 +100,13 @@ internal fun readSettings(
 
     val autoPurge = purge.setting("purge", "auto-purge", false, complain) { it as? Boolean }
     val purgeInterval = purge.setting("purge", "interval", DEFAULT_PURGE_INTERVAL_MILLIS, complain) {
-        TimeArgument.parseDuration(it.toString().trim().lowercase())
+        parseDuration(it.toString().trim().lowercase())
             ?.takeIf { millis -> millis >= MIN_PURGE_INTERVAL_MILLIS }
     }
     val keep = PurgeCategory.entries.associateWith { category ->
         purge.setting("purge", "keep-${category.name.lowercase()}", DEFAULT_PURGE_KEEP_MILLIS, complain) { raw ->
             val text = raw.toString().trim().lowercase()
-            if (text in FOREVER) NEVER else TimeArgument.parseDuration(text)?.takeIf { millis -> millis > 0 }
+            if (text in FOREVER) NEVER else parseDuration(text)?.takeIf { millis -> millis > 0 }
         }.takeIf { it != NEVER }
     }
 
@@ -182,5 +182,5 @@ internal fun parseSync(value: String): StoreSync? =
     when (value.trim().lowercase()) {
         "every-batch" -> StoreSync.EveryBatch
         "never" -> StoreSync.Never
-        else -> parseDuration(value)?.let(StoreSync::Interval)
+        else -> parseDuration(value.trim().lowercase())?.takeIf { it > 0 }?.let(StoreSync::Interval)
     }

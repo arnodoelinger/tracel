@@ -2,6 +2,7 @@ package com.tracel.plugin.listener.support.guard
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.ThreadFlag
 
 private const val WRITTEN_TTL_MS = 1_000L
 private const val WRITTEN_KEPT = 1 shl 20
@@ -16,36 +17,24 @@ private const val WRITTEN_KEPT = 1 shl 20
  * nested, so the flag marks exactly those writes.
  */
 class SelfManagedWorldGuard {
-    val isRestoring: Boolean get() = active.get()
+    val isRestoring: Boolean get() = active.isSet
 
-    private val active = ThreadLocal.withInitial { false }
+    private val active = ThreadFlag()
     private val written = ExpiringMap<BlockPos, Long>(WRITTEN_TTL_MS, WRITTEN_KEPT)
 
     /** Sets the flag for the duration of [action], restoring it afterward. */
     fun <T> whileRestoring(action: () -> T): T {
-        val previous = active.get()
-        active.set(true)
-        try {
-            return action()
-        } finally {
-            active.set(previous)
-        }
+        return active.during(action)
     }
 
     /**
      * Sets the flag without a block, for a restore that spans ticks and must drop it between them.
      * Pair with [leave], passing back what this returned.
      */
-    fun enter(): Boolean {
-        val previous = active.get()
-        active.set(true)
-        return previous
-    }
+    fun enter(): Boolean = active.enter()
 
     /** Restores the flag to what [enter] returned. */
-    fun leave(previous: Boolean) {
-        active.set(previous)
-    }
+    fun leave(previous: Boolean) = active.leave(previous)
 
     /**
      * Marks [cells] as written, so that listeners can ignore them. The mark expires after a second.

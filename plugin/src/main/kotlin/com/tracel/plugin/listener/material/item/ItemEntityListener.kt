@@ -29,6 +29,7 @@ import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.bukkit.entity.dropsManagedCargo
 import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.ExpiringSet
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Item
@@ -51,7 +52,7 @@ import java.util.concurrent.atomic.AtomicLong
 class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     private val pendingDrops = ExpiringMap<UUID, HolderId>(PENDING_DROP_MS)
     private val dropBlame = ExpiringMap<UUID, HolderId>(PENDING_DROP_MS)
-    private val sheared = ExpiringMap<UUID, Unit>(SHEAR_DROP_MS)
+    private val sheared = ExpiringSet<UUID>(SHEAR_DROP_MS)
 
     private data class FramePop(
         val world: UUID,
@@ -73,12 +74,12 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onShear(event: PlayerShearEntityEvent) {
-        sheared.put(event.entity.uniqueId, Unit)
+        sheared.mark(event.entity.uniqueId)
     }
 
     @Observes
     fun onDispenserShear(event: BlockShearEntityEvent) {
-        sheared.put(event.entity.uniqueId, Unit)
+        sheared.mark(event.entity.uniqueId)
     }
 
     @Observes

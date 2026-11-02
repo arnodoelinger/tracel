@@ -119,7 +119,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
      */
     @Observes(priority = Priority.HIGHEST)
     fun holdCrafterWhileRestoring(event: CrafterCraftEvent) {
-        if (services.listeners.frozen.isFrozen(event.block.toHolderId())) event.isCancelled = true
+        services.listeners.frozen.cancelIfFrozen(event.block.toHolderId(), event)
     }
 
     @Observes

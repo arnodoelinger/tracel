@@ -7,11 +7,13 @@ import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.confirmFooter
 import com.tracel.plugin.util.failed
+import com.tracel.plugin.util.formatCount
+import com.tracel.plugin.util.formatMib
 import com.tracel.plugin.util.info
+import com.tracel.plugin.util.newlines
 import com.tracel.plugin.util.say
 import com.tracel.plugin.util.send
 import com.tracel.plugin.util.tr
-import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
@@ -24,6 +26,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.launch
 
 /** Writes `Tracel` database snapshots to the export directory. */
 class ExportAction(private val services: TracelServices) {
@@ -35,7 +38,7 @@ class ExportAction(private val services: TracelServices) {
         val locale = localeOf(sender)
         val size = services.commandApi.admin.storeBytes
         val free = freeSpace(services.commandApi.admin.exportDirectory)
-        val args = arrayOf("size" to "%.1f".format(locale, size / MIB), "free" to "%.1f".format(locale, free / MIB))
+        val args = arrayOf("size" to formatMib(locale, size), "free" to formatMib(locale, free))
         sender.say(
             Component.join(
                 JoinConfiguration.newlines(),
@@ -88,10 +91,10 @@ class ExportAction(private val services: TracelServices) {
             tr("export.done"),
             Component.empty(),
             tr("common.label.database", "file" to file),
-            tr("common.label.size", "size" to "%.1f".format(locale, summary.bytes / MIB)),
+            tr("common.label.size", "size" to formatMib(locale, summary.bytes)),
         )
         records("common.label.records", summary.oldest?.toEpochMilli(), summary.newest?.toEpochMilli(), locale)?.let { lines += it }
-        lines += tr("common.label.rows", "rows" to "%,d".format(locale, summary.rows))
+        lines += tr("common.label.rows", "rows" to formatCount(locale, summary.rows))
         lines += Component.empty()
 
         val path = summary.file.toAbsolutePath().toString()
@@ -100,7 +103,7 @@ class ExportAction(private val services: TracelServices) {
         val load = tr("export.button.import").clickEvent(ClickEvent.suggestCommand("/tracel data import $file"))
             .hoverEvent(HoverEvent.showText(tr("export.button.import_hover")))
         lines += copy.append(Component.space()).append(load)
-        return Component.join(JoinConfiguration.newlines(), lines)
+        return newlines(lines)
     }
 
     private fun CommandSender.fail(key: String, error: AdminError) {
@@ -122,7 +125,6 @@ class ExportAction(private val services: TracelServices) {
     private fun localeOf(sender: CommandSender): Locale = (sender as? Player)?.locale() ?: Locale.ENGLISH
 
     companion object {
-        const val MIB = 1024.0 * 1024.0
 
         internal fun records(key: String, oldest: Long?, newest: Long?, locale: Locale): Component? {
             if (oldest == null || newest == null) return null

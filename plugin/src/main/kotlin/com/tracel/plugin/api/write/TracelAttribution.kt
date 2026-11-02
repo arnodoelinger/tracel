@@ -18,17 +18,18 @@ import com.tracel.model.holder.SourceKind
 import com.tracel.model.item.Quantity
 import com.tracel.model.world.ActionKind
 import com.tracel.plugin.api.read.ActorHolders
+import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.bukkit.block.toShape
 import com.tracel.plugin.bukkit.entity.toBlockPos
 import com.tracel.plugin.bukkit.item.toItemKey
-import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.services.TracelServices
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withContext
+import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.rescue
 import org.bukkit.Bukkit
 import org.bukkit.block.data.BlockData
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
+import kotlinx.coroutines.withContext
 
 /**
  * [Attribution] for one plugin: every write changes the world and books it in the same step, with
@@ -114,13 +115,8 @@ internal class TracelAttribution(
 
     private fun holderOf(by: Actor?): Res<HolderId, WriteError> = ActorHolders.writer(by, signer)
 
-    private suspend fun <T> guarded(work: suspend () -> Res<T, WriteError>): Res<T, WriteError> = try {
-        work()
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (failure: Exception) {
-        Res.Err(WriteError.Failed(failure.message ?: failure.javaClass.simpleName))
-    }
+    private suspend fun <T> guarded(work: suspend () -> Res<T, WriteError>): Res<T, WriteError> =
+        rescue({ failure -> Res.Err(WriteError.Failed(failure.messageOrName())) }) { work() }
 }
 
 /** [QuietWrites] for one plugin: the same guard a rollback writes behind, so listeners look away. */

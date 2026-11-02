@@ -2,6 +2,7 @@ package com.tracel.plugin.bukkit.item
 
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.util.putOrReset
 import org.bukkit.Material
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BundleMeta
@@ -49,8 +50,7 @@ fun ItemStack.toItemKey(): ItemKey {
         PendingItemForms.remember(hash, bytes)
         ItemKey(type.name, hash)
     }
-    if (KEYS.size >= MAX_CACHED_KEYS) KEYS.clear()
-    KEYS[normalized] = key
+    KEYS.putOrReset(MAX_CACHED_KEYS, normalized, key)
     return key
 }
 

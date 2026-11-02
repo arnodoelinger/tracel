@@ -82,7 +82,7 @@ internal fun MaterialRestorer.spawnReturnedDrop(
                 continue
             }
             val template = stackFor(itemKey, 1, forms[itemKey]) ?: return "unknown material ${itemKey.material}"
-            for (stack in stacksOf(itemKey, qty, template)) {
+            for (stack in stacksOf(qty, template)) {
                 spilled += Spill(vanished, services.dropTracked(stack, itemKey, world, loc), where)
             }
         }

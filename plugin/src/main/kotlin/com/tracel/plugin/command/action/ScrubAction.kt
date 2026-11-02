@@ -12,18 +12,18 @@ import com.tracel.plugin.command.scrub.ScrubTimelineBuilder
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.asReason
 import com.tracel.plugin.util.failed
+import com.tracel.plugin.util.newlines
 import com.tracel.plugin.util.say
 import com.tracel.plugin.util.send
 import com.tracel.plugin.util.tr
 import com.tracel.plugin.util.unexpected
+import net.kyori.adventure.audience.Audience
+import net.kyori.adventure.text.Component
+import org.bukkit.command.CommandSender
+import org.bukkit.entity.Player
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
-import net.kyori.adventure.audience.Audience
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.JoinConfiguration
-import org.bukkit.command.CommandSender
-import org.bukkit.entity.Player
 
 /** `/tracel scrub`: the mouse wheel as a time machine for the blocks around you. */
 internal class ScrubAction(private val services: TracelServices) {
@@ -100,7 +100,7 @@ internal class ScrubAction(private val services: TracelServices) {
         }
     }
 
-    private fun Audience.report(vararg lines: Component) = say(Component.join(JoinConfiguration.newlines(), *lines))
+    private fun Audience.report(vararg lines: Component) = say(newlines(*lines))
 
     private fun refuse(sender: CommandSender, reason: Component) =
         sender.failed("scrub.failed", reason, tr("common.hint.fix_flags", "command" to "scrub"))

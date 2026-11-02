@@ -4,14 +4,14 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
+import com.tracel.model.world.packCell
 import com.tracel.plugin.util.LongHashSet
-import com.tracel.plugin.util.packed
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.withContext
 
 /**
  * Holds the world still while a rollback job is planning and applying, so what the log says when the plan is made is
@@ -25,7 +25,7 @@ internal class FluidFreeze {
     private class Cells(val world: WorldId, val cells: LongHashSet) : Held {
         override fun holds(world: WorldId, x: Int, y: Int, z: Int, key: Long) = this.world == world && key in cells
 
-        fun has(world: WorldId, x: Int, y: Int, z: Int) = this.world == world && packed(x, y, z) in cells
+        fun has(world: WorldId, x: Int, y: Int, z: Int) = this.world == world && packCell(x, y, z) in cells
     }
 
     private class Area(val region: LookupRegion) : Held {
@@ -57,7 +57,7 @@ internal class FluidFreeze {
     fun holds(world: WorldId, x: Int, y: Int, z: Int): Boolean {
         val now = held
         if (now.isEmpty()) return false
-        val key = packed(x, y, z)
+        val key = packCell(x, y, z)
         for (hold in now) if (hold.holds(world, x, y, z, key)) return true
         return false
     }
@@ -142,7 +142,7 @@ internal class FluidFreeze {
         for (step in steps) {
             if (step !is StructureStep.SetBlock) continue
             val at = step.at
-            byWorld.getOrPut(at.world) { LongHashSet(steps.size) } += packed(at.x, at.y, at.z)
+            byWorld.getOrPut(at.world) { LongHashSet(steps.size) } += packCell(at.x, at.y, at.z)
         }
         return byWorld.map { (world, cells) -> Cells(world, cells) }
     }

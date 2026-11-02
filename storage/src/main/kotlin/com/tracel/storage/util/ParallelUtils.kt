@@ -44,24 +44,6 @@ internal fun eachTask(count: Int, body: IntConsumer) = eachBatch(count, 1) { fro
     for (i in from until to) body.accept(i)
 }
 
-/** Loads [seqs] (ascending) newest-first, dropping whatever [load] cannot find. */
-@Suppress("UNCHECKED_CAST")
-internal inline fun <T : Any> collectNewestFirst(
-    seqs: LongArray,
-    crossinline load: (Long) -> T?,
-): ArrayList<T> {
-    val n = seqs.size
-    if (n == 0) return ArrayList()
-    val slots = arrayOfNulls<Any>(n)
-    eachIndex(n) { i -> slots[i] = load(seqs[i]) }
-    val out = ArrayList<T>(n)
-    for (i in n - 1 downTo 0) {
-        val hit = slots[i] as T?
-        if (hit != null) out += hit
-    }
-    return out
-}
-
 private fun eachBatch(count: Int, fixedBatch: Int, slice: IndexSlice) {
     if (count <= 0) return
     val pool = ForkJoinPool.commonPool()

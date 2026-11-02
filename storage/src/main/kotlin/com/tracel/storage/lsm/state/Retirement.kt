@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm.state
 
+import com.tracel.platform.io.closeQuietly
 import com.tracel.storage.lsm.segment.SegmentReader
 import com.tracel.storage.lsm.write.MemTable
 import it.unimi.dsi.fastutil.longs.Long2IntRBTreeMap
@@ -63,7 +64,7 @@ internal class Retirement {
         while (files.hasNext()) {
             val (reader, at) = files.next()
             if (oldest < at) continue
-            runCatching { reader.close() }
+            reader.closeQuietly()
             runCatching { Files.deleteIfExists(reader.path) }
             files.remove()
         }
@@ -72,15 +73,15 @@ internal class Retirement {
         while (skipLists.hasNext()) {
             val (table, at) = skipLists.next()
             if (oldest < at) continue
-            runCatching { table.close() }
+            table.closeQuietly()
             skipLists.remove()
         }
     }
 
     /** Lets go of everything, readers or not. Shutdown, when nobody is left to be reading. */
     fun closeAll() {
-        segments.forEach { (reader, _) -> runCatching { reader.close() } }
-        tables.forEach { (table, _) -> runCatching { table.close() } }
+        segments.forEach { (reader, _) -> reader.closeQuietly() }
+        tables.forEach { (table, _) -> table.closeQuietly() }
         segments.clear()
         tables.clear()
     }

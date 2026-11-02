@@ -26,7 +26,7 @@ internal fun giveInto(
             val left = fill(inventory, slot, template.clone().apply { this.amount = take.toInt() })
             roleLeft -= take - (left?.amount?.toLong() ?: 0L)
         }
-        for (stack in stacksOf(itemKey, roleLeft, template)) {
+        for (stack in stacksOf(roleLeft, template)) {
             if (stack.isEmpty || stack.type.isAir) continue
             val left = intoRoleSlot(inventory, stack) ?: continue
             over += if (inventory is AbstractHorseInventory) intoStorage(inventory, left) else listOf(left)
@@ -48,7 +48,7 @@ internal fun giveInto(
         remaining -= take - (left?.amount?.toLong() ?: 0L)
     }
     if (remaining > 0L) {
-        for (stack in stacksOf(itemKey, remaining, template)) {
+        for (stack in stacksOf(remaining, template)) {
             if (stack.isEmpty || stack.type.isAir) continue
             over += inventory.addItem(stack).values
         }
@@ -57,7 +57,7 @@ internal fun giveInto(
 }
 
 /** Split to `maxStackSize`. */
-internal fun stacksOf(itemKey: ItemKey, amount: Long, template: ItemStack?): List<ItemStack> {
+internal fun stacksOf(amount: Long, template: ItemStack?): List<ItemStack> {
     if (amount <= 0L) return emptyList()
     val base = template ?: return emptyList()
     val max = base.maxStackSize.coerceAtLeast(1).toLong()
@@ -89,7 +89,7 @@ private fun intoSingleItemSlots(
         remaining -= 1L
     }
     if (remaining <= 0L) return emptyList()
-    return stacksOf(itemKey, remaining, template)
+    return stacksOf(remaining, template)
 }
 
 private fun intoRoleSlot(inventory: Inventory, stack: ItemStack): ItemStack? = when (inventory) {

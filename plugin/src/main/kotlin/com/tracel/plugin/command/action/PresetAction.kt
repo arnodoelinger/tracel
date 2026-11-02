@@ -9,11 +9,11 @@ import com.tracel.plugin.command.preset.PresetStore
 import com.tracel.plugin.util.asReason
 import com.tracel.plugin.util.failed
 import com.tracel.plugin.util.info
+import com.tracel.plugin.util.newlines
 import com.tracel.plugin.util.say
 import com.tracel.plugin.util.tr
 import com.tracel.plugin.util.tryHint
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.command.CommandSender
@@ -229,7 +229,7 @@ internal class PresetAction(private val store: PresetStore, private val nothing:
     private fun who(server: Boolean): Component = tr(if (server) "preset.for.server" else "preset.for.you")
 
     private fun report(sender: CommandSender, vararg lines: Component) =
-        sender.say(Component.join(JoinConfiguration.newlines(), *lines))
+        sender.say(newlines(*lines))
 
     private fun refuse(sender: CommandSender, reason: Component, hint: Component) =
         sender.failed("preset.failed", reason, hint)

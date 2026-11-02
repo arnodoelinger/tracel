@@ -8,6 +8,7 @@ import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.plan.destinationFor
 import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.isPseudo
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.lot.LotEdge
@@ -142,7 +143,7 @@ private class Books(private val repo: LotRepository, private val byLot: Boolean)
      * @return the quantity that was actually credited, or `null` if the holder already has enough
      */
     suspend fun payable(holder: HolderId, itemKey: ItemKey, wanted: Quantity, lot: LotId?): Quantity? {
-        val have = if (holder is HolderId.Source || holder is HolderId.Sink) {
+        val have = if (holder.isPseudo()) {
             lot?.let { repo.placementOf(holder, it)?.remaining?.raw } ?: 0L
         } else {
             val held = if (byLot) lot?.let { heldOf(holder, it) } else null

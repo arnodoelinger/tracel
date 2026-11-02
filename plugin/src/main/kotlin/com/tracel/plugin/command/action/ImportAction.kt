@@ -5,21 +5,22 @@ import com.tracel.api.admin.ImportControl
 import com.tracel.api.admin.TransferSummary
 import com.tracel.api.result.Res
 import com.tracel.plugin.command.action.support.describe
-import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.confirmFooter
 import com.tracel.plugin.util.failed
+import com.tracel.plugin.util.formatCount
+import com.tracel.plugin.util.formatMib
 import com.tracel.plugin.util.info
 import com.tracel.plugin.util.say
 import com.tracel.plugin.util.send
 import com.tracel.plugin.util.tr
-import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.launch
 
 /** Loads a `Tracel` database snapshot back from the export directory. */
 class ImportAction(private val services: TracelServices) {
@@ -46,7 +47,7 @@ class ImportAction(private val services: TracelServices) {
                     tr("import.preview.title"),
                     Component.empty(),
                     tr("common.label.database", "file" to fileName),
-                    tr("common.label.size", "size" to "%.1f".format(locale, snapshot.bytes / MIB)),
+                    tr("common.label.size", "size" to formatMib(locale, snapshot.bytes)),
                     info(tr("import.preview.scope")),
                     Component.empty(),
                     confirmFooter("/tracel data import $fileName"),
@@ -107,8 +108,8 @@ class ImportAction(private val services: TracelServices) {
         tr("import.done"),
         Component.empty(),
         tr("common.label.database", "file" to summary.file.fileName.toString()),
-        tr("common.label.size", "size" to "%.1f".format(locale, summary.bytes / MIB)),
-        tr("common.label.rows", "rows" to "%,d".format(locale, summary.rows)),
+        tr("common.label.size", "size" to formatMib(locale, summary.bytes)),
+        tr("common.label.rows", "rows" to formatCount(locale, summary.rows)),
     )
 
     private fun CommandSender.fail(error: AdminError) {

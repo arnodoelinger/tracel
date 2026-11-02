@@ -1,5 +1,6 @@
 package com.tracel.engine.rollback.involution.plan
 
+import com.tracel.engine.rollback.addDelta
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.LotId
@@ -12,9 +13,7 @@ public fun physicalDeltasForUndo(
     val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
 
     /** Add the given amount of the given item key to the given holder. */
-    fun add(holder: HolderId, itemKey: ItemKey, amount: Long) {
-        deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
-    }
+    fun add(holder: HolderId, itemKey: ItemKey, amount: Long) = deltas.addDelta(holder, itemKey, amount)
 
     val returned = HashMap<Pair<HolderId, ItemKey>, Long>()
     for (step in steps) if (step is InvolutionStep.Return) returned.merge(

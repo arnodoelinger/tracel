@@ -9,10 +9,11 @@ import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.spill.Spill
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withContext
+import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.rescueAll
 import org.bukkit.Bukkit
 import org.bukkit.entity.Projectile
+import kotlinx.coroutines.withContext
 
 /** One holder's move. */
 internal suspend fun MaterialRestorer.applyTo(
@@ -33,13 +34,8 @@ internal suspend fun MaterialRestorer.applyTo(
 }
 
 /** Runs [work] and turns any thrown failure into [ApplyResult.Failed]. */
-internal suspend fun MaterialRestorer.reported(work: suspend () -> ApplyResult): ApplyResult = try {
-    work()
-} catch (cancelled: CancellationException) {
-    throw cancelled
-} catch (failure: Throwable) {
-    ApplyResult.Failed(failure.message ?: failure::class.java.simpleName)
-}
+internal suspend fun MaterialRestorer.reported(work: suspend () -> ApplyResult): ApplyResult =
+    rescueAll({ failure -> ApplyResult.Failed(failure.messageOrName()) }) { work() }
 
 /** Routes one holder's move to the restore logic for its kind. */
 internal suspend fun MaterialRestorer.dispatch(

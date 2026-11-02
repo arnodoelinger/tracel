@@ -15,8 +15,4 @@ public value class Quantity(public val raw: Long) : Comparable<Quantity> {
     /** Null if `other` is not strictly smaller — there would be nothing left. */
     public operator fun minus(other: Quantity): Quantity? =
         (raw - other.raw).takeIf { it > 0 }?.let(::Quantity)
-
-    public companion object {
-        public val ONE: Quantity = Quantity(1)
-    }
 }

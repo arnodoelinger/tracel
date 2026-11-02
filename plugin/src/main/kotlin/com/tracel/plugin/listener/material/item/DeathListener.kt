@@ -4,11 +4,12 @@ import com.tracel.annotations.Observes
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.bukkit.entity.HitActor
 import com.tracel.plugin.bukkit.entity.toBlockPos
 import com.tracel.plugin.bukkit.item.addTo
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
-import com.tracel.plugin.bukkit.entity.HitActor
+import com.tracel.plugin.listener.support.flow.causeOr
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player
@@ -58,7 +59,7 @@ class DeathListener(services: TracelServices) : TracelListener(services) {
                     at.blockZ
                 )
             ),
-            cause = if (killer != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = causeOr(killer, CauseKind.NATURAL),
             causedBy = killer,
             at = entity.toBlockPos(),
         )

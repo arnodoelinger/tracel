@@ -12,15 +12,17 @@ import com.tracel.plugin.integration.coreprotect.source.CoreProtectDatabase
 import com.tracel.plugin.integration.coreprotect.source.CoreProtectLocation
 import com.tracel.plugin.integration.coreprotect.source.CoreProtectLocator
 import com.tracel.plugin.integration.coreprotect.translate.ServerImportPlatform
-import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.services.monitoring.Telemetry
+import com.tracel.plugin.util.MILLIS_PER_SECOND
+import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.rescue
+import java.time.Instant
+import java.util.logging.Level
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.time.Instant
-import java.util.logging.Level
 
-private const val MILLIS = 1_000L
 
 /** [Migration] over what `CoreProtect` left in its folder. */
 internal class CoreProtectMigration(
@@ -46,20 +48,16 @@ internal class CoreProtectMigration(
     override suspend fun outlook(source: MigrationSource): Res<MigrationOutlook, AdminError> {
         if (!alive()) return Res.Err(AdminError.Revoked)
         val location = (source as Source).location
-        return try {
+        return rescue({ failure -> Res.Err(errorOf(failure)) }) {
             val outlook = withContext(Dispatchers.IO) { CoreProtectDatabase.open(location).use { importer.outlook(it) } }
             Res.Ok(
                 MigrationOutlook(
                     outlook.left.sum(),
                     outlook.span?.let { (oldest, newest) ->
-                        Instant.ofEpochMilli(oldest * MILLIS) to Instant.ofEpochMilli(newest * MILLIS)
+                        Instant.ofEpochMilli(oldest * MILLIS_PER_SECOND) to Instant.ofEpochMilli(newest * MILLIS_PER_SECOND)
                     },
                 ),
             )
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            Res.Err(errorOf(failure))
         }
     }
 
@@ -84,7 +82,7 @@ internal class CoreProtectMigration(
             val taken = tally.taken.values.sum();
             services.plugin.logger.info(
                 "CoreProtect import ${if (outcome.stopped) "paused" else "finished"}: " +
-                        "$taken record(s) from ${tally.rows} row(s), ${outcome.tookMillis / MILLIS} s.",
+                        "$taken record(s) from ${tally.rows} row(s), ${outcome.tookMillis / MILLIS_PER_SECOND} s.",
             )
             return Res.Ok(
                 MigrationOutcome(
@@ -115,6 +113,6 @@ internal class CoreProtectMigration(
         }
         Telemetry.error(failure)
         services.plugin.logger.log(Level.WARNING, "CoreProtect import failed", failure)
-        return AdminError.Failed(failure.message ?: failure.javaClass.simpleName)
+        return AdminError.Failed(failure.messageOrName())
     }
 }

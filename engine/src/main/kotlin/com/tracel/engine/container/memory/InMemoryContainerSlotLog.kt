@@ -5,6 +5,7 @@ import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
 import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.engine.container.ContainerSlotLog
+import com.tracel.engine.log.descKey
 import com.tracel.model.holder.HolderId
 import com.tracel.platform.concurrency.SingleWriterGuard
 import java.util.concurrent.ConcurrentHashMap
@@ -36,9 +37,5 @@ public class InMemoryContainerSlotLog : ContainerSlotLog {
             if (++seen >= limit) return null
         }
         return null
-    }
-
-    private companion object {
-        fun descKey(seq: Long): Long = Long.MAX_VALUE - seq
     }
 }

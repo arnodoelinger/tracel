@@ -116,7 +116,7 @@ internal suspend fun MaterialRestorer.fillEntityCargo(
                     moves.problem("${itemKey.material} is not an item this server can build")
                     continue
                 }
-                for (over in stacksOf(itemKey, delta, template)) moves.overflow += itemKey to over
+                for (over in stacksOf(delta, template)) moves.overflow += itemKey to over
             }
         }
     }

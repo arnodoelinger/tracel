@@ -25,7 +25,7 @@ internal fun MaterialRestorer.spillGives(
     for ((itemKey, delta) in deltas) {
         if (delta <= 0L) continue
         val template = stackFor(itemKey, 1, forms[itemKey]) ?: continue
-        for (stack in stacksOf(itemKey, delta, template)) moves.overflow += itemKey to stack
+        for (stack in stacksOf(delta, template)) moves.overflow += itemKey to stack
     }
     if (moves.overflow.isNotEmpty()) spillInRegion(
         holder,

@@ -1,10 +1,10 @@
 package com.tracel.plugin.command.tree
 
 import com.tracel.plugin.command.permission.has
+import com.tracel.plugin.util.newlines
 import com.tracel.plugin.util.say
 import com.tracel.plugin.util.tr
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.command.CommandSender
 import org.bukkit.plugin.Plugin
 
@@ -20,5 +20,5 @@ internal fun sendHelp(sender: CommandSender, plugin: Plugin) {
         if (sender.has(topic.permission)) lines += tr("help.${topic.key}")
     }
     lines += tr("help.help")
-    sender.say(Component.join(JoinConfiguration.newlines(), lines))
+    sender.say(newlines(lines))
 }

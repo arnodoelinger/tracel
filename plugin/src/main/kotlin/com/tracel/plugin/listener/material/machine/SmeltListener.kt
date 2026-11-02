@@ -30,7 +30,7 @@ class SmeltListener(services: TracelServices) : TracelListener(services) {
     fun holdBrewWhileRestoring(event: BrewEvent) = holdWhileRestoring(event.block, event)
 
     private fun holdWhileRestoring(block: Block, event: Cancellable) {
-        if (services.listeners.frozen.isFrozen(block.toHolderId())) event.isCancelled = true
+        services.listeners.frozen.cancelIfFrozen(block.toHolderId(), event)
     }
 
     @Observes

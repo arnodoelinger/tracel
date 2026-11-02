@@ -10,12 +10,13 @@ import com.tracel.model.world.BlockPos
 import com.tracel.plugin.listener.support.flow.flowsFor
 import com.tracel.plugin.listener.support.flow.worldgenMintFlows
 import com.tracel.plugin.services.TracelServices
-import kotlinx.coroutines.*
+import com.tracel.plugin.util.RefCount
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.*
 
 private val logger = Logger.getLogger("BlockReleaseQueue")
 
@@ -53,7 +54,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
 
     private val waitingOn = ConcurrentHashMap<HolderId, Long>()
     private val followUps = ConcurrentHashMap<Long, ConcurrentLinkedQueue<FollowUp>>()
-    private val outstanding = ConcurrentHashMap<Long, Int>()
+    private val outstanding = RefCount<Long>()
 
     /**
      * [drop] spawned inside the window [token] belongs to; whatever happens to it waits for that window,
@@ -62,12 +63,12 @@ class BlockReleaseQueue(private val services: TracelServices) {
      */
     fun hold(drop: HolderId, token: Long) {
         waitingOn[drop] = token
-        outstanding.merge(token, 1, Int::plus)
+        outstanding.hold(token)
     }
 
     /** The claim [hold] promised for [token] is in. */
     fun claimed(token: Long) {
-        outstanding.computeIfPresent(token) { _, left -> if (left <= 1) null else left - 1 }
+        outstanding.release(token)
     }
 
     /**
@@ -163,7 +164,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
         val closed = mutableListOf<Batch>()
         for (batch in open) {
             if (batch.closesAt > now) break
-            val waiting = batch.tokens.any { outstanding.containsKey(it) }
+            val waiting = batch.tokens.any { it in outstanding }
             if (waiting && now < batch.closesAt + CLAIM_CEILING_MILLIS) continue
             closed += batch
         }
@@ -176,7 +177,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
         // What waited on these windows goes right after them, in the same commit
         val tokens = closed.flatMapTo(HashSet()) { it.tokens.asIterable() }
         waitingOn.entries.removeIf { it.value in tokens }
-        for (token in tokens) outstanding.remove(token)
+        for (token in tokens) outstanding.clear(token)
         val after = tokens.flatMap { token -> followUps.remove(token).orEmpty() }
 
         services.atomically {

@@ -11,9 +11,10 @@ import com.tracel.model.event.ActorEvent
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.api.addon.withItemLens
-import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.TracelServices
-import kotlinx.coroutines.CancellationException
+import com.tracel.plugin.services.monitoring.Telemetry
+import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.rescue
 
 /** One entry of a log, before it is a record: what the lookup lines are made of, and the API's records too. */
 internal sealed interface Row {
@@ -69,15 +70,13 @@ internal class HistoryRows(
             if (first == null) first = filter
             sources += sources(query, filter)
         }
-        return try {
+        return rescue({ failure ->
+            Telemetry.error(failure)
+            Res.Err(HistoryReadError.Failed(failure.messageOrName()))
+        }) {
             val rows = CursorPager.page(sources, from, size)
             val rolled = services.storage.rolledBack.of(rows.rows.mapNotNull(Row::rollable))
             Res.Ok(RowPage(rows.rows, rows.next, rolled, first ?: LookupFilter()))
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            Telemetry.error(failure)
-            Res.Err(HistoryReadError.Failed(failure.message ?: failure.javaClass.simpleName))
         }
     }
 

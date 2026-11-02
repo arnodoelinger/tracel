@@ -6,27 +6,27 @@ import com.tracel.engine.rollback.structure.space.groupByTile
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
+import com.tracel.model.world.packCell
+import com.tracel.plugin.bukkit.block.holdsFreeFluid
 import com.tracel.plugin.bukkit.world.ownsChunkAt
 import com.tracel.plugin.bukkit.world.worldOf
-import com.tracel.plugin.services.monitoring.throttled
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.claim
-import com.tracel.plugin.bukkit.block.holdsFreeFluid
+import com.tracel.plugin.services.monitoring.throttled
 import com.tracel.plugin.util.LongHashSet
 import com.tracel.plugin.util.chunkKey
-import com.tracel.plugin.util.packed
+import java.util.concurrent.atomic.AtomicIntegerArray
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import java.util.concurrent.atomic.AtomicIntegerArray
 
 /** Wakes the fluids in and around everything a job wrote, once per region, after the freeze is off. */
 internal suspend fun StructureRestorer.settleWritten(written: List<StructureStep>, asItStood: LookupRegion?) {
     val blocks = written.filterIsInstance<StructureStep.SetBlock>()
     if (blocks.isEmpty()) return
     val footprint = HashMap<WorldId, LongHashSet>()
-    for ((at) in blocks) footprint.getOrPut(at.world) { LongHashSet(blocks.size) } += packed(at.x, at.y, at.z)
+    for ((at) in blocks) footprint.getOrPut(at.world) { LongHashSet(blocks.size) } += packCell(at.x, at.y, at.z)
     val groups: List<List<StructureStep>> = groupByTile(blocks) { it.at }
     val claimed = AtomicIntegerArray(groups.size)
 

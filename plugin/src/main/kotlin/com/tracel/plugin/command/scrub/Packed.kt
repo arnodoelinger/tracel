@@ -1,5 +1,9 @@
 package com.tracel.plugin.command.scrub
 
+import com.tracel.model.world.packPair
+import com.tracel.model.world.pairHi
+import com.tracel.model.world.pairLo
+
 /** A block position in one `Long`, and a chunk and the spot in it in an `Int`. */
 internal object Packed {
     private const val BITS = 0x3FFFFFFL
@@ -16,11 +20,11 @@ internal object Packed {
 
     fun chunkOf(pos: Long): Long = chunk(x(pos) shr 4, z(pos) shr 4)
 
-    fun chunk(chunkX: Int, chunkZ: Int): Long = (chunkX.toLong() shl 32) or (chunkZ.toLong() and 0xFFFFFFFFL)
+    fun chunk(chunkX: Int, chunkZ: Int): Long = packPair(chunkX, chunkZ)
 
-    fun chunkX(chunk: Long): Int = (chunk shr 32).toInt()
+    fun chunkX(chunk: Long): Int = pairHi(chunk)
 
-    fun chunkZ(chunk: Long): Int = chunk.toInt()
+    fun chunkZ(chunk: Long): Int = pairLo(chunk)
 
     fun local(pos: Long): Int = ((y(pos) + FLOOR) shl 8) or ((x(pos) and 15) shl 4) or (z(pos) and 15)
 
@@ -68,64 +72,5 @@ internal class IntIntMap {
     private companion object {
         const val EMPTY = -1
         const val INITIAL = 16
-    }
-}
-
-/** A set of `Long`s, the packed positions of [Packed], without a box in sight. */
-internal class LongSet(expected: Int = INITIAL) {
-    private var keys = LongArray(capacity(expected)) { EMPTY }
-
-    var size = 0; private set
-
-    /** Adds [key]; `false` when it was there already. */
-    fun add(key: Long): Boolean {
-        if ((size + 1) * 2 > keys.size) grow()
-        var at = slot(key, keys.size)
-        while (keys[at] != EMPTY) {
-            if (keys[at] == key) return false
-            at = (at + 1) and (keys.size - 1)
-        }
-        keys[at] = key
-        size++
-        return true
-    }
-
-    operator fun contains(key: Long): Boolean {
-        var at = slot(key, keys.size)
-        while (keys[at] != EMPTY) {
-            if (keys[at] == key) return true
-            at = (at + 1) and (keys.size - 1)
-        }
-        return false
-    }
-
-    inline fun forEach(visit: (Long) -> Unit) {
-        for (key in table()) if (key != EMPTY) visit(key)
-    }
-
-    @PublishedApi
-    internal fun table(): LongArray = keys
-
-    private fun grow() {
-        val old = keys
-        keys = LongArray(old.size * 2) { EMPTY }
-        size = 0
-        for (key in old) if (key != EMPTY) add(key)
-    }
-
-    private fun slot(key: Long, length: Int): Int {
-        val mixed = key * -7046029254386353131L
-        return (mixed xor (mixed ushr 32)).toInt() and (length - 1)
-    }
-
-    companion object {
-        const val EMPTY = Long.MIN_VALUE
-        private const val INITIAL = 16
-
-        private fun capacity(expected: Int): Int {
-            var size = INITIAL
-            while (size < expected * 2) size = size shl 1
-            return size
-        }
     }
 }

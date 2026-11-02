@@ -11,26 +11,27 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.EntityShape
-import com.tracel.plugin.bukkit.entity.SpawnKind
-import com.tracel.plugin.bukkit.entity.isScenery
-import com.tracel.plugin.bukkit.entity.logsWorldShape
+import com.tracel.plugin.bukkit.command.EntityCommand
+import com.tracel.plugin.bukkit.command.isCommand
+import com.tracel.plugin.bukkit.entity.DamageBlame
+import com.tracel.plugin.bukkit.entity.HitActor
 import com.tracel.plugin.bukkit.entity.SelfManagedLink
+import com.tracel.plugin.bukkit.entity.SpawnKind
+import com.tracel.plugin.bukkit.entity.damageBlame
+import com.tracel.plugin.bukkit.entity.explosionActor
+import com.tracel.plugin.bukkit.entity.isBlastSource
+import com.tracel.plugin.bukkit.entity.isScenery
+import com.tracel.plugin.bukkit.entity.kind
+import com.tracel.plugin.bukkit.entity.logsWorldShape
 import com.tracel.plugin.bukkit.entity.remember
 import com.tracel.plugin.bukkit.entity.toBlockPos
 import com.tracel.plugin.bukkit.entity.toShape
+import com.tracel.plugin.bukkit.item.spawnsAnEntity
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DispenseCell
-import com.tracel.plugin.bukkit.entity.DamageBlame
-import com.tracel.plugin.bukkit.entity.HitActor
-import com.tracel.plugin.bukkit.entity.damageBlame
-import com.tracel.plugin.bukkit.entity.explosionActor
+import com.tracel.plugin.listener.support.flow.causeOr
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.bukkit.command.EntityCommand
-import com.tracel.plugin.bukkit.command.isCommand
-import com.tracel.plugin.bukkit.entity.isBlastSource
-import com.tracel.plugin.bukkit.entity.kind
-import com.tracel.plugin.bukkit.item.spawnsAnEntity
 import com.tracel.plugin.util.ExpiringMap
 import com.tracel.plugin.util.ExpiringSet
 import io.papermc.paper.event.player.PlayerNameEntityEvent
@@ -577,7 +578,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val before = entity.toShape()
         val at = entity.toBlockPos()
         val epochMillis = System.currentTimeMillis()
-        val cause = why ?: if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
+        val cause = why ?: causeOr(by, CauseKind.NATURAL)
         later(entity) {
             val after = entity.toShape()
             if (before == after) return@later
@@ -638,7 +639,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         }
         val now = System.currentTimeMillis()
         val resolvedCause = cause
-            ?: if (causedBy != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
+            ?: causeOr(causedBy, CauseKind.NATURAL)
         shape.entity(
             EntityChange(
                 action = action,

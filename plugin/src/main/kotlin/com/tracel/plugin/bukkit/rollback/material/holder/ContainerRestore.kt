@@ -115,11 +115,11 @@ internal suspend fun MaterialRestorer.applyToContainer(
             while (carried != null && left > 0L) {
                 val real = carried.next(itemKey) ?: break
                 val give = minOf(left, real.amount.toLong())
-                for (stack in stacksOf(itemKey, give, real)) moves.overflow += itemKey to stack
+                for (stack in stacksOf(give, real)) moves.overflow += itemKey to stack
                 left -= give
             }
             val template = stackFor(itemKey, 1, forms[itemKey]) ?: continue
-            for (stack in stacksOf(itemKey, left, template)) moves.overflow += itemKey to stack
+            for (stack in stacksOf(left, template)) moves.overflow += itemKey to stack
         }
         if (moves.overflow.isEmpty()) return@withContext first
         spillInRegion(holder, moves, world, Location(world, holder.x + 0.5, holder.y + 1.0, holder.z + 0.5), sink)

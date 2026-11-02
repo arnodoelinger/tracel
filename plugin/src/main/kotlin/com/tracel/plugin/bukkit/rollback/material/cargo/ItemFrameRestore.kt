@@ -25,7 +25,7 @@ internal fun MaterialRestorer.applyItemFrame(
         if (delta > 0) {
             when {
                 // Occupied, even by the same key: the ledger already credited us, so spill
-                held != null -> for (over in stacksOf(itemKey, delta, template)) moves.overflow += itemKey to over
+                held != null -> for (over in stacksOf(delta, template)) moves.overflow += itemKey to over
                 else -> {
                     // Two-arg setItem: one-arg plays the placement sound
                     val rotation = frame.rotation
@@ -33,7 +33,7 @@ internal fun MaterialRestorer.applyItemFrame(
                     frame.rotation = rotation
                     // One item per frame; extras spill
                     if (delta > 1) {
-                        for (over in stacksOf(itemKey, delta - 1, template)) moves.overflow += itemKey to over
+                        for (over in stacksOf(delta - 1, template)) moves.overflow += itemKey to over
                     }
                 }
             }

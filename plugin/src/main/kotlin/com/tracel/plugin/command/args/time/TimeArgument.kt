@@ -1,39 +1,18 @@
 package com.tracel.plugin.command.args.time
 
+import com.tracel.plugin.util.parseDuration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
 object TimeArgument {
-    private val DURATION = Regex("""((\d+)([smhdw]))+""")
-    private val DURATION_PART = Regex("""(\d+)([smhdw])""")
     private val DATE_ONLY = Regex("""\d{4}-\d{2}-\d{2}""")
     private val DATE_TIME = Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?""")
 
     internal fun durationSuggestions(): List<String> = listOf("15m", "1h", "6h", "1d", "7d")
 
     internal fun timeSuggestions(): List<String> = durationSuggestions() + listOf("today", "yesterday")
-
-    /** `1h30m` reads as ninety minutes. An overflow is no duration, not a window that wraps into the future. */
-    internal fun parseDuration(text: String): Long? {
-        if (!DURATION.matches(text)) return null
-        var total = 0L
-        for (part in DURATION_PART.findAll(text)) {
-            val (amount, unit) = part.destructured
-            val n = amount.toLongOrNull() ?: return null
-            val unitMillis = when (unit) {
-                "s" -> 1_000L
-                "m" -> 60_000L
-                "h" -> 3_600_000L
-                "d" -> 86_400_000L
-                "w" -> 604_800_000L
-                else -> return null
-            }
-            total = runCatching { Math.addExact(total, Math.multiplyExact(n, unitMillis)) }.getOrNull() ?: return null
-        }
-        return total
-    }
 
     internal fun parseExpr(value: String, nowMillis: Long): TimeExpr? {
         val zone = ZoneId.systemDefault()

@@ -1,5 +1,6 @@
 package com.tracel.plugin.command.presenter
 
+import com.tracel.plugin.util.titleWords
 import net.kyori.adventure.text.Component
 import org.bukkit.NamespacedKey
 import org.bukkit.Registry
@@ -25,8 +26,7 @@ internal object NamePresenter {
     /** E.g. `minecraft:large_fern` -> `Large Fern`; what is left when the server cannot name it. */
     fun pretty(id: String): String {
         if (id == "EXPERIENCE") return "XP"
-        return id.substringAfter(':').lowercase().split('_').filter(String::isNotEmpty)
-            .joinToString(" ") { word -> word.replaceFirstChar(Char::uppercase) }
+        return id.substringAfter(':').lowercase().titleWords('_')
     }
 
     private fun named(id: String, entity: Boolean): Component {

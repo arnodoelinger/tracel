@@ -18,22 +18,23 @@ import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.namesMaterial
 import com.tracel.plugin.api.addon.Extensions
-import com.tracel.plugin.api.read.ApiConversions
-import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.api.read.Actors
+import com.tracel.plugin.api.read.ApiConversions
+import com.tracel.plugin.bukkit.block.AirBlock
+import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.NamePresenter
 import com.tracel.plugin.command.presenter.support.Glyphs
+import com.tracel.plugin.util.agoText
 import com.tracel.plugin.util.lower
+import com.tracel.plugin.util.newlines
+import com.tracel.plugin.util.plainEnglish
 import com.tracel.plugin.util.tr
-import com.tracel.plugin.bukkit.block.AirBlock
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
-import net.kyori.adventure.translation.GlobalTranslator
 import org.bukkit.Bukkit
 import org.bukkit.GameMode
 import java.time.Instant
@@ -158,7 +159,7 @@ internal object ChangeLinePresenter {
             EventKind.SET -> edit(raw)?.first ?: raw
             EventKind.TELEPORT -> NamePresenter.pretty(raw)
             EventKind.TRADE -> TRADE.matchEntire(raw)?.let { deal(it).text } ?: raw
-            EventKind.CUSTOM -> english(Extensions.live.eventLine(raw))
+            EventKind.CUSTOM -> Extensions.live.eventLine(raw).plainEnglish()
             else -> raw
         }
         val shown: Component = when (event.kind) {
@@ -287,7 +288,7 @@ internal object ChangeLinePresenter {
     /** The lookup row for [stack]: a repeat shows once, with a count. */
     fun row(stack: LineStack, nowMillis: Long): Component {
         val entry = stack.first
-        val ago = ago(nowMillis - entry.millis)
+        val ago = agoText(nowMillis - entry.millis)
         val times = if (stack.count > 1) tr("lookup.times", "n" to superscript(stack.count)) else Component.empty()
         val at = entry.at
         val net = entry.net
@@ -308,7 +309,7 @@ internal object ChangeLinePresenter {
                         "gained" to stack.gained,
                         "minus" to lower("lookup.verb.${net.family.minus}"),
                         "lost" to stack.lost,
-                        "first" to ago(nowMillis - stack.oldest),
+                        "first" to agoText(nowMillis - stack.oldest),
                         "last" to ago,
                     )
                 )
@@ -318,7 +319,7 @@ internal object ChangeLinePresenter {
                         "lookup.title",
                         "verb" to tr("lookup.verb.${entry.title}"),
                         "n" to stack.count,
-                        "first" to ago(nowMillis - stack.oldest),
+                        "first" to agoText(nowMillis - stack.oldest),
                         "last" to ago
                     )
                 )
@@ -329,7 +330,7 @@ internal object ChangeLinePresenter {
                     tr(
                         "lookup.hover.rolled_back",
                         "time" to STAMP.format(Instant.ofEpochMilli(it)),
-                        "ago" to ago(nowMillis - it)
+                        "ago" to agoText(nowMillis - it)
                     )
                 )
             }
@@ -346,7 +347,7 @@ internal object ChangeLinePresenter {
         val full = if (net == null) entry.what(stack.quantity) else netted(net, stack)
         val label = if (net == null) entry.whatText(stack.quantity) else "$total ${NamePresenter.pretty(net.material)}"
         val suffix = if (stack.count > 1) " ${superscript(stack.count)}⋆" else ""
-        val fixed = Glyphs.width("${english(ago)} X ${entry.whoText} ${english(verb)} ") + Glyphs.width(suffix)
+        val fixed = Glyphs.width("${ago.plainEnglish()} X ${entry.whoText} ${verb.plainEnglish()} ") + Glyphs.width(suffix)
         val clipped = Glyphs.width(label) > Glyphs.LINE - fixed
         val what = if (!clipped) full else Component.text(Glyphs.clip(label, Glyphs.LINE - fixed))
         val shown =
@@ -366,7 +367,7 @@ internal object ChangeLinePresenter {
                     .decoration(TextDecoration.STRIKETHROUGH, entry.rolledAt != null)
             )
             .build()
-            .hoverEvent(HoverEvent.showText(Component.join(JoinConfiguration.newlines(), shown)))
+            .hoverEvent(HoverEvent.showText(newlines(shown)))
         return if (at == null) row else row.clickEvent(ClickEvent.runCommand("/tracel tp ${at.world} ${at.x} ${at.y} ${at.z}"))
     }
 
@@ -494,13 +495,10 @@ internal object ChangeLinePresenter {
     private fun whoText(by: Actor?, cause: CauseKind, facts: ActorFacts): String = when (by) {
         is Actor.Player -> playerName(by.uuid) + if (cause == CauseKind.PROJECTILE) " (projectile)" else ""
         is Actor.Entity -> facts.entityType(by.uuid)?.toString()?.let(NamePresenter::pretty)
-            ?: english(who(by, cause, facts))
+            ?: who(by, cause, facts).plainEnglish()
 
-        else -> english(who(by, cause, facts))
+        else -> who(by, cause, facts).plainEnglish()
     }
-
-    private fun english(component: Component): String =
-        PlainTextComponentSerializer.plainText().serialize(GlobalTranslator.render(component, Locale.ENGLISH))
 
     private fun who(by: Actor?, cause: CauseKind, facts: ActorFacts): Component =
         (by as? Actor.Player)?.let { player ->
@@ -532,7 +530,7 @@ internal object ChangeLinePresenter {
     private fun plain(stack: LineStack): String {
         val entry = stack.first
         val net = entry.net
-        val verb = netVerb(stack)?.let { english(lower("lookup.verb.$it")) } ?: english(entry.verb)
+        val verb = netVerb(stack)?.let { lower("lookup.verb.$it").plainEnglish() } ?: entry.verb.plainEnglish()
         val what = if (net == null) entry.whatText(stack.quantity)
         else "${if (stack.net != 0L) kotlin.math.abs(stack.net) else stack.gained} ${NamePresenter.pretty(net.material)}"
         val repeat =
@@ -651,18 +649,6 @@ internal object ChangeLinePresenter {
         ActionKind.BLOCK_PLACE, ActionKind.ENTITY_SPAWN, ActionKind.BLOCK_GROW -> ItemPresenter.PLUS
         ActionKind.BLOCK_BREAK, ActionKind.ENTITY_REMOVE -> ItemPresenter.MINUS
         else -> ItemPresenter.BOTH
-    }
-
-    private fun ago(millis: Long): Component {
-        val seconds = (millis / 1000).coerceAtLeast(0)
-        val (unit, n) = when {
-            seconds < 60 -> "s" to seconds
-            seconds < 3_600 -> "m" to seconds / 60
-            seconds < 86_400 -> "h" to seconds / 3_600
-            seconds < 31_536_000 -> "d" to seconds / 86_400
-            else -> "y" to seconds / 31_536_000
-        }
-        return tr("lookup.ago.$unit", "n" to "%02d".format(n))
     }
 
     private fun entity(uuid: UUID, facts: ActorFacts): Component {

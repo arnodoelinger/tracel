@@ -9,10 +9,6 @@ internal val EXPLOSIVE = setOf(
     "ghast", "tnt_minecart", "bed", "respawn_anchor", "enderdragon", "ender_dragon", "wind_charge",
 )
 
-/** `#names` CoreProtect gives to blocks that move items by themselves. */
-@Unstable
-internal val MACHINES = setOf("hopper", "dropper", "dispenser")
-
 /** Old `#names` for mobs, and what the game calls them now. */
 @Unstable
 internal val MOB_ALIASES = mapOf("enderdragon" to "ender_dragon", "ender_crystal" to "end_crystal")

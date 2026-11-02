@@ -20,8 +20,3 @@ public interface UnitOfWork {
     /** Drops what was written since [mark], and the mark with it. */
     public suspend fun rollbackTo(mark: Int) {}
 }
-
-/** Direct unit of work. */
-public object DirectUnitOfWork : UnitOfWork {
-    override suspend fun <T> atomically(block: suspend () -> T): T = block()
-}

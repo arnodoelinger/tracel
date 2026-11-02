@@ -4,12 +4,14 @@ import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.engine.rollback.involution.apply.InvolutionExecutor
 import com.tracel.engine.rollback.involution.plan.InvolutionPlanner
 import com.tracel.engine.rollback.involution.plan.InvolutionStep
+import com.tracel.engine.rollback.isSet
 import com.tracel.engine.rollback.job.record.RollbackJobRepository
 import com.tracel.engine.rollback.journal.Journal
 import com.tracel.engine.rollback.journal.crash.CrashPoint
 import com.tracel.engine.rollback.lease.Lease
 import com.tracel.engine.rollback.lease.Leases
 import com.tracel.engine.rollback.lease.acquisition.LeaseAcquisition
+import com.tracel.engine.rollback.setBit
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
 
@@ -119,15 +121,5 @@ public class InvolutionJobCoordinator(
 
     private companion object {
         const val DEFAULT_BATCH_SIZE = 4096
-
-        @Suppress("NOTHING_TO_INLINE")
-        private inline fun isSet(words: LongArray, index: Int): Boolean =
-            words[index ushr 6] and (1L shl (index and 63)) != 0L
-
-        @Suppress("NOTHING_TO_INLINE")
-        private inline fun setBit(words: LongArray, index: Int) {
-            val word = index ushr 6
-            words[word] = words[word] or (1L shl (index and 63))
-        }
     }
 }

@@ -12,6 +12,7 @@ import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.integration.coreprotect.source.CoreProtectLocator
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.maintenance.startAutoPurge
+import com.tracel.plugin.util.MILLIS_PER_DAY
 import com.tracel.plugin.util.tr
 import io.papermc.paper.dialog.Dialog
 import io.papermc.paper.dialog.DialogResponseView
@@ -44,7 +45,7 @@ private val PURGE_KINDS: List<Triple<String, PurgeCategory, Material>> = listOf(
 private const val WIDTH = 320
 private const val BUTTON_WIDTH = 200
 private const val ICON_WIDTH = 40
-private const val PURGE_EVERY_MILLIS = 86_400_000L
+private const val PURGE_EVERY_MILLIS = MILLIS_PER_DAY
 private const val SHOW_AFTER_TICKS = 20L
 
 /**

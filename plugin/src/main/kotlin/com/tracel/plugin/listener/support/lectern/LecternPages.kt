@@ -2,6 +2,7 @@ package com.tracel.plugin.listener.support.lectern
 
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.MILLIS_PER_DAY
 
 /**
  * Storage for lectern page numbers.
@@ -12,7 +13,7 @@ import com.tracel.plugin.util.ExpiringMap
  * Stored in memory only.
  */
 internal object LecternPages {
-    private const val TTL_MS = 24 * 60 * 60 * 1000L
+    private const val TTL_MS = MILLIS_PER_DAY
     private const val MAX_REMEMBERED = 16_384
 
     private val byLectern = ExpiringMap<BlockPos, Int>(TTL_MS, MAX_REMEMBERED)

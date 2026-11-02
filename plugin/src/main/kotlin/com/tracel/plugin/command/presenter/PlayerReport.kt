@@ -8,8 +8,9 @@ import com.tracel.api.history.FlowKind
 import com.tracel.api.history.HistoryRecord
 import com.tracel.api.history.ItemFlow
 import com.tracel.api.item.ItemHolder
-import com.tracel.plugin.command.presenter.line.TransitionPresenter
 import com.tracel.plugin.bukkit.block.AirBlock
+import com.tracel.plugin.command.presenter.line.TransitionPresenter
+import com.tracel.plugin.util.chunkKey
 import java.util.*
 
 /** What one player did in a window, counted. */
@@ -65,7 +66,7 @@ internal data class PlayerReport(
             }
 
             fun column(x: Int, y: Int, z: Int) {
-                val key = ((x shr 4).toLong() shl 32) or ((z shr 4).toLong() and 0xFFFFFFFFL)
+                val key = chunkKey(x, z)
                 val slot = columns.getOrPut(key) { intArrayOf(0, 0, 0, 0) }
                 slot[0]++
                 slot[1] += y

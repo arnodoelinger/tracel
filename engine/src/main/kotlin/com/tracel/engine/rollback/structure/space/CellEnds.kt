@@ -3,6 +3,10 @@ package com.tracel.engine.rollback.structure.space
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldChange
 import com.tracel.model.world.WorldId
+import com.tracel.model.world.packCell
+import com.tracel.model.world.unpackCellX
+import com.tracel.model.world.unpackCellY
+import com.tracel.model.world.unpackCellZ
 
 // TODO: write some docs
 
@@ -21,7 +25,7 @@ private const val FREE = -1
 private fun fits(at: BlockPos): Boolean =
     at.x >= -XZ_LIMIT && at.x < XZ_LIMIT && at.z >= -XZ_LIMIT && at.z < XZ_LIMIT && at.y >= -Y_LIMIT && at.y < Y_LIMIT
 
-private fun pack(at: BlockPos): Long = packXyz(at.x, at.y, at.z)
+private fun pack(at: BlockPos): Long = packCell(at.x, at.y, at.z)
 
 private fun spatial(x: Int, y: Int, z: Int): Long =
     (((x shr 4) + TILE_OFFSET).toLong() shl 42) or (((z shr 4) + TILE_OFFSET).toLong() shl 20) or
@@ -32,13 +36,6 @@ private fun spatialZ(key: Long): Int =
     ((((key ushr 20) and TILE_MASK).toInt() - TILE_OFFSET) shl 4) or ((key ushr 4) and 15).toInt()
 
 private fun spatialY(key: Long): Int = ((key ushr 8) and 0xFFF).toInt() - Y_LIMIT
-
-private fun packXyz(x: Int, y: Int, z: Int): Long =
-    ((x.toLong() and 0x3FFFFFF) shl 38) or ((z.toLong() and 0x3FFFFFF) shl 12) or (y.toLong() and 0xFFF)
-
-private fun unpackX(key: Long): Int = (key shr 38).toInt()
-private fun unpackZ(key: Long): Int = ((key shl 26) shr 38).toInt()
-private fun unpackY(key: Long): Int = ((key shl 52) shr 52).toInt()
 
 private fun hash(key: Long): Int {
     var h = key * -7046029254386353131L
@@ -127,12 +124,12 @@ internal class CellEnds(changes: List<WorldChange>) {
             val keys = LongArray(size)
             for (i in 0 until size) {
                 val key = this.keys[order[i]]
-                keys[i] = spatial(unpackX(key), unpackY(key), unpackZ(key)) xor Long.MIN_VALUE
+                keys[i] = spatial(unpackCellX(key), unpackCellY(key), unpackCellZ(key)) xor Long.MIN_VALUE
             }
             keys.sort()
             for (i in keys.indices) {
                 val at = keys[i] xor Long.MIN_VALUE
-                val slot = slotOf(packXyz(spatialX(at), spatialY(at), spatialZ(at)))
+                val slot = slotOf(packCell(spatialX(at), spatialY(at), spatialZ(at)))
                 visit(oldest[slot], newest[slot])
             }
         }

@@ -3,21 +3,21 @@ package com.tracel.plugin.bukkit.rollback.material.census
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.WorldId
+import com.tracel.plugin.bukkit.item.isGroundPile
 import com.tracel.plugin.bukkit.world.worldOf
 import com.tracel.plugin.rollback.material.MaterialRestorer
-import com.tracel.plugin.bukkit.item.isGroundPile
 import com.tracel.plugin.rollback.material.census.EntityCensus
-import com.tracel.plugin.util.regionKey
+import com.tracel.plugin.util.awaitOrNull
 import com.tracel.plugin.util.namedByEntity
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.future.await
-import kotlinx.coroutines.withContext
+import com.tracel.plugin.util.regionKey
 import org.bukkit.Bukkit
 import org.bukkit.entity.ArmorStand
 import org.bukkit.entity.ItemFrame
 import java.util.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 
 /** Which UUID holders are gone. */
 internal suspend fun MaterialRestorer.findVanished(
@@ -57,7 +57,7 @@ internal suspend fun MaterialRestorer.confirmGone(suspects: Set<HolderId>): Set<
                 val at = group.first().value
                 val world = worldOf(at.world) ?: return@async emptyList()
                 val chunks = group.mapTo(HashSet()) { (it.value.x shr 4) to (it.value.z shr 4) }
-                chunks.map { (cx, cz) -> async { runCatching { world.getChunkAtAsync(cx, cz).await() } } }.awaitAll()
+                chunks.map { (cx, cz) -> async { world.getChunkAtAsync(cx, cz).awaitOrNull() } }.awaitAll()
                 withContext(services.schedulers.region(at)) {
                     for ((cx, cz) in chunks) runCatching { world.getChunkAt(cx, cz).entities }
                     group.filter { (holder, _) -> Bukkit.getEntity((holder as HolderId.ItemEntity).uuid).isGroundPile() }

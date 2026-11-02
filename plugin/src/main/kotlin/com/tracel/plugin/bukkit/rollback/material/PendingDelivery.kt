@@ -3,6 +3,7 @@ package com.tracel.plugin.bukkit.rollback.material
 import com.tracel.engine.ledger.PendingDelivery
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.bukkit.item.Experience
 import com.tracel.plugin.bukkit.item.heldTotals
 import com.tracel.plugin.bukkit.item.toItemTotals
 import com.tracel.plugin.bukkit.rollback.material.holder.shiftExperience
@@ -16,13 +17,13 @@ import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.rewearPlan
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.result.report.RestorationReport
-import com.tracel.plugin.bukkit.item.Experience
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withContext
+import com.tracel.plugin.util.messageOrName
 import org.bukkit.entity.Player
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.logging.Level
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
 
 /**
  * Hands a player whatever was queued for them while they were offline.
@@ -83,7 +84,7 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
         // Claim committed; failure without requeue is a delivery nobody is owed
         requeue(player.uniqueId, claimed)
         logger.log(Level.WARNING, "queued material for $holder could not be delivered and was re-queued", failure)
-        RestorationReport(mapOf(holder to (failure.message ?: failure::class.java.simpleName)))
+        RestorationReport(mapOf(holder to (failure.messageOrName())))
     }
     recordSpills(sink)
     rewearDelivered(player, claimed)

@@ -4,13 +4,13 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.packCell
 import com.tracel.plugin.bukkit.block.BlockDataCache
-import com.tracel.plugin.bukkit.block.isFluidShape
 import com.tracel.plugin.bukkit.block.holdsFreeFluid
+import com.tracel.plugin.bukkit.block.isFluidShape
 import com.tracel.plugin.bukkit.block.makesBubbles
 import com.tracel.plugin.bukkit.block.poursLikeFluid
 import com.tracel.plugin.util.LongHashSet
-import com.tracel.plugin.util.packed
 import org.bukkit.World
 import org.bukkit.block.data.Levelled
 import org.bukkit.block.data.Waterlogged
@@ -42,11 +42,11 @@ internal suspend fun wakeFluids(
         val flags = flagsOf(target)
         if (flags and FEEDS != 0) runCatching { world.getBlockAt(x, y, z).tick() }
         if (flags and TOUCHES != 0 && (stood == null || flags and FLOWING != 0)) wake(world, x, y, z, woken)
-        for (face in CARDINAL) {
+        for (face in ADJACENT) {
             val nx = x + face.modX
             val ny = y + face.modY
             val nz = z + face.modZ
-            if (packed(nx, ny, nz) in footprint || !owns(nx, nz)) continue
+            if (packCell(nx, ny, nz) in footprint || !owns(nx, nz)) continue
             if (stood != null && stood.containsBlock(nx, ny, nz)) continue
             wake(world, nx, ny, nz, woken)
         }
@@ -54,7 +54,7 @@ internal suspend fun wakeFluids(
 }
 
 private fun wake(world: World, x: Int, y: Int, z: Int, woken: LongHashSet) {
-    if (!woken.add(packed(x, y, z))) return
+    if (!woken.add(packCell(x, y, z))) return
     val block = world.getBlockAt(x, y, z)
     if (!block.holdsFreeFluid()) return
     runCatching { block.fluidTick() }

@@ -45,6 +45,19 @@ internal class LongHashSet(expected: Int = 16) {
         add(value)
     }
 
+    /** Calls [visit] with every value, in no order you should rely on. */
+    inline fun forEach(visit: (Long) -> Unit) {
+        val keys = keys()
+        val used = used()
+        for (i in keys.indices) if (used[i]) visit(keys[i])
+    }
+
+    @PublishedApi
+    internal fun keys(): LongArray = keys
+
+    @PublishedApi
+    internal fun used(): BooleanArray = used
+
     private fun slotOf(value: Long): Int {
         var h = value * -7046029254386353131L
         h = h xor (h ushr 29)

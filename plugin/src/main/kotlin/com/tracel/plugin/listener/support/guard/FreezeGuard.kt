@@ -2,7 +2,8 @@ package com.tracel.plugin.listener.support.guard
 
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.listener.session.FreezeGuardListener
-import java.util.concurrent.ConcurrentHashMap
+import com.tracel.plugin.util.RefCount
+import org.bukkit.event.Cancellable
 
 /**
  * Holders mid-restore, closed to hoppers / droppers / minecarts.
@@ -16,21 +17,24 @@ import java.util.concurrent.ConcurrentHashMap
  * @see [FreezeGuardListener]
  */
 class FreezeGuard {
-    private val frozen = ConcurrentHashMap<HolderId, Int>()
+    private val frozen = RefCount<HolderId>()
 
     /** Whether an automated transfer touching [holder] has to wait. */
-    fun isFrozen(holder: HolderId): Boolean = frozen.containsKey(holder)
+    fun isFrozen(holder: HolderId): Boolean = holder in frozen
 
     /** Refcount: two jobs on one chest, first finish must not thaw the second. */
     fun freeze(holders: Collection<HolderId>) {
-        for (holder in holders) frozen.merge(holder, 1, Int::plus)
+        for (holder in holders) frozen.hold(holder)
+    }
+
+    /** Cancels [event] when it touches [holder] and [holder] is frozen. */
+    fun cancelIfFrozen(holder: HolderId?, event: Cancellable) {
+        if (holder != null && isFrozen(holder)) event.isCancelled = true
     }
 
     /** Reopens what [freeze] closed. */
     fun thaw(holders: Collection<HolderId>) {
-        for (holder in holders) {
-            frozen.computeIfPresent(holder) { _, held -> if (held <= 1) null else held - 1 }
-        }
+        for (holder in holders) frozen.release(holder)
     }
 
     /** [freeze] for the duration of [work], whatever [work] does or throws. */

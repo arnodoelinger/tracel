@@ -22,8 +22,11 @@ public data class LookupRegion(
     public val maxZ: Int = Int.MAX_VALUE,
 ) {
     /** Whether [pos] lies in this region, in its world. */
-    public fun contains(pos: BlockPos): Boolean =
-        pos.world == world && containsBlock(pos.x, pos.y, pos.z)
+    public fun contains(pos: BlockPos): Boolean = contains(pos.world, pos.x, pos.y, pos.z)
+
+    /** Whether the cell at [x], [y], [z] of [world] lies in this region. */
+    public fun contains(world: WorldId, x: Int, y: Int, z: Int): Boolean =
+        this.world == world && containsBlock(x, y, z)
 
     /** Whether the cell at [x], [y], [z] lies in this region, whichever world it is taken to be in. */
     public fun containsBlock(x: Int, y: Int, z: Int): Boolean =

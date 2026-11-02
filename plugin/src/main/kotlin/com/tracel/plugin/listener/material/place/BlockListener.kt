@@ -17,13 +17,16 @@ import com.tracel.plugin.listener.support.cell.ReleasedCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.flow.CREATIVE_SINK
 import com.tracel.plugin.listener.support.flow.CREATIVE_SOURCE
+import com.tracel.plugin.listener.support.flow.causeOr
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
 import io.papermc.paper.event.block.BlockBreakBlockEvent
+import org.bukkit.block.Block
 import org.bukkit.block.ShulkerBox
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.event.block.LeavesDecayEvent
+import java.util.UUID
 
 /**
  * Block changes listener.
@@ -100,19 +103,7 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
     fun onBreakBlock(event: BlockBreakBlockEvent) {
         val block = event.block
         if (!ReleasedCell.claim(block)) return
-        val epochMillis = System.currentTimeMillis()
-        val releases = mutableListOf(BlockRelease(block.toPlacedBlockId(), block))
-        if (block.cargoSlots() != null) {
-            releases += BlockRelease(block.toHolderId(), block)
-        }
-        val by = ColumnCell.fluidPlayerAt(event.source) ?: ColumnCell.fluidPlayerAt(block)
-        material.releasing(
-            releases = releases,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
-            causedBy = by?.let(HolderId::Player),
-            at = block.toBlockPos(),
-            epochMillis = epochMillis
-        )
+        releaseBlock(block, ColumnCell.fluidPlayerAt(event.source) ?: ColumnCell.fluidPlayerAt(block))
     }
 
     /** Shape already logged decay. */
@@ -137,12 +128,15 @@ class BlockListener(services: TracelServices) : TracelListener(services) {
         if (!event.willDrop()) return
         val block = event.block
         if (!ReleasedCell.claim(block)) return
-        val by = ColumnCell.playerAt(block) ?: ColumnCell.fluidPlayerAt(block)
+        releaseBlock(block, ColumnCell.playerAt(block) ?: ColumnCell.fluidPlayerAt(block))
+    }
+
+    private fun releaseBlock(block: Block, by: UUID?) {
         val releases = mutableListOf(BlockRelease(block.toPlacedBlockId(), block))
         if (block.cargoSlots() != null) releases += BlockRelease(block.toHolderId(), block)
         material.releasing(
             releases = releases,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = causeOr(by, CauseKind.NATURAL),
             causedBy = by?.let(HolderId::Player),
             at = block.toBlockPos(),
         )

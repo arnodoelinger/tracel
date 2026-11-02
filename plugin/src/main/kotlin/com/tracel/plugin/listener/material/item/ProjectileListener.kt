@@ -5,16 +5,16 @@ import com.tracel.annotations.Unstable
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.bukkit.entity.isReclaimable
 import com.tracel.plugin.bukkit.entity.projectileItemKey
-import com.tracel.plugin.bukkit.entity.shouldLogProjectile
 import com.tracel.plugin.bukkit.entity.remember
+import com.tracel.plugin.bukkit.entity.shouldLogProjectile
 import com.tracel.plugin.bukkit.entity.toPlacedEntityId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.listener.support.flow.CREATIVE_SINK
+import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.GameMode
@@ -138,7 +138,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
             cause = CauseKind.NATURAL,
             causedBy = null,
             from = projectile.toPlacedEntityId(),
-            to = HolderId.Sink(SinkKind.UNATTRIBUTED),
+            to = DESTROYED_SINK,
         )
     }
 

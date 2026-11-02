@@ -4,22 +4,23 @@ import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
+import com.tracel.model.world.packCell
 import com.tracel.plugin.bukkit.block.BlockDataCache
 import com.tracel.plugin.bukkit.world.ownsChunkAt
 import com.tracel.plugin.bukkit.world.worldOf
-import com.tracel.plugin.services.monitoring.throttled
 import com.tracel.plugin.rollback.structure.StructureRestorer
+import com.tracel.plugin.services.monitoring.throttled
 import com.tracel.plugin.util.regionKey
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withContext
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.block.data.AnaloguePowerable
 import org.bukkit.block.data.Lightable
 import org.bukkit.block.data.Powerable
 import org.bukkit.block.data.type.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 
 /** Update redstone around what the restore wrote with physics off. */
 @Unstable
@@ -72,11 +73,8 @@ internal fun Iterable<StructureStep>.redstoneCells(): Sequence<BlockPos> = asSeq
     }
     .map { it.at }
 
-private fun BlockPos.packed(): Long =
-    (x.toLong() and 0x3FFFFFF) or ((z.toLong() and 0x3FFFFFF) shl 26) or (y.toLong() shl 52)
-
 private fun wake(world: World, pos: BlockPos, done: MutableSet<Long>) {
-    if (!done.add(pos.packed())) return
+    if (!done.add(packCell(pos.x, pos.y, pos.z))) return
     val block = world.getBlockAt(pos.x, pos.y, pos.z)
     wakeIfRedstone(block)
 }

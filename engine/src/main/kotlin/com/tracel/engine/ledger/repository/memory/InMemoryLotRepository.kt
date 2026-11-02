@@ -6,6 +6,7 @@ import com.tracel.annotations.ThreadContext
 import com.tracel.engine.ledger.LotPortion
 import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.model.holder.HolderId
+import com.tracel.model.holder.isPseudo
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.log.Seq
@@ -17,11 +18,11 @@ import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
 import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.min
 import kotlinx.atomicfu.atomic
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentHashMapOf
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.math.min
 
 /**
  * In-memory [LotRepository], the reference the stored one is checked against.
@@ -179,7 +180,7 @@ public class InMemoryLotRepository : LotRepository, UnitOfWork {
         val holders = s.holdersOf[itemKey] ?: return 0L
         var total = 0L
         for (holder in holders) {
-            if (holder is HolderId.Source || holder is HolderId.Sink) continue
+            if (holder.isPseudo()) continue
             val key = s.keyOrNull(holder, itemKey) ?: continue
             total += s.remainingAt[key] ?: 0L
         }

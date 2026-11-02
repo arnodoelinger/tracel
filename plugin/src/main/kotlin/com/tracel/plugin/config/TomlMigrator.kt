@@ -110,7 +110,7 @@ internal object TomlMigrator {
             while (lines.isNotEmpty() && lines.last().isBlank()) lines.removeLast()
             if (lines.isNotEmpty()) lines += ""
             lines += "[$SECTION]"
-            lines += "# Config version. Don't change this"
+            lines += FileVersions.NOTE
             lines += "$KEY = $current"
             lines += ""
             return

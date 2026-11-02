@@ -75,7 +75,7 @@ private fun intoBookshelfSlots(
         place(slot)
     }
     if (remaining <= 0L) return emptyList()
-    return stacksOf(itemKey, remaining, template)
+    return stacksOf(remaining, template)
 }
 
 private fun takeBooks(

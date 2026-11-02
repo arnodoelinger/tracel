@@ -3,6 +3,7 @@ package com.tracel.plugin.integration.worldedit
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.packCell
 import com.tracel.plugin.bukkit.block.AIR
 import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.*
@@ -67,7 +68,7 @@ class EditBufferTest {
     fun `cells that differ only in sign or height do not collide`() {
         val seen = HashSet<Long>()
         for (x in listOf(-1, 0, 1)) for (y in listOf(-64, 0, 319)) for (z in listOf(-1, 0, 1)) {
-            assertTrue(seen.add(EditBuffer.packed(x, y, z)), "($x, $y, $z) collided")
+            assertTrue(seen.add(packCell(x, y, z)), "($x, $y, $z) collided")
         }
     }
 }

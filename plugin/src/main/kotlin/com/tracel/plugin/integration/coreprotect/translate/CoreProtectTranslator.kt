@@ -22,6 +22,8 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.model.world.packCell
+import com.tracel.plugin.bukkit.block.AIR
 import com.tracel.plugin.integration.coreprotect.codes.BlockAction.BREAK
 import com.tracel.plugin.integration.coreprotect.codes.BlockAction.CLICK
 import com.tracel.plugin.integration.coreprotect.codes.BlockAction.KILL
@@ -52,7 +54,7 @@ import com.tracel.plugin.integration.coreprotect.source.*
 import com.tracel.plugin.integration.coreprotect.tally.ImportTally
 import com.tracel.plugin.integration.coreprotect.tally.Skipped
 import com.tracel.plugin.integration.coreprotect.tally.Taken
-import com.tracel.plugin.bukkit.block.AIR
+import com.tracel.plugin.util.MILLIS_PER_SECOND
 import java.util.*
 
 /**
@@ -105,7 +107,7 @@ class CoreProtectTranslator(
         }
         for (row in rows) {
             tally.rows++
-            val millis = row.time * MILLIS
+            val millis = row.time * MILLIS_PER_SECOND
             if (millis >= ownSince) {
                 tally.skip(Skipped.OVERLAP)
                 continue
@@ -173,7 +175,7 @@ class CoreProtectTranslator(
             return null
         }
         val standing = standing.getOrPut(row.world) { Standing() }
-        val key = Standing.key(row.x, row.y, row.z)
+        val key = packCell(row.x, row.y, row.z)
         val stood = standing[key]
 
         // CoreProtect writes the sign down again when its text is edited: the same sign, not a new one
@@ -283,7 +285,7 @@ class CoreProtectTranslator(
 
     private fun sign(row: SignRow, actor: Actor, at: BlockPos, millis: Long): ForeignRecord? {
         val standing = standing.getOrPut(row.world) { Standing() }
-        val key = Standing.key(row.x, row.y, row.z)
+        val key = packCell(row.x, row.y, row.z)
         val stood = standing[key]
         // The table says what a sign read and not which sign: without its block row there is nothing to hang it on
         if (stood == null || !stood.data.value.substringBefore('[').endsWith(SIGN)) {
@@ -498,7 +500,6 @@ class CoreProtectTranslator(
         material.lowercase().let { if (':' in it) it else "minecraft:$it" }
 
     private companion object {
-        const val MILLIS = 1_000L
         const val CENTER = 0.5
 
         @Unstable

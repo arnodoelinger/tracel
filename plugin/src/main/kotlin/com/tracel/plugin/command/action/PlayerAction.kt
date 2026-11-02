@@ -7,20 +7,22 @@ import com.tracel.api.history.HistoryRecord
 import com.tracel.api.result.Res
 import com.tracel.plugin.bukkit.command.resolvePlayerUuid
 import com.tracel.plugin.command.action.support.describe
-import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.ScopeArgument
+import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.scope.region
 import com.tracel.plugin.command.args.scope.scopeProblem
 import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.PlayerReport
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.MILLIS_PER_DAY
 import com.tracel.plugin.util.asReason
 import com.tracel.plugin.util.failed
 import com.tracel.plugin.util.info
+import com.tracel.plugin.util.newlines
 import com.tracel.plugin.util.say
+import com.tracel.plugin.util.shortSpan
 import com.tracel.plugin.util.tr
-import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent
@@ -28,11 +30,12 @@ import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.time.Instant
+import kotlinx.coroutines.launch
 
 /** `/tracel player <name>`: what a player did, on one screen. */
 internal class PlayerAction(private val services: TracelServices) {
     private companion object {
-        const val DEFAULT_WINDOW = 24L * 3_600_000
+        const val DEFAULT_WINDOW = MILLIS_PER_DAY
         const val PAGE = 2_000
     }
 
@@ -98,7 +101,7 @@ internal class PlayerAction(private val services: TracelServices) {
         scope?.let { head += tr("player.scope", "scope" to it) }
         if (r.records == 0) {
             head += info(tr("player.empty"))
-            sender.say(Component.join(JoinConfiguration.newlines(), head))
+            sender.say(newlines(head))
             return
         }
         head += tr("player.records", "records" to r.records)
@@ -155,17 +158,6 @@ internal class PlayerAction(private val services: TracelServices) {
         }
         lines += Component.empty()
         lines += Component.join(JoinConfiguration.separator(Component.space()), buttons)
-        sender.say(Component.join(JoinConfiguration.newlines(), lines))
-    }
-}
-
-/** `90s`, `12m`, `3h`, `2d`: the biggest unit that is still at least one. */
-internal fun shortSpan(millis: Long): String {
-    val s = millis / 1_000
-    return when {
-        s < 60 -> "${maxOf(s, 1)}s"
-        s < 3_600 -> "${s / 60}m"
-        s < 86_400 -> "${s / 3_600}h"
-        else -> "${s / 86_400}d"
+        sender.say(newlines(lines))
     }
 }

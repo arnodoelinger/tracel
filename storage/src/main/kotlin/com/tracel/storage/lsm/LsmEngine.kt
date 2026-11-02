@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm
 
+import com.tracel.platform.io.closeQuietly
 import com.tracel.storage.lsm.read.LsmSnapshot
 import com.tracel.storage.lsm.read.SegmentRun
 import com.tracel.storage.lsm.segment.*
@@ -352,7 +353,7 @@ class LsmEngine(
         compactor.awaitTermination(SHUTDOWN_WAIT_SECONDS, TimeUnit.SECONDS)
         lock.withLock {
             if (seal) runCatching { sealOnShutdown() }
-            open.forEach { runCatching { it.close() } }
+            open.forEach { it.closeQuietly() }
             retirement.closeAll()
             version.closeMemTables()
         }
@@ -425,7 +426,7 @@ class LsmEngine(
 
                 lock.withLock {
                     if (closed) {
-                        readers.forEach { runCatching { it.close() } }
+                        readers.forEach { it.closeQuietly() }
                         return
                     }
                     open += readers
@@ -489,7 +490,7 @@ class LsmEngine(
             lock.withLock {
                 if (closed) {
                     writing -= id
-                    runCatching { reader.close() }
+                    reader.closeQuietly()
                     return false
                 }
                 open += reader
@@ -567,7 +568,7 @@ class LsmEngine(
         }
         lock.withLock {
             if (closed) {
-                replacement?.let { runCatching { it.close() } }
+                replacement?.let { it.closeQuietly() }
                 return Rewritten(0, 0)
             }
             replacement?.let { open += it }

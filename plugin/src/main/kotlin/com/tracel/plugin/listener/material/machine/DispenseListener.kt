@@ -8,6 +8,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.bukkit.block.toBlockPos
 import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.item.isSpawnEgg
 import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.DispenseCell
@@ -24,7 +25,7 @@ import org.bukkit.event.block.BlockDispenseEvent
 class DispenseListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.HIGHEST) // A monitor cannot cancel
     fun holdWhileRestoring(event: BlockDispenseEvent) {
-        if (services.listeners.frozen.isFrozen(event.block.toHolderId())) event.isCancelled = true
+        services.listeners.frozen.cancelIfFrozen(event.block.toHolderId(), event)
     }
 
     @Observes
@@ -47,7 +48,7 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
         services.listeners.redstoneTriggers.recordDispense(block.location, by ?: dispenser)
 
         val facing = (block.blockData as? Directional)?.facing
-        if (by != null && facing != null && item.type.name.endsWith("_SPAWN_EGG")) DispenseCell.fired(
+        if (by != null && facing != null && item.type.isSpawnEgg()) DispenseCell.fired(
             block.getRelative(
                 facing
             ), by

@@ -1,6 +1,7 @@
 package com.tracel.engine.rollback.plan
 
 import com.tracel.engine.ledger.LotLedger
+import com.tracel.engine.rollback.addDelta
 import com.tracel.engine.rollback.plan.step.RollbackStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
@@ -30,16 +31,12 @@ public suspend fun physicalDeltas(
 ): Map<HolderId, Map<ItemKey, Long>> =
     ledger.reading {
         val deltas = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
-        fun add(holder: HolderId, itemKey: ItemKey, amount: Long) {
-            deltas.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
-        }
+        fun add(holder: HolderId, itemKey: ItemKey, amount: Long) = deltas.addDelta(holder, itemKey, amount)
 
         fun destinationFor(lotId: LotId): HolderId = target.destinationFor(plan, lotId)
 
         val taken = mutableMapOf<HolderId, MutableMap<ItemKey, Long>>()
-        fun takenAdd(holder: HolderId, itemKey: ItemKey, amount: Long) {
-            taken.getOrPut(holder) { mutableMapOf() }.merge(itemKey, amount, Long::plus)
-        }
+        fun takenAdd(holder: HolderId, itemKey: ItemKey, amount: Long) = taken.addDelta(holder, itemKey, amount)
 
         // A run's lots share one item and, mostly, one destination: summed per destination
         fun RollbackStep.TakeRun.perDestination(): Map<HolderId, Long> {

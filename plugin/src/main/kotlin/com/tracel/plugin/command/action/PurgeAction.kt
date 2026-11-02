@@ -1,27 +1,30 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.plugin.bukkit.command.resolvePlayerUuid
 import com.tracel.api.admin.AdminError
 import com.tracel.api.admin.PurgeCategory
 import com.tracel.api.admin.PurgeReport
 import com.tracel.api.admin.PurgeRequest
 import com.tracel.api.admin.PurgeSummary
 import com.tracel.api.result.Res
-import com.tracel.plugin.command.action.support.describe
-import com.tracel.plugin.command.action.ExportAction.Companion.MIB
+import com.tracel.plugin.bukkit.command.resolvePlayerUuid
 import com.tracel.plugin.command.action.ExportAction.Companion.records
+import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.command.args.purge.PurgeArgs
 import com.tracel.plugin.command.args.purge.PurgeArgument
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.asReason
 import com.tracel.plugin.util.confirmFooter
 import com.tracel.plugin.util.failed
+import com.tracel.plugin.util.formatCount
+import com.tracel.plugin.util.formatMib
 import com.tracel.plugin.util.joined
+import com.tracel.plugin.util.newlines
 import com.tracel.plugin.util.say
 import com.tracel.plugin.util.send
+import com.tracel.plugin.util.shortSpan
+import com.tracel.plugin.util.toMib
 import com.tracel.plugin.util.tr
 import com.tracel.plugin.util.usage
-import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.Bukkit
@@ -29,6 +32,7 @@ import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.time.Instant
 import java.util.*
+import kotlinx.coroutines.launch
 
 /**
  * `/tracel data purge`: takes history out of the database, all of it or only what the filters name.
@@ -108,7 +112,7 @@ class PurgeAction(private val services: TracelServices) {
     private fun everything(sender: CommandSender, args: PurgeArgs, command: String) {
         val locale = localeOf(sender)
         if (!args.confirmed) {
-            val size = services.commandApi.admin.storeBytes / MIB
+            val size = services.commandApi.admin.storeBytes.toMib()
             sender.say(
                 Component.join(
                     JoinConfiguration.newlines(),
@@ -156,15 +160,15 @@ class PurgeAction(private val services: TracelServices) {
             lines += tr(
                 "purge.preview.line",
                 "category" to label(category),
-                "matched" to "%,d".format(locale, tally.matched),
-                "total" to "%,d".format(locale, tally.total),
+                "matched" to formatCount(locale, tally.matched),
+                "total" to formatCount(locale, tally.total),
             )
         }
         records("common.label.records", report.oldest?.toEpochMilli(), report.newest?.toEpochMilli(), locale)?.let { lines += it }
-        lines += tr("common.label.rows", "rows" to "%,d".format(locale, report.rows))
+        lines += tr("common.label.rows", "rows" to formatCount(locale, report.rows))
         lines += Component.empty()
         lines += buttons(command)
-        return Component.join(JoinConfiguration.newlines(), lines)
+        return newlines(lines)
     }
 
     private fun buttons(command: String): Component = confirmFooter(command)
@@ -175,24 +179,24 @@ class PurgeAction(private val services: TracelServices) {
             lines += tr(
                 "purge.report.line",
                 "category" to label(category),
-                "matched" to "%,d".format(locale, tally.matched),
+                "matched" to formatCount(locale, tally.matched),
             )
         }
         records("common.label.records", report.oldest?.toEpochMilli(), report.newest?.toEpochMilli(), locale)?.let { lines += it }
-        lines += tr("common.label.rows", "rows" to "%,d".format(locale, report.rows))
-        if (report.bytes > 0) lines += tr("purge.report.freed", "size" to "%.1f".format(locale, report.bytes / MIB))
-        return Component.join(JoinConfiguration.newlines(), lines)
+        lines += tr("common.label.rows", "rows" to formatCount(locale, report.rows))
+        if (report.bytes > 0) lines += tr("purge.report.freed", "size" to formatMib(locale, report.bytes))
+        return newlines(lines)
     }
 
     private fun wiped(summary: PurgeSummary, locale: Locale): Component {
         val lines = mutableListOf(
             tr("purge.done"),
             Component.empty(),
-            tr("common.label.size", "size" to "%.1f".format(locale, summary.bytes / MIB)),
+            tr("common.label.size", "size" to formatMib(locale, summary.bytes)),
         )
         records("common.label.records", summary.oldest?.toEpochMilli(), summary.newest?.toEpochMilli(), locale)?.let { lines += it }
-        lines += tr("common.label.rows", "rows" to "%,d".format(locale, summary.rows))
-        return Component.join(JoinConfiguration.newlines(), lines)
+        lines += tr("common.label.rows", "rows" to formatCount(locale, summary.rows))
+        return newlines(lines)
     }
 
     private fun label(category: PurgeCategory): Component = tr("purge.category.${category.name.lowercase()}")

@@ -2,6 +2,7 @@ package com.tracel.plugin.bukkit.rollback.structure.block.check
 
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
+import com.tracel.model.world.packPair
 import com.tracel.plugin.util.chunkKey
 import com.tracel.plugin.util.chunkKeyX
 import com.tracel.plugin.util.chunkKeyZ
@@ -17,7 +18,7 @@ internal fun overlappingFalling(world: World, blocks: List<StructureStep.SetBloc
     val chunks = LinkedHashSet<Long>(blocks.size)
     for ((at, target, expected) in blocks) {
         if (!target.hasGravity() && !expected.hasGravity()) continue
-        val column = (at.x.toLong() shl 32) or (at.z.toLong() and 0xFFFFFFFFL)
+        val column = packPair(at.x, at.z)
         val span = spans.getOrPut(column) { intArrayOf(at.y, at.y) }
         if (at.y < span[0]) span[0] = at.y
         if (at.y > span[1]) span[1] = at.y
@@ -37,7 +38,7 @@ internal fun overlappingFalling(world: World, blocks: List<StructureStep.SetBloc
         for (entity in world.getChunkAt(chunkKeyX(key), chunkKeyZ(key)).entities) {
             if (entity !is FallingBlock) continue
             val loc = entity.location
-            val column = (loc.blockX.toLong() shl 32) or (loc.blockZ.toLong() and 0xFFFFFFFFL)
+            val column = packPair(loc.blockX, loc.blockZ)
             val span = spans[column] ?: continue
             if (loc.blockY >= span[0] - 1 && loc.blockY <= span[1] + 1) out += entity // +
         }

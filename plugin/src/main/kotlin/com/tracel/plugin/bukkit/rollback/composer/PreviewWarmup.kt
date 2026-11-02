@@ -7,16 +7,16 @@ import com.tracel.plugin.bukkit.block.BlockDataCache
 import com.tracel.plugin.bukkit.rollback.structure.block.PalettePaste
 import com.tracel.plugin.bukkit.world.ownsChunkAt
 import com.tracel.plugin.bukkit.world.worldOf
-import com.tracel.plugin.services.monitoring.throttled
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.services.monitoring.throttled
+import com.tracel.plugin.util.awaitOrNull
 import com.tracel.plugin.util.regionKey
-import kotlinx.coroutines.*
-import kotlinx.coroutines.future.await
 import org.bukkit.World
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.*
 
 private const val MAX_WARM_CHUNKS = 1_024
 private const val HOLD_MILLIS = 300_000L
@@ -50,7 +50,7 @@ internal suspend fun warmForPreview(services: TracelServices, planned: Planned) 
                 budget -= chunks.size
                 chunks.map { (cx, cz) ->
                     async {
-                        val loaded = runCatching { world.getChunkAtAsync(cx, cz).await() }.isSuccess
+                        val loaded = world.getChunkAtAsync(cx, cz).awaitOrNull() != null
                         if (loaded && runCatching { world.addPluginChunkTicket(cx, cz, services.plugin) }.getOrDefault(
                                 false
                             )

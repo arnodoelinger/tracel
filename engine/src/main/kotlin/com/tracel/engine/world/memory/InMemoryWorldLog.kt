@@ -3,6 +3,7 @@ package com.tracel.engine.world.memory
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.SingleWriter
 import com.tracel.annotations.ThreadContext
+import com.tracel.engine.log.descKey
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.NameMatcher
 import com.tracel.engine.world.WorldLog
@@ -102,7 +103,6 @@ public class InMemoryWorldLog(private val names: NameMatcher = NameMatcher.Exact
         names.matches(before.data.value, material) || names.matches(after.data.value, material)
 
     private companion object {
-        fun descKey(seq: Long): Long = Long.MAX_VALUE - seq
         fun pageCapacity(limit: Int): Int = if (limit in 1..1024) limit else 8
     }
 }

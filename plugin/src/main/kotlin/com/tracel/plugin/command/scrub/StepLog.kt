@@ -1,5 +1,6 @@
 package com.tracel.plugin.command.scrub
 
+import com.tracel.platform.io.closeQuietly
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
@@ -44,7 +45,7 @@ internal class StepLog : AutoCloseable {
     }
 
     override fun close() {
-        runCatching { channel.close() }
+        channel.closeQuietly()
         runCatching { Files.deleteIfExists(path) }
     }
 

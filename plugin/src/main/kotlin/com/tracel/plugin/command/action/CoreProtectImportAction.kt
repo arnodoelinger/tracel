@@ -10,18 +10,20 @@ import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.confirmFooter
 import com.tracel.plugin.util.failed
+import com.tracel.plugin.util.formatCount
 import com.tracel.plugin.util.info
+import com.tracel.plugin.util.newlines
 import com.tracel.plugin.util.say
 import com.tracel.plugin.util.send
+import com.tracel.plugin.util.shortSpan
 import com.tracel.plugin.util.tr
 import com.tracel.plugin.util.tryHint
-import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.launch
 
 /**
  * `/tracel data migrate coreprotect`: adds what `CoreProtect` recorded to the history, under what was recorded here.
@@ -120,7 +122,7 @@ class CoreProtectImportAction(private val services: TracelServices) {
             lines += Component.empty()
             lines += confirmFooter("/tracel data migrate coreprotect")
         }
-        return Component.join(JoinConfiguration.newlines(), lines)
+        return newlines(lines)
     }
 
     private fun report(outcome: MigrationOutcome, locale: Locale): Component {
@@ -132,7 +134,7 @@ class CoreProtectImportAction(private val services: TracelServices) {
         if (outcome.skipped > 0) lines += tr("import.coreprotect.skipped", "count" to count(outcome.skipped, locale))
         lines += tr("common.label.time", "time" to shortSpan(outcome.tookMillis))
         if (outcome.stopped) lines += tryHint(tr("import.coreprotect.hint.paused"))
-        return Component.join(JoinConfiguration.newlines(), lines)
+        return newlines(lines)
     }
 
     private fun CommandSender.fail(error: AdminError) {
@@ -150,7 +152,7 @@ class CoreProtectImportAction(private val services: TracelServices) {
         )
     }
 
-    private fun count(value: Long, locale: Locale): String = "%,d".format(locale, value)
+    private fun count(value: Long, locale: Locale): String = formatCount(locale, value)
 
     private fun localeOf(sender: CommandSender): Locale = (sender as? Player)?.locale() ?: Locale.ENGLISH
 

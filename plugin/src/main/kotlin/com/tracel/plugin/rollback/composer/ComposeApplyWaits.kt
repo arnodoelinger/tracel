@@ -7,6 +7,7 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
+import com.tracel.plugin.bukkit.block.isAirLike
 import com.tracel.plugin.bukkit.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.Planned
@@ -14,9 +15,9 @@ import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.bukkit.block.isAirLike
-import kotlinx.coroutines.*
+import com.tracel.plugin.util.attempt
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.*
 
 /** What the first wait left behind. */
 internal class FirstWait(
@@ -43,14 +44,8 @@ internal suspend fun RollbackComposer.ledgerAndStructure(
     coroutineScope {
         val ledger = if (reservation !is Reservation.Granted) null else async {
             // A thrown async cancels the scope before inverse-restore can run
-            try {
-                Result.success(
-                    services.rollback.apply(reservation, planned.target, recordsOwnJob = false)
-                )
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                Result.failure(failure)
+            attempt {
+                services.rollback.apply(reservation, planned.target, recordsOwnJob = false)
             }
         }
         val blocks = async {

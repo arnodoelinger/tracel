@@ -8,6 +8,7 @@ import com.tracel.engine.ledger.craft.Product
 import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
+import com.tracel.model.holder.isPseudo
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.lot.Lot
@@ -276,9 +277,6 @@ public class LotLedger(private val repo: LotRepository) : UnitOfWork by repo {
         repo.replace(holder, lotId, kept.id, left)
         return LotPortion(taken.id, quantity)
     }
-
-    /** Whether this holder only stands for the world outside the ledger. */
-    private fun HolderId.isPseudo(): Boolean = this is HolderId.Source || this is HolderId.Sink
 
     /**
      * Places a lot that was withdrawn earlier at [holder] again. It keeps its id and gains no history.

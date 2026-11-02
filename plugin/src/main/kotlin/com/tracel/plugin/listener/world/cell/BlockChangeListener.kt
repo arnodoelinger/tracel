@@ -10,21 +10,22 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.bukkit.block.toBlockPos
-import com.tracel.plugin.bukkit.block.toHolderId
-import com.tracel.plugin.bukkit.block.toPlacedBlockId
-import com.tracel.plugin.bukkit.block.toShape
-import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.listener.support.cell.ColumnCell
-import com.tracel.plugin.listener.support.cell.FireCell
-import com.tracel.plugin.listener.support.drop.BlockRelease
-import com.tracel.plugin.bukkit.entity.explosionActor
-import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.bukkit.block.WaterPlant
 import com.tracel.plugin.bukkit.block.isAirLike
 import com.tracel.plugin.bukkit.block.isShapedByNeighbours
 import com.tracel.plugin.bukkit.block.poursLikeFluid
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.block.toPlacedBlockId
+import com.tracel.plugin.bukkit.block.toShape
+import com.tracel.plugin.bukkit.entity.explosionActor
 import com.tracel.plugin.bukkit.item.isBucket
+import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.listener.support.cell.ColumnCell
+import com.tracel.plugin.listener.support.cell.FireCell
+import com.tracel.plugin.listener.support.drop.BlockRelease
+import com.tracel.plugin.listener.support.flow.causeOr
+import com.tracel.plugin.services.TracelServices
 import io.papermc.paper.event.block.BlockBreakBlockEvent
 import io.papermc.paper.event.block.VaultChangeStateEvent
 import org.bukkit.Material
@@ -132,7 +133,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         if (by == null) FireCell.litBy(event.block, natural)
         shape.removed(
             block = event.block,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else natural,
+            cause = causeOr(by, natural),
             causedBy = by?.let(HolderId::Player)
         )
     }
@@ -142,7 +143,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         val by = ColumnCell.fluidPlayerAt(event.source) ?: ColumnCell.fluidPlayerAt(event.block)
         shape.removed(
             block = event.block,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = causeOr(by, CauseKind.NATURAL),
             causedBy = by?.let(HolderId::Player)
         )
     }
@@ -155,7 +156,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             before = event.block.toShape(),
             after = BlockShape(BlockDataKey(event.newState.asString)),
             action = ActionKind.BLOCK_BREAK,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = causeOr(by, CauseKind.NATURAL),
             causedBy = by?.let(HolderId::Player),
         )
     }
@@ -272,7 +273,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     fun onSpongeAbsorb(event: SpongeAbsorbEvent) {
         val touched = (event.blocks.map { it.block } + event.block).distinct()
         val by = ColumnCell.playerAt(event.block)?.let(HolderId::Player)
-        val cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
+        val cause = causeOr(by, CauseKind.NATURAL)
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
             cause = cause,
@@ -296,7 +297,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         shape.became(
             block = event.block,
             newState = event.newState,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = causeOr(by, CauseKind.NATURAL),
             causedBy = by?.let { HolderId.Player(it) },
         )
     }
@@ -315,7 +316,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             before = event.block.toShape(),
             after = BlockShape(BlockDataKey(event.blockData.asString)),
             action = ActionKind.BLOCK_CHANGE,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
+            cause = causeOr(by, CauseKind.ENTITY_ACTION),
             causedBy = by?.let { HolderId.Player(it) } ?: HolderId.Entity(entity.uniqueId),
         )
         if (event.block.type == Material.FARMLAND) {
@@ -323,7 +324,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
             if (!above.type.isAir) {
                 shape.reread(
                     action = ActionKind.BLOCK_CHANGE,
-                    cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.ENTITY_ACTION,
+                    cause = causeOr(by, CauseKind.ENTITY_ACTION),
                     causedBy = by?.let { HolderId.Player(it) } ?: HolderId.Entity(entity.uniqueId),
                     blocks = listOf(above),
                 ) { it.before != it.after }
@@ -349,7 +350,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     private fun afterTick(block: Block, action: ActionKind, player: UUID?) =
         shape.reread(
             action,
-            if (player != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            causeOr(player, CauseKind.NATURAL),
             player?.let(HolderId::Player),
             listOf(block),
         )

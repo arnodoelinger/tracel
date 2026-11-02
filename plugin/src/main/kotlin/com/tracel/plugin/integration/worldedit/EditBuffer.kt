@@ -5,6 +5,7 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
+import com.tracel.model.world.packCell
 import com.tracel.plugin.bukkit.block.isAirLike
 
 /**
@@ -22,7 +23,7 @@ internal class EditBuffer(private val world: WorldId) {
     /** @return `true` if this is the first cell since the buffer was last emptied. */
     fun note(x: Int, y: Int, z: Int, before: BlockShape, after: BlockShape): Boolean {
         val wasEmpty = edits.isEmpty()
-        val key = packed(x, y, z)
+        val key = packCell(x, y, z)
         val first = edits[key]?.before ?: before
         edits[key] = BlockEdit(BlockPos(world, x, y, z), first, after)
         return wasEmpty
@@ -41,9 +42,6 @@ internal class EditBuffer(private val world: WorldId) {
     }
 
     internal companion object {
-        /** Block position. */
-        fun packed(x: Int, y: Int, z: Int): Long =
-            ((x.toLong() and 0x3FFFFFF) shl 38) or ((z.toLong() and 0x3FFFFFF) shl 12) or (y.toLong() and 0xFFF) // x, z = 26; y = 12
 
         /** @return what kind of change this edit represents. */
         fun actionOf(edit: BlockEdit): ActionKind = when {

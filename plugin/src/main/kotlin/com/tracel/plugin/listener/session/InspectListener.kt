@@ -6,7 +6,6 @@ import com.tracel.annotations.Unstable
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player
-import org.bukkit.event.Event
 import org.bukkit.event.block.Action
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockPlaceEvent
@@ -34,8 +33,7 @@ class InspectListener(services: TracelServices) : TracelListener(services) {
         if (!player.inspecting()) return
 
         event.isCancelled = true
-        event.setUseInteractedBlock(Event.Result.DENY)
-        event.setUseItemInHand(Event.Result.DENY)
+        event.denyUse()
 
         if (event.action != Action.RIGHT_CLICK_BLOCK && event.action != Action.LEFT_CLICK_BLOCK) return
         val block = event.clickedBlock ?: return

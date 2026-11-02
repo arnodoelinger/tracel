@@ -2,7 +2,13 @@ package com.tracel.plugin.command.suggest.flag
 
 import com.tracel.plugin.command.args.time.TimeArgument
 import com.tracel.plugin.command.suggest.quantity.*
+import com.tracel.plugin.util.MILLIS_PER_DAY
+import com.tracel.plugin.util.MILLIS_PER_HOUR
+import com.tracel.plugin.util.MILLIS_PER_MINUTE
+import com.tracel.plugin.util.MILLIS_PER_SECOND
+import com.tracel.plugin.util.MILLIS_PER_WEEK
 import com.tracel.plugin.util.joined
+import com.tracel.plugin.util.parseDuration
 import com.tracel.plugin.util.tr
 import net.kyori.adventure.text.Component
 
@@ -37,15 +43,15 @@ internal val SCOPE_UNITS = listOf(
 )
 
 private val SPAN_PARTS = listOf(
-    604_800_000L to "week",
-    86_400_000L to "day",
-    3_600_000L to "hour",
-    60_000L to "minute",
-    1_000L to "second",
+    MILLIS_PER_WEEK to "week",
+    MILLIS_PER_DAY to "day",
+    MILLIS_PER_HOUR to "hour",
+    MILLIS_PER_MINUTE to "minute",
+    MILLIS_PER_SECOND to "second",
 )
 
 internal fun spanOf(text: String): Component? {
-    var left = TimeArgument.parseDuration(text) ?: return null
+    var left = parseDuration(text) ?: return null
     val parts = ArrayList<Component>()
     for ((millis, noun) in SPAN_PARTS) {
         val n = left / millis

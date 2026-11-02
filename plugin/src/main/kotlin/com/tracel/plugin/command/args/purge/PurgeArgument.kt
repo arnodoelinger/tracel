@@ -2,6 +2,7 @@ package com.tracel.plugin.command.args.purge
 
 import com.tracel.api.admin.PurgeCategory
 import com.tracel.plugin.command.args.time.TimeArgument
+import com.tracel.plugin.util.parseDuration
 import com.tracel.plugin.util.tr
 import net.kyori.adventure.text.Component
 
@@ -65,7 +66,7 @@ internal object PurgeArgument {
     }
 
     private fun span(value: String, errors: MutableList<Component>): Long? {
-        val millis = TimeArgument.parseDuration(value.lowercase())
+        val millis = parseDuration(value.lowercase())
         if (millis == null || millis <= 0) errors += tr("purge.reason.bad_older", "value" to value)
         return millis?.takeIf { it > 0 }
     }

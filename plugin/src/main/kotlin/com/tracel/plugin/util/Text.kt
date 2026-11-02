@@ -43,8 +43,7 @@ fun Audience.say(line: ComponentLike) =
  * about why it stops, and what to try.
  */
 fun Audience.needed(info: Component, hint: Component, buttons: Component? = null) = say(
-    Component.join(
-        JoinConfiguration.newlines(),
+    newlines(
         listOfNotNull(
             tr("common.needed.title"),
             Component.empty(),
@@ -68,7 +67,7 @@ fun confirmFooter(command: String, backup: Boolean = true): Component {
             .hoverEvent(HoverEvent.showText(tr("common.button.backup_hover")))
         go.append(Component.space()).append(first)
     }
-    return Component.join(JoinConfiguration.newlines(), tr("common.next.confirm"), Component.empty(), buttons)
+    return newlines(tr("common.next.confirm"), Component.empty(), buttons)
 }
 
 /** The one line a [command] says when it is run without what it needs: how to run it. */
@@ -78,17 +77,43 @@ fun Audience.usage(command: String) = send("common.usage", "command" to command)
 fun List<ComponentLike>.joined(separator: String = ", "): Component =
     Component.join(JoinConfiguration.separator(Component.text(separator)), this)
 
+/** [parts], one per chat line. */
+fun newlines(parts: Iterable<ComponentLike>): Component = Component.join(JoinConfiguration.newlines(), parts)
+
+/** [parts], one per chat line. */
+fun newlines(vararg parts: ComponentLike): Component = Component.join(JoinConfiguration.newlines(), *parts)
+
+/** [this] as English plain text, for what must not depend on the reader's language. */
+fun Component.plainEnglish(): String =
+    PlainTextComponentSerializer.plainText().serialize(GlobalTranslator.render(this, Locale.ENGLISH))
+
+/** `large_fern` becomes `Large Fern`: [this] cut at [separators], the empty words dropped, each one capitalized. */
+fun String.titleWords(vararg separators: Char): String =
+    split(*separators).filter(String::isNotEmpty).joinToString(" ") { word -> word.replaceFirstChar(Char::uppercase) }
+
+/** How long ago [millis] was, in the biggest unit that fits: `05s`, `12m`, `03h`, `42d`, `01y`. */
+fun agoText(millis: Long): Component {
+    val seconds = (millis / 1000).coerceAtLeast(0)
+    val (unit, n) = when {
+        seconds < 60 -> "s" to seconds
+        seconds < 3_600 -> "m" to seconds / 60
+        seconds < 86_400 -> "h" to seconds / 3_600
+        seconds < 31_536_000 -> "d" to seconds / 86_400
+        else -> "y" to seconds / 31_536_000
+    }
+    return tr("lookup.ago.$unit", "n" to "%02d".format(n))
+}
+
 /**
  * A tab tooltip. `Paper` translates it per player on the way out; without a server (tests) it is
  * flattened to English plain text.
  */
 fun Component.asMessage(): Message = MESSAGES?.serialize(this)
-    ?: LiteralMessage(PlainTextComponentSerializer.plainText().serialize(GlobalTranslator.render(this, Locale.ENGLISH)))
+    ?: LiteralMessage(plainEnglish())
 
 /** A failure told the same way everywhere: the red headline under [title], then why and what to try. */
 fun Audience.failed(title: String, reason: Component, hint: Component) = say(
-    Component.join(
-        JoinConfiguration.newlines(),
+    newlines(
         tr(title),
         Component.empty(),
         tr("common.label.reason", "reason" to reason),
@@ -103,15 +128,12 @@ fun info(text: Component): Component = tr("common.label.info", "info" to text)
 fun tryHint(text: Component): Component = tr("common.label.hint", "hint" to text)
 
 /** Several reasons for one failure, on the one `Reason:` line: "no time, no scope". */
-fun List<Component>.asReason(): Component = commas()
-
-/** [this] on one line, "a, b, c". */
-fun List<Component>.commas(): Component = Component.join(JoinConfiguration.separator(Component.text(", ")), this)
+fun List<Component>.asReason(): Component = joined()
 
 /** What an exception said when nothing better is known: no trailing period, and no capital unless it is a name (`IOException`). */
 fun unexpected(failure: Throwable): String {
     Telemetry.error(failure)
-    return said(failure.message ?: failure::class.java.simpleName)
+    return said(failure.messageOrName())
 }
 
 /** [message] the way [unexpected] says it, for a failure that has been counted already. */

@@ -1,5 +1,7 @@
 package com.tracel.plugin.command.scrub
 
+import com.tracel.plugin.util.LongHashSet
+
 /**
  * The edges of a pile of blocks, the way a structure block draws its box:
  * only where the shape sticks out, never between two blocks that lie side by side,
@@ -14,12 +16,12 @@ internal object Outline {
 
     /** The lines around the packed [blocks], each as long as it can be. */
     fun of(blocks: Collection<Long>): List<Line> {
-        val solid = LongSet(blocks.size)
+        val solid = LongHashSet(blocks.size)
         for (pos in blocks) solid.add(pos)
         val lines = ArrayList<Line>()
         for (axis in Axis.entries) {
-            val edges = LongSet(blocks.size)
-            val checked = LongSet(blocks.size * 2)
+            val edges = LongHashSet(blocks.size)
+            val checked = LongHashSet(blocks.size * 2)
             solid.forEach { pos ->
                 val x = Packed.x(pos)
                 val y = Packed.y(pos)
@@ -49,7 +51,7 @@ internal object Outline {
     }
 
     // Of the four blocks around an edge, an edge is drawn where one is solid, or two that only touch at a corner
-    private fun bends(solid: LongSet, axis: Axis, edge: Long): Boolean {
+    private fun bends(solid: LongHashSet, axis: Axis, edge: Long): Boolean {
         val x = Packed.x(edge)
         val y = Packed.y(edge)
         val z = Packed.z(edge)

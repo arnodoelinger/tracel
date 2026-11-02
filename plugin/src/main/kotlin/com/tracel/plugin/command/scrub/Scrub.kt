@@ -1,6 +1,7 @@
 package com.tracel.plugin.command.scrub
 
 import com.tracel.api.actor.Actor
+import com.tracel.plugin.util.agoText
 import com.tracel.plugin.util.tr
 import io.papermc.paper.math.Position
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
@@ -201,7 +202,7 @@ internal class Scrub(
                     "scrub.bar.back",
                     "depth" to depth,
                     "total" to timeline.size,
-                    "ago" to ago(System.currentTimeMillis() - step.oldest.toEpochMilli()),
+                    "ago" to agoText(System.currentTimeMillis() - step.oldest.toEpochMilli()),
                     "who" to who(step.actor),
                     "n" to step.size,
                     "block" to step.block.substringAfter(':').replace('_', ' '),
@@ -216,18 +217,6 @@ internal class Scrub(
         is Actor.Plugin -> Component.text(actor.name)
         is Actor.Entity, is Actor.Block, is Actor.Addon -> tr("scrub.who.thing")
         Actor.Natural, null -> tr("scrub.who.world")
-    }
-
-    private fun ago(millis: Long): Component {
-        val seconds = (millis / 1000).coerceAtLeast(0)
-        val (unit, n) = when {
-            seconds < 60 -> "s" to seconds
-            seconds < 3_600 -> "m" to seconds / 60
-            seconds < 86_400 -> "h" to seconds / 3_600
-            seconds < 31_536_000 -> "d" to seconds / 86_400
-            else -> "y" to seconds / 31_536_000
-        }
-        return tr("lookup.ago.$unit", "n" to "%02d".format(n))
     }
 
     @Suppress("UnstableApiUsage")

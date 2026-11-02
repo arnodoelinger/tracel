@@ -19,9 +19,12 @@ internal enum class LifelessBucket(override val material: Material?) : GameMater
 /** Whether this is a bucket, empty or full. */
 internal fun Material.isBucket(): Boolean = this == Material.BUCKET || name.endsWith("_BUCKET")
 
+/** Whether this is a spawn egg. */
+internal fun Material.isSpawnEgg(): Boolean = name.endsWith("_SPAWN_EGG")
+
 /** Whether using this item puts an entity into the world: a spawn egg, a cushion, a bucket of fish. */
 internal fun Material.spawnsAnEntity(): Boolean = when {
-    name.endsWith("_SPAWN_EGG") || name.endsWith("_CUSHION") -> true
+    isSpawnEgg() || name.endsWith("_CUSHION") -> true
     !name.endsWith("_BUCKET") -> false
     else -> this !in LifelessBucket.materials
 }

@@ -6,6 +6,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.plugin.bukkit.entity.toBlockPos
+import com.tracel.plugin.bukkit.item.isSpawnEgg
 import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
@@ -34,13 +35,13 @@ class HandMutationListener(services: TracelServices) : TracelListener(services) 
 
     @Observes(ignoreCancelled = false)
     fun onEgg(event: PlayerInteractEvent) {
-        if (event.item?.type?.name?.endsWith("_SPAWN_EGG") == true) afterTick(event.player)
+        if (event.item?.type?.isSpawnEgg() == true) afterTick(event.player)
     }
 
     @Observes
     fun onEggOnMob(event: PlayerInteractEntityEvent) {
         val hand = event.player.inventory.getItem(event.hand)
-        if (hand.type.name.endsWith("_SPAWN_EGG")) afterTick(event.player)
+        if (hand.type.isSpawnEgg()) afterTick(event.player)
     }
 
     @Observes

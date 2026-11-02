@@ -1,6 +1,7 @@
 package com.tracel.plugin.bukkit.entity
 
 import com.tracel.annotations.Unstable
+import com.tracel.plugin.util.ThreadFlag
 import io.papermc.paper.entity.Leashable
 import org.bukkit.Bukkit
 import org.bukkit.Location
@@ -99,20 +100,14 @@ internal object EntityAliases {
  * for a restore that is already applying the recorded link.
  */
 internal object SelfManagedLink {
-    private val active = ThreadLocal.withInitial { false }
+    private val active = ThreadFlag()
 
     /** True on the thread that is currently applying a recorded leash or mount. */
-    val isOurs: Boolean get() = active.get()
+    val isOurs: Boolean get() = active.isSet
 
     /** Runs [action] with [isOurs] set. Nested calls keep the outer flag. */
     fun <T> whileLinking(action: () -> T): T {
-        val previous = active.get()
-        active.set(true)
-        try {
-            return action()
-        } finally {
-            active.set(previous)
-        }
+        return active.during(action)
     }
 }
 

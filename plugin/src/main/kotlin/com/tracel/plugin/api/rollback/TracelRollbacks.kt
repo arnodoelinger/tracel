@@ -1,6 +1,5 @@
 package com.tracel.plugin.api.rollback
 
-import com.tracel.plugin.api.read.ActorHolders
 import com.tracel.api.actor.Actor
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.history.RecordKind
@@ -10,45 +9,47 @@ import com.tracel.api.result.getOrElse
 import com.tracel.api.rollback.BorrowedArea
 import com.tracel.api.rollback.ConflictPolicy
 import com.tracel.api.rollback.ItemBalance
+import com.tracel.api.rollback.PlannedBlock
 import com.tracel.api.rollback.RollbackApplied
 import com.tracel.api.rollback.RollbackDraft
 import com.tracel.api.rollback.RollbackError
 import com.tracel.api.rollback.RollbackJobId
-import com.tracel.api.rollback.PlannedBlock
-import com.tracel.api.rollback.UndoPreview
-import com.tracel.api.world.NamespacedName
 import com.tracel.api.rollback.RollbackReady
 import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.rollback.Rollbacks
+import com.tracel.api.rollback.UndoPreview
 import com.tracel.api.world.LookupArea
+import com.tracel.api.world.NamespacedName
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
-import com.tracel.model.world.TILE_SHIFT
-import com.tracel.plugin.bukkit.rollback.composer.warmForPreview
-import com.tracel.plugin.bukkit.block.isAirLike
-import com.tracel.model.holder.HolderId
 import com.tracel.model.cause.CauseKind as ModelCause
+import com.tracel.model.holder.HolderId
 import com.tracel.model.rollback.RollbackJobId as ModelJob
+import com.tracel.model.world.TILE_SHIFT
+import com.tracel.plugin.api.read.ActorHolders
 import com.tracel.plugin.api.read.ApiConversions
-import com.tracel.plugin.services.monitoring.Telemetry
-import com.tracel.plugin.api.read.MaterialResolver
-import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.api.read.MaterialAliases
+import com.tracel.plugin.api.read.MaterialResolver
+import com.tracel.plugin.bukkit.block.isAirLike
+import com.tracel.plugin.bukkit.rollback.composer.warmForPreview
+import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.services.TracelServices
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withContext
+import com.tracel.plugin.services.monitoring.Telemetry
+import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.rescue
+import org.bukkit.entity.Player
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
-import org.bukkit.entity.Player
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.withContext
 
 /**
  * [Rollbacks] for one plugin, or for the commands: `/tracel rollback` and its undo run through these too, signed as
@@ -125,13 +126,13 @@ internal open class TracelRollbacks(
         if (coroutineContext[Held.Key] != null) return work()
         if (!services.restoring.composite.claimGate()) return Res.Err(RollbackError.Busy)
         return try {
-            services.purgeGate.awaitSlice()
-            work()
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            Telemetry.error(failure)
-            Res.Err(RollbackError.Failed(failure.message ?: failure.javaClass.simpleName))
+            rescue({ failure ->
+                Telemetry.error(failure)
+                Res.Err(RollbackError.Failed(failure.messageOrName()))
+            }) {
+                services.purgeGate.awaitSlice()
+                work()
+            }
         } finally {
             services.restoring.composite.releaseGate()
         }

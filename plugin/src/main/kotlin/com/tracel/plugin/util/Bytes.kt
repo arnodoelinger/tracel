@@ -1,23 +1,21 @@
 package com.tracel.plugin.util
 
-internal fun parseDuration(value: String): Long? {
-    val text = value.trim().lowercase()
+import java.util.Locale
 
-    val multiplier = when {
-        text.endsWith("ms") -> 1L
-        text.endsWith("s") -> 1_000L
-        text.endsWith("m") -> 60_000L
-        else -> return null
-    }
+internal const val BYTES_PER_MIB = 1L shl 20
+internal const val BYTES_PER_GIB = 1L shl 30
 
-    val number = text.removeSuffix("ms")
-        .removeSuffix("s")
-        .removeSuffix("m")
-        .toLongOrNull()
-        ?: return null
+/** [this] in mebibytes. */
+internal fun Long.toMib(): Double = this / BYTES_PER_MIB.toDouble()
 
-    return number.takeIf { it > 0 }?.times(multiplier)
-}
+/** [this] in gibibytes. */
+internal fun Long.toGib(): Double = this / BYTES_PER_GIB.toDouble()
+
+/** [bytes] as mebibytes with one decimal, the way [locale] writes numbers. */
+internal fun formatMib(locale: Locale, bytes: Long): String = "%.1f".format(locale, bytes.toMib())
+
+/** [n] with thousands separators, the way [locale] writes them. */
+internal fun formatCount(locale: Locale, n: Long): String = "%,d".format(locale, n)
 
 internal fun parseBytes(value: String): Long? {
     val text = value.trim().lowercase()

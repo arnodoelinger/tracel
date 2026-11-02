@@ -2,6 +2,7 @@ package com.tracel.engine.rollback.involution.apply
 
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.ledger.LotPortion
+import com.tracel.engine.ledger.PendingBalances
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.rollback.involution.plan.InvolutionStep
 import com.tracel.engine.rollback.journal.JournalExecutor
@@ -41,40 +42,28 @@ public class InvolutionExecutor(
      * [InvolutionStep.Remake] spends its ingredients where [LotLedger.recraft] takes them: at the product's holder.
      */
     public suspend fun checkSatisfiable(lease: Lease, steps: List<InvolutionStep>): Unit = atomically {
-        val pending = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
-        val known = mutableMapOf<Pair<HolderId, ItemKey>, Long>()
-
-        /** Balance of an [itemKey] in a [holder]. */
-        suspend fun balanceOf(holder: HolderId, itemKey: ItemKey): Long {
-            val account = holder to itemKey
-            val actual = known[account] ?: (ledger.totalAt(holder, itemKey)?.raw ?: 0L).also { known[account] = it }
-            return actual + pending.getOrDefault(account, 0L)
-        }
+        val books = PendingBalances(ledger)
 
         /** Debit [amount] of [itemKey] from [holder]. */
         suspend fun debit(holder: HolderId, itemKey: ItemKey, amount: Long) {
-            val available = balanceOf(holder, itemKey)
+            val available = books.balanceOf(holder, itemKey)
             check(available >= amount) {
                 "insufficient balance at $holder for $itemKey: needed $amount, have $available"
             }
-            pending.merge(holder to itemKey, -amount, Long::plus)
+            books.add(holder, itemKey, -amount)
         }
 
         for (step in steps) {
             when (step) {
                 is InvolutionStep.Return -> {
                     debit(step.from, step.itemKey, step.quantity.raw)
-                    pending.merge(step.to to step.itemKey, step.quantity.raw, Long::plus)
+                    books.add(step.to, step.itemKey, step.quantity.raw)
                 }
 
                 is InvolutionStep.Retract -> debit(step.from, step.itemKey, step.quantity.raw)
                 is InvolutionStep.Remake -> {
                     for ((_, itemKey, quantity) in step.inputs) debit(step.product.holder, itemKey, quantity.raw)
-                    for ((_, quantity, holder) in step.outputs) pending.merge(
-                        holder to step.product.itemKey,
-                        quantity.raw,
-                        Long::plus
-                    )
+                    for ((_, quantity, holder) in step.outputs) books.add(holder, step.product.itemKey, quantity.raw)
                 }
             }
         }

@@ -1,7 +1,8 @@
 package com.tracel.plugin.bukkit.rollback.structure.rescue
 
-import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.bukkit.block.HazardBlock
+import com.tracel.plugin.rollback.structure.StructureRestorer
+import com.tracel.plugin.util.chunkKey
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.util.BoundingBox
@@ -32,7 +33,7 @@ private suspend fun StructureRestorer.hasGround(world: World, box: BoundingBox):
     val groups = HashMap<Long, MutableList<IntArray>>()
     for (x in floor(box.minX).toInt()..floor(box.maxX).toInt())
         for (z in floor(box.minZ).toInt()..floor(box.maxZ).toInt())
-            groups.getOrPut(chunkOf(x, z)) { ArrayList() } += intArrayOf(x, z)
+            groups.getOrPut(chunkKey(x, z)) { ArrayList() } += intArrayOf(x, z)
     for (columns in groups.values) {
         val (x, z) = columns.first()
         val grounded = inChunk(world, x, feet, z) {

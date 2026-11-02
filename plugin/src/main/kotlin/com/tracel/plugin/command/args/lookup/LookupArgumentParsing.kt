@@ -9,9 +9,11 @@ import com.tracel.plugin.command.args.time.TimeArgument
 import com.tracel.plugin.command.args.time.TimeExpr
 import com.tracel.plugin.command.suggest.LookupSuggest
 import com.tracel.plugin.command.suggest.SuggestLists
+import com.tracel.plugin.services.monitoring.Telemetry
+import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.parseDuration
 import com.tracel.plugin.util.said
 import com.tracel.plugin.util.tr
-import com.tracel.plugin.services.monitoring.Telemetry
 import java.util.UUID
 
 private fun ParsedLookupArgs.within(window: TimeExpr): ParsedLookupArgs =
@@ -49,12 +51,12 @@ private val LOOKUP_ARGUMENTS: List<LookupArgument> = listOf(
         { ScopeArgument.suggestions(it.worldNames) }),
     LookupArgument.Parsed(
         "before:",
-        { v, now -> TimeArgument.parseDuration(v)?.let { now - it } },
+        { v, now -> parseDuration(v)?.let { now - it } },
         { r, v -> r.copy(until = earlier(r.until, v)) },
         { TimeArgument.durationSuggestions() }),
     LookupArgument.Parsed(
         "after:",
-        { v, now -> TimeArgument.parseDuration(v)?.let { now - it } },
+        { v, now -> parseDuration(v)?.let { now - it } },
         { r, v -> r.copy(since = later(r.since, v)) },
         { TimeArgument.durationSuggestions() }),
     LookupArgument.Parsed(
@@ -116,7 +118,7 @@ private fun ParsedLookupArgs.addonFlag(token: String, here: FlagHere): ParsedLoo
         flag.parse(FlagInput(token.substring(colon + 1), here.world, here.player))
     } catch (failure: Exception) {
         Telemetry.error(failure)
-        Res.Err(said(failure.message ?: failure.javaClass.simpleName))
+        Res.Err(said(failure.messageOrName()))
     }
     return when (parsed) {
         is Res.Ok -> copy(parts = parts + parsed.value)

@@ -5,20 +5,20 @@ import com.tracel.annotations.Unstable
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
+import com.tracel.plugin.bukkit.command.EntityCommand
+import com.tracel.plugin.bukkit.command.isCommand
 import com.tracel.plugin.bukkit.entity.*
+import com.tracel.plugin.bukkit.entity.HitActor
+import com.tracel.plugin.bukkit.entity.dropsSelf
 import com.tracel.plugin.bukkit.entity.hullItemKey
 import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.bukkit.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.bukkit.entity.HitActor
+import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.bukkit.command.EntityCommand
-import com.tracel.plugin.bukkit.command.isCommand
-import com.tracel.plugin.bukkit.entity.dropsSelf
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.ExpiringSet
 import org.bukkit.Bukkit
 import org.bukkit.entity.*
 import org.bukkit.event.entity.EntityDeathEvent
@@ -41,13 +41,13 @@ import java.util.*
  */
 @Unstable
 class EntityCargoListener(services: TracelServices) : TracelListener(services) {
-    private val byPlayer = ExpiringMap<UUID, Unit>(RECENT_MS)
+    private val byPlayer = ExpiringSet<UUID>(RECENT_MS)
 
     @Observes
     fun onPlace(event: EntityPlaceEvent) {
         val player = event.player
         if (player != null) {
-            byPlayer.put(event.entity.uniqueId, Unit)
+            byPlayer.mark(event.entity.uniqueId)
             // the hand it came from: a boat placed from the off hand is not the sword in the main hand
             placed(event.entity, player, player.inventory.getItem(event.hand).toItemKey())
             return
@@ -58,7 +58,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onVehicleCreate(event: VehicleCreateEvent) {
         val vehicle = event.vehicle
-        if (byPlayer.remove(vehicle.uniqueId) != null) return
+        if (byPlayer.remove(vehicle.uniqueId)) return
         dispensed(vehicle)
     }
 
@@ -165,7 +165,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
                 cause = cause,
                 causedBy = causedBy,
                 from = entity.toPlacedEntityId(),
-                to = HolderId.Sink(SinkKind.UNATTRIBUTED),
+                to = DESTROYED_SINK,
                 epochMillis = epochMillis,
             )
         }
@@ -175,7 +175,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
                 cause = cause,
                 causedBy = causedBy,
                 from = entity.toCargoHolderId(),
-                to = HolderId.Sink(SinkKind.UNATTRIBUTED),
+                to = DESTROYED_SINK,
                 epochMillis = epochMillis,
             )
             return

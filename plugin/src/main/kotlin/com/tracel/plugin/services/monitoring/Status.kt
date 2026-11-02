@@ -3,6 +3,7 @@ package com.tracel.plugin.services.monitoring
 import com.tracel.plugin.TracelPlugin
 import com.tracel.plugin.bukkit.server.killServer
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.toGib
 import java.io.File
 import java.util.*
 import kotlin.time.Duration.Companion.milliseconds
@@ -12,7 +13,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private const val CHECK_MILLIS = 10_000L
-private const val GIB = 1024.0 * 1024.0 * 1024.0
 
 const val FATAL_DISK_PERCENT = 1
 const val LAG_MILLIS = 5_000L
@@ -107,7 +107,7 @@ internal object DiskGuard {
     }
 
     private fun message(free: Long, total: Long, starting: Boolean): String {
-        val left = "%.2f%% (%.1f of %.1f GB)".format(Locale.ENGLISH, free * 100.0 / total, free / GIB, total / GIB)
+        val left = "%.2f%% (%.1f of %.1f GB)".format(Locale.ENGLISH, free * 100.0 / total, free.toGib(), total.toGib())
         val what = if (starting) "The server will not start" else "Stopping the server"
         return "Disk almost full: only $left free where Tracel keeps its database. $what, because there is " +
                 "nowhere to write history. Delete files you don't need, then start the server again or run \"/tracel data purge\"."

@@ -5,6 +5,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.plugin.listener.TracelListener
+import com.tracel.plugin.listener.support.flow.causeOr
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player
 import org.bukkit.event.block.CauldronLevelChangeEvent
@@ -20,7 +21,7 @@ class CauldronListener(services: TracelServices) : TracelListener(services) {
         val player = event.entity as? Player
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,
-            cause = if (player != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = causeOr(player, CauseKind.NATURAL),
             causedBy = player?.let { HolderId.Player(it.uniqueId) },
             blocks = listOf(event.block),
         )

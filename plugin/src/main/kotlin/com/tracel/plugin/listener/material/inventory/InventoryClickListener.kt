@@ -12,6 +12,7 @@ import com.tracel.plugin.listener.support.drop.ContainerDrop
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.*
+import org.bukkit.event.inventory.InventoryInteractEvent
 import org.bukkit.inventory.CraftingInventory
 
 /**
@@ -48,17 +49,12 @@ class InventoryClickListener(services: TracelServices) : TracelListener(services
     }
 
     @Observes
-    fun onDrag(event: InventoryDragEvent) {
-        val player = event.whoClicked as? Player ?: return
-        val view = event.view
-        material.scheduleReconcile(
-            player = player,
-            inventories = listOfNotNull(view.topInventory, view.bottomInventory)
-        )
-    }
+    fun onDrag(event: InventoryDragEvent) = reconcile(event)
 
     @Observes
-    fun onCreative(event: InventoryCreativeEvent) {
+    fun onCreative(event: InventoryCreativeEvent) = reconcile(event)
+
+    private fun reconcile(event: InventoryInteractEvent) {
         val player = event.whoClicked as? Player ?: return
         val view = event.view
         material.scheduleReconcile(

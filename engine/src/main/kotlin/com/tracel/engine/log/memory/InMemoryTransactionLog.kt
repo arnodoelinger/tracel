@@ -158,13 +158,9 @@ public class InMemoryTransactionLog(private val names: NameMatcher = NameMatcher
 
     private inline fun HolderId.considerPosition(consider: (WorldId, Int, Int, Int) -> Boolean): Boolean =
         when (this) {
-            is HolderId.Block -> consider(world, x, y, z)
-            is HolderId.PlacedBlock -> consider(world, x, y, z)
+            is HolderId.AtBlock -> consider(world, x, y, z)
             else -> false
         }
-
-    private fun LookupRegion.contains(world: WorldId, x: Int, y: Int, z: Int): Boolean =
-        this.world == world && containsBlock(x, y, z)
 
     private data class Stamp(val millis: Long, val seq: Long) : Comparable<Stamp> {
         override fun compareTo(other: Stamp): Int {

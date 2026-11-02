@@ -3,6 +3,7 @@ package com.tracel.engine.rollback.journal
 import com.tracel.annotations.RunsOn
 import com.tracel.annotations.ThreadContext
 import com.tracel.engine.rollback.apply.RollbackExecutor
+import com.tracel.engine.rollback.isSet
 import com.tracel.engine.rollback.journal.crash.CrashPoint
 import com.tracel.engine.rollback.journal.support.SparseSteps
 import com.tracel.engine.rollback.lease.Lease
@@ -10,6 +11,7 @@ import com.tracel.engine.rollback.lease.Leases
 import com.tracel.engine.rollback.plan.RollbackPlan
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.plan.step.RollbackStep
+import com.tracel.engine.rollback.setBit
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
 
@@ -146,16 +148,6 @@ public class JournalExecutor(
 
     private companion object {
         const val DEFAULT_BATCH_SIZE = 4096
-
-        @Suppress("NOTHING_TO_INLINE")
-        private inline fun isSet(words: LongArray, index: Int): Boolean =
-            words[index ushr 6] and (1L shl (index and 63)) != 0L
-
-        @Suppress("NOTHING_TO_INLINE")
-        private inline fun setBit(words: LongArray, index: Int) {
-            val word = index ushr 6
-            words[word] = words[word] or (1L shl (index and 63))
-        }
 
         private fun pendingSlice(
             steps: List<RollbackStep>,

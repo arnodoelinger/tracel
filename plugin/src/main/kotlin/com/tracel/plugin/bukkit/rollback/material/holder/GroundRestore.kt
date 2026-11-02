@@ -3,6 +3,7 @@ package com.tracel.plugin.bukkit.rollback.material.holder
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.plugin.bukkit.entity.remember
+import com.tracel.plugin.bukkit.item.Experience
 import com.tracel.plugin.bukkit.rollback.material.census.census
 import com.tracel.plugin.bukkit.rollback.material.census.confirmGone
 import com.tracel.plugin.bukkit.rollback.material.item.WornStacks
@@ -12,14 +13,15 @@ import com.tracel.plugin.rollback.material.ENTITY_GONE_AT_PLAN
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.spill.Spill
-import com.tracel.plugin.bukkit.item.Experience
-import com.tracel.plugin.util.regionKey
 import com.tracel.plugin.util.blockPos
-import kotlinx.coroutines.*
+import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.regionKey
+import com.tracel.plugin.util.rescueAll
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.ExperienceOrb
 import org.bukkit.entity.Item
+import kotlinx.coroutines.*
 
 /** Restore ground items. */
 internal suspend fun MaterialRestorer.restoreGroundItems(
@@ -103,13 +105,8 @@ internal suspend fun MaterialRestorer.restoreGroundItems(
 }
 
 /** Whether it's in the region. */
-internal suspend inline fun MaterialRestorer.inRegion(work: suspend () -> ApplyResult.Failed?): ApplyResult = try {
-    work() ?: ApplyResult.Ok
-} catch (cancelled: CancellationException) {
-    throw cancelled
-} catch (moved: Throwable) {
-    ApplyResult.Failed(moved.message ?: moved::class.java.simpleName)
-}
+internal suspend inline fun MaterialRestorer.inRegion(work: suspend () -> ApplyResult.Failed?): ApplyResult =
+    rescueAll({ moved -> ApplyResult.Failed(moved.messageOrName()) }) { work() ?: ApplyResult.Ok }
 
 /** Shrinks or removes a live ground item pile by [deltas]. A ground item can only ever be a single-key take. */
 internal fun MaterialRestorer.takeGroundItem(

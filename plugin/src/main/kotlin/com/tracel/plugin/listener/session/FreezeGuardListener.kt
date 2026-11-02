@@ -10,6 +10,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityPickupItemEvent
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryDragEvent
+import org.bukkit.event.inventory.InventoryInteractEvent
 import org.bukkit.event.player.PlayerDropItemEvent
 import org.bukkit.event.player.PlayerSwapHandItemsEvent
 
@@ -19,16 +20,10 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent
  */
 class FreezeGuardListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.HIGHEST)
-    fun holdClick(event: InventoryClickEvent) {
-        if (frozenPlayer(event.whoClicked as? Player) || frozen(event.view.topInventory.toHolderId())) event.isCancelled =
-            true
-    }
+    fun holdClick(event: InventoryClickEvent) = holdInventory(event)
 
     @Observes(priority = Priority.HIGHEST)
-    fun holdDrag(event: InventoryDragEvent) {
-        if (frozenPlayer(event.whoClicked as? Player) || frozen(event.view.topInventory.toHolderId())) event.isCancelled =
-            true
-    }
+    fun holdDrag(event: InventoryDragEvent) = holdInventory(event)
 
     @Observes(priority = Priority.HIGHEST)
     fun holdDrop(event: PlayerDropItemEvent) {
@@ -45,6 +40,10 @@ class FreezeGuardListener(services: TracelServices) : TracelListener(services) {
         val taker = event.entity
         val takerFrozen = if (taker is Player) frozenPlayer(taker) else frozen(HolderId.Entity(taker.uniqueId))
         if (takerFrozen || frozen(HolderId.ItemEntity(event.item.uniqueId))) event.isCancelled = true
+    }
+
+    private fun holdInventory(event: InventoryInteractEvent) {
+        if (frozenPlayer(event.whoClicked as? Player) || frozen(event.view.topInventory.toHolderId())) event.isCancelled = true
     }
 
     private fun frozenPlayer(player: Player?): Boolean = player != null && frozen(HolderId.Player(player.uniqueId))

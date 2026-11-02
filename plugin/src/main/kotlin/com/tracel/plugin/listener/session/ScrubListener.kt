@@ -6,7 +6,6 @@ import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
 import io.papermc.paper.event.packet.PlayerChunkLoadEvent
 import org.bukkit.entity.Player
-import org.bukkit.event.Event
 import org.bukkit.event.block.Action
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockPlaceEvent
@@ -57,8 +56,7 @@ internal class ScrubListener(services: TracelServices) : TracelListener(services
         if (event.action == Action.PHYSICAL) return
         val scrub = scrubs.of(event.player) ?: return
         event.isCancelled = true
-        event.setUseInteractedBlock(Event.Result.DENY)
-        event.setUseItemInHand(Event.Result.DENY)
+        event.denyUse()
         scrub.touched()
     }
 

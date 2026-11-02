@@ -12,6 +12,10 @@ import com.tracel.plugin.config.Settings
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.BYTES_PER_GIB
+import com.tracel.plugin.util.BYTES_PER_MIB
+import com.tracel.plugin.util.MILLIS_PER_DAY
+import com.tracel.plugin.util.MILLIS_PER_MINUTE
 import org.bstats.bukkit.Metrics
 import org.bstats.charts.AdvancedPie
 import org.bstats.charts.DrilldownPie
@@ -33,10 +37,8 @@ internal object TracelMetrics {
     // https://bstats.org/plugin/bukkit/Tracel/34524
     private const val PLUGIN_ID: Int = 34524
 
-    private const val STORE_FRESH_MILLIS = 60_000L
-    private const val DAY = 86_400_000L
-    private const val MIB = 1L shl 20
-    private const val GIB = 1L shl 30
+    private const val STORE_FRESH_MILLIS = MILLIS_PER_MINUTE
+    private const val DAY = MILLIS_PER_DAY
 
     @Volatile
     private var metrics: Metrics? = null
@@ -194,25 +196,25 @@ internal object TracelMetrics {
     }
 
     internal fun sizeBucket(bytes: Long): String = when {
-        bytes < 100 * MIB -> "under 100 MiB"
-        bytes < 500 * MIB -> "100-500 MiB"
-        bytes < GIB -> "500 MiB-1 GiB"
-        bytes < 5 * GIB -> "1-5 GiB"
-        bytes < 10 * GIB -> "5-10 GiB"
-        bytes < 25 * GIB -> "10-25 GiB"
-        bytes < 50 * GIB -> "25-50 GiB"
-        bytes < 100 * GIB -> "50-100 GiB"
-        bytes < 250 * GIB -> "100-250 GiB"
-        bytes < 500 * GIB -> "250-500 GiB"
-        bytes < 1024 * GIB -> "500 GiB-1 TiB"
+        bytes < 100 * BYTES_PER_MIB -> "under 100 MiB"
+        bytes < 500 * BYTES_PER_MIB -> "100-500 MiB"
+        bytes < BYTES_PER_GIB -> "500 MiB-1 GiB"
+        bytes < 5 * BYTES_PER_GIB -> "1-5 GiB"
+        bytes < 10 * BYTES_PER_GIB -> "5-10 GiB"
+        bytes < 25 * BYTES_PER_GIB -> "10-25 GiB"
+        bytes < 50 * BYTES_PER_GIB -> "25-50 GiB"
+        bytes < 100 * BYTES_PER_GIB -> "50-100 GiB"
+        bytes < 250 * BYTES_PER_GIB -> "100-250 GiB"
+        bytes < 500 * BYTES_PER_GIB -> "250-500 GiB"
+        bytes < 1024 * BYTES_PER_GIB -> "500 GiB-1 TiB"
         else -> "1 TiB+"
     }
 
     internal fun sizeExact(bytes: Long): String = when {
-        bytes < GIB -> "${bytes / MIB / 10 * 10} MiB"
-        bytes < 10 * GIB -> "%.1f GiB".format(Locale.ROOT, bytes / (GIB / 10) / 10.0)
-        bytes < 1024 * GIB -> "${bytes / GIB} GiB"
-        else -> "%.1f TiB".format(Locale.ROOT, bytes / (GIB * 1024 / 10) / 10.0)
+        bytes < BYTES_PER_GIB -> "${bytes / BYTES_PER_MIB / 10 * 10} MiB"
+        bytes < 10 * BYTES_PER_GIB -> "%.1f GiB".format(Locale.ROOT, bytes / (BYTES_PER_GIB / 10) / 10.0)
+        bytes < 1024 * BYTES_PER_GIB -> "${bytes / BYTES_PER_GIB} GiB"
+        else -> "%.1f TiB".format(Locale.ROOT, bytes / (BYTES_PER_GIB * 1024 / 10) / 10.0)
     }
 
     internal fun rowsBucket(rows: Long): String = when {

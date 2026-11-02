@@ -2,6 +2,7 @@ package com.tracel.storage.lsm.segment
 
 import com.github.luben.zstd.Zstd
 import com.tracel.platform.Versions
+import com.tracel.platform.io.closeQuietly
 import com.tracel.storage.ffm.Bytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
@@ -174,8 +175,8 @@ object SegmentFile {
         }
 
         override fun close() {
-            runCatching { out.close() }
-            runCatching { file.close() }
+            out.closeQuietly()
+            file.closeQuietly()
         }
 
         private fun flushBlock() {

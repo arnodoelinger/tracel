@@ -15,6 +15,7 @@ import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.line.LineStack
 import com.tracel.plugin.command.presenter.line.LoggedLine
+import com.tracel.plugin.util.MILLIS_PER_MINUTE
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -133,7 +134,7 @@ internal class LookupSearch(
     companion object {
         const val PAGE: Int = LookupPresenter.LOOKUP_PAGE
 
-        private const val GAP_MILLIS = 60_000L
+        private const val GAP_MILLIS = MILLIS_PER_MINUTE
         private const val WINDOW = 1000
     }
 }

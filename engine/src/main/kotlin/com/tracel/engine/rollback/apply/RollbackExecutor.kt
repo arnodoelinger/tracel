@@ -89,9 +89,7 @@ public class RollbackExecutor(
                 when (val done = steps[index]) {
                     is RollbackStep.Take -> {
                         val quantity = moved.getValue(done.lotId)
-                        check(quantity == done.quantity) {
-                            "lot ${done.lotId} holds ${quantity.raw} at ${done.holder}, the plan expected ${done.quantity.raw}"
-                        }
+                        expectHeld(done.lotId, quantity.raw, done.holder, done.quantity.raw)
                         val to = routeOf(done) ?: error("lot ${done.lotId} lost its destination mid-batch")
                         flows += Flow(ledger.itemKeyOf(done.lotId), quantity, done.holder, to, FlowKind.MOVE)
                     }
@@ -103,9 +101,7 @@ public class RollbackExecutor(
                         for (k in 0 until done.size) {
                             val lot = done.lotAt(k)
                             val quantity = moved.getValue(lot).raw
-                            check(quantity == done.quantities[k]) {
-                                "lot $lot holds $quantity at ${done.holder}, the plan expected ${done.quantities[k]}"
-                            }
+                            expectHeld(lot, quantity, done.holder, done.quantities[k])
                             sent.merge(uniform ?: target.destinationFor(plan, lot), quantity, Long::plus)
                         }
                         for ((to, quantity) in sent) flows += Flow(
@@ -231,9 +227,7 @@ public class RollbackExecutor(
                 } else {
                     ledger.withdrawExact(step.holder, step.lotId).also { ledger.deposit(escrow, listOf(it)) }.quantity
                 }
-                check(moved == step.quantity) {
-                    "lot ${step.lotId} holds ${moved.raw} at ${step.holder}, the plan expected ${step.quantity.raw}"
-                }
+                expectHeld(step.lotId, moved.raw, step.holder, step.quantity.raw)
                 listOf(Flow(itemKey, moved, step.holder, escrow, FlowKind.MOVE))
             }
 
@@ -243,9 +237,7 @@ public class RollbackExecutor(
                 var total = 0L
                 for (k in 0 until step.size) {
                     val quantity = moved.getValue(step.lotAt(k)).raw
-                    check(quantity == step.quantities[k]) {
-                        "lot ${step.lotAt(k)} holds $quantity at ${step.holder}, the plan expected ${step.quantities[k]}"
-                    }
+                    expectHeld(step.lotAt(k), quantity, step.holder, step.quantities[k])
                     total += quantity
                 }
                 listOf(Flow(ledger.itemKeyOf(step.lotAt(0)), Quantity(total), step.holder, escrow, FlowKind.MOVE))
@@ -304,4 +296,8 @@ public class RollbackExecutor(
     public companion object {
         public const val MAX_FLOWS_PER_TRANSACTION: Int = 8192
     }
+}
+
+private fun expectHeld(lot: LotId, held: Long, holder: HolderId, expected: Long) {
+    check(held == expected) { "lot $lot holds $held at $holder, the plan expected $expected" }
 }

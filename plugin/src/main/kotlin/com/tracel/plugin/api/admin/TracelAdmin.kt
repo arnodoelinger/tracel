@@ -5,26 +5,28 @@ import com.tracel.api.admin.AdminError
 import com.tracel.api.admin.AutoPurgeStatus
 import com.tracel.api.admin.ImportControl
 import com.tracel.api.admin.Migration
+import com.tracel.api.admin.PurgeCategory as ApiCategory
 import com.tracel.api.admin.PurgeReport
 import com.tracel.api.admin.PurgeRequest
 import com.tracel.api.admin.PurgeSummary
+import com.tracel.api.admin.PurgeTally as ApiTally
 import com.tracel.api.admin.Snapshot
 import com.tracel.api.admin.StoreStatus
 import com.tracel.api.admin.TransferSummary
 import com.tracel.api.result.Res
 import com.tracel.engine.foreign.NoRoomForImport
+import com.tracel.engine.store.ExportSummary as StoredExport
+import com.tracel.engine.store.PurgeCategory as StoredCategory
 import com.tracel.engine.store.PurgeFilter
+import com.tracel.engine.store.PurgeReport as StoredReport
 import com.tracel.engine.store.PurgeSpec
 import com.tracel.engine.store.StoppedByRequest
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.monitoring.LAG_PROBE_MILLIS
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import com.tracel.plugin.services.monitoring.Telemetry
+import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.rescue
 import org.bukkit.Bukkit
 import java.nio.file.AccessDeniedException
 import java.nio.file.FileSystemException
@@ -38,11 +40,10 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.logging.Level
 import kotlin.time.Duration.Companion.milliseconds
-import com.tracel.api.admin.PurgeCategory as ApiCategory
-import com.tracel.api.admin.PurgeTally as ApiTally
-import com.tracel.engine.store.ExportSummary as StoredExport
-import com.tracel.engine.store.PurgeCategory as StoredCategory
-import com.tracel.engine.store.PurgeReport as StoredReport
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val GATE_POLL_MILLIS = 500L
 private const val SNAPSHOT_SUFFIX = ".tracel"
@@ -152,22 +153,14 @@ internal class TracelAdmin(
     private suspend fun <T> guarded(work: suspend () -> Res<T, AdminError>): Res<T, AdminError> =
         if (alive()) fail(work) else Res.Err(AdminError.Revoked)
 
-    private suspend fun <T> fail(work: suspend () -> Res<T, AdminError>): Res<T, AdminError> = try {
-        work()
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (failure: Exception) {
-        Res.Err(errorOf(failure))
-    }
+    private suspend fun <T> fail(work: suspend () -> Res<T, AdminError>): Res<T, AdminError> =
+        rescue({ failure -> Res.Err(errorOf(failure)) }) { work() }
 
-    private suspend fun transfer(work: suspend () -> StoredExport): Res<TransferSummary, AdminError> = try {
-        val done = work()
-        Res.Ok(TransferSummary(done.rows, done.bytes, done.file, instant(done.oldest), instant(done.newest)))
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (failure: Exception) {
-        Res.Err(errorOf(failure))
-    }
+    private suspend fun transfer(work: suspend () -> StoredExport): Res<TransferSummary, AdminError> =
+        rescue({ failure -> Res.Err(errorOf(failure)) }) {
+            val done = work()
+            Res.Ok(TransferSummary(done.rows, done.bytes, done.file, instant(done.oldest), instant(done.newest)))
+        }
 
     private fun errorOf(failure: Exception): AdminError = when {
         failure is StoppedByRequest -> AdminError.Stopped
@@ -179,7 +172,7 @@ internal class TracelAdmin(
         else -> {
             Telemetry.error(failure)
             services.plugin.logger.log(Level.WARNING, "An admin call of $signer failed.", failure)
-            AdminError.Failed(failure.message ?: failure.javaClass.simpleName)
+            AdminError.Failed(failure.messageOrName())
         }
     }
 

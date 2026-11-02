@@ -50,6 +50,6 @@ internal fun MaterialRestorer.applyMobEquipment(
             runCatching { equipment.setDropChance(slot, 1f) }
             left -= give
         }
-        for (over in stacksOf(itemKey, left, template)) moves.overflow += itemKey to over
+        for (over in stacksOf(left, template)) moves.overflow += itemKey to over
     }
 }

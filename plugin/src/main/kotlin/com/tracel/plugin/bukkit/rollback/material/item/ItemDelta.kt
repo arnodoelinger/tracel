@@ -7,6 +7,7 @@ import com.tracel.plugin.bukkit.item.PendingItemForms
 import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.putOrReset
 import org.bukkit.Material
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
@@ -52,8 +53,7 @@ internal fun MaterialRestorer.stackFor(itemKey: ItemKey, amount: Int, form: Byte
     if (form != null) {
         val rebuilt =
             rebuiltForms[form]?.clone() ?: runCatching { ItemStack.deserializeBytes(form) }.getOrNull()?.also {
-                if (rebuiltForms.size >= MAX_REBUILT_FORMS) rebuiltForms.clear()
-                rebuiltForms[form] = it.clone()
+                rebuiltForms.putOrReset(MAX_REBUILT_FORMS, form, it.clone())
             }
         if (rebuilt != null) return rebuilt.apply { this.amount = amount }
         Warnings.once(logger, "form:$itemKey") {

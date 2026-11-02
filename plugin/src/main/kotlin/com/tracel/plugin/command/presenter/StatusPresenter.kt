@@ -3,11 +3,14 @@ package com.tracel.plugin.command.presenter
 import com.tracel.api.admin.AutoPurgeStatus
 import com.tracel.api.admin.PurgeCategory
 import com.tracel.api.admin.StoreStatus
-import com.tracel.plugin.command.action.shortSpan
-import com.tracel.plugin.util.tr
 import com.tracel.plugin.services.monitoring.DiskLevel
 import com.tracel.plugin.services.monitoring.Health
 import com.tracel.plugin.services.monitoring.RollbackSize
+import com.tracel.plugin.util.formatCount
+import com.tracel.plugin.util.shortSpan
+import com.tracel.plugin.util.toGib
+import com.tracel.plugin.util.toMib
+import com.tracel.plugin.util.tr
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.HoverEvent
@@ -140,11 +143,11 @@ internal object StatusPresenter {
     private fun percent(status: StoreStatus): String =
         if (status.diskTotal <= 0L) "?" else (status.diskFree * 100 / status.diskTotal).toString()
 
-    private fun count(n: Long): String = String.format(Locale.ENGLISH, "%,d", n)
+    private fun count(n: Long): String = formatCount(Locale.ENGLISH, n)
 
     private fun bytes(n: Long): String {
-        val gib = n / (1024.0 * 1024.0 * 1024.0)
+        val gib = n.toGib()
         return if (gib >= 1.0) "%.1f GB".format(Locale.ENGLISH, gib)
-        else "%.1f MB".format(Locale.ENGLISH, n / (1024.0 * 1024.0))
+        else "%.1f MB".format(Locale.ENGLISH, n.toMib())
     }
 }

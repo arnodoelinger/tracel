@@ -12,7 +12,7 @@ import com.tracel.plugin.bukkit.entity.toBlockPos
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.bukkit.entity.HitActor
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.ExpiringSet
 import io.papermc.paper.event.player.AsyncChatEvent
 import io.papermc.paper.event.player.PlayerTradeEvent
 import kotlin.math.roundToLong
@@ -64,7 +64,7 @@ private class BeaconSession(val block: Block, val before: Pair<String?, String?>
 class ActorEventListener(services: TracelServices) : TracelListener(services) {
     private val beaconBefore = ConcurrentHashMap<UUID, BeaconSession>()
 
-    private val pushed = ExpiringMap<Pair<UUID, UUID>, Boolean>(PUSH_QUIET_MILLIS, 4_096)
+    private val pushed = ExpiringSet<Pair<UUID, UUID>>(PUSH_QUIET_MILLIS, 4_096)
 
     @Observes
     fun onChat(event: AsyncChatEvent) =
@@ -196,7 +196,7 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         val player = event.entity as? Player ?: return
         if (cart.velocity.lengthSquared() > PUSHED_SPEED_SQ) return
         if (cart is ExplosiveMinecart) HitActor.hit(cart, HolderId.Player(player.uniqueId))
-        if (!pushed.putIfAbsent(player.uniqueId to cart.uniqueId, true)) return
+        if (!pushed.add(player.uniqueId to cart.uniqueId)) return
         record(EventKind.PUSH, player, cart.type.key.key, cart.toBlockPos())
     }
 

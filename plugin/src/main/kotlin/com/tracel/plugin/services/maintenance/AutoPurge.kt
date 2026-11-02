@@ -4,14 +4,16 @@ import com.tracel.engine.store.PurgeCategory
 import com.tracel.engine.store.PurgeFilter
 import com.tracel.engine.store.PurgeSpec
 import com.tracel.plugin.TracelPlugin
-import com.tracel.plugin.command.action.shortSpan
 import com.tracel.plugin.config.AutoPurgeSettings
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.MILLIS_PER_MINUTE
+import com.tracel.plugin.util.shortSpan
+import com.tracel.plugin.util.toMib
 import java.util.logging.Level
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.*
 
-private const val FIRST_RUN_DELAY_MILLIS = 5L * 60_000
+private const val FIRST_RUN_DELAY_MILLIS = 5L * MILLIS_PER_MINUTE
 
 /** Every `interval`, deletes what is older than `keep-*` for each category, for as long as the plugin lives. */
 internal fun startAutoPurge(plugin: TracelPlugin, services: TracelServices, settings: AutoPurgeSettings): Job? {
@@ -49,7 +51,7 @@ private suspend fun sweep(plugin: TracelPlugin, services: TracelServices, keep: 
             bytes += report.bytes
         }
         services.lastPurgeMillis = System.currentTimeMillis()
-        if (records > 0) plugin.logger.info("Automatic purge: took $records record(s), %.1f MiB.".format(bytes / (1024.0 * 1024.0)))
+        if (records > 0) plugin.logger.info("Automatic purge: took $records record(s), %.1f MiB.".format(bytes.toMib()))
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {

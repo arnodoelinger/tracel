@@ -1,14 +1,15 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.plugin.api.read.ActorHolders
 import com.tracel.api.item.ItemHolder
 import com.tracel.api.rollback.RollbackApplied
 import com.tracel.api.rollback.RollbackReady
 import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.world.NamespacedName
+import com.tracel.plugin.api.read.ActorHolders
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.util.failed
 import com.tracel.plugin.util.info
+import com.tracel.plugin.util.newlines
 import com.tracel.plugin.util.say
 import com.tracel.plugin.util.send
 import com.tracel.plugin.util.tr
@@ -49,7 +50,7 @@ object RollbackPresenter {
             if (ghosts > 0) add(info(tr("rollback.preview.ghost", "count" to ghosts, "seconds" to ghostSeconds)))
             add(tr("rollback.preview.would", "summary" to summary(ready).joined()))
         }
-        sender.say(Component.join(JoinConfiguration.newlines(), lines))
+        sender.say(newlines(lines))
     }
 
     /**
@@ -74,7 +75,7 @@ object RollbackPresenter {
                 add(undo)
             }
         }
-        sender.say(Component.join(JoinConfiguration.newlines(), lines))
+        sender.say(newlines(lines))
     }
 
     /** The undo, told like a rollback: what came back and how long it took. */
@@ -85,7 +86,7 @@ object RollbackPresenter {
             add(tr("undo.done.result", "changes" to done.changed))
             add(tr("common.label.time", "time" to took(tookMillis)))
         }
-        sender.say(Component.join(JoinConfiguration.newlines(), lines))
+        sender.say(newlines(lines))
     }
 
     /** A rollback that did not start or did not finish, told like every other failure: why, and what to do. */

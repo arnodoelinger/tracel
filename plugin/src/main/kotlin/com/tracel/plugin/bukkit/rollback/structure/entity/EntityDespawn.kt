@@ -5,13 +5,14 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.WorldId
 import com.tracel.plugin.bukkit.entity.cargoStacks
 import com.tracel.plugin.bukkit.entity.emptyCargo
+import com.tracel.plugin.bukkit.entity.sittingAt
 import com.tracel.plugin.bukkit.entity.takeOffShoulder
 import com.tracel.plugin.bukkit.entity.unleash
 import com.tracel.plugin.bukkit.entity.unleashHeld
-import com.tracel.plugin.bukkit.entity.sittingAt
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.entity.Despawn
 import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.messageOrName
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
@@ -52,7 +53,7 @@ internal fun StructureRestorer.despawn(
 
     // Unreadable is not empty: removing the hull would take whatever it carries along
     val cargo = runCatching { entity.cargoStacks() }.getOrElse {
-        return Despawn.Refused("could not read what the ${entity.type.name.lowercase()} carries: ${it.message ?: it::class.java.simpleName}")
+        return Despawn.Refused("could not read what the ${entity.type.name.lowercase()} carries: ${it.messageOrName()}")
     }
     if (cargo.isNotEmpty()) {
         val what = cargo.joinToString(", ") { "${it.type.name.lowercase()} x${it.amount}" }

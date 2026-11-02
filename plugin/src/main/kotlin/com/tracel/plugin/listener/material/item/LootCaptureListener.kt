@@ -9,6 +9,7 @@ import com.tracel.plugin.bukkit.item.toHolderId
 import com.tracel.plugin.bukkit.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
+import com.tracel.plugin.listener.support.flow.causeOr
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player
 import org.bukkit.event.block.BlockDispenseLootEvent
@@ -27,7 +28,7 @@ class LootCaptureListener(services: TracelServices) : TracelListener(services) {
         material.minted(
             totals = totals,
             into = holder,
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = causeOr(by, CauseKind.NATURAL),
             causedBy = by,
             at = at,
         )
@@ -41,7 +42,7 @@ class LootCaptureListener(services: TracelServices) : TracelListener(services) {
         val by = event.player?.let { HolderId.Player(it.uniqueId) }
         material.releasing(
             releases = listOf(BlockRelease(block.toHolderId(), block.world, block.x, block.y, block.z, totals)),
-            cause = if (by != null) CauseKind.PLAYER_ACTION else CauseKind.NATURAL,
+            cause = causeOr(by, CauseKind.NATURAL),
             causedBy = by,
             at = block.toBlockPos(),
         )

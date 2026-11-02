@@ -1,7 +1,6 @@
 package com.tracel.model.flow
 
 import com.tracel.model.holder.HolderId
-import com.tracel.model.item.ItemKey
 
 /**
  * Invariant I1: no flow is ever allowed to create or lose mass on its own —
@@ -19,6 +18,3 @@ public fun List<Flow>.netDeltaByHolder(): Map<HolderId, Long> {
     }
     return net.filterValues { it != 0L }
 }
-
-/** All item keys touched by this transaction's flows. */
-public fun List<Flow>.itemKeys(): Set<ItemKey> = mapTo(LinkedHashSet()) { it.itemKey }

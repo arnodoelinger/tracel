@@ -1,10 +1,15 @@
 package com.tracel.plugin.util
 
-/** Packs a chunk coordinate into a `Long`: 32 bits [x], 32 bits [z]. */
-internal fun chunkKey(x: Int, z: Int): Long = ((x shr 4).toLong() shl 32) or ((z shr 4).toLong() and 0xffffffffL)
+import com.tracel.model.world.TILE_SHIFT
+import com.tracel.model.world.packPair
+import com.tracel.model.world.pairHi
+import com.tracel.model.world.pairLo
+
+/** The chunk a block coordinate falls in, as a `Long`: 32 bits chunk x, 32 bits chunk z. */
+internal fun chunkKey(x: Int, z: Int): Long = packPair(x shr TILE_SHIFT, z shr TILE_SHIFT)
 
 /** X out of a key from [chunkKey]. */
-internal fun chunkKeyX(key: Long): Int = (key shr 32).toInt()
+internal fun chunkKeyX(key: Long): Int = pairHi(key)
 
 /** Z out of a key from [chunkKey]. */
-internal fun chunkKeyZ(key: Long): Int = key.toInt()
+internal fun chunkKeyZ(key: Long): Int = pairLo(key)

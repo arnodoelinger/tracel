@@ -11,6 +11,8 @@ import com.tracel.plugin.config.DEFAULT_PASTE_URL
 import com.tracel.plugin.config.Settings
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
 import com.tracel.plugin.rollback.result.report.SkippedStep
+import com.tracel.plugin.util.MILLIS_PER_DAY
+import com.tracel.plugin.util.MILLIS_PER_HOUR
 import org.bstats.bukkit.Metrics
 import org.bstats.charts.AdvancedPie
 import org.bstats.charts.DrilldownPie
@@ -42,8 +44,8 @@ internal object Telemetry {
     private val SPACES = Regex("\\s+")
 
     private const val OWN_PACKAGE = "com.tracel."
-    private const val HOUR = 3_600_000L
-    private const val DAY = 24 * HOUR
+    private const val HOUR = MILLIS_PER_HOUR
+    private const val DAY = MILLIS_PER_DAY
 
     private val charts = ConcurrentHashMap<String, ConcurrentHashMap<String, LongAdder>>()
     private val peakBacklog = AtomicLong()

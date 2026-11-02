@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm.state
 
+import com.tracel.platform.io.closeQuietly
 import com.tracel.storage.lsm.read.MemTableRun
 import com.tracel.storage.lsm.read.Run
 import com.tracel.storage.lsm.read.SegmentRun
@@ -64,8 +65,8 @@ class Version internal constructor(
 
     /** Closes the active and frozen tables. The segments are immutable and do not need closing. */
     internal fun closeMemTables() {
-        runCatching { active.close() }
-        frozen.forEach { runCatching { it.close() } }
+        active.closeQuietly()
+        frozen.forEach { it.closeQuietly() }
     }
 
     /**

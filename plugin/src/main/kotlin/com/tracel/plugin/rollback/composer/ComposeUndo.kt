@@ -11,6 +11,7 @@ import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
+import com.tracel.plugin.bukkit.block.isAirLike
 import com.tracel.plugin.bukkit.rollback.structure.redstone.redstoneCells
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
@@ -20,12 +21,12 @@ import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.bukkit.block.isAirLike
+import com.tracel.plugin.util.attempt
+import java.util.*
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import java.util.*
-import kotlin.coroutines.cancellation.CancellationException
 
 internal const val MAX_STACKED_JOBS = RollbackJobRepository.UNDO_DEPTH
 
@@ -140,12 +141,8 @@ private suspend fun RollbackComposer.undoFrozen(
             structureHalf.restore(putBack, StructurePass(force = true, keepCargoFor = undoKeepCargoFor))
         }
         val ledger = async {
-            try {
-                Result.success(services.undo.undo(job))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                Result.failure(failure)
+            attempt {
+                services.undo.undo(job)
             }
         }
         putting.await() to ledger.await()

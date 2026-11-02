@@ -34,7 +34,7 @@ internal fun MaterialRestorer.applyLectern(
         val held = if (current == null || current.isEmpty || current.type.isAir) null else current
         if (delta > 0) {
             when {
-                held != null -> for (over in stacksOf(itemKey, delta, template)) moves.overflow += itemKey to over
+                held != null -> for (over in stacksOf(delta, template)) moves.overflow += itemKey to over
                 else -> {
                     // Putting a book in opens it at page one: reopen it where it lay when it left
                     val page = LecternPages.take(lectern.block.toBlockPos())
@@ -42,7 +42,7 @@ internal fun MaterialRestorer.applyLectern(
                     inventory.setItem(0, template)
                     if (page != null && page > 0) openAt = page
                     if (delta > 1) {
-                        for (over in stacksOf(itemKey, delta - 1, template)) moves.overflow += itemKey to over
+                        for (over in stacksOf(delta - 1, template)) moves.overflow += itemKey to over
                     }
                 }
             }

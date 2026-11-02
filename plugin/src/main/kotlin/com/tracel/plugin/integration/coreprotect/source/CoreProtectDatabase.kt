@@ -1,5 +1,6 @@
 package com.tracel.plugin.integration.coreprotect.source
 
+import com.tracel.platform.io.closeQuietly
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
@@ -169,7 +170,7 @@ class CoreProtectDatabase private constructor(
     }
 
     override fun close() {
-        runCatching { connection.close() }
+        connection.closeQuietly()
     }
 
     private fun columns(table: String): Set<String> = runCatching {
@@ -236,7 +237,7 @@ class CoreProtectDatabase private constructor(
             return try {
                 CoreProtectDatabase(connection, location.prefix)
             } catch (failure: Throwable) {
-                runCatching { connection.close() }
+                connection.closeQuietly()
                 throw failure
             }
         }

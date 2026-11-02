@@ -44,7 +44,7 @@ class ExperienceListener(services: TracelServices) : TracelListener(services) {
 
     @Observes(priority = Priority.HIGHEST)
     fun holdPickupWhileRestoring(event: PlayerPickupExperienceEvent) {
-        if (services.listeners.frozen.isFrozen(event.experienceOrb.holder())) event.isCancelled = true
+        services.listeners.frozen.cancelIfFrozen(event.experienceOrb.holder(), event)
     }
 
     @Observes

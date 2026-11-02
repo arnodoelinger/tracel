@@ -39,7 +39,7 @@ internal fun MaterialRestorer.applyArmorStand(
                 remaining -= take
             }
             if (remaining > 0L) {
-                for (over in stacksOf(itemKey, remaining, template)) moves.overflow += itemKey to over
+                for (over in stacksOf(remaining, template)) moves.overflow += itemKey to over
             }
         } else {
             var remaining = -delta

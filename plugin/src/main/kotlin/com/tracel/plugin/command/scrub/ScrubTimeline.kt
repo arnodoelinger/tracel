@@ -2,6 +2,7 @@ package com.tracel.plugin.command.scrub
 
 import com.tracel.api.actor.Actor
 import com.tracel.api.history.BlockRecord
+import com.tracel.model.world.packPair
 import com.tracel.plugin.bukkit.block.BlockDataCache
 import org.bukkit.block.data.BlockData
 import java.time.Instant
@@ -202,7 +203,7 @@ internal class ScrubTimelineBuilder(
         palette.size - 1
     }
 
-    private fun pack(before: Int, after: Int): Long = (before.toLong() shl 32) or (after.toLong() and 0xFFFFFFFFL)
+    private fun pack(before: Int, after: Int): Long = packPair(before, after)
 
     private companion object {
         val AIR = setOf("minecraft:air", "minecraft:cave_air", "minecraft:void_air")
