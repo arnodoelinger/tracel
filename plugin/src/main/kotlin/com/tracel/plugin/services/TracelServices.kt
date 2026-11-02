@@ -30,7 +30,7 @@ import com.tracel.engine.world.GroundPositions
 import com.tracel.engine.world.WorldLog
 import com.tracel.platform.scheduler.TracelSchedulers
 import com.tracel.platform.storage.UnitOfWork
-import com.tracel.plugin.adapter.rollback.structure.rescue.rescueJoined
+import com.tracel.plugin.rollback.structure.rescue.rescueJoined
 import com.tracel.plugin.adapter.world.playerIsOnline
 import com.tracel.plugin.api.CommandApi
 import com.tracel.plugin.api.addon.Extensions

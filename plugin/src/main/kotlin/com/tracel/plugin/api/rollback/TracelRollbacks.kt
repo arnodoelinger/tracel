@@ -26,7 +26,7 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.world.TILE_SHIFT
-import com.tracel.plugin.adapter.rollback.composer.warmForPreview
+import com.tracel.plugin.rollback.composer.warmForPreview
 import com.tracel.plugin.specifics.block.isAirLike
 import com.tracel.model.holder.HolderId
 import com.tracel.model.cause.CauseKind as ModelCause

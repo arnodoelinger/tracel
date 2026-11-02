@@ -7,7 +7,7 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
-import com.tracel.plugin.adapter.rollback.material.item.WornStacks
+import com.tracel.plugin.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.report.RestorationReport

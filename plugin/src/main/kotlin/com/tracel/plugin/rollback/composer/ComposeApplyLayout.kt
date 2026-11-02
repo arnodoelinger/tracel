@@ -4,7 +4,7 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.adapter.rollback.structure.block.check.standsAlone
+import com.tracel.plugin.rollback.structure.block.check.standsAlone
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.util.holder.blockPos
 import java.util.*

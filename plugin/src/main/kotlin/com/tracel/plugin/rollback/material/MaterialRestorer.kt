@@ -7,9 +7,8 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
-import com.tracel.plugin.adapter.rollback.material.census.findVanished
-import com.tracel.plugin.adapter.rollback.material.census.locateDestinations
-import com.tracel.plugin.adapter.rollback.material.restoreDeltas
+import com.tracel.plugin.rollback.material.census.findVanished
+import com.tracel.plugin.rollback.material.census.locateDestinations
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable

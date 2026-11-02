@@ -11,7 +11,7 @@ import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
-import com.tracel.plugin.adapter.rollback.structure.redstone.redstoneCells
+import com.tracel.plugin.rollback.structure.redstone.redstoneCells
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
