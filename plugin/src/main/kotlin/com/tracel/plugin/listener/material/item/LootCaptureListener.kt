@@ -3,10 +3,10 @@ package com.tracel.plugin.listener.material.item
 import com.tracel.annotations.Observes
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.block.toHolderId
-import com.tracel.plugin.adapter.item.toHolderId
-import com.tracel.plugin.adapter.item.toItemTotals
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.item.toHolderId
+import com.tracel.plugin.bukkit.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.services.TracelServices

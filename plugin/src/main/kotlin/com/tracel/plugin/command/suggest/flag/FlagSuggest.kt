@@ -6,7 +6,7 @@ import com.tracel.plugin.command.suggest.Suggestion
 import com.tracel.plugin.command.suggest.quantity.presetsOf
 import com.tracel.plugin.command.suggest.quantity.suggestQuantity
 import com.tracel.plugin.command.suggest.rank
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.tr
 import net.kyori.adventure.text.Component
 
 internal object FlagSuggest {

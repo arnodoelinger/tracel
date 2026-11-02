@@ -15,6 +15,6 @@ internal suspend fun TracelServices.withItemLens(filter: LookupFilter): LookupFi
     if (extensions.itemLenses.all.isEmpty() || !Extensions.isCustomName(name) || filter.itemKeys.isNotEmpty()) {
         return filter
     }
-    val keys = extensions.itemKeysNamed(name, reading { log.itemKeys() }) { hash -> itemForms.find(hash) }
+    val keys = extensions.itemKeysNamed(name, reading { storage.log.itemKeys() }) { hash -> storage.itemForms.find(hash) }
     return if (keys.isEmpty()) filter else filter.copy(itemKeys = keys)
 }

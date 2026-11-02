@@ -16,16 +16,16 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.adapter.item.toItemTotals
-import com.tracel.plugin.actor.ActorHolders
+import com.tracel.plugin.bukkit.entity.toBlockPos
+import com.tracel.plugin.bukkit.item.toItemTotals
+import com.tracel.plugin.api.read.ActorHolders
 import com.tracel.plugin.api.Owned
 import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.api.write.TracelAttribution
 import com.tracel.plugin.integration.worldedit.EditBuffer
 import com.tracel.plugin.rollback.outside.OutsideReconciler
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.log.Warnings
+import com.tracel.plugin.util.Warnings
 import kotlinx.coroutines.launch
 import org.bukkit.block.data.BlockData
 import org.bukkit.entity.Player
@@ -45,7 +45,7 @@ internal class ServiceWrites(
 ) : AddonWrites {
     override fun recorder(addon: String, owned: Owned): AddonRecorder = Recorder(owned)
 
-    private val reconciler = OutsideReconciler(services.rolledBack, services.outside, services.scope) { kind ->
+    private val reconciler = OutsideReconciler(services.storage.rolledBack, services.outside, services.scope) { kind ->
         extensions.reversibles[kind]
     }
 
@@ -69,15 +69,15 @@ internal class ServiceWrites(
             }
             val at = player?.toBlockPos() ?: bound.place?.let(ApiConversions::pos)
             booking("read ${holder.kind} before a move.") {
-                bound.read()?.let { services.material.seedOnOpen(id, it.toItemTotals(), at, baseline = true) }
+                bound.read()?.let { services.capturing.material.seedOnOpen(id, it.toItemTotals(), at, baseline = true) }
             }
             val result = action()
             booking("write down a move in ${holder.kind}") {
                 val after = bound.read()?.toItemTotals().orEmpty()
                 if (player != null) {
-                    services.material.reconcile(listOf(player.inventory), player, extra = mapOf(id to after))
+                    services.capturing.material.reconcile(listOf(player.inventory), player, extra = mapOf(id to after))
                 } else {
-                    services.material.reconcile(id, after, CauseKind.PLUGIN, null, at)
+                    services.capturing.material.reconcile(id, after, CauseKind.PLUGIN, null, at)
                 }
             }
             return result
@@ -100,7 +100,7 @@ internal class ServiceWrites(
             val full = synchronized(this) {
                 if (closed) return
                 if (ticket == null) {
-                    ticket = services.pendingCaptures.owed()
+                    ticket = services.capturing.pendingCaptures.owed()
                     since = System.currentTimeMillis()
                 }
                 buffers.getOrPut(place.world) { EditBuffer(WorldId(place.world)) }
@@ -123,12 +123,12 @@ internal class ServiceWrites(
             }
             try {
                 for ((world, batch) in drained) {
-                    for ((action, edits) in batch) services.shape.edits(action, CauseKind.PLUGIN, by, world, edits, at)
+                    for ((action, edits) in batch) services.capturing.shape.edits(action, CauseKind.PLUGIN, by, world, edits, at)
                 }
             } catch (failure: Throwable) {
                 logger.log(Level.WARNING, "An addon's block batch could not be written down.", failure)
             } finally {
-                services.pendingCaptures.done(owed)
+                services.capturing.pendingCaptures.done(owed)
             }
         }
 

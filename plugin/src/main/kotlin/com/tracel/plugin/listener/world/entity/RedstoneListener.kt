@@ -5,11 +5,11 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.block.blastsWhenUsed
-import com.tracel.plugin.specifics.block.canPrimeTnt
-import com.tracel.plugin.specifics.block.isButtonOrLever
-import com.tracel.plugin.specifics.block.isPressurePlate
-import com.tracel.plugin.specifics.item.ignitesCreepers
+import com.tracel.plugin.bukkit.block.blastsWhenUsed
+import com.tracel.plugin.bukkit.block.canPrimeTnt
+import com.tracel.plugin.bukkit.block.isButtonOrLever
+import com.tracel.plugin.bukkit.block.isPressurePlate
+import com.tracel.plugin.bukkit.item.ignitesCreepers
 import org.bukkit.entity.Creeper
 import org.bukkit.entity.Player
 import org.bukkit.event.block.Action
@@ -34,7 +34,7 @@ class RedstoneListener(services: TracelServices) : TracelListener(services) {
         if (event is BlockMultiPlaceEvent) return
         if (!event.block.type.canPrimeTnt()) return
         val block = event.block
-        services.redstoneTriggers.recordPress(
+        services.listeners.redstoneTriggers.recordPress(
             block.world, block.x, block.y, block.z,
             HolderId.Player(event.player.uniqueId),
         )
@@ -49,7 +49,7 @@ class RedstoneListener(services: TracelServices) : TracelListener(services) {
             else -> false
         }
         if (!isPress) return
-        services.redstoneTriggers.recordPress(
+        services.listeners.redstoneTriggers.recordPress(
             block.world,
             block.x,
             block.y,
@@ -63,7 +63,7 @@ class RedstoneListener(services: TracelServices) : TracelListener(services) {
         if (event.entity is Player) return
         if (!event.block.type.isPressurePlate()) return
         val block = event.block
-        services.redstoneTriggers.recordPress(
+        services.listeners.redstoneTriggers.recordPress(
             block.world,
             block.x,
             block.y,
@@ -92,6 +92,6 @@ class RedstoneListener(services: TracelServices) : TracelListener(services) {
         val creeper = event.rightClicked as? Creeper ?: return
         val item = event.player.inventory.getItem(event.hand)
         if (!item.type.ignitesCreepers()) return
-        services.redstoneTriggers.recordCreeperIgnition(creeper.uniqueId, HolderId.Player(event.player.uniqueId))
+        services.listeners.redstoneTriggers.recordCreeperIgnition(creeper.uniqueId, HolderId.Player(event.player.uniqueId))
     }
 }

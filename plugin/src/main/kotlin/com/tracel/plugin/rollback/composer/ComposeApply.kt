@@ -8,8 +8,8 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.rollback.structure.redstone.redstoneCells
-import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.bukkit.rollback.structure.redstone.redstoneCells
+import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.rollback.result.outcome.*
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
@@ -50,7 +50,7 @@ internal suspend fun RollbackComposer.applyTracked(planned: Planned, strict: Boo
 
         val held = deltas.filter { (holder, moved) -> holder !is HolderId.Player || moved.values.any { it < 0L } }.keys
         var stale: Reservation.Stale? = null
-        val result = services.frozen.whileFrozen(held) { applyReserved(attempt, strict, deltas) { stale = it } }
+        val result = services.listeners.frozen.whileFrozen(held) { applyReserved(attempt, strict, deltas) { stale = it } }
         val fresh = stale ?: return if (result is RollbackResult.Done && left.isNotEmpty()) {
             result.copy(structure = result.structure + StructureReport(emptyList(), left))
         } else {
@@ -70,7 +70,7 @@ private suspend fun RollbackComposer.applyReserved(
 ): RollbackResult {
     val composite = planned.composite
 
-    val job = services.counters.nextRollbackJobId()
+    val job = services.storage.counters.nextRollbackJobId()
     val startedAtMillis = System.currentTimeMillis()
 
     val layout = layoutOf(planned, deltas)
@@ -136,7 +136,7 @@ private suspend fun RollbackComposer.applyReserved(
     val waking = (first.created.applied + destroyed.applied).redstoneCells().toList()
     if (waking.isNotEmpty()) services.scope.launch { structureHalf.wakeRedstone(waking.asSequence()) }
 
-    services.rolledBack.mark(job.raw, planned.taken, System.currentTimeMillis())
+    services.storage.rolledBack.mark(job.raw, planned.taken, System.currentTimeMillis())
 
     val structure = first.created + destroyed
     Telemetry.leftUndone(structure.skipped, later.material.failures)

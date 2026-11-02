@@ -201,10 +201,10 @@ class ArchitectureTest {
 
     private fun rollbackLayer(layer: String) = Konsist.scopeFromModule("plugin")
         .files
-        .filter { Regex("""/src/main/kotlin/com/tracel/plugin/(adapter/)?rollback/$layer/""").containsMatchIn(it.path) }
+        .filter { Regex("""/src/main/kotlin/com/tracel/plugin/(bukkit/)?rollback/$layer/""").containsMatchIn(it.path) }
 
     private fun importsRollback(text: String, vararg layers: String) = layers.any { layer ->
-        Regex("""^import com\.tracel\.plugin\.(adapter\.)?rollback\.$layer\.""", RegexOption.MULTILINE)
+        Regex("""^import com\.tracel\.plugin\.(bukkit\.)?rollback\.$layer\.""", RegexOption.MULTILINE)
             .containsMatchIn(text)
     }
 
@@ -251,8 +251,8 @@ class ArchitectureTest {
         Konsist.scopeFromModule("plugin")
             .files
             .filter { "/src/main/kotlin/" in it.path && "/com/tracel/plugin/rollback/" !in it.path }
-            .filterNot { "/com/tracel/plugin/adapter/rollback/" in it.path }
-            .filterNot { it.name == "TracelServices" }
+            .filterNot { "/com/tracel/plugin/bukkit/rollback/" in it.path }
+            .filterNot { it.name in setOf("TracelServices", "RestoreServices") }
             .assertFalse(testName = "rollback internals leak out") { importsRollback(it.text, "structure", "planning") }
     }
 
@@ -268,8 +268,8 @@ class ArchitectureTest {
     @Test
     fun `the plugin reaches storage only where it is wired together`() {
         Konsist.scopeFromModule("plugin").files
-            .filter { "/plugin/src/main/kotlin/" in it.path && "/plugin/startup/" !in it.path }
-            .assertFalse(testName = "plugin code outside startup imports storage") {
+            .filter { "/plugin/src/main/kotlin/" in it.path && "/plugin/services/startup/" !in it.path }
+            .assertFalse(testName = "plugin code outside services/startup imports storage") {
                 Regex("""^import com\.tracel\.storage\.""", RegexOption.MULTILINE).containsMatchIn(it.text)
             }
     }

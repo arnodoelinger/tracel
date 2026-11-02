@@ -7,9 +7,9 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.adapter.item.toHolderId
-import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.item.toItemTotals
+import com.tracel.plugin.bukkit.item.toHolderId
+import com.tracel.plugin.bukkit.item.toItemKey
+import com.tracel.plugin.bukkit.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.block.Crafter
@@ -25,7 +25,7 @@ class HopperListener(services: TracelServices) : TracelListener(services) {
     fun holdWhileRestoring(event: InventoryMoveItemEvent) {
         val source = event.source.toHolderId()
         val destination = event.destination.toHolderId()
-        if (source != null && services.frozen.isFrozen(source) || destination != null && services.frozen.isFrozen(
+        if (source != null && services.listeners.frozen.isFrozen(source) || destination != null && services.listeners.frozen.isFrozen(
                 destination
             )
         ) {

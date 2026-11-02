@@ -24,26 +24,26 @@ abstract class TracelListener(
     internal val services: TracelServices,
 ) : Listener {
     /** Shape capture. */
-    protected val shape: ShapeCapture get() = services.shape
+    protected val shape: ShapeCapture get() = services.capturing.shape
 
     /** Material capture. */
-    protected val material: MaterialCapture get() = services.material
+    protected val material: MaterialCapture get() = services.capturing.material
 
     /**
      * Rollback is rewriting the world.
      *
      * Those events are not history.
      */
-    protected val restoring: Boolean get() = services.selfManagedWorld.isRestoring
+    protected val restoring: Boolean get() = services.listeners.selfManagedWorld.isRestoring
 
     /** Schedules [work] on the region that owns [at] and makes flush wait for it. */
     protected fun later(at: Location, ticks: Long = 1L, work: () -> Unit) {
-        val ticket = services.pendingCaptures.owed()
+        val ticket = services.capturing.pendingCaptures.owed()
         Bukkit.getRegionScheduler().runDelayed(services.plugin, at, {
             try {
                 work()
             } finally {
-                services.pendingCaptures.done(ticket)
+                services.capturing.pendingCaptures.done(ticket)
             }
         }, ticks)
     }
@@ -54,20 +54,20 @@ abstract class TracelListener(
      * `Folia` will not let another thread read that entity.
      */
     protected fun later(entity: Entity, ticks: Long = 1L, work: () -> Unit) {
-        val ticket = services.pendingCaptures.owed()
+        val ticket = services.capturing.pendingCaptures.owed()
         val scheduled = entity.scheduler.runDelayed(services.plugin, {
             try {
                 work()
             } finally {
-                services.pendingCaptures.done(ticket)
+                services.capturing.pendingCaptures.done(ticket)
             }
-        }, { services.pendingCaptures.done(ticket) }, ticks)
-        if (scheduled == null) services.pendingCaptures.done(ticket)
+        }, { services.capturing.pendingCaptures.done(ticket) }, ticks)
+        if (scheduled == null) services.capturing.pendingCaptures.done(ticket)
     }
 
     /** Owing mechanism. Storage-thread work a flush must wait for. */
     protected fun owing(work: suspend () -> Unit) {
-        val ticket = services.pendingCaptures.owed()
-        services.scope.launch { work() }.invokeOnCompletion { services.pendingCaptures.done(ticket) }
+        val ticket = services.capturing.pendingCaptures.owed()
+        services.scope.launch { work() }.invokeOnCompletion { services.capturing.pendingCaptures.done(ticket) }
     }
 }

@@ -25,7 +25,7 @@ import org.bukkit.inventory.EquipmentSlot
 /** The inspector. */
 @Unstable
 class InspectListener(services: TracelServices) : TracelListener(services) {
-    private fun Player.inspecting(): Boolean = services.inspectors.isActive(uniqueId)
+    private fun Player.inspecting(): Boolean = services.listeners.inspectors.isActive(uniqueId)
 
     @Observes(priority = Priority.LOWEST, ignoreCancelled = false)
     fun onInteract(event: PlayerInteractEvent) {
@@ -104,6 +104,6 @@ class InspectListener(services: TracelServices) : TracelListener(services) {
 
     @Observes(priority = Priority.NORMAL, ignoreCancelled = false)
     fun onQuit(event: PlayerQuitEvent) {
-        services.inspectors.clear(event.player.uniqueId)
+        services.listeners.inspectors.clear(event.player.uniqueId)
     }
 }

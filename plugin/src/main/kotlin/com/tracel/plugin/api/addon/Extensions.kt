@@ -1,6 +1,6 @@
 package com.tracel.plugin.api.addon
 
-import com.tracel.plugin.actor.ActorHolders
+import com.tracel.plugin.api.read.ActorHolders
 import com.tracel.api.addon.ActorKind
 import com.tracel.api.addon.BlockLens
 import com.tracel.api.addon.CustomEventType
@@ -19,14 +19,14 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.block.BlockDataKey
-import com.tracel.plugin.adapter.block.BlockDataCache
+import com.tracel.plugin.bukkit.block.BlockDataCache
 import com.tracel.plugin.rollback.RollbackSignals
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
-import com.tracel.plugin.util.log.Warnings
+import com.tracel.plugin.util.Warnings
 import net.kyori.adventure.text.Component
 import org.bukkit.inventory.ItemStack
 import java.util.Optional

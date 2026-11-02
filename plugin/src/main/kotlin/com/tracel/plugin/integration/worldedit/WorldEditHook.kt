@@ -22,10 +22,10 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.adapter.block.*
-import com.tracel.plugin.adapter.world.ownsChunkAt
+import com.tracel.plugin.bukkit.block.*
+import com.tracel.plugin.bukkit.world.ownsChunkAt
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.log.Warnings
+import com.tracel.plugin.util.Warnings
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import org.bukkit.Bukkit
 import org.bukkit.World
@@ -209,7 +209,7 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
             val slots = block.cargoSlots()
             val cargo = if (slots != null && slots.holdsAnything()) {
                 val holder = block.toHolderId()
-                services.material.captureSlotLayout(holder, slots)
+                services.capturing.material.captureSlotLayout(holder, slots)
                 block.cargoTotals()?.takeIf { it.isNotEmpty() }?.let { Cargo(holder, it) }
             } else {
                 null
@@ -219,7 +219,7 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
 
         private fun note(x: Int, y: Int, z: Int, before: Before, after: BlockShape) {
             if (before.cargo != null && before.shape.data != after.data) {
-                services.material.destroyed(
+                services.capturing.material.destroyed(
                     holder = before.cargo.holder,
                     present = before.cargo.totals,
                     at = BlockPos(worldId, x, y, z),
@@ -230,7 +230,7 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
             val full: Boolean
             synchronized(lock) {
                 if (buffer.note(x, y, z, before.shape, after)) {
-                    ticket = services.pendingCaptures.owed()
+                    ticket = services.capturing.pendingCaptures.owed()
                     since = System.currentTimeMillis()
                     live += this
                 }
@@ -258,10 +258,10 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
             }
             try {
                 for ((action, edits) in batch) {
-                    services.shape.edits(action, CauseKind.PLAYER_ACTION, by, worldId, edits, at)
+                    services.capturing.shape.edits(action, CauseKind.PLAYER_ACTION, by, worldId, edits, at)
                 }
             } finally {
-                services.pendingCaptures.done(owed)
+                services.capturing.pendingCaptures.done(owed)
             }
         }
     }

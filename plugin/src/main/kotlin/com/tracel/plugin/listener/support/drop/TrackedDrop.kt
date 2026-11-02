@@ -7,13 +7,13 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.adapter.entity.remember
-import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.item.toItemStacks
+import com.tracel.plugin.bukkit.entity.remember
+import com.tracel.plugin.bukkit.item.toItemKey
+import com.tracel.plugin.bukkit.item.toItemStacks
 import com.tracel.plugin.listener.support.flow.releaseFlows
 import com.tracel.plugin.listener.support.flow.worldgenMintFlows
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.log.Warnings
+import com.tracel.plugin.util.Warnings
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -40,12 +40,12 @@ internal fun TracelServices.dropTracked(
     world: World,
     location: Location,
 ): InventoryDelta {
-    val item = selfManagedSpawns.whileSpawning { world.dropItemNaturally(location, stack) }
+    val item = listeners.selfManagedSpawns.whileSpawning { world.dropItemNaturally(location, stack) }
 
     // Track until pickup / rollback: blast merge swaps UUID, ledger names the dead one, diamonds stay
-    selfManagedSpawns.track(item.uniqueId)
+    listeners.selfManagedSpawns.track(item.uniqueId)
     // the vanished check asks from the global thread, blind to this region: without a hint the pile read as gone
-    groundWhereabouts.remember(item)
+    listeners.groundWhereabouts.remember(item)
     return InventoryDelta(HolderId.ItemEntity(item.uniqueId), itemKey, stack.amount.toLong())
 }
 
@@ -56,11 +56,11 @@ internal fun TracelServices.dropTrackedOrb(
     location: Location,
 ): InventoryDelta {
     val value = points.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    val orb = selfManagedSpawns.whileSpawning {
+    val orb = listeners.selfManagedSpawns.whileSpawning {
         world.spawn(location, ExperienceOrb::class.java) { it.experience = value }
     }
-    selfManagedSpawns.track(orb.uniqueId)
-    groundWhereabouts.remember(orb)
+    listeners.selfManagedSpawns.track(orb.uniqueId)
+    listeners.groundWhereabouts.remember(orb)
     return InventoryDelta(HolderId.ItemEntity(orb.uniqueId), itemKey, value.toLong())
 }
 
@@ -80,10 +80,10 @@ fun TracelServices.releaseAsTrackedDrops(
     val physical = removed?.filter { !it.type.isAir && it.amount > 0 }
 
     // Flush / owed: two region ticks plus storage sit between return and write; untracked flush skips them
-    val ticket = pendingCaptures.owed()
+    val ticket = capturing.pendingCaptures.owed()
     scope.launch {
         try {
-            val believed = atomically { ledger.totalsAt(holder) }.mapValues { it.value.raw }
+            val believed = atomically { storage.ledger.totalsAt(holder) }.mapValues { it.value.raw }
 
             // Physical truth hits the floor; ledger only sizes the mint vs move (releaseFlows)
             val keyed: List<Pair<ItemStack, ItemKey>>? =
@@ -108,16 +108,16 @@ fun TracelServices.releaseAsTrackedDrops(
                 val flows = releaseFlows(holder, believed, release, spawned)
                 val (mints, rest) = flows.partition { it.kind == FlowKind.MINT }
                 atomically {
-                    if (mints.isNotEmpty()) capture.recordDirect(mints, epochMillis - 1, CauseKind.NATURAL, null, where)
-                    if (rest.isNotEmpty()) capture.recordDirect(rest, epochMillis, cause, causedBy, where)
+                    if (mints.isNotEmpty()) capturing.capture.recordDirect(mints, epochMillis - 1, CauseKind.NATURAL, null, where)
+                    if (rest.isNotEmpty()) capturing.capture.recordDirect(rest, epochMillis, cause, causedBy, where)
                 }
             }
         } catch (e: IllegalStateException) {
             releaseLogger.log(Level.FINE, "untracked material in $holder, not recorded", e)
         }
-        differ.forget(holder)
+        capturing.differ.forget(holder)
         andThen?.invoke()
-    }.invokeOnCompletion { pendingCaptures.done(ticket) }
+    }.invokeOnCompletion { capturing.pendingCaptures.done(ticket) }
 }
 
 private val releaseLogger = Logger.getLogger("SelfManagedDrop")
@@ -144,12 +144,12 @@ fun TracelServices.recordAt(
     if (deltas.isEmpty()) return
     val where = BlockPos(WorldId(at.world.uid), at.blockX, at.blockY, at.blockZ)
     // Owed before launch: click-then-rollback flush used to skip this write
-    val ticket = pendingCaptures.owed()
+    val ticket = capturing.pendingCaptures.owed()
     scope.launch {
         try {
             atomically {
                 if (mintShortfallAt != null) mintUnseen(mintShortfallAt, deltas, epochMillis, cause, causedBy, where)
-                capture.record(deltas, epochMillis, cause, causedBy, where)
+                capturing.capture.record(deltas, epochMillis, cause, causedBy, where)
             }
         } catch (e: IllegalStateException) {
             Warnings.once(releaseLogger, "untracked:$cause:${causedBy ?: where}") {
@@ -157,7 +157,7 @@ fun TracelServices.recordAt(
                         "— a rollback cannot put back what was never written down (${e.message})"
             }
         }
-    }.invokeOnCompletion { pendingCaptures.done(ticket) }
+    }.invokeOnCompletion { capturing.pendingCaptures.done(ticket) }
 }
 
 private suspend fun TracelServices.mintUnseen(
@@ -175,7 +175,7 @@ private suspend fun TracelServices.mintUnseen(
     }
     if (leaving.isEmpty()) return
 
-    val believed = ledger.totalsAt(holder).mapValues { it.value.raw }
+    val believed = storage.ledger.totalsAt(holder).mapValues { it.value.raw }
     val shortfall = LinkedHashMap<ItemKey, Long>()
     for ((itemKey, amount) in leaving) {
         val missing = amount - (believed[itemKey] ?: 0L)
@@ -183,6 +183,6 @@ private suspend fun TracelServices.mintUnseen(
     }
     if (shortfall.isEmpty()) return
 
-    for ((itemKey, amount) in shortfall) differ.adjust(holder, itemKey, amount)
-    capture.recordDirect(worldgenMintFlows(shortfall, holder), epochMillis - 1, CauseKind.NATURAL, null, where)
+    for ((itemKey, amount) in shortfall) capturing.differ.adjust(holder, itemKey, amount)
+    capturing.capture.recordDirect(worldgenMintFlows(shortfall, holder), epochMillis - 1, CauseKind.NATURAL, null, where)
 }

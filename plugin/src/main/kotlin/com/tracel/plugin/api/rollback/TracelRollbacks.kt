@@ -1,6 +1,6 @@
 package com.tracel.plugin.api.rollback
 
-import com.tracel.plugin.actor.ActorHolders
+import com.tracel.plugin.api.read.ActorHolders
 import com.tracel.api.actor.Actor
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.history.RecordKind
@@ -26,13 +26,13 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.world.TILE_SHIFT
-import com.tracel.plugin.rollback.composer.warmForPreview
-import com.tracel.plugin.specifics.block.isAirLike
+import com.tracel.plugin.bukkit.rollback.composer.warmForPreview
+import com.tracel.plugin.bukkit.block.isAirLike
 import com.tracel.model.holder.HolderId
 import com.tracel.model.cause.CauseKind as ModelCause
 import com.tracel.model.rollback.RollbackJobId as ModelJob
 import com.tracel.plugin.api.read.ApiConversions
-import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.api.read.MaterialResolver
 import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.api.read.MaterialAliases
@@ -93,19 +93,19 @@ internal open class TracelRollbacks(
 
     override suspend fun undoPreview(job: RollbackJobId): Res<UndoPreview, RollbackError> {
         refusal()?.let { return Res.Err(it) }
-        if (!services.composite.isUndoable(by, ModelJob(job.raw))) return Res.Err(RollbackError.NotUndoable)
-        val record = services.atomically { services.jobs.find(ModelJob(job.raw)) }
+        if (!services.restoring.composite.isUndoable(by, ModelJob(job.raw))) return Res.Err(RollbackError.NotUndoable)
+        val record = services.atomically { services.storage.jobs.find(ModelJob(job.raw)) }
             ?: return Res.Err(RollbackError.NotUndoable)
         return Res.Ok(UndoPreview(job, entityTypes((record.create + record.destroy).map { it.inverse() })))
     }
 
     override suspend fun latest(): RollbackJobId? =
-        services.composite.lastUndoable(by)?.let { RollbackJobId(it.raw) }
+        services.restoring.composite.lastUndoable(by)?.let { RollbackJobId(it.raw) }
 
     override suspend fun <T> hold(area: LookupArea?, block: suspend () -> T): Res<T, RollbackError> {
         refusal()?.let { return Res.Err(it) }
         val region = area?.let(ApiConversions::region)
-        return gated { Res.Ok(services.composite.holdingStill(region) { withContext(Held) { block() } }) }
+        return gated { Res.Ok(services.restoring.composite.holdingStill(region) { withContext(Held) { block() } }) }
     }
 
     private fun refusal(): RollbackError? = when {
@@ -119,11 +119,11 @@ internal open class TracelRollbacks(
     }
 
     private suspend fun <T> still(region: LookupRegion?, work: suspend () -> T): T =
-        if (coroutineContext[Held.Key] != null) work() else services.composite.holdingStill(region, work)
+        if (coroutineContext[Held.Key] != null) work() else services.restoring.composite.holdingStill(region, work)
 
     private suspend fun <T> gated(work: suspend () -> Res<T, RollbackError>): Res<T, RollbackError> {
         if (coroutineContext[Held.Key] != null) return work()
-        if (!services.composite.claimGate()) return Res.Err(RollbackError.Busy)
+        if (!services.restoring.composite.claimGate()) return Res.Err(RollbackError.Busy)
         return try {
             services.purgeGate.awaitSlice()
             work()
@@ -133,7 +133,7 @@ internal open class TracelRollbacks(
             Telemetry.error(failure)
             Res.Err(RollbackError.Failed(failure.message ?: failure.javaClass.simpleName))
         } finally {
-            services.composite.releaseGate()
+            services.restoring.composite.releaseGate()
         }
     }
 
@@ -157,15 +157,15 @@ internal open class TracelRollbacks(
             .let { Res.Ok(it) }
     }
 
-    private suspend fun plan(query: HistoryQuery, filter: LookupFilter): Planned = services.composite.plan(
+    private suspend fun plan(query: HistoryQuery, filter: LookupFilter): Planned = services.restoring.composite.plan(
         filter,
         structure = RecordKind.BLOCK in query.kinds || RecordKind.ENTITY in query.kinds,
         material = RecordKind.ITEM in query.kinds,
     )
 
     private suspend fun undoGated(job: ModelJob): Res<RollbackUndone, RollbackError> {
-        if (!services.composite.isUndoable(by, job)) return Res.Err(RollbackError.NotUndoable)
-        return when (val outcome = services.composite.undo(job)) {
+        if (!services.restoring.composite.isUndoable(by, job)) return Res.Err(RollbackError.NotUndoable)
+        return when (val outcome = services.restoring.composite.undo(job)) {
             is UndoResult.Done -> Res.Ok(
                 RollbackUndone(
                     RollbackJobId(job.raw),
@@ -190,7 +190,7 @@ internal open class TracelRollbacks(
 
     private suspend fun blocked(outcome: Blocked): RollbackError.Blocked {
         val holds = outcome.conflicts.values.groupingBy { it }.eachCount().map { (job, lots) ->
-            val owner = services.atomically { services.jobs.find(job) }?.by
+            val owner = services.atomically { services.storage.jobs.find(job) }?.by
             RollbackError.Blocked.Hold(RollbackJobId(job.raw), ActorHolders.actor(owner, ModelCause.UNKNOWN), lots)
         }
         return RollbackError.Blocked(holds.sortedBy { it.job })
@@ -266,12 +266,12 @@ internal open class TracelRollbacks(
         private suspend fun applyGated(): Res<RollbackApplied, RollbackError> =
             still(filter.region) {
                 val strict = draft.conflicts == ConflictPolicy.SKIP
-                when (val outcome = services.composite.apply(planned.copy(by = by), strict)) {
+                when (val outcome = services.restoring.composite.apply(planned.copy(by = by), strict)) {
                     is RollbackResult.Done -> {
                         val items = material.takeCount + material.unmakeCount + material.mintCount
                         if (outcome.structure.count == 0 && items == 0) {
-                            services.atomically { services.jobs.markUndone(outcome.job) }
-                            services.rolledBack.restore(outcome.job.raw)
+                            services.atomically { services.storage.jobs.markUndone(outcome.job) }
+                            services.storage.rolledBack.restore(outcome.job.raw)
                         }
                         Res.Ok(Applied(outcome))
                     }

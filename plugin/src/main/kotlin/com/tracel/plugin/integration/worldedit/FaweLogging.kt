@@ -12,8 +12,8 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.block.AIR
-import com.tracel.plugin.util.log.Warnings
+import com.tracel.plugin.bukkit.block.AIR
+import com.tracel.plugin.util.Warnings
 import java.util.*
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -90,7 +90,7 @@ private class ChunkLogger(
     private fun send(buffer: EditBuffer, epochMillis: Long) {
         for ((action, edits) in buffer.drain()) {
             for (slice in edits.chunked(BATCH)) {
-                services.shape.edits(action, CauseKind.PLAYER_ACTION, by, world, slice, epochMillis)
+                services.capturing.shape.edits(action, CauseKind.PLAYER_ACTION, by, world, slice, epochMillis)
             }
         }
     }

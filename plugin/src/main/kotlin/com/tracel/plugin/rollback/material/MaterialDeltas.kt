@@ -14,7 +14,7 @@ internal suspend fun MaterialRestorer.planDeltas(
     plan: RollbackPlan,
     target: RollbackTarget
 ): Map<HolderId, Map<ItemKey, Long>> =
-    physicalDeltas(plan, target, services.ledger)
+    physicalDeltas(plan, target, services.storage.ledger)
 
 /** Undo deltas. */
 internal fun MaterialRestorer.undoDeltas(

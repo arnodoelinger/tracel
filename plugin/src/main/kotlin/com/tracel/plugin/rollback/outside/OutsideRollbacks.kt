@@ -30,7 +30,7 @@ internal class OutsideRollbacks(
     private val inner: RollbackGenius,
     private val extensions: Extensions,
 ) : RollbackGenius by inner {
-    private val reconciler = OutsideReconciler(services.rolledBack, services.outside, services.scope) { kind ->
+    private val reconciler = OutsideReconciler(services.storage.rolledBack, services.outside, services.scope) { kind ->
         extensions.reversibles[kind]
     }
 
@@ -71,14 +71,14 @@ internal class OutsideRollbacks(
 
     private suspend fun reversibleIn(filter: LookupFilter): List<OutsideStep> {
         val wide = filter.copy(limit = Int.MAX_VALUE, offset = 0)
-        val found = services.reading { services.events.query(wide, setOf(EventKind.CUSTOM)) }.mapNotNull { event ->
+        val found = services.reading { services.storage.events.query(wide, setOf(EventKind.CUSTOM)) }.mapNotNull { event ->
             val raw = event.text ?: return@mapNotNull null
             val text = raw.substringAfter(' ', "")
             if (!EventText.isReversible(text)) return@mapNotNull null
             OutsideStep(event.seq.raw, raw.substringBefore(' '), text)
         }
         if (found.isEmpty()) return found
-        val held = services.rolledBack.of(found.map { it.seq })
+        val held = services.storage.rolledBack.of(found.map { it.seq })
         return found.filter { it.seq !in held }
     }
 

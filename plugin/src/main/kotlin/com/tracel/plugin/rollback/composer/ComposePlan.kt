@@ -17,8 +17,8 @@ import com.tracel.plugin.rollback.survey.rooting.awayFromAirToAir
 import com.tracel.plugin.rollback.survey.rooting.awayFromEntitiesGone
 import com.tracel.plugin.rollback.survey.withStructuralPartners
 import com.tracel.plugin.rollback.survey.withTrails
-import com.tracel.plugin.specifics.world.VanillaWorldRules
-import com.tracel.plugin.util.geometry.chunkKey
+import com.tracel.plugin.bukkit.world.VanillaWorldRules
+import com.tracel.plugin.util.chunkKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -49,8 +49,8 @@ internal suspend fun RollbackComposer.planRollback(
     val (matchedChanges, matchedTxns) = if (!structure && !material) {
         emptyList<WorldChange>() to emptyList()
     } else {
-        services.worldLog.queryTogether(
-            services.log,
+        services.storage.worldLog.queryTogether(
+            services.storage.log,
             wide,
             includeWorld = structure,
             structureEnds = structure,
@@ -58,7 +58,7 @@ internal suspend fun RollbackComposer.planRollback(
     }
 
     // Imported history is read-only
-    val importedBelow = services.foreign.importedBelow()
+    val importedBelow = services.storage.foreign.importedBelow()
 
     // Nothing imported is the usual case, and then there is nothing to cut out of a few million rows
     val (changes, txns, imported) = if (importedBelow <= 0L) Triple(matchedChanges, matchedTxns, 0) else {
@@ -88,7 +88,7 @@ internal suspend fun RollbackComposer.planRollback(
         .filterNot { it.action == ActionKind.BLOCK_CLICK || it.seq.raw < importedBelow }
 
     val everyChangeRead = if (!structure || changes.isEmpty()) null else async {
-        services.worldLog.query(wide)
+        services.storage.worldLog.query(wide)
     }
 
     // Structure first, then material
@@ -156,7 +156,7 @@ private fun LookupFilter.leavesNothingOut(): Boolean =
 
 private suspend fun RollbackComposer.flushedFully(): Boolean {
     val deadline = System.currentTimeMillis() + FULL_FLUSH_SECONDS * 1_000L
-    while (!services.flushCapture()) {
+    while (!services.capturing.flushCapture()) {
         if (System.currentTimeMillis() >= deadline) return false
         delay(FLUSH_ROUND_PAUSE_MILLIS.milliseconds)
     }

@@ -11,11 +11,11 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.adapter.block.container
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.block.toHolderId
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.adapter.item.*
+import com.tracel.plugin.bukkit.block.container
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.entity.toBlockPos
+import com.tracel.plugin.bukkit.item.*
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.drop.CraftDrop
@@ -84,7 +84,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
         val epochMillis = System.currentTimeMillis()
 
         // Diffed here, in click order: on the storage thread a second craft had already moved the snapshot on
-        val seeded = services.differ.diffIfSeeded(playerHolder, totals)
+        val seeded = services.capturing.differ.diffIfSeeded(playerHolder, totals)
 
         owing {
             try {
@@ -119,7 +119,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
      */
     @Observes(priority = Priority.HIGHEST)
     fun holdCrafterWhileRestoring(event: CrafterCraftEvent) {
-        if (services.frozen.isFrozen(event.block.toHolderId())) event.isCancelled = true
+        if (services.listeners.frozen.isFrozen(event.block.toHolderId())) event.isCancelled = true
     }
 
     @Observes
@@ -173,7 +173,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
                     )
                     if (into != null) {
                         material.adjust(into, productKey, productQty)
-                        services.capture.recordDirect(
+                        services.capturing.capture.recordDirect(
                             listOf(Flow(productKey, Quantity(productQty), holder, into, FlowKind.MOVE)),
                             epochMillis, CauseKind.CRAFT, null, at,
                         )

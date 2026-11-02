@@ -1,5 +1,8 @@
 package com.tracel.plugin.util.geometry
 
+import com.tracel.plugin.util.Facing
+import com.tracel.plugin.util.facingFromPose
+import com.tracel.plugin.util.facingFromYaw
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 

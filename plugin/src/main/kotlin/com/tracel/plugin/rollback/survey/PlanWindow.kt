@@ -35,7 +35,7 @@ internal suspend fun RollbackComposer.withTrails(
     val seen = changes.mapTo(HashSet()) { it.seq }
     val extra = ArrayList<WorldChange>()
     for (layer in layers) {
-        val trail = services.worldLog.query(
+        val trail = services.storage.worldLog.query(
             windowFilter.copy(
                 holders = setOf(HolderId.Entity(layer)),
                 region = null,
@@ -78,7 +78,7 @@ internal suspend fun RollbackComposer.withStructuralPartners(
             minZ = cells.minOf { it.z }, maxZ = cells.maxOf { it.z },
         )
         val wanted = cells.toHashSet()
-        services.worldLog.query(windowFilter.copy(region = box)).filterTo(extra) { it.at in wanted }
+        services.storage.worldLog.query(windowFilter.copy(region = box)).filterTo(extra) { it.at in wanted }
     }
     return if (extra.isEmpty()) changes else changes + extra
 }

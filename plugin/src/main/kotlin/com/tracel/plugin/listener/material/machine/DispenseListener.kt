@@ -6,9 +6,9 @@ import com.tracel.annotations.Unstable
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.block.toHolderId
-import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.DispenseCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
@@ -24,7 +24,7 @@ import org.bukkit.event.block.BlockDispenseEvent
 class DispenseListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.HIGHEST) // A monitor cannot cancel
     fun holdWhileRestoring(event: BlockDispenseEvent) {
-        if (services.frozen.isFrozen(event.block.toHolderId())) event.isCancelled = true
+        if (services.listeners.frozen.isFrozen(event.block.toHolderId())) event.isCancelled = true
     }
 
     @Observes
@@ -41,10 +41,10 @@ class DispenseListener(services: TracelServices) : TracelListener(services) {
         val itemKey = item.toItemKey()
         val quantity = item.amount.toLong()
 
-        val by = services.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
+        val by = services.listeners.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
         val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION
         else if (block.type == Material.DROPPER) CauseKind.DROPPER else CauseKind.DISPENSER
-        services.redstoneTriggers.recordDispense(block.location, by ?: dispenser)
+        services.listeners.redstoneTriggers.recordDispense(block.location, by ?: dispenser)
 
         val facing = (block.blockData as? Directional)?.facing
         if (by != null && facing != null && item.type.name.endsWith("_SPAWN_EGG")) DispenseCell.fired(

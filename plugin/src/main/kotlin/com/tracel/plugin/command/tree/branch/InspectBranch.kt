@@ -6,7 +6,7 @@ import com.tracel.plugin.command.brigadier.literal
 import com.tracel.plugin.command.brigadier.requiresPermission
 import com.tracel.plugin.command.permission.Permission
 import com.tracel.plugin.command.tree.CommandActions
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel inspect`. */

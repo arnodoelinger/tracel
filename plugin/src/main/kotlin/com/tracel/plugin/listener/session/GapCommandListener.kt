@@ -4,8 +4,8 @@ import com.tracel.annotations.Observes
 import com.tracel.model.cause.CauseKind
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.command.GapCommand
-import com.tracel.plugin.specifics.command.VANILLA_NAMESPACE
+import com.tracel.plugin.bukkit.command.GapCommand
+import com.tracel.plugin.bukkit.command.VANILLA_NAMESPACE
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.event.player.PlayerCommandPreprocessEvent

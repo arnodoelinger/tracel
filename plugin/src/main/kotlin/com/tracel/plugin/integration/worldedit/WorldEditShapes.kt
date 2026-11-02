@@ -3,7 +3,7 @@ package com.tracel.plugin.integration.worldedit
 import com.sk89q.worldedit.world.block.BlockState
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.adapter.block.BlockDataCache
+import com.tracel.plugin.bukkit.block.BlockDataCache
 import java.util.concurrent.ConcurrentHashMap
 
 private val shapes = ConcurrentHashMap<BlockState, BlockShape>()

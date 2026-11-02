@@ -11,7 +11,7 @@ import com.tracel.model.event.ActorEvent
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.WorldChange
 import com.tracel.plugin.api.addon.withItemLens
-import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
 
@@ -71,7 +71,7 @@ internal class HistoryRows(
         }
         return try {
             val rows = CursorPager.page(sources, from, size)
-            val rolled = services.rolledBack.of(rows.rows.mapNotNull(Row::rollable))
+            val rolled = services.storage.rolledBack.of(rows.rows.mapNotNull(Row::rollable))
             Res.Ok(RowPage(rows.rows, rows.next, rolled, first ?: LookupFilter()))
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -102,12 +102,12 @@ internal class HistoryRows(
         val sources = ArrayList<LogSource<Row>>(3)
         if (RecordKind.BLOCK in query.kinds || RecordKind.ENTITY in query.kinds) {
             sources += LogSource({ at, limit ->
-                services.reading { services.worldLog.query(filter.copy(until = at, limit = limit)) }.map(Row::World)
+                services.reading { services.storage.worldLog.query(filter.copy(until = at, limit = limit)) }.map(Row::World)
             }, Row::cursor, until)
         }
         if (RecordKind.ITEM in query.kinds) {
             sources += LogSource({ at, limit ->
-                services.reading { services.log.query(filter.copy(until = at, limit = limit)) }.map(Row::Txn)
+                services.reading { services.storage.log.query(filter.copy(until = at, limit = limit)) }.map(Row::Txn)
             }, Row::cursor, until)
         }
         val events = ApiConversions.events(query)
@@ -115,7 +115,7 @@ internal class HistoryRows(
             // An event has no cause, so the natural causes hidden by default must not hide it
             val said = filter.copy(excludedCauses = emptySet(), worldCauses = null)
             sources += LogSource({ at, limit ->
-                services.reading { services.events.query(said.copy(until = at, limit = limit), events) }
+                services.reading { services.storage.events.query(said.copy(until = at, limit = limit), events) }
                     .map(Row::Event)
             }, Row::cursor, until)
         }

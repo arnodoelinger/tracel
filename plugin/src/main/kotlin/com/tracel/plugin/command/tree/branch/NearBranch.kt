@@ -11,7 +11,7 @@ import com.tracel.plugin.command.suggest.LookupSuggest
 import com.tracel.plugin.command.tree.CommandActions
 import com.tracel.plugin.command.tree.runNear
 import com.tracel.plugin.command.tree.tokens
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel near`. */

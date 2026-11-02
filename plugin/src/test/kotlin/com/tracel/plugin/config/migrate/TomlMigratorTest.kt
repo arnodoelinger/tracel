@@ -1,4 +1,4 @@
-package com.tracel.plugin.config.migrate
+package com.tracel.plugin.config
 
 import com.tracel.platform.Versions
 import org.junit.jupiter.api.Assertions.*

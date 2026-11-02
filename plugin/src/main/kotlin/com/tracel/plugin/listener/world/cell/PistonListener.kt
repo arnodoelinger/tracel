@@ -5,11 +5,11 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.adapter.block.toHolderId
-import com.tracel.plugin.adapter.block.toPlacedBlockId
+import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.block.toPlacedBlockId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.block.isMovingPiston
+import com.tracel.plugin.bukkit.block.isMovingPiston
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
 import org.bukkit.block.data.Directional
@@ -31,7 +31,7 @@ class PistonListener(services: TracelServices) : TracelListener(services) {
     private fun moved(piston: Block, blocks: List<Block>, direction: BlockFace) {
         val facing = (piston.blockData as? Directional)?.facing ?: direction
         val touched = blocks + blocks.map { it.getRelative(direction) } + piston + piston.getRelative(facing)
-        val by = services.redstoneTriggers.recentPressNear(piston.world, piston.x, piston.y, piston.z)
+        val by = services.listeners.redstoneTriggers.recentPressNear(piston.world, piston.x, piston.y, piston.z)
         val cause = if (by is HolderId.Player) CauseKind.PLAYER_ACTION else CauseKind.NATURAL
         shape.reread(ActionKind.BLOCK_CHANGE, cause, by, touched.distinct(), delayTicks = PISTON_SETTLE_TICKS) {
             !it.after.isMovingPiston()
@@ -48,8 +48,8 @@ class PistonListener(services: TracelServices) : TracelListener(services) {
         later(piston.location) {
             owing {
                 services.atomically {
-                    for ((from, to) in moves) services.repo.relocate(from, to)
-                    for ((from, to) in placed) services.repo.relocate(from, to)
+                    for ((from, to) in moves) services.storage.repo.relocate(from, to)
+                    for ((from, to) in placed) services.storage.repo.relocate(from, to)
                 }
             }
         }

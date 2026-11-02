@@ -7,14 +7,14 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
-import com.tracel.plugin.rollback.material.item.WornStacks
+import com.tracel.plugin.bukkit.rollback.material.item.WornStacks
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.specifics.block.isAirLike
+import com.tracel.plugin.bukkit.block.isAirLike
 import kotlinx.coroutines.*
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -112,7 +112,7 @@ internal suspend fun RollbackComposer.materialAndContested(
     val contestedReport = coroutineScope {
         val saving = async {
             withContext(NonCancellable) {
-                services.jobs.begin(
+                services.storage.jobs.begin(
                     RollbackJobRecord(
                         job,
                         composite.material,
@@ -166,7 +166,7 @@ internal suspend fun RollbackComposer.materialAndContested(
         val extra = removing?.await() ?: StructureReport.EMPTY
         val allDestroyed = first.destroyedPrompt + extra
         withContext(NonCancellable) {
-            services.jobs.finish(saving.await(), allDestroyed.applied)
+            services.storage.jobs.finish(saving.await(), allDestroyed.applied)
         }
         extra
     }

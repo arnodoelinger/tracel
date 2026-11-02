@@ -1,8 +1,8 @@
 package com.tracel.plugin.command.tree
 
 import com.tracel.plugin.command.permission.has
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.say
+import com.tracel.plugin.util.tr
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import org.bukkit.command.CommandSender

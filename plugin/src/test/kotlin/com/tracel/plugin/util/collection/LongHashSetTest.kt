@@ -1,5 +1,6 @@
 package com.tracel.plugin.util.collection
 
+import com.tracel.plugin.util.LongHashSet
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import kotlin.random.Random

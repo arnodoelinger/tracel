@@ -2,11 +2,11 @@ package com.tracel.plugin.listener.material.inventory
 
 import com.tracel.annotations.Observes
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.item.toHolderId
-import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.item.toItemTotals
-import com.tracel.plugin.adapter.item.transientInputs
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.item.toHolderId
+import com.tracel.plugin.bukkit.item.toItemKey
+import com.tracel.plugin.bukkit.item.toItemTotals
+import com.tracel.plugin.bukkit.item.transientInputs
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.ContainerDrop
 import com.tracel.plugin.services.TracelServices

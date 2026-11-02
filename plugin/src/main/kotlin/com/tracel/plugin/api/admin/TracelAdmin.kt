@@ -17,9 +17,9 @@ import com.tracel.engine.store.PurgeFilter
 import com.tracel.engine.store.PurgeSpec
 import com.tracel.engine.store.StoppedByRequest
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.status.health.LAG_PROBE_MILLIS
+import com.tracel.plugin.services.monitoring.LAG_PROBE_MILLIS
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -60,15 +60,15 @@ internal class TracelAdmin(
 ) : Admin {
     override val exportDirectory: Path get() = services.exportDirectory
 
-    override val storeBytes: Long get() = services.store.liveBytes
+    override val storeBytes: Long get() = services.storage.store.liveBytes
 
     override val migration: Migration by lazy { CoreProtectMigration(services, signer, alive, ::claim, ::release) }
 
     override suspend fun status(): Res<StoreStatus, AdminError> = guarded { Res.Ok(read()) }
 
     override suspend fun previewPurge(request: PurgeRequest): Res<PurgeReport, AdminError> = guarded {
-        services.flushCapture()
-        Res.Ok(shown(services.store.previewPurge(specOf(request))))
+        services.capturing.flushCapture()
+        Res.Ok(shown(services.storage.store.previewPurge(specOf(request))))
     }
 
     override suspend fun purge(
@@ -79,31 +79,31 @@ internal class TracelAdmin(
         onStart()
         services.plugin.logger.info("$signer purges ${request.categories.joinToString { it.name.lowercase() }}.")
         services.purgeGate.awaitIdle(onWait)
-        services.flushCapture()
-        val report = services.store.purgeSome(specOf(request)) { slice -> services.purgeGate.slice(slice = slice) }
+        services.capturing.flushCapture()
+        val report = services.storage.store.purgeSome(specOf(request)) { slice -> services.purgeGate.slice(slice = slice) }
         Res.Ok(shown(report))
     }
 
     override suspend fun purgeEverything(onWait: () -> Unit): Res<PurgeSummary, AdminError> = exclusive {
         services.plugin.logger.info("$signer purges all history.")
         var told = false
-        while (!services.composite.claimGate()) {
+        while (!services.restoring.composite.claimGate()) {
             if (!told) onWait()
             told = true
             delay(GATE_POLL_MILLIS.milliseconds)
         }
         try {
-            val summary = services.store.purgeAll()
-            services.differ.forgetAll()
+            val summary = services.storage.store.purgeAll()
+            services.capturing.differ.forgetAll()
             Res.Ok(PurgeSummary(summary.rows, summary.bytes, instant(summary.oldest), instant(summary.newest)))
         } finally {
-            services.composite.releaseGate()
+            services.restoring.composite.releaseGate()
         }
     }
 
     override suspend fun export(stopped: () -> Boolean): Res<TransferSummary, AdminError> = guarded {
         val name = "database-%s.tracel".format(LocalDateTime.now().format(STAMP))
-        transfer { services.store.exportTo(services.exportDirectory.resolve(name), stopped) }
+        transfer { services.storage.store.exportTo(services.exportDirectory.resolve(name), stopped) }
     }
 
     override suspend fun snapshot(name: String): Res<Snapshot, AdminError> = guarded {
@@ -119,18 +119,18 @@ internal class TracelAdmin(
         if (!alive()) return Res.Err(AdminError.Revoked)
         val file = snapshotFile(name) ?: return Res.Err(AdminError.BadName(name))
         if (!claim()) return Res.Err(AdminError.Busy)
-        if (!services.composite.claimGate()) {
+        if (!services.restoring.composite.claimGate()) {
             release()
             return Res.Err(AdminError.Busy)
         }
         try {
             onStart()
             services.plugin.logger.info("$signer replaces the history with $name.")
-            val done = transfer { services.store.importFrom(file, control::stopRequested, control::commit) }
-            if (done is Res.Ok) services.differ.forgetAll()
+            val done = transfer { services.storage.store.importFrom(file, control::stopRequested, control::commit) }
+            if (done is Res.Ok) services.capturing.differ.forgetAll()
             return done
         } finally {
-            services.composite.releaseGate()
+            services.restoring.composite.releaseGate()
             release()
         }
     }
@@ -205,20 +205,20 @@ internal class TracelAdmin(
     )
 
     private suspend fun read(): StoreStatus {
-        val stored = withContext(Dispatchers.IO) { services.store.report() }
+        val stored = withContext(Dispatchers.IO) { services.storage.store.report() }
         val database = services.plugin.dataFolder.resolve("database")
 
         // What waits right now, before the wait below changes it
         val queued =
-            services.pendingCaptures.owedNow() + services.store.capture.backlog.coerceAtMost(Int.MAX_VALUE.toLong())
+            services.capturing.pendingCaptures.owedNow() + services.storage.store.capture.backlog.coerceAtMost(Int.MAX_VALUE.toLong())
                 .toInt()
 
         // How late the queue is is how long it takes to empty
         val started = System.nanoTime()
         val applied =
-            withTimeoutOrNull(LAG_PROBE_MILLIS) { services.store.capture.awaitApplied(LAG_PROBE_MILLIS) } == true
+            withTimeoutOrNull(LAG_PROBE_MILLIS) { services.storage.store.capture.awaitApplied(LAG_PROBE_MILLIS) } == true
         val left = (LAG_PROBE_MILLIS - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(1)
-        val settled = withTimeoutOrNull(left) { services.pendingCaptures.await(left) } == true
+        val settled = withTimeoutOrNull(left) { services.capturing.pendingCaptures.await(left) } == true
         val took = (System.nanoTime() - started) / 1_000_000
         val beyond = !applied || !settled
         val lag = if (beyond) LAG_PROBE_MILLIS else took
@@ -235,7 +235,7 @@ internal class TracelAdmin(
             diskTotal = database.totalSpace,
             queued = queued,
             writesPerSecond = services.writeRate.perSecond(),
-            rollbacks = services.composite.activeRollbacks,
+            rollbacks = services.restoring.composite.activeRollbacks,
             autoPurge = AutoPurgeStatus(
                 purge.enabled,
                 Duration.ofMillis(purge.intervalMillis),
@@ -248,7 +248,7 @@ internal class TracelAdmin(
             lagBeyondProbe = beyond,
             mspt = runCatching { Bukkit.getAverageTickTime() }.getOrNull(),
             forwardCompatible = services.forwardCompatible,
-            format = services.store.formatVersion,
+            format = services.storage.store.formatVersion,
         )
     }
 

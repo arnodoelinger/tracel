@@ -2,7 +2,7 @@ package com.tracel.plugin.command.scrub
 
 import com.tracel.api.actor.Actor
 import com.tracel.api.history.BlockRecord
-import com.tracel.plugin.adapter.block.BlockDataCache
+import com.tracel.plugin.bukkit.block.BlockDataCache
 import org.bukkit.block.data.BlockData
 import java.time.Instant
 import java.util.UUID

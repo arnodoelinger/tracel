@@ -17,10 +17,10 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.item.Quantity
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.actor.ActorHolders
-import com.tracel.plugin.adapter.block.toShape
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.api.read.ActorHolders
+import com.tracel.plugin.bukkit.block.toShape
+import com.tracel.plugin.bukkit.entity.toBlockPos
+import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.api.read.ApiConversions
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
@@ -50,13 +50,13 @@ internal class TracelAttribution(
                 val block = world.getBlockAt(x, y, z)
                 val wasAir = block.type.isAir
                 val before = block.toShape()
-                services.selfManagedWorld.whileRestoring { block.setBlockData(wanted, true) }
+                services.listeners.selfManagedWorld.whileRestoring { block.setBlockData(wanted, true) }
                 val action = when {
                     block.type.isAir -> ActionKind.BLOCK_BREAK
                     wasAir -> ActionKind.BLOCK_PLACE
                     else -> ActionKind.BLOCK_CHANGE
                 }
-                services.shape.edit(block, before, block.toShape(), action, CauseKind.PLUGIN, causedBy)
+                services.capturing.shape.edit(block, before, block.toShape(), action, CauseKind.PLUGIN, causedBy)
                 Res.Ok(Unit)
             }
         }
@@ -78,9 +78,9 @@ internal class TracelAttribution(
                 val put = (asked - left).toLong()
                 if (put > 0) {
                     val holder = HolderId.Player(player.uniqueId)
-                    services.material.adjust(holder, key, put)
+                    services.capturing.material.adjust(holder, key, put)
                     val flow = Flow(key, Quantity(put), HolderId.Source(SourceKind.PLUGIN), holder, FlowKind.MINT)
-                    services.material.direct(listOf(flow), CauseKind.PLUGIN, causedBy, player.toBlockPos())
+                    services.capturing.material.direct(listOf(flow), CauseKind.PLUGIN, causedBy, player.toBlockPos())
                 }
                 Res.Ok(left)
             }
@@ -97,17 +97,17 @@ internal class TracelAttribution(
         val causedBy = holderOf(by).getOrElse { return Res.Err(it) }
         val millis = System.currentTimeMillis()
         return guarded {
-            val ticket = services.pendingCaptures.owed()
+            val ticket = services.capturing.pendingCaptures.owed()
             try {
-                services.events.append(
+                services.storage.events.append(
                     ActorEvent(
-                        services.counters.nextSeq(), EventKind.CUSTOM, causedBy, millis, at?.let(ApiConversions::pos),
+                        services.storage.counters.nextSeq(), EventKind.CUSTOM, causedBy, millis, at?.let(ApiConversions::pos),
                         ApiConversions.customText(name, text),
                     ),
                 )
                 Res.Ok(Unit)
             } finally {
-                services.pendingCaptures.done(ticket)
+                services.capturing.pendingCaptures.done(ticket)
             }
         }
     }
@@ -130,6 +130,6 @@ internal class TracelQuiet(
 ) : QuietWrites {
     override fun <T> quietly(action: () -> T): Res<T, WriteError> {
         if (!alive()) return Res.Err(WriteError.Revoked)
-        return Res.Ok(services.selfManagedWorld.whileRestoring(action))
+        return Res.Ok(services.listeners.selfManagedWorld.whileRestoring(action))
     }
 }

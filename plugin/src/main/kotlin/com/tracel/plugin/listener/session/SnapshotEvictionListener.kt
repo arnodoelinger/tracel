@@ -3,7 +3,7 @@ package com.tracel.plugin.listener.session
 import com.tracel.annotations.Observes
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.adapter.block.toHolderId
+import com.tracel.plugin.bukkit.block.toHolderId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.launch
@@ -54,8 +54,8 @@ class SnapshotEvictionListener(services: TracelServices) : TracelListener(servic
                 while (queued.isNotEmpty()) {
                     val batch = ArrayList<HolderId>()
                     while (true) batch += queued.poll() ?: break
-                    services.pendingCaptures.await()
-                    for (holder in batch) services.differ.forget(holder)
+                    services.capturing.pendingCaptures.await()
+                    for (holder in batch) services.capturing.differ.forget(holder)
                 }
             } finally {
                 draining.set(false)

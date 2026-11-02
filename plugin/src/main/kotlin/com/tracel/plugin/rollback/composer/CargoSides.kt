@@ -3,9 +3,9 @@ package com.tracel.plugin.rollback.composer
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.adapter.block.containerBlockNamed
+import com.tracel.plugin.bukkit.block.containerBlockNamed
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.block.isAirLike
+import com.tracel.plugin.bukkit.block.isAirLike
 import java.util.*
 
 /** Hulls the ledger will fill. */
@@ -28,7 +28,7 @@ internal suspend fun TracelServices.heldByLedger(uuids: Collection<UUID>): Set<U
     val held = HashSet<UUID>(uuids.size)
     atomically {
         for (uuid in uuids) {
-            if (ledger.totalsAt(HolderId.Entity(uuid)).isNotEmpty()) held += uuid
+            if (storage.ledger.totalsAt(HolderId.Entity(uuid)).isNotEmpty()) held += uuid
         }
     }
     return held
@@ -59,7 +59,7 @@ internal suspend fun TracelServices.leftHolding(
     val left = HashSet<HolderId>()
     atomically {
         for ((holder, placed) in cargo) {
-            val held = ledger.totalsAt(holder)
+            val held = storage.ledger.totalsAt(holder)
             if (held.isEmpty()) continue
             val moved = deltas[holder].orEmpty()
             if (held.any { (key, amount) -> amount.raw + (moved[key] ?: 0L) > 0L }) left += placed

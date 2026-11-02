@@ -11,7 +11,7 @@ import com.tracel.engine.rollback.structure.inverse
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.rollback.RollbackJobId
-import com.tracel.plugin.rollback.structure.redstone.redstoneCells
+import com.tracel.plugin.bukkit.rollback.structure.redstone.redstoneCells
 import com.tracel.plugin.rollback.result.outcome.Blocked
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
@@ -20,7 +20,7 @@ import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.specifics.block.isAirLike
+import com.tracel.plugin.bukkit.block.isAirLike
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -32,18 +32,18 @@ internal const val MAX_STACKED_JOBS = RollbackJobRepository.UNDO_DEPTH
 private const val MATERIAL_RETURNED = Int.MAX_VALUE
 
 internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResult {
-    val record = services.jobs.find(job) ?: return UndoResult.NotFound
-    if (!services.jobs.isUndoable(job)) return UndoResult.AlreadyUndone
+    val record = services.storage.jobs.find(job) ?: return UndoResult.NotFound
+    if (!services.storage.jobs.isUndoable(job)) return UndoResult.AlreadyUndone
 
     val mine = record.touches()
-    val newer = services.jobs.undoable(limit = MAX_STACKED_JOBS * MAX_STACKED_JOBS)
+    val newer = services.storage.jobs.undoable(limit = MAX_STACKED_JOBS * MAX_STACKED_JOBS)
         .filter { it.raw > job.raw }
-        .filter { other -> services.jobs.find(other)?.touches()?.any { it in mine } ?: false }
+        .filter { other -> services.storage.jobs.find(other)?.touches()?.any { it in mine } ?: false }
     if (newer.isNotEmpty()) return UndoResult.OutOfOrder(job, newer)
 
     val takeAwayAll = record.create.map { it.inverse() }
 
-    val materialSteps = InvolutionPlanner(services.repo).plan(record)
+    val materialSteps = InvolutionPlanner(services.storage.repo).plan(record)
     val noise = record.plan.noiseMints()
     val undoDeltas = materialHalf.deltasForUndo(materialSteps, noise)
 
@@ -96,7 +96,7 @@ internal suspend fun RollbackComposer.undoTracked(job: RollbackJobId): UndoResul
     // Where a hull that does not come back last stood: what it was owed then lands on the ground there
     for (step in record.destroy.map { it.inverse() }) if (step is StructureStep.SpawnEntity) rememberHull(step)
 
-    return services.frozen.whileFrozen(undoDeltas.keys) {
+    return services.listeners.frozen.whileFrozen(undoDeltas.keys) {
         // Fluids held still while the job is taken back, woken once it is
         val written = ArrayList<StructureStep>()
         val result = structureHalf.holdingFluids(putBack + takeAway) {
@@ -184,8 +184,8 @@ private suspend fun RollbackComposer.undoFrozen(
                 }
             }
             val respawned = materialHalf.respawnReturnedDrops(outcome.steps, job, hullAt, material.shortfall)
-            services.jobs.markUndone(job)
-            services.rolledBack.restore(job.raw)
+            services.storage.jobs.markUndone(job)
+            services.storage.rolledBack.restore(job.raw)
 
             // Physics was off; wake redstone after both halves. Nothing in the report waits on it
             val waking = (restored.applied + removed.applied).redstoneCells().toList()
@@ -206,8 +206,8 @@ private suspend fun RollbackComposer.undoFrozen(
         is InvolutionOutcome.AlreadyUndone -> if (services.undoJournal.isCompleted(job, MATERIAL_RETURNED)) {
             val removed = structureHalf.restore(takeAway, takingAway)
             written += restored.applied + removed.applied
-            services.jobs.markUndone(job)
-            services.rolledBack.restore(job.raw)
+            services.storage.jobs.markUndone(job)
+            services.storage.rolledBack.restore(job.raw)
             UndoResult.AlreadyUndone
         } else {
             putBackAgain()

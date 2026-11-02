@@ -10,7 +10,7 @@ import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.tree.CommandNode
 import com.tracel.plugin.command.permission.Permission
 import com.tracel.plugin.command.permission.has
-import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.services.monitoring.Telemetry
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import net.kyori.adventure.text.Component

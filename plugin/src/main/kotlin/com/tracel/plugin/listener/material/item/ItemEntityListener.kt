@@ -9,26 +9,26 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.adapter.entity.remember
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.adapter.entity.toCargoHolderId
-import com.tracel.plugin.adapter.item.toHolderId
-import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.item.toItemTotals
-import com.tracel.plugin.adapter.item.totalsOf
+import com.tracel.plugin.bukkit.entity.remember
+import com.tracel.plugin.bukkit.entity.toBlockPos
+import com.tracel.plugin.bukkit.entity.toCargoHolderId
+import com.tracel.plugin.bukkit.item.toHolderId
+import com.tracel.plugin.bukkit.item.toItemKey
+import com.tracel.plugin.bukkit.item.toItemTotals
+import com.tracel.plugin.bukkit.item.totalsOf
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.listener.support.drop.ContainerDrop
 import com.tracel.plugin.listener.support.drop.CraftDrop
-import com.tracel.plugin.actor.blame.HitActor
-import com.tracel.plugin.actor.blame.damageBlame
+import com.tracel.plugin.bukkit.entity.HitActor
+import com.tracel.plugin.bukkit.entity.damageBlame
 import com.tracel.plugin.listener.support.flow.CREATIVE_SINK
 import com.tracel.plugin.listener.support.flow.CREATIVE_SOURCE
 import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.entity.dropsManagedCargo
-import com.tracel.plugin.util.concurrent.ExpiringMap
+import com.tracel.plugin.bukkit.entity.dropsManagedCargo
+import com.tracel.plugin.util.ExpiringMap
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Item
@@ -83,7 +83,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onSpawn(event: ItemSpawnEvent) {
-        if (services.selfManagedSpawns.isSelfManagedSpawn) return
+        if (services.listeners.selfManagedSpawns.isSelfManagedSpawn) return
         // Restore emptying a container dumps stacks as spawns; minting them dupes the ledger move
         if (restoring) return
         val item = event.entity
@@ -119,10 +119,10 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
             )
             return
         }
-        val hull = services.hullDrops.take(item.location, itemKey)
+        val hull = services.listeners.hullDrops.take(item.location, itemKey)
         if (hull != null) {
             // Same PlacedEntity lot
-            services.selfManagedSpawns.track(item.uniqueId)
+            services.listeners.selfManagedSpawns.track(item.uniqueId)
             material.positioned(
                 cause = when (hull.by) {
                     is HolderId.Player -> CauseKind.PLAYER_ACTION
@@ -139,10 +139,10 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         }
 
         val loc = item.location
-        val window = if (thrower == null) services.blockDrops.nearestToken(loc.world, loc.x, loc.y, loc.z) else null
+        val window = if (thrower == null) services.listeners.blockDrops.nearestToken(loc.world, loc.x, loc.y, loc.z) else null
         if (window != null) {
             // Track before the 4-tick claim. Merge in that window kills the correlator UUID
-            services.selfManagedSpawns.track(item.uniqueId)
+            services.listeners.selfManagedSpawns.track(item.uniqueId)
             services.blockReleases.hold(groundHolder, window)
             deferToDropClaim(item, loc.clone(), itemKey, qty, groundHolder, epochMillis, window)
             return
@@ -220,7 +220,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         later(spawnedAt, DROP_CLAIM_DELAY_TICKS) {
             try {
                 val loc = spawnedAt
-                val claimed = services.blockDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, qty, groundHolder)
+                val claimed = services.listeners.blockDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, qty, groundHolder)
                 val unclaimed = qty - claimed
                 if (unclaimed > 0) material.single(CauseKind.NATURAL, null, itemKey, groundHolder, unclaimed, epochMillis)
             } finally {
@@ -232,11 +232,11 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onPickup(event: EntityPickupItemEvent) {
         val item = event.item
-        val tracked = services.selfManagedSpawns.isTracked(item.uniqueId)
-        if (event.remaining <= 0) services.selfManagedSpawns.forget(item.uniqueId)
+        val tracked = services.listeners.selfManagedSpawns.isTracked(item.uniqueId)
+        if (event.remaining <= 0) services.listeners.selfManagedSpawns.forget(item.uniqueId)
 
         // Undo of pickup needs the floor coordinate
-        services.groundWhereabouts.remember(item)
+        services.listeners.groundWhereabouts.remember(item)
         val player = event.entity as? Player
         if (player == null) {
             // Mob pickup
@@ -286,10 +286,10 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onDespawn(event: ItemDespawnEvent) {
-        services.selfManagedSpawns.forget(event.entity.uniqueId)
+        services.listeners.selfManagedSpawns.forget(event.entity.uniqueId)
 
         // Coordinate only needed when the pile is gone; dying is rarer than spawn
-        services.groundWhereabouts.remember(event.entity)
+        services.listeners.groundWhereabouts.remember(event.entity)
         material.released(
             cause = CauseKind.NATURAL,
             causedBy = null,
@@ -300,8 +300,8 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
 
     @Observes(priority = Priority.HIGH)
     fun onMergeCancel(event: ItemMergeEvent) {
-        if (services.selfManagedSpawns.isTracked(event.entity.uniqueId) ||
-            services.selfManagedSpawns.isTracked(event.target.uniqueId)
+        if (services.listeners.selfManagedSpawns.isTracked(event.entity.uniqueId) ||
+            services.listeners.selfManagedSpawns.isTracked(event.target.uniqueId)
         ) {
             event.isCancelled = true
         }
@@ -309,8 +309,8 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
 
     @Observes
     fun onMerge(event: ItemMergeEvent) {
-        services.selfManagedSpawns.forget(event.entity.uniqueId)
-        services.groundWhereabouts.remember(event.entity)
+        services.listeners.selfManagedSpawns.forget(event.entity.uniqueId)
+        services.listeners.groundWhereabouts.remember(event.entity)
         material.released(
             cause = CauseKind.NATURAL,
             causedBy = null,
@@ -322,8 +322,8 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     @Observes(priority = Priority.HIGHEST)
     fun holdPickupWhileRestoring(event: InventoryPickupItemEvent) {
         val destination = event.inventory.toHolderId() ?: return
-        if (services.frozen.isFrozen(destination) ||
-            services.frozen.isFrozen(HolderId.ItemEntity(event.item.uniqueId))
+        if (services.listeners.frozen.isFrozen(destination) ||
+            services.listeners.frozen.isFrozen(HolderId.ItemEntity(event.item.uniqueId))
         ) {
             event.isCancelled = true
         }
@@ -333,7 +333,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
     fun onHopperPickup(event: InventoryPickupItemEvent) {
         val destination = event.inventory.toHolderId() ?: return
         val item = event.item
-        services.groundWhereabouts.remember(item)
+        services.listeners.groundWhereabouts.remember(item)
         val stack = item.itemStack.clone()
         val before = stack.amount.toLong()
         val at = event.inventory.location ?: item.location
@@ -422,7 +422,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         val item = event.entity as? Item ?: return
 
         // Gone, merged, picked up by a hopper or unloaded: the tracked set only ever grew
-        if (event.cause != EntityRemoveEvent.Cause.UNLOAD) services.selfManagedSpawns.forget(item.uniqueId)
+        if (event.cause != EntityRemoveEvent.Cause.UNLOAD) services.listeners.selfManagedSpawns.forget(item.uniqueId)
         if (restoring) return
         val sink = sinkFor(event.cause) ?: return
         material.released(

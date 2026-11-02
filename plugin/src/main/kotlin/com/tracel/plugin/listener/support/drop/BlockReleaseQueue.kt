@@ -101,7 +101,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
         if (releases.isEmpty()) return
         val tokens = LongArray(releases.size) { i ->
             val release = releases[i]
-            services.blockDrops.open(release.world, release.x, release.y, release.z)
+            services.listeners.blockDrops.open(release.world, release.x, release.y, release.z)
         }
         open += Batch(
             releases,
@@ -151,8 +151,8 @@ class BlockReleaseQueue(private val services: TracelServices) {
                 for (batch in uncredited) {
                     batch.believed = batch.releases.mapIndexed { i, release ->
                         val believed =
-                            release.contents ?: services.ledger.totalsAt(release.holder).mapValues { it.value.raw }
-                        services.blockDrops.credit(batch.tokens[i], believed)
+                            release.contents ?: services.storage.ledger.totalsAt(release.holder).mapValues { it.value.raw }
+                        services.listeners.blockDrops.credit(batch.tokens[i], believed)
                         believed
                     }
                 }
@@ -171,7 +171,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
         open.removeAll(closed.toSet())
 
         val finished =
-            closed.map { batch -> batch to batch.releases.indices.map { i -> services.blockDrops.finish(batch.tokens[i]) } }
+            closed.map { batch -> batch to batch.releases.indices.map { i -> services.listeners.blockDrops.finish(batch.tokens[i]) } }
 
         // What waited on these windows goes right after them, in the same commit
         val tokens = closed.flatMapTo(HashSet()) { it.tokens.asIterable() }
@@ -187,9 +187,9 @@ class BlockReleaseQueue(private val services: TracelServices) {
                         batch.believed?.getOrNull(i).orEmpty(),
                         results[i]
                     )
-                    val ledger = services.ledger.totalsAt(release.holder).mapValues { it.value.raw }
+                    val ledger = services.storage.ledger.totalsAt(release.holder).mapValues { it.value.raw }
                     val unseen = contents.mapValues { (key, qty) -> qty - (ledger[key] ?: 0L) }.filterValues { it > 0L }
-                    if (unseen.isNotEmpty()) services.capture.recordDirect(
+                    if (unseen.isNotEmpty()) services.capturing.capture.recordDirect(
                         worldgenMintFlows(unseen, release.holder),
                         batch.epochMillis - 1,
                         CauseKind.NATURAL,
@@ -206,14 +206,14 @@ class BlockReleaseQueue(private val services: TracelServices) {
                 val mark = services.mark()
                 try {
                     val (mints, rest) = flows.partition { it.kind == FlowKind.MINT && it.destination !is HolderId.Entity }
-                    if (mints.isNotEmpty()) services.capture.recordDirect(
+                    if (mints.isNotEmpty()) services.capturing.capture.recordDirect(
                         mints,
                         batch.epochMillis - 1,
                         CauseKind.NATURAL,
                         null,
                         batch.at
                     )
-                    if (rest.isNotEmpty()) services.capture.recordDirect(
+                    if (rest.isNotEmpty()) services.capturing.capture.recordDirect(
                         rest,
                         batch.epochMillis,
                         batch.cause,
@@ -229,7 +229,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
             for (follow in after) {
                 val mark = services.mark()
                 try {
-                    services.capture.recordDirect(
+                    services.capturing.capture.recordDirect(
                         listOf(follow.flow),
                         follow.epochMillis,
                         follow.cause,
@@ -244,7 +244,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
             }
         }
 
-        for ((batch, _) in finished) batch.releases.forEach { services.differ.forget(it.holder) }
+        for ((batch, _) in finished) batch.releases.forEach { services.capturing.differ.forget(it.holder) }
     }
 
     private companion object {

@@ -6,7 +6,7 @@ import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.LookupScope
 import com.tracel.plugin.command.preset.PresetStore
 import com.tracel.plugin.command.preset.parseWithPresets
-import com.tracel.plugin.i18n.send
+import com.tracel.plugin.util.send
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 

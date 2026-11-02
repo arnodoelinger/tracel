@@ -8,8 +8,8 @@ import com.tracel.model.log.Seq
 import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.specifics.block.AIR
-import com.tracel.plugin.specifics.world.VanillaWorldRules
+import com.tracel.plugin.bukkit.block.AIR
+import com.tracel.plugin.bukkit.world.VanillaWorldRules
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.*

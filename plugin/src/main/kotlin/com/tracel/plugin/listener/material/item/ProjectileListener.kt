@@ -7,11 +7,11 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.adapter.entity.kind.isReclaimable
-import com.tracel.plugin.adapter.entity.kind.projectileItemKey
-import com.tracel.plugin.adapter.entity.kind.shouldLogProjectile
-import com.tracel.plugin.adapter.entity.remember
-import com.tracel.plugin.adapter.entity.toPlacedEntityId
+import com.tracel.plugin.bukkit.entity.isReclaimable
+import com.tracel.plugin.bukkit.entity.projectileItemKey
+import com.tracel.plugin.bukkit.entity.shouldLogProjectile
+import com.tracel.plugin.bukkit.entity.remember
+import com.tracel.plugin.bukkit.entity.toPlacedEntityId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.listener.support.flow.CREATIVE_SINK
@@ -41,7 +41,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
         if (!projectile.shouldLogProjectile()) return
         val itemKey = projectile.projectileItemKey() ?: return
         val holder = projectile.toPlacedEntityId()
-        services.groundWhereabouts.remember(projectile)
+        services.listeners.groundWhereabouts.remember(projectile)
 
         when (val shooter = projectile.shooter) {
             is Player -> fromPlayer(shooter, projectile, itemKey, holder)
@@ -75,7 +75,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
 
     private fun fromBlock(projectile: Projectile, itemKey: ItemKey, holder: HolderId.PlacedEntity) {
         val loc = projectile.location
-        val claimed = services.blockDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, 1L, holder)
+        val claimed = services.listeners.blockDrops.claim(loc.world, loc.x, loc.y, loc.z, itemKey, 1L, holder)
         if (claimed > 0L) LiveProjectile.add(projectile.uniqueId)
     }
 
@@ -90,7 +90,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
         val player = event.player
         val playerHolder = HolderId.Player(player.uniqueId)
         val holder = arrow.toPlacedEntityId()
-        services.groundWhereabouts.remember(arrow)
+        services.listeners.groundWhereabouts.remember(arrow)
 
         if (!player.isLedgeredHolder()) {
             material.moved(
@@ -133,7 +133,7 @@ class ProjectileListener(services: TracelServices) : TracelListener(services) {
             else -> Unit
         }
         LiveProjectile.remove(projectile.uniqueId)
-        services.groundWhereabouts.remember(projectile)
+        services.listeners.groundWhereabouts.remember(projectile)
         material.released(
             cause = CauseKind.NATURAL,
             causedBy = null,

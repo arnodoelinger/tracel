@@ -26,8 +26,7 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.flow.FlowKind as ModelFlow
 import com.tracel.model.world.entity.leashHolder
-import com.tracel.plugin.actor.ActorHolders
-import com.tracel.plugin.adapter.block.special.SignText
+import com.tracel.plugin.bukkit.block.SignText
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.transaction.Transaction

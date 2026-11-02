@@ -1,5 +1,6 @@
 package com.tracel.plugin.util.runtime
 
+import com.tracel.plugin.util.stopping
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.logging.Level

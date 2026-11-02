@@ -1,8 +1,8 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.plugin.adapter.command.requirePlayer
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.bukkit.command.requirePlayer
+import com.tracel.plugin.util.send
+import com.tracel.plugin.util.tr
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.command.CommandSender
 
@@ -11,7 +11,7 @@ class InspectAction(private val services: TracelServices) {
     /** Toggles the inspector mode. Only for players. */
     fun execute(sender: CommandSender) {
         val player = sender.requirePlayer(tr("inspect.players_only")) ?: return
-        val active = services.inspectors.toggle(player.uniqueId)
+        val active = services.listeners.inspectors.toggle(player.uniqueId)
 
         player.send(if (active) "inspect.on" else "inspect.off")
     }

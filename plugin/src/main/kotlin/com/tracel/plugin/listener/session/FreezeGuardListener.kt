@@ -3,7 +3,7 @@ package com.tracel.plugin.listener.session
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.item.toHolderId
+import com.tracel.plugin.bukkit.item.toHolderId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.entity.Player
@@ -49,5 +49,5 @@ class FreezeGuardListener(services: TracelServices) : TracelListener(services) {
 
     private fun frozenPlayer(player: Player?): Boolean = player != null && frozen(HolderId.Player(player.uniqueId))
 
-    private fun frozen(holder: HolderId?): Boolean = holder != null && services.frozen.isFrozen(holder)
+    private fun frozen(holder: HolderId?): Boolean = holder != null && services.listeners.frozen.isFrozen(holder)
 }

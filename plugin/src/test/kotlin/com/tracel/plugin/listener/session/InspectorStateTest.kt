@@ -1,5 +1,6 @@
 package com.tracel.plugin.listener.session
 
+import com.tracel.plugin.listener.session.specifics.InspectorState
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

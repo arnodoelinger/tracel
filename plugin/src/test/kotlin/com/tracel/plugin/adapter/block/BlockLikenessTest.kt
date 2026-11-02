@@ -1,4 +1,4 @@
-package com.tracel.plugin.adapter.block
+package com.tracel.plugin.bukkit.block
 
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue

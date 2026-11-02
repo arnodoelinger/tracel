@@ -1,5 +1,7 @@
 package com.tracel.plugin.util.concurrent
 
+import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.ExpiringSet
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout

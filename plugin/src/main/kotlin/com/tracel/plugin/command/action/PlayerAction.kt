@@ -5,7 +5,7 @@ import com.tracel.api.history.HistoryCursor
 import com.tracel.api.history.HistoryQuery
 import com.tracel.api.history.HistoryRecord
 import com.tracel.api.result.Res
-import com.tracel.plugin.adapter.command.resolvePlayerUuid
+import com.tracel.plugin.bukkit.command.resolvePlayerUuid
 import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
@@ -14,8 +14,12 @@ import com.tracel.plugin.command.args.scope.region
 import com.tracel.plugin.command.args.scope.scopeProblem
 import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.PlayerReport
-import com.tracel.plugin.i18n.*
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.asReason
+import com.tracel.plugin.util.failed
+import com.tracel.plugin.util.info
+import com.tracel.plugin.util.say
+import com.tracel.plugin.util.tr
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration

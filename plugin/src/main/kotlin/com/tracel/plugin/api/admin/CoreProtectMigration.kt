@@ -7,12 +7,12 @@ import com.tracel.api.admin.MigrationOutlook
 import com.tracel.api.admin.MigrationSource
 import com.tracel.api.result.Res
 import com.tracel.engine.foreign.NoRoomForImport
-import com.tracel.plugin.importer.coreprotect.CoreProtectImport
-import com.tracel.plugin.importer.coreprotect.source.CoreProtectDatabase
-import com.tracel.plugin.importer.coreprotect.source.CoreProtectLocation
-import com.tracel.plugin.importer.coreprotect.source.CoreProtectLocator
-import com.tracel.plugin.importer.coreprotect.translate.ServerImportPlatform
-import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.integration.coreprotect.CoreProtectImport
+import com.tracel.plugin.integration.coreprotect.source.CoreProtectDatabase
+import com.tracel.plugin.integration.coreprotect.source.CoreProtectLocation
+import com.tracel.plugin.integration.coreprotect.source.CoreProtectLocator
+import com.tracel.plugin.integration.coreprotect.translate.ServerImportPlatform
+import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +31,7 @@ internal class CoreProtectMigration(
     private val release: () -> Unit,
 ) : Migration {
     private val importer =
-        CoreProtectImport(services.foreign, ServerImportPlatform) { work -> services.purgeGate.slice(slice = work) }
+        CoreProtectImport(services.storage.foreign, ServerImportPlatform) { work -> services.purgeGate.slice(slice = work) }
 
     private class Source(val location: CoreProtectLocation) : MigrationSource {
         override fun toString(): String = location.toString()

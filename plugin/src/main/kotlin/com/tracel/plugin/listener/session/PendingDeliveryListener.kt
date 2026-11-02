@@ -2,7 +2,7 @@ package com.tracel.plugin.listener.session
 
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
-import com.tracel.plugin.rollback.material.deliverPending
+import com.tracel.plugin.bukkit.rollback.material.deliverPending
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.launch
@@ -31,6 +31,6 @@ class PendingDeliveryListener(services: TracelServices) : TracelListener(service
     }
 
     private fun deliver(player: Player) {
-        services.scope.launch { services.restorer.deliverPending(player) }
+        services.scope.launch { services.restoring.restorer.deliverPending(player) }
     }
 }

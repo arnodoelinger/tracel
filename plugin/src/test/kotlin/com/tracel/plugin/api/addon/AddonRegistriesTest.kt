@@ -18,7 +18,7 @@ import com.tracel.api.result.Res
 import com.tracel.api.world.NamespacedName
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.actor.ActorHolders
+import com.tracel.plugin.api.read.ActorHolders
 import com.tracel.plugin.rollback.material.preflightAddons
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable

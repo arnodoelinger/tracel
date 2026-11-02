@@ -2,7 +2,7 @@ package com.tracel.plugin.rollback.structure
 
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.world.worldOf
+import com.tracel.plugin.bukkit.world.worldOf
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 

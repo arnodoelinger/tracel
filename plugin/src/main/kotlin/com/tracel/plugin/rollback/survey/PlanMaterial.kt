@@ -17,7 +17,7 @@ import com.tracel.plugin.rollback.survey.rooting.inheritMintedBurns
 import com.tracel.plugin.rollback.survey.rooting.mintedStraightThrough
 import com.tracel.plugin.rollback.survey.rooting.pairedGapMints
 import com.tracel.plugin.rollback.survey.rooting.rootedByFlow
-import com.tracel.plugin.util.holder.namedByEntity
+import com.tracel.plugin.util.namedByEntity
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -59,7 +59,7 @@ internal suspend fun RollbackComposer.planMaterial(
 
     // Finish linkage before the vanished census — storage ms vs. a region tick, twice
     val extraLots = if (needLots.isEmpty()) null else {
-        services.log.lotsAtAll(needLots)
+        services.storage.log.lotsAtAll(needLots)
     }
     if (extraLots != null) {
         for (txn in txns) {
@@ -80,13 +80,13 @@ internal suspend fun RollbackComposer.planMaterial(
 
     // Current holders of roots; log does not say where lots sit now
     if (byRoot.isNotEmpty()) {
-        val holders = services.repo.currentHoldersOf(byRoot.keys)
+        val holders = services.storage.repo.currentHoldersOf(byRoot.keys)
         for (holder in holders.values) if (holder.namedByEntity()) candidates += holder
         val parentOf = HashMap<LotId, LotId>()
         var frontier: Collection<LotId> = byRoot.keys.filter { holders[it] is HolderId.Sink }
         val seenLots = HashSet<LotId>()
         while (frontier.isNotEmpty()) {
-            val into = services.repo.edgesIntoAll(frontier.filter { seenLots.add(it) })
+            val into = services.storage.repo.edgesIntoAll(frontier.filter { seenLots.add(it) })
             val next = ArrayList<LotId>()
             for ((child, edges) in into) {
                 val split = edges.filterIsInstance<LotEdge.Split>().firstOrNull() ?: continue
@@ -113,11 +113,11 @@ internal suspend fun RollbackComposer.planMaterial(
         null
     )
 
-    val witness = services.repo.version()
+    val witness = services.storage.repo.version()
     var vanished = checked
     var planner = RollbackPlanner(
-        services.repo,
-        services.worldQuery,
+        services.storage.repo,
+        services.restoring.worldQuery,
         vanished = vanished,
         structural = structural,
         covered = covered,
@@ -133,8 +133,8 @@ internal suspend fun RollbackComposer.planMaterial(
         if (late.isNotEmpty()) {
             vanished = vanished + late
             planner = RollbackPlanner(
-                services.repo,
-                services.worldQuery,
+                services.storage.repo,
+                services.restoring.worldQuery,
                 vanished = vanished,
                 structural = structural,
                 covered = covered,

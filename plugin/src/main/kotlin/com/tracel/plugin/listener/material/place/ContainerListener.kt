@@ -3,7 +3,7 @@ package com.tracel.plugin.listener.material.place
 import com.tracel.annotations.Observes
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.block.*
+import com.tracel.plugin.bukkit.block.*
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.lectern.LecternPages
 import com.tracel.plugin.listener.world.entity.ExplosionListener

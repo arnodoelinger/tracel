@@ -1,0 +1,41 @@
+package com.tracel.plugin.services.startup
+
+import com.tracel.platform.Versions.Minecraft.SUPPORTED
+import com.tracel.plugin.bukkit.server.fail
+import io.github.z4kn4fein.semver.toVersionOrNull
+import org.bukkit.plugin.Plugin
+
+/**
+ * Minecraft releases `Tracel` has been tested on, from [SUPPORTED].
+ *
+ * Patch versions are covered automatically.
+ */
+val SUPPORTED_VERSIONS: List<MinecraftVersion> = SUPPORTED.map { (major, minor) -> MinecraftVersion(major, minor) }
+
+/** Minecraft version checker. */
+data class MinecraftVersion(val major: Int, val minor: Int) : Comparable<MinecraftVersion> {
+    override fun compareTo(other: MinecraftVersion): Int =
+        compareBy<MinecraftVersion>({ it.major }, { it.minor }).compare(this, other)
+
+    override fun toString(): String = "$major.$minor"
+
+    companion object {
+        val oldest get() = SUPPORTED_VERSIONS.min()
+        val newest get() = SUPPORTED_VERSIONS.max()
+
+        fun parse(raw: String): MinecraftVersion? =
+            raw.toVersionOrNull(strict = false)?.let { MinecraftVersion(it.major, it.minor) }
+
+        fun check(raw: String, plugin: Plugin): Boolean {
+            val version = parse(raw) ?: fail(
+                plugin,
+                "Tracel could not read Minecraft version \"$raw\". Oldest supported is $oldest."
+            )
+            if (version < oldest) fail(
+                plugin,
+                "Tracel does not run on Minecraft $version. Versions below $oldest are not supported."
+            )
+            return (version !in SUPPORTED_VERSIONS).also { if (it) plugin.logger.warning("Tracel has not been tested on Minecraft $version. Use with caution!") }
+        }
+    }
+}

@@ -1,7 +1,7 @@
 package com.tracel.plugin.command.preset
 
 import com.tracel.platform.Versions
-import com.tracel.plugin.config.migrate.FileVersions
+import com.tracel.plugin.config.FileVersions
 import org.tomlj.Toml
 import org.tomlj.TomlTable
 import java.nio.file.Files

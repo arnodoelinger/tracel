@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.args.rollback
 
-import com.tracel.plugin.adapter.command.resolvePlayerUuid
+import com.tracel.plugin.bukkit.command.resolvePlayerUuid
 import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.lookup.partsLimitArea
@@ -11,7 +11,7 @@ import com.tracel.plugin.command.args.scope.actionProblems
 import com.tracel.plugin.command.args.scope.region
 import com.tracel.plugin.command.args.scope.scopeProblem
 import com.tracel.plugin.command.args.scope.unknownPlace
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.tr
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender

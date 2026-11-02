@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.suggest.quantity
 
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.tr
 import net.kyori.adventure.text.Component
 
 /** `4 blocks around you`; [noun] is `block` or `chunk`. */

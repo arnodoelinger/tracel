@@ -48,10 +48,10 @@ class FluidFreezeListener(services: TracelServices) : TracelListener(services) {
     }
 
     private fun held(block: Block): Boolean =
-        services.fluidFreeze.holds(WorldId(block.world.uid), block.x, block.y, block.z)
+        services.restoring.fluidFreeze.holds(WorldId(block.world.uid), block.x, block.y, block.z)
 
     private fun stop(event: Cancellable, moving: Block) {
         event.isCancelled = true
-        services.fluidFreeze.stir(WorldId(moving.world.uid), moving.x, moving.y, moving.z)
+        services.restoring.fluidFreeze.stir(WorldId(moving.world.uid), moving.x, moving.y, moving.z)
     }
 }

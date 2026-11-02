@@ -9,13 +9,13 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.adapter.block.*
+import com.tracel.plugin.bukkit.block.*
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
-import com.tracel.plugin.actor.blame.explosionActor
+import com.tracel.plugin.bukkit.entity.explosionActor
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.block.AIR
+import com.tracel.plugin.bukkit.block.AIR
 import org.bukkit.ExplosionResult
 import org.bukkit.Material
 import org.bukkit.block.Block
@@ -40,7 +40,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
         if (!event.explosionResult.destroys()) return
         val causedBy = services.explosionActor(event.entity)
             ?: (event.entity as? LivingEntity)?.let { HolderId.Entity(it.uniqueId) }
-        if (causedBy != null) services.redstoneTriggers.recordExplosion(event.location, causedBy)
+        if (causedBy != null) services.listeners.redstoneTriggers.recordExplosion(event.location, causedBy)
         capture(event.blockList(), causedBy)
     }
 
@@ -50,7 +50,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
         val exploded = event.explodedBlockState
         val block = exploded.block
         val by = ColumnCell.playerAt(block)?.let(HolderId::Player)
-            ?: services.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
+            ?: services.listeners.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
         val self = explodedCells(exploded)
         if (self.isNotEmpty()) {
             shape.edits(
@@ -61,7 +61,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
                 edits = self,
             )
         }
-        if (by != null) services.redstoneTriggers.recordExplosion(exploded.location, by)
+        if (by != null) services.listeners.redstoneTriggers.recordExplosion(exploded.location, by)
         capture(event.blockList(), causedBy = by)
     }
 

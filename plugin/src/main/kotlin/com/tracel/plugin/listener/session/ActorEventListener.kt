@@ -7,12 +7,12 @@ import com.tracel.model.event.EventKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.entity.toBlockPos
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.entity.toBlockPos
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.actor.blame.HitActor
+import com.tracel.plugin.bukkit.entity.HitActor
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.concurrent.ExpiringMap
+import com.tracel.plugin.util.ExpiringMap
 import io.papermc.paper.event.player.AsyncChatEvent
 import io.papermc.paper.event.player.PlayerTradeEvent
 import kotlin.math.roundToLong
@@ -253,9 +253,9 @@ class ActorEventListener(services: TracelServices) : TracelListener(services) {
         val at = where ?: runCatching { player.toBlockPos() }.getOrNull()
         val millis = System.currentTimeMillis()
         owing {
-            services.events.append(
+            services.storage.events.append(
                 ActorEvent(
-                    services.counters.nextSeq(),
+                    services.storage.counters.nextSeq(),
                     kind,
                     HolderId.Player(player.uniqueId),
                     millis,

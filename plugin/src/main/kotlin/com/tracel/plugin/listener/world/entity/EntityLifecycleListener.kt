@@ -11,28 +11,28 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.EntityShape
-import com.tracel.plugin.adapter.entity.kind.SpawnKind
-import com.tracel.plugin.adapter.entity.kind.isScenery
-import com.tracel.plugin.adapter.entity.kind.logsWorldShape
-import com.tracel.plugin.adapter.entity.link.SelfManagedLink
-import com.tracel.plugin.adapter.entity.remember
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.adapter.entity.toShape
+import com.tracel.plugin.bukkit.entity.SpawnKind
+import com.tracel.plugin.bukkit.entity.isScenery
+import com.tracel.plugin.bukkit.entity.logsWorldShape
+import com.tracel.plugin.bukkit.entity.SelfManagedLink
+import com.tracel.plugin.bukkit.entity.remember
+import com.tracel.plugin.bukkit.entity.toBlockPos
+import com.tracel.plugin.bukkit.entity.toShape
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DispenseCell
-import com.tracel.plugin.actor.blame.DamageBlame
-import com.tracel.plugin.actor.blame.HitActor
-import com.tracel.plugin.actor.blame.damageBlame
-import com.tracel.plugin.actor.blame.explosionActor
+import com.tracel.plugin.bukkit.entity.DamageBlame
+import com.tracel.plugin.bukkit.entity.HitActor
+import com.tracel.plugin.bukkit.entity.damageBlame
+import com.tracel.plugin.bukkit.entity.explosionActor
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.command.EntityCommand
-import com.tracel.plugin.specifics.command.isCommand
-import com.tracel.plugin.specifics.entity.isBlastSource
-import com.tracel.plugin.specifics.entity.kind
-import com.tracel.plugin.specifics.item.spawnsAnEntity
-import com.tracel.plugin.util.concurrent.ExpiringMap
-import com.tracel.plugin.util.concurrent.ExpiringSet
+import com.tracel.plugin.bukkit.command.EntityCommand
+import com.tracel.plugin.bukkit.command.isCommand
+import com.tracel.plugin.bukkit.entity.isBlastSource
+import com.tracel.plugin.bukkit.entity.kind
+import com.tracel.plugin.bukkit.item.spawnsAnEntity
+import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.ExpiringSet
 import io.papermc.paper.event.player.PlayerNameEntityEvent
 import io.papermc.paper.event.player.PrePlayerAttackEntityEvent
 import org.bukkit.NamespacedKey
@@ -244,7 +244,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     fun onAddToWorld(event: EntityAddToWorldEvent) {
         val entity = event.entity
         if (!entity.isScenery()) return
-        services.whereabouts.remember(entity)
+        services.listeners.whereabouts.remember(entity)
     }
 
     @Observes
@@ -252,7 +252,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val from = event.from
         val to = event.to
         if (from.chunk.x == to.chunk.x && from.chunk.z == to.chunk.z && from.world == to.world) return
-        services.whereabouts.remember(event.vehicle)
+        services.listeners.whereabouts.remember(event.vehicle)
     }
 
     @Observes
@@ -266,7 +266,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val victim = event.entity
         if (!victim.logsWorldShape()) return
         val who = services.explosionActor(event.damager)
-            ?: services.redstoneTriggers.recentExplosionNear(victim.location)
+            ?: services.listeners.redstoneTriggers.recentExplosionNear(victim.location)
         removedBy.put(victim.uniqueId, Blame(who, CauseKind.EXPLOSION))
     }
 
@@ -406,14 +406,14 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (known?.who != null) return
         removedBy.put(
             entity.uniqueId,
-            Blame(services.redstoneTriggers.recentExplosionNear(entity.location), CauseKind.EXPLOSION),
+            Blame(services.listeners.redstoneTriggers.recentExplosionNear(entity.location), CauseKind.EXPLOSION),
         )
     }
 
     @Observes
     fun onVehicleDestroy(event: VehicleDestroyEvent) {
         val attacker = event.attacker
-        val near = services.redstoneTriggers.recentExplosionNear(event.vehicle.location)
+        val near = services.listeners.redstoneTriggers.recentExplosionNear(event.vehicle.location)
         val explosion = attacker.isBlastSource() || (attacker == null && near != null)
         val shooter = (attacker as? Projectile)?.shooter as? Player
         val who = (attacker as? Player)?.let { HolderId.Player(it.uniqueId) }
@@ -434,10 +434,10 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val who: HolderId? = (byEntity as? Player)?.let { HolderId.Player(it.uniqueId) }
             ?: shooter?.let { HolderId.Player(it.uniqueId) }
             ?: byEntity?.let { services.explosionActor(it) }
-            ?: if (explosion) services.redstoneTriggers.recentExplosionNear(event.entity.location) else null
+            ?: if (explosion) services.listeners.redstoneTriggers.recentExplosionNear(event.entity.location) else null
         val cause = if (explosion) CauseKind.EXPLOSION else if (shooter != null) CauseKind.PROJECTILE else null
         val dispensed = if (who == null && cause == null) {
-            services.redstoneTriggers.recentDispenseNear(event.entity.location)
+            services.listeners.redstoneTriggers.recentDispenseNear(event.entity.location)
         } else null
         val by = who ?: dispensed
         val why = cause ?: if (dispensed != null) CauseKind.DISPENSER else null
@@ -456,7 +456,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val entity = event.entity
         if (entity is Item || entity is Player) return
         if (event.cause != EntityRemoveEvent.Cause.UNLOAD && event.cause != EntityRemoveEvent.Cause.PLAYER_QUIT) {
-            services.whereabouts.forget(entity.uniqueId)
+            services.listeners.whereabouts.forget(entity.uniqueId)
         }
         val blame = removedBy.remove(entity.uniqueId)
             ?: killer[entity.world.uid]?.takeIf { event.cause in KILLED_BY_COMMAND }?.let { Blame(it) }
@@ -470,7 +470,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val exploded = blame?.cause == CauseKind.EXPLOSION ||
                 event.cause == EntityRemoveEvent.Cause.EXPLODE
         val who = blame?.who
-            ?: if (exploded) services.redstoneTriggers.recentExplosionNear(entity.location) else null
+            ?: if (exploded) services.listeners.redstoneTriggers.recentExplosionNear(entity.location) else null
         val shot = !exploded && who != null && blame?.cause == CauseKind.PROJECTILE
 
         bornUnlogged(entity)
@@ -604,7 +604,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (restoring) return
         if (entity.uniqueId in seenFor(after)) return
         if (after) markMadeBy(entity, causedBy)
-        if (after) services.whereabouts.remember(entity) else services.whereabouts.forget(entity.uniqueId)
+        if (after) services.listeners.whereabouts.remember(entity) else services.listeners.whereabouts.forget(entity.uniqueId)
         val living = if (after) null else dying.remove(entity.uniqueId)
         record(
             action = action,
@@ -629,12 +629,12 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         if (restoring) return
         if (!seenFor(after).add(uuid)) return
         if (after) {
-            services.whereabouts.remember(
+            services.listeners.whereabouts.remember(
                 uuid,
                 HolderId.Block(at.world, at.x, at.y, at.z),
             )
         } else {
-            services.whereabouts.forget(uuid)
+            services.listeners.whereabouts.forget(uuid)
         }
         val now = System.currentTimeMillis()
         val resolvedCause = cause

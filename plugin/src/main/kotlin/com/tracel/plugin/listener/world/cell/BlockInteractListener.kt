@@ -11,8 +11,8 @@ import com.tracel.model.item.Quantity
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.adapter.block.*
-import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.bukkit.block.*
+import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.flow.CREATIVE_SOURCE
@@ -35,7 +35,7 @@ import org.bukkit.event.entity.EntityInteractEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.inventory.ItemStack
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.util.concurrent.ExpiringSet
+import com.tracel.plugin.util.ExpiringSet
 import org.bukkit.event.block.BlockMultiPlaceEvent
 import org.bukkit.event.block.BlockPlaceEvent
 import java.util.*
@@ -122,7 +122,7 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
                 HolderId.Player(player.uniqueId),
                 at = block.toBlockPos(),
             )
-            later(block.location) { services.differ.rebaseline(holder, emptyMap()) }
+            later(block.location) { services.capturing.differ.rebaseline(holder, emptyMap()) }
         } else if (cargo) {
             queueCargo(player, block, cargoBeforeClick)
         }
@@ -188,7 +188,7 @@ class BlockInteractListener(services: TracelServices) : TracelListener(services)
                     causedBy,
                     block.toBlockPos(),
                 )
-                services.differ.rebaseline(holder, after)
+                services.capturing.differ.rebaseline(holder, after)
             }
             material.reconcile(
                 inventories = listOf(player.inventory),

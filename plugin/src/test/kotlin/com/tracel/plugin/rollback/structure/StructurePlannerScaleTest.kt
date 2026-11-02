@@ -8,9 +8,9 @@ import com.tracel.model.log.Seq
 import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.specifics.block.AIR
-import com.tracel.plugin.specifics.block.isAirLike
-import com.tracel.plugin.specifics.world.VanillaWorldRules
+import com.tracel.plugin.bukkit.block.AIR
+import com.tracel.plugin.bukkit.block.isAirLike
+import com.tracel.plugin.bukkit.world.VanillaWorldRules
 import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test

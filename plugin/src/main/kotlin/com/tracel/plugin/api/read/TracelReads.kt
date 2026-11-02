@@ -20,8 +20,7 @@ import com.tracel.api.result.andThen
 import com.tracel.api.result.getOrElse
 import com.tracel.api.world.LookupArea
 import com.tracel.api.world.place
-import com.tracel.plugin.actor.Actors
-import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.delay
@@ -43,7 +42,7 @@ internal class TracelReads(
 ) : HistoryReads {
     override fun history(query: HistoryQuery): History = read(query)
 
-    override fun actorFacts(): ActorFacts = Actors(services.actors)
+    override fun actorFacts(): ActorFacts = Actors(services.storage.actors)
 
     override fun Block.history(build: HistoryQuery.Builder.() -> Unit): History =
         read(HistoryQuery(area = LookupArea.of(place)).with(build))
@@ -95,7 +94,7 @@ internal class TracelReads(
         return Res.Ok(took.values.sortedByDescending { it.amount })
     }
 
-    override suspend fun settle(): Boolean = services.flushCapture()
+    override suspend fun settle(): Boolean = services.capturing.flushCapture()
 
     override fun watch(build: HistoryQuery.Builder.() -> Unit): Flow<HistoryRecord> {
         val query = HistoryQuery().with(build)
@@ -137,7 +136,7 @@ internal class TracelReads(
 
     private suspend fun learnItemNames(rows: List<Row>) {
         val keys = rows.filterIsInstance<Row.Txn>().flatMapTo(HashSet()) { row -> row.transaction.flows.map { it.itemKey } }
-        if (keys.isNotEmpty()) Extensions.live.learnItemNames(keys) { services.itemForms.find(it) }
+        if (keys.isNotEmpty()) Extensions.live.learnItemNames(keys) { services.storage.itemForms.find(it) }
     }
 
     private inner class LogHistory(override val query: HistoryQuery) : History {

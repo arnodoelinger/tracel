@@ -6,7 +6,12 @@ import com.tracel.plugin.command.permission.Permission
 import com.tracel.plugin.command.permission.has
 import com.tracel.plugin.command.preset.Preset
 import com.tracel.plugin.command.preset.PresetStore
-import com.tracel.plugin.i18n.*
+import com.tracel.plugin.util.asReason
+import com.tracel.plugin.util.failed
+import com.tracel.plugin.util.info
+import com.tracel.plugin.util.say
+import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.tryHint
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent

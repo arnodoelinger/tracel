@@ -8,7 +8,7 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.plugin.specifics.block.AIR
+import com.tracel.plugin.bukkit.block.AIR
 import com.tracel.tests.support.Fixtures
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*

@@ -2,13 +2,13 @@ package com.tracel.plugin.rollback.structure
 
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.adapter.world.ownsChunkAt
+import com.tracel.plugin.bukkit.world.ownsChunkAt
 import java.util.concurrent.atomic.AtomicIntegerArray
 
 /** Despawn a sailed boat on its current chunk. */
 internal fun StructureRestorer.dispatchAt(step: StructureStep): BlockPos {
     if (step is StructureStep.RemoveEntity) {
-        val here = services.whereabouts.at(step.entity) ?: return step.at
+        val here = services.listeners.whereabouts.at(step.entity) ?: return step.at
         return BlockPos(here.world, here.x, here.y, here.z)
     }
     return step.at

@@ -2,10 +2,10 @@ package com.tracel.plugin.command.presenter
 
 import com.tracel.plugin.command.action.support.LookupSearch
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
-import com.tracel.plugin.i18n.say
-import com.tracel.plugin.i18n.send
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.i18n.usage
+import com.tracel.plugin.util.say
+import com.tracel.plugin.util.send
+import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.usage
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent

@@ -10,11 +10,11 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.block.toShape
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.block.toShape
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.block.AIR
-import com.tracel.plugin.util.geometry.regionKey
+import com.tracel.plugin.bukkit.block.AIR
+import com.tracel.plugin.util.regionKey
 import kotlinx.coroutines.launch
 import org.bukkit.Bukkit
 import org.bukkit.block.Block
@@ -34,7 +34,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
     private val pending = ConcurrentHashMap<BlockPos, FlowBatch>()
 
     /** `true` while rollback is writing the world; skip so restore does not log itself. */
-    val restoring: Boolean get() = services.selfManagedWorld.isRestoring
+    val restoring: Boolean get() = services.listeners.selfManagedWorld.isRestoring
 
     /**
      * Record a batch of already-snapshotted cell changes.
@@ -64,10 +64,10 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         val batch = BlockEdits(action, cause, causedBy, epochMillis, real)
         if (services.gate.parkedBlocks(batch)) return
 
-        val ticket = services.pendingCaptures.owed()
+        val ticket = services.capturing.pendingCaptures.owed()
         services.scope.launch {
-            services.atomically { services.worldCapture.record(batch) }
-        }.invokeOnCompletion { services.pendingCaptures.done(ticket) }
+            services.atomically { services.capturing.worldCapture.record(batch) }
+        }.invokeOnCompletion { services.capturing.pendingCaptures.done(ticket) }
     }
 
     /** One cell whose [before] and [after] shapes are already known. */
@@ -125,7 +125,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         val snapshots = blocks.map { Triple(it, it.toBlockPos(), it.toShape()) }
         for ((_, group) in snapshots.groupBy { it.second.regionKey() }) {
             val world = group.first().second.world
-            val ticket = services.pendingCaptures.owed()
+            val ticket = services.capturing.pendingCaptures.owed()
             Bukkit.getRegionScheduler().runDelayed(services.plugin, group.first().first.location, {
                 try {
                     edits(
@@ -133,14 +133,14 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
                         cause,
                         causedBy,
                         world,
-                        group.filter { !services.selfManagedWorld.wroteSince(it.second, readNanos) }
+                        group.filter { !services.listeners.selfManagedWorld.wroteSince(it.second, readNanos) }
                             .map { (block, at, shape) ->
                                 BlockEdit(at, shape, block.toShape())
                             }.filter(keep),
                         epochMillis,
                     )
                 } finally {
-                    services.pendingCaptures.done(ticket)
+                    services.capturing.pendingCaptures.done(ticket)
                 }
             }, delayTicks.coerceAtLeast(1L))
         }
@@ -168,14 +168,14 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
             val fresh = FlowBatch(at.world, System.currentTimeMillis())
             flows[key] = fresh
             batch = fresh
-            val ticket = services.pendingCaptures.owed()
+            val ticket = services.capturing.pendingCaptures.owed()
             Bukkit.getRegionScheduler().runDelayed(services.plugin, block.location, {
                 try {
                     flows.remove(key, fresh)
                     for (pos in fresh.cells.keys) pending.remove(pos, fresh)
                     val byWhom = LinkedHashMap<Pair<CauseKind, HolderId?>, MutableList<BlockEdit>>()
                     for ((pos, cell) in fresh.cells) {
-                        if (services.selfManagedWorld.wroteSince(pos, cell.readNanos)) continue
+                        if (services.listeners.selfManagedWorld.wroteSince(pos, cell.readNanos)) continue
                         byWhom.getOrPut(cell.cause to cell.causedBy) { ArrayList() } +=
                             BlockEdit(pos, cell.shape, cell.block.toShape())
                     }
@@ -183,7 +183,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
                         edits(ActionKind.BLOCK_CHANGE, who.first, who.second, fresh.world, changed, fresh.epochMillis)
                     }
                 } finally {
-                    services.pendingCaptures.done(ticket)
+                    services.capturing.pendingCaptures.done(ticket)
                 }
             }, 1L)
         }
@@ -194,7 +194,7 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
     /** An entity appeared, changed pose, or vanished. Same restore skip as blocks. */
     fun entity(change: EntityChange) {
         if (restoring) return
-        services.entityCapture.offer(change)
+        services.capturing.entityCapture.offer(change)
     }
 
     private class FlowCell(

@@ -18,8 +18,8 @@ import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.model.world.entity.vehicle
-import com.tracel.plugin.specifics.block.AIR
-import com.tracel.plugin.specifics.world.VanillaWorldRules
+import com.tracel.plugin.bukkit.block.AIR
+import com.tracel.plugin.bukkit.world.VanillaWorldRules
 import com.tracel.tests.support.Fixtures
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue

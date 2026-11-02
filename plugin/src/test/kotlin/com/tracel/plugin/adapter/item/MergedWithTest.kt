@@ -1,4 +1,4 @@
-package com.tracel.plugin.adapter.item
+package com.tracel.plugin.bukkit.item
 
 import com.tracel.model.item.ItemKey
 import org.junit.jupiter.api.Assertions.assertEquals

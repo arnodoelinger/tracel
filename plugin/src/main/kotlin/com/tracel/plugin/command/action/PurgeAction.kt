@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.action
 
-import com.tracel.plugin.adapter.command.resolvePlayerUuid
+import com.tracel.plugin.bukkit.command.resolvePlayerUuid
 import com.tracel.api.admin.AdminError
 import com.tracel.api.admin.PurgeCategory
 import com.tracel.api.admin.PurgeReport
@@ -12,8 +12,15 @@ import com.tracel.plugin.command.action.ExportAction.Companion.MIB
 import com.tracel.plugin.command.action.ExportAction.Companion.records
 import com.tracel.plugin.command.args.purge.PurgeArgs
 import com.tracel.plugin.command.args.purge.PurgeArgument
-import com.tracel.plugin.i18n.*
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.asReason
+import com.tracel.plugin.util.confirmFooter
+import com.tracel.plugin.util.failed
+import com.tracel.plugin.util.joined
+import com.tracel.plugin.util.say
+import com.tracel.plugin.util.send
+import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.usage
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration

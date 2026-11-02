@@ -4,9 +4,9 @@ import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.adapter.block.cargoTotals
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.block.toHolderId
+import com.tracel.plugin.bukkit.block.cargoTotals
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.block.toHolderId
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.block.Block
@@ -30,7 +30,7 @@ class SmeltListener(services: TracelServices) : TracelListener(services) {
     fun holdBrewWhileRestoring(event: BrewEvent) = holdWhileRestoring(event.block, event)
 
     private fun holdWhileRestoring(block: Block, event: Cancellable) {
-        if (services.frozen.isFrozen(block.toHolderId())) event.isCancelled = true
+        if (services.listeners.frozen.isFrozen(block.toHolderId())) event.isCancelled = true
     }
 
     @Observes

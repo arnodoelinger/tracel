@@ -5,16 +5,16 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.adapter.command.toCommandOrigin
-import com.tracel.plugin.adapter.world.ownsChunkAt
+import com.tracel.plugin.bukkit.command.toCommandOrigin
+import com.tracel.plugin.bukkit.world.ownsChunkAt
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.command.StructureCommand
-import com.tracel.plugin.specifics.command.VANILLA_NAMESPACE
-import com.tracel.plugin.util.command.CommandOrigin
-import com.tracel.plugin.util.command.parseBlockPos
-import com.tracel.plugin.util.command.tokenize
-import com.tracel.plugin.util.log.Warnings
+import com.tracel.plugin.bukkit.command.StructureCommand
+import com.tracel.plugin.bukkit.command.VANILLA_NAMESPACE
+import com.tracel.plugin.util.CommandOrigin
+import com.tracel.plugin.util.parseBlockPos
+import com.tracel.plugin.util.tokenize
+import com.tracel.plugin.util.Warnings
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.World
@@ -146,13 +146,13 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
                 Warnings.once(logger, "command-hop") {
                     "a /fill, /setblock or /clone reached chunks another region owns; they are read after the command ran"
                 }
-                val ticket = services.pendingCaptures.owed()
+                val ticket = services.capturing.pendingCaptures.owed()
                 val at = Location(world, x0.toDouble(), ys.first.toDouble(), z0.toDouble())
                 Bukkit.getRegionScheduler().execute(services.plugin, at) {
                     try {
                         shape.reread(ActionKind.BLOCK_CHANGE, cause, causedBy, blocks)
                     } finally {
-                        services.pendingCaptures.done(ticket)
+                        services.capturing.pendingCaptures.done(ticket)
                     }
                 }
             }

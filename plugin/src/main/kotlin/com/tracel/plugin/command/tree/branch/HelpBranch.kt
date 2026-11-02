@@ -5,7 +5,7 @@ import com.tracel.plugin.command.brigadier.executesCommand
 import com.tracel.plugin.command.brigadier.literal
 import com.tracel.plugin.command.tree.CommandActions
 import com.tracel.plugin.command.tree.sendHelp
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel help`. */

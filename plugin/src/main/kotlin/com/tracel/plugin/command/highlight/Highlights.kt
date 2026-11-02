@@ -1,7 +1,7 @@
 package com.tracel.plugin.command.highlight
 
 import com.tracel.api.rollback.PlannedBlock
-import com.tracel.plugin.adapter.block.BlockDataCache
+import com.tracel.plugin.bukkit.block.BlockDataCache
 import io.papermc.paper.math.Position
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import org.bukkit.Bukkit

@@ -9,6 +9,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
+import com.tracel.plugin.bukkit.rollback.material.rewear
 
 internal data class Rewear(
     val lotId: LotId,
@@ -46,11 +47,11 @@ internal suspend fun MaterialRestorer.rewearPlan(
                     ends[lot] = WearEnd(lot, lot, target.destinationFor(plan, lot), fresh = ends[lot]?.fresh == true)
                 }
 
-                is RollbackStep.Mint -> services.ledger.compensationOf(step.lotId, job)?.let {
+                is RollbackStep.Mint -> services.storage.ledger.compensationOf(step.lotId, job)?.let {
                     ends[it] = WearEnd(step.lotId, it, target.destinationFor(plan, step.lotId), fresh = true)
                 }
 
-                is RollbackStep.Debt -> services.ledger.compensationOf(step.lotId, job)?.let {
+                is RollbackStep.Debt -> services.storage.ledger.compensationOf(step.lotId, job)?.let {
                     ends[it] = WearEnd(step.lotId, it, target.destinationFor(plan, step.lotId), fresh = true)
                 }
 

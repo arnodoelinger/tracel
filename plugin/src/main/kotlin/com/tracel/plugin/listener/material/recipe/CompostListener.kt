@@ -3,8 +3,8 @@ package com.tracel.plugin.listener.material.recipe
 import com.tracel.annotations.Observes
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.adapter.block.toHolderId
-import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
 import com.tracel.plugin.services.TracelServices

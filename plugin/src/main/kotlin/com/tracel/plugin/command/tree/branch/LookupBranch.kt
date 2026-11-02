@@ -10,7 +10,7 @@ import com.tracel.plugin.command.permission.Permission
 import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.suggest.LookupSuggest
 import com.tracel.plugin.command.tree.*
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel lookup`: a search, a page turn, a refresh or an export. */

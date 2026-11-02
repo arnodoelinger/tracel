@@ -9,9 +9,9 @@ import com.tracel.plugin.command.args.time.TimeArgument
 import com.tracel.plugin.command.args.time.TimeExpr
 import com.tracel.plugin.command.suggest.LookupSuggest
 import com.tracel.plugin.command.suggest.SuggestLists
-import com.tracel.plugin.i18n.said
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.metrics.Telemetry
+import com.tracel.plugin.util.said
+import com.tracel.plugin.util.tr
+import com.tracel.plugin.services.monitoring.Telemetry
 import java.util.UUID
 
 private fun ParsedLookupArgs.within(window: TimeExpr): ParsedLookupArgs =

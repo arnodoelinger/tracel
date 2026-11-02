@@ -3,9 +3,10 @@ package com.tracel.plugin.rollback.structure
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.rollback.structure.fluid.settleWritten
-import com.tracel.plugin.rollback.structure.fluid.wakeCells
-import com.tracel.plugin.rollback.structure.redstone.wakeRedstoneAt
+import com.tracel.plugin.bukkit.rollback.structure.fluid.settleWritten
+import com.tracel.plugin.bukkit.rollback.structure.fluid.wakeCells
+import com.tracel.plugin.bukkit.rollback.structure.redstone.wakeRedstoneAt
+import com.tracel.plugin.bukkit.rollback.structure.restoreSteps
 import com.tracel.plugin.rollback.result.outcome.PreflightResult
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.services.TracelServices
@@ -30,12 +31,12 @@ class StructureRestorer(internal val services: TracelServices) : StructureHalf {
     )
 
     override suspend fun <T> holdingFluids(steps: List<StructureStep>, work: suspend () -> T): T =
-        services.fluidFreeze.holding(steps, { wakeCells(it) }, work)
+        services.restoring.fluidFreeze.holding(steps, { wakeCells(it) }, work)
 
     override suspend fun <T> holdingArea(region: LookupRegion?, work: suspend () -> T): T =
-        services.fluidFreeze.holdingArea(region, { wakeCells(it) }, work)
+        services.restoring.fluidFreeze.holdingArea(region, { wakeCells(it) }, work)
 
-    override suspend fun letGoOfArea() = services.fluidFreeze.letGoOfArea()
+    override suspend fun letGoOfArea() = services.restoring.fluidFreeze.letGoOfArea()
 
     override suspend fun settleFluids(written: List<StructureStep>, asItStood: LookupRegion?) =
         settleWritten(written, asItStood)

@@ -3,7 +3,6 @@ package com.tracel.plugin.config
 import com.tracel.api.access.Grant
 import com.tracel.api.admin.PurgeCategory
 import com.tracel.api.admin.PurgeRequest
-import com.tracel.plugin.config.read.readSettings
 import java.util.UUID
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse

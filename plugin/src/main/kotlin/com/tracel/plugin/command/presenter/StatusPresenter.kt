@@ -4,10 +4,10 @@ import com.tracel.api.admin.AutoPurgeStatus
 import com.tracel.api.admin.PurgeCategory
 import com.tracel.api.admin.StoreStatus
 import com.tracel.plugin.command.action.shortSpan
-import com.tracel.plugin.i18n.tr
-import com.tracel.plugin.status.disk.DiskLevel
-import com.tracel.plugin.status.health.Health
-import com.tracel.plugin.status.rollback.RollbackSize
+import com.tracel.plugin.util.tr
+import com.tracel.plugin.services.monitoring.DiskLevel
+import com.tracel.plugin.services.monitoring.Health
+import com.tracel.plugin.services.monitoring.RollbackSize
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.HoverEvent

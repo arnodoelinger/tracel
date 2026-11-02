@@ -8,7 +8,7 @@ import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.mojang.brigadier.tree.CommandNode
 import com.mojang.brigadier.tree.LiteralCommandNode
-import com.tracel.plugin.i18n.asMessage
+import com.tracel.plugin.util.asMessage
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import net.kyori.adventure.text.Component

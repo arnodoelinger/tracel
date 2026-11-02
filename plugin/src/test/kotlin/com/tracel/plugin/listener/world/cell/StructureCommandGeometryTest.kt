@@ -1,6 +1,6 @@
 package com.tracel.plugin.listener.world.cell
 
-import com.tracel.plugin.util.command.ParsedBlockPos
+import com.tracel.plugin.util.ParsedBlockPos
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 

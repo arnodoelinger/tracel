@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.scrub
 
-import com.tracel.plugin.specifics.server.ClientEntities
+import com.tracel.plugin.bukkit.server.ClientEntities
 import org.bukkit.Chunk
 import org.bukkit.Location
 import org.bukkit.Material

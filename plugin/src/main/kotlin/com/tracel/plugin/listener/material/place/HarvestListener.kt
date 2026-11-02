@@ -6,11 +6,11 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.block.toHolderId
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.item.toItemTotals
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.entity.toBlockPos
+import com.tracel.plugin.bukkit.item.toItemKey
+import com.tracel.plugin.bukkit.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.drop.BlockRelease
 import com.tracel.plugin.services.TracelServices

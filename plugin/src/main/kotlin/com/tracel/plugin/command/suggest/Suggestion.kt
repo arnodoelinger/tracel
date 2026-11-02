@@ -7,11 +7,11 @@ import com.tracel.api.addon.FlagInput
 import com.tracel.plugin.api.addon.Extensions
 import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.preset.Presets
-import com.tracel.plugin.i18n.asMessage
-import com.tracel.plugin.i18n.tr
+import com.tracel.plugin.util.asMessage
+import com.tracel.plugin.util.tr
 import com.tracel.plugin.integration.worldguard.Regions
-import com.tracel.plugin.specifics.names.VANILLA_BLOCK_NAMES
-import com.tracel.plugin.specifics.names.VANILLA_ITEM_NAMES
+import com.tracel.plugin.bukkit.names.VANILLA_BLOCK_NAMES
+import com.tracel.plugin.bukkit.names.VANILLA_ITEM_NAMES
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender

@@ -73,10 +73,10 @@ class RollbackComposer(
     override suspend fun undo(job: RollbackJobId): UndoResult = tracked { undoTracked(job) }
 
     override suspend fun lastUndoable(by: HolderId?): RollbackJobId? =
-        services.jobs.undoableBy(by, limit = 1).firstOrNull()
+        services.storage.jobs.undoableBy(by, limit = 1).firstOrNull()
 
     override suspend fun isUndoable(by: HolderId?, job: RollbackJobId): Boolean =
-        job in services.jobs.undoableBy(by, limit = UNDO_LOOKBACK)
+        job in services.storage.jobs.undoableBy(by, limit = UNDO_LOOKBACK)
 
     internal inline fun <T> tracked(block: () -> T): T {
         inFlight.incrementAndGet()

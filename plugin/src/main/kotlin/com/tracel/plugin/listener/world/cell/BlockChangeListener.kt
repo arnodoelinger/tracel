@@ -10,21 +10,21 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.adapter.block.toBlockPos
-import com.tracel.plugin.adapter.block.toHolderId
-import com.tracel.plugin.adapter.block.toPlacedBlockId
-import com.tracel.plugin.adapter.block.toShape
+import com.tracel.plugin.bukkit.block.toBlockPos
+import com.tracel.plugin.bukkit.block.toHolderId
+import com.tracel.plugin.bukkit.block.toPlacedBlockId
+import com.tracel.plugin.bukkit.block.toShape
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.FireCell
 import com.tracel.plugin.listener.support.drop.BlockRelease
-import com.tracel.plugin.actor.blame.explosionActor
+import com.tracel.plugin.bukkit.entity.explosionActor
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.block.WaterPlant
-import com.tracel.plugin.specifics.block.isAirLike
-import com.tracel.plugin.specifics.block.isShapedByNeighbours
-import com.tracel.plugin.specifics.block.poursLikeFluid
-import com.tracel.plugin.specifics.item.isBucket
+import com.tracel.plugin.bukkit.block.WaterPlant
+import com.tracel.plugin.bukkit.block.isAirLike
+import com.tracel.plugin.bukkit.block.isShapedByNeighbours
+import com.tracel.plugin.bukkit.block.poursLikeFluid
+import com.tracel.plugin.bukkit.item.isBucket
 import io.papermc.paper.event.block.BlockBreakBlockEvent
 import io.papermc.paper.event.block.VaultChangeStateEvent
 import org.bukkit.Material
@@ -168,7 +168,7 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
         val facing = (event.block.blockData as? Directional)?.facing ?: return
         val target = event.block.getRelative(facing)
         val block = event.block
-        val by = services.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
+        val by = services.listeners.redstoneTriggers.recentPressNear(block.world, block.x, block.y, block.z)
             ?: block.toHolderId()
         shape.reread(
             action = ActionKind.BLOCK_CHANGE,

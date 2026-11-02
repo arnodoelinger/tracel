@@ -5,8 +5,8 @@ import com.tracel.annotations.Unstable
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
-import com.tracel.plugin.adapter.entity.toBlockPos
-import com.tracel.plugin.adapter.item.toItemKey
+import com.tracel.plugin.bukkit.entity.toBlockPos
+import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder

@@ -7,18 +7,18 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.holder.SinkKind
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.adapter.entity.*
-import com.tracel.plugin.adapter.entity.kind.hullItemKey
-import com.tracel.plugin.adapter.item.toItemKey
-import com.tracel.plugin.adapter.item.toItemTotals
+import com.tracel.plugin.bukkit.entity.*
+import com.tracel.plugin.bukkit.entity.hullItemKey
+import com.tracel.plugin.bukkit.item.toItemKey
+import com.tracel.plugin.bukkit.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
-import com.tracel.plugin.actor.blame.HitActor
+import com.tracel.plugin.bukkit.entity.HitActor
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.specifics.command.EntityCommand
-import com.tracel.plugin.specifics.command.isCommand
-import com.tracel.plugin.specifics.entity.dropsSelf
-import com.tracel.plugin.util.concurrent.ExpiringMap
+import com.tracel.plugin.bukkit.command.EntityCommand
+import com.tracel.plugin.bukkit.command.isCommand
+import com.tracel.plugin.bukkit.entity.dropsSelf
+import com.tracel.plugin.util.ExpiringMap
 import org.bukkit.Bukkit
 import org.bukkit.entity.*
 import org.bukkit.event.entity.EntityDeathEvent
@@ -71,7 +71,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
             if (!entity.isValid) return@later
             val at = entity.location
             // Empty claim means no nearby release; minting there doubled a dispensed arrow
-            services.blockDrops.claim(at.world, at.x, at.y, at.z, itemKey, 1L, holder)
+            services.listeners.blockDrops.claim(at.world, at.x, at.y, at.z, itemKey, 1L, holder)
         }
     }
 
@@ -146,8 +146,8 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         // HangingBreakByEntityEvent extends HangingBreakEvent; handling both released the painting twice
         val by = (event as? HangingBreakByEntityEvent)?.remover as? Player
         val who = by?.let { HolderId.Player(it.uniqueId) }
-            ?: services.redstoneTriggers.recentExplosionNear(event.entity.location)
-            ?: services.redstoneTriggers.recentDispenseNear(event.entity.location)
+            ?: services.listeners.redstoneTriggers.recentExplosionNear(event.entity.location)
+            ?: services.listeners.redstoneTriggers.recentDispenseNear(event.entity.location)
         destroyed(event.entity, who)
     }
 
@@ -159,7 +159,7 @@ class EntityCargoListener(services: TracelServices) : TracelListener(services) {
         val cause = if (causedBy is HolderId.Block) CauseKind.DISPENSER else CauseKind.ENTITY_ACTION
         val hull = if (entity.dropsSelf()) entity.hullItemKey() else null
         if (hull != null) {
-            services.hullDrops.expect(entity.location, entity.toPlacedEntityId(), hull, causedBy)
+            services.listeners.hullDrops.expect(entity.location, entity.toPlacedEntityId(), hull, causedBy)
         } else {
             material.released(
                 cause = cause,
