@@ -31,8 +31,8 @@ internal fun StructureRestorer.reattachLater(
             // Do not cut a working lead because a seat is still missing
             Warnings.once(logger, "link:${hull.type}") {
                 val holder = shape.extras.leashHolder ?: shape.extras.vehicle
-                "restored a ${hull.type.name.lowercase()} whose leash holder or vehicle " +
-                        "($holder) was not put back in time — it keeps whatever link it has"
+                "Restored a ${hull.type.name.lowercase()} whose leash holder or vehicle " +
+                        "($holder) was not put back in time. It keeps whatever link it has."
             }
         }, {}, REATTACH_DELAY_TICKS)
     }

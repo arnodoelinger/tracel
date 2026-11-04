@@ -1,5 +1,6 @@
 package com.tracel.plugin.bukkit.rollback.structure.rescue
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
@@ -56,7 +57,7 @@ internal suspend fun StructureRestorer.rescueJoined(player: Player) {
         }
     } catch (failure: Throwable) {
         if (failure is CancellationException) throw failure
-        logger.log(Level.WARNING, "could not check a joining player's safety", failure)
+        logger.log(Level.WARNING, "Could not check a joining player's safety (${failure.messageOrName()}).", failure)
     }
 }
 
@@ -72,7 +73,7 @@ private suspend fun StructureRestorer.sweep(online: List<UUID>, byWorld: Map<Wor
                     }
                 } catch (failure: Throwable) {
                     if (failure is CancellationException) throw failure
-                    logger.log(Level.WARNING, "could not check a player's safety after a restore", failure)
+                    logger.log(Level.WARNING, "Could not check a player's safety after a restore (${failure.messageOrName()}).", failure)
                 }
             }
         }.awaitAll()

@@ -101,12 +101,12 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
                 ) { gains ->
                     logger.log(
                         Level.FINE,
-                        "craft by $playerHolder produced $gains distinct item keys and none " +
-                                "uniquely matched ${produced ?: "an unknown recipe"}, not recorded",
+                        "Craft by $playerHolder produced $gains item kinds, and none uniquely matched " +
+                                "${produced ?: "an unknown recipe"}. Not recorded.",
                     )
                 }
             } catch (e: IllegalStateException) {
-                logger.log(Level.FINE, "untracked ingredient material for craft by $playerHolder, not recorded", e)
+                logger.log(Level.FINE, "Untracked ingredients in a craft by $playerHolder. Not recorded.", e)
             }
         }
     }
@@ -179,7 +179,7 @@ class CraftListener(services: TracelServices) : TracelListener(services) {
                         )
                     }
                 } catch (e: IllegalStateException) {
-                    logger.log(Level.FINE, "untracked ingredient material for crafter at $at, not recorded", e)
+                    logger.log(Level.FINE, "Untracked ingredients in the crafter at $at. Not recorded.", e)
                 }
             }
         }

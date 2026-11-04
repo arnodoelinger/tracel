@@ -57,11 +57,11 @@ internal fun MaterialRestorer.stackFor(itemKey: ItemKey, amount: Int, form: Byte
             }
         if (rebuilt != null) return rebuilt.apply { this.amount = amount }
         Warnings.once(logger, "form:$itemKey") {
-            "stored form of $itemKey no longer deserializes on this server — restoring it plain"
+            "Stored form of $itemKey no longer deserializes on this server. Restoring it plain."
         }
     }
     if (itemKey.decoration != null && form == null) {
-        logger.fine("no stored form for decorated item $itemKey — restoring a plain ${itemKey.material} stack")
+        logger.fine("No stored form for decorated item $itemKey. Restoring a plain ${itemKey.material} stack.")
     }
     // Bad keys (non-item materials) must not throw the whole rollback
     val material = runCatching { Material.valueOf(itemKey.material) }.getOrNull()?.takeIf { it.isItem } ?: return null

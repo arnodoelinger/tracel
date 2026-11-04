@@ -69,8 +69,8 @@ internal fun StructureRestorer.despawn(
         }
         // Unbooked
         Warnings.once(logger, "unbooked-cargo:${entity.type}") {
-            "a ${entity.type.name.lowercase()} (${entity.uniqueId}) holds $what with no Entity " +
-                    "account; the hull is still removed"
+            "A ${entity.type.name.lowercase()} (${entity.uniqueId}) holds $what with no Entity " +
+                    "account. The hull is still removed."
         }
         entity.emptyCargo()
     }

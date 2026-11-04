@@ -8,6 +8,6 @@ internal inline fun stopping(logger: Logger, what: String, step: () -> Unit) {
     try {
         step()
     } catch (failure: Throwable) {
-        logger.log(Level.WARNING, "Tracel could not shut down $what cleanly; the rest still goes", failure)
+        logger.log(Level.WARNING, "Could not shut down $what cleanly (${failure.messageOrName()}). Shutdown goes on.", failure)
     }
 }

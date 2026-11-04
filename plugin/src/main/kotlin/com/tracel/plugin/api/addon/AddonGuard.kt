@@ -1,5 +1,6 @@
 package com.tracel.plugin.api.addon
 
+import com.tracel.plugin.util.messageOrName
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,7 +67,7 @@ internal class AddonGuard(
                 try {
                     work()
                 } catch (failure: Throwable) {
-                    logger.log(Level.SEVERE, "Addon \"$addon\" $what threw.", failure)
+                    logger.log(Level.SEVERE, "Addon \"$addon\" $what threw (${failure.messageOrName()}).", failure)
                 } finally {
                     running.set(null)
                 }
@@ -97,7 +98,7 @@ internal class AddonGuard(
         if (tripped.get()) return
         if (calls.trySend(what to work).isSuccess) return
         if (warnedFull.compareAndSet(false, true)) {
-            logger.warning("Addon \"$addon\" is $LANE_CAPACITY calls behind; newer ones are dropped until it catches up.")
+            logger.warning("Addon \"$addon\" is $LANE_CAPACITY calls behind. Newer calls are dropped until it catches up.")
         }
     }
 
@@ -116,7 +117,7 @@ internal class AddonGuard(
             when {
                 millis >= stallMillis -> fail("its $what kept the caller waiting $millis ms.")
                 millis >= SLOW_MILLIS && warnedSlow.compareAndSet(false, true) ->
-                    logger.warning("Addon \"$addon\" $what took $millis ms; the caller waits on it, keep it quick.")
+                    logger.warning("Addon \"$addon\" $what took $millis ms. The caller waits on it, so keep it quick.")
             }
         }
     }
@@ -124,12 +125,12 @@ internal class AddonGuard(
     private fun fail(why: String, hang: Boolean = false) {
         if (excused) {
             if (hang || warnedStall.compareAndSet(false, true)) {
-                logger.warning("Addon \"$addon\" would be thrown out, but the admin excused it: $why.")
+                logger.warning("Addon \"$addon\" would be disabled, but the admin excused it ($why).")
             }
             return
         }
         if (!tripped.compareAndSet(false, true)) return
-        logger.severe("Addon \"$addon\" is disabled: $why.")
+        logger.severe("Addon \"$addon\" was disabled ($why).")
         trip(why)
     }
 

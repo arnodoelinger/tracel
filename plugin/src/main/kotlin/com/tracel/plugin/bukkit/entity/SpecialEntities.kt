@@ -74,14 +74,14 @@ internal object FallingBlockAdapter {
             Warnings.once(
                 logger,
                 "spawn-falling:${data.asString}",
-            ) { "could not spawn a falling ${data.asString}: ${it.message}" }
+            ) { "Could not spawn a falling ${data.asString} (${it.message})." }
             null
         }
 
     fun spawnFromExtras(world: World, loc: Location, extras: EntityExtras.Falling, logger: Logger): Entity? {
         val data = runCatching { Bukkit.createBlockData(extras.data.value) }.getOrNull()
         if (data != null) return spawn(world, loc, data, logger)
-        Warnings.once(logger, "falling:${extras.data.value}") { "unreadable falling block ${extras.data.value}" }
+        Warnings.once(logger, "falling:${extras.data.value}") { "Unreadable falling block ${extras.data.value}." }
         return null
     }
 }

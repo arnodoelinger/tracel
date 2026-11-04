@@ -58,8 +58,8 @@ internal suspend fun MaterialRestorer.respawnDrops(
     if (unfunded.withheld.isNotEmpty()) {
         logger.log(
             Level.WARNING,
-            "undo job ${job.raw} put ${unfunded.withheld.size} vanished drop(s) back short: what funded them could not " +
-                    "be taken, and respawning them anyway would have duplicated it",
+            "Undo ${job.raw}: ${unfunded.withheld.size} vanished drops were put back short. What funded them could not " +
+                    "be taken, and respawning them anyway would have duplicated it.",
         )
     }
     val funded = unfunded.funded.entries.associate { (holder, deltas) -> holder as HolderId.ItemEntity to deltas }
@@ -75,8 +75,8 @@ internal suspend fun MaterialRestorer.respawnDrops(
     if (failures.isNotEmpty()) {
         logger.log(
             Level.WARNING,
-            "could not put ${failures.size} vanished drop(s) back on the ground in undo job ${job.raw}; " +
-                    "first: ${failures.entries.take(SAMPLED_FAILURES).joinToString("; ") { "${it.key}: ${it.value}" }}",
+            "Undo ${job.raw}: ${failures.size} vanished drops could not be put back on the ground. " +
+                    "First: ${failures.entries.take(SAMPLED_FAILURES).joinToString(", ") { "${it.key} (${it.value})" }}.",
         )
     }
     return RestorationReport(failures, spilled = sink.size, shortfall = unfunded.unspent)

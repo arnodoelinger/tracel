@@ -23,6 +23,6 @@ internal object WriteLog {
             val verb = if (value == null) "del" else "put"
             lines += "$verb $tag $hex ${bytes}b"
         }
-        log.info("Commit ${batch.size} ${lines.joinToString("; ")}")
+        log.info("Committed ${batch.size} writes: ${lines.joinToString(", ")}.")
     }
 }

@@ -171,7 +171,7 @@ internal class TracelAdmin(
         failure is NoRoomForImport -> AdminError.NoRoom
         else -> {
             Telemetry.error(failure)
-            services.plugin.logger.log(Level.WARNING, "An admin call of $signer failed.", failure)
+            services.plugin.logger.log(Level.WARNING, "Admin call by $signer failed (${failure.messageOrName()}).", failure)
             AdminError.Failed(failure.messageOrName())
         }
     }

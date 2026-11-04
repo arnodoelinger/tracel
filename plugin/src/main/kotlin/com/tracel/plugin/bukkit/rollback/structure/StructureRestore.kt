@@ -127,7 +127,7 @@ internal suspend fun StructureRestorer.restoreSteps(
                                 } catch (failure: Throwable) {
                                     logger.log(
                                         Level.WARNING,
-                                        "a structure group failed; its steps are reported as skipped",
+                                        "Structure group failed (${failure.messageOrName()}). Its steps are reported as skipped.",
                                         failure
                                     )
                                     val why =

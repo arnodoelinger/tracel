@@ -1,5 +1,6 @@
 package com.tracel.storage.capture
 
+import com.tracel.platform.io.reason
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.capture.PlacedDeltas
 import com.tracel.engine.world.edit.BlockEdit
@@ -78,7 +79,7 @@ class Drainer(
             } catch (e: Throwable) {
                 // If the drain loop dies because of one corrupted batch, the whole
                 // capture pipeline goes up in flames. Log it, skip it, and move on.
-                logger.log(Level.SEVERE, "drain pass failed; the loop continues", e)
+                logger.log(Level.SEVERE, "Capture batch failed to write (${e.reason()}). Retrying.", e)
                 0
             }
             if (drained == 0) delay(idleMillis.milliseconds)
@@ -146,7 +147,7 @@ class Drainer(
                         storage.read { rollbackTo(mark) }
                         rejected.incrementAndGet()
                         val level = if (e is IllegalStateException) Level.FINE else Level.WARNING
-                        logger.log(level, "a parked capture did not apply, skipped", e)
+                        logger.log(level, "Parked capture did not apply (${e.reason()}). Skipped.", e)
                     }
                     continue
                 }
@@ -163,7 +164,7 @@ class Drainer(
                     storage.read { rollbackTo(mark) }
                     rejected.incrementAndGet()
                     val level = if (e is IllegalStateException) Level.FINE else Level.WARNING
-                    logger.log(level, "captured event did not apply to the ledger, skipped", e)
+                    logger.log(level, "Captured event did not apply to the ledger (${e.reason()}). Skipped.", e)
                 }
             }
         }

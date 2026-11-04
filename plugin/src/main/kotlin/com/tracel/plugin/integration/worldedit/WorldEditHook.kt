@@ -1,5 +1,6 @@
 package com.tracel.plugin.integration.worldedit
 
+import com.tracel.plugin.util.messageOrName
 import com.sk89q.worldedit.EditSession
 import com.sk89q.worldedit.WorldEdit
 import com.sk89q.worldedit.WorldEditException
@@ -90,8 +91,8 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
                 event.extent = LoggingExtent(extent, bukkitWorld, actor.uniqueId)
             }
         } catch (failure: Throwable) {
-            Warnings.once(logger, "wrap") { "a WorldEdit session could not be logged: $failure" }
-            logger.log(Level.FINE, "WorldEdit session not hooked", failure)
+            Warnings.once(logger, "wrap") { "WorldEdit session could not be logged ($failure)." }
+            logger.log(Level.FINE, "WorldEdit session not hooked (${failure.messageOrName()}).", failure)
         }
     }
 
@@ -180,7 +181,7 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
             val before = try {
                 before(at ?: BlockVector3.at(x, y, z), x, y, z)
             } catch (failure: Throwable) {
-                Warnings.once(logger, "before") { "a block WorldEdit is about to change could not be read: $failure" }
+                Warnings.once(logger, "before") { "A block WorldEdit is about to change could not be read ($failure)." }
                 null
             }
             val changed = write()
@@ -188,7 +189,7 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
             try {
                 note(x, y, z, before, logShape(block.toImmutableState()))
             } catch (failure: Throwable) {
-                Warnings.once(logger, "note") { "a WorldEdit change could not be logged: $failure" }
+                Warnings.once(logger, "note") { "WorldEdit change could not be logged ($failure)." }
             }
             return true
         }
@@ -197,9 +198,9 @@ internal class WorldEditHook(private val services: TracelServices) : AutoCloseab
             val state = getBlock(position)
             if (!ownsChunkAt(world, x, z)) {
                 Warnings.once(logger, "async") {
-                    "an edit is being made off the server's region threads (FAWE does this); " +
-                            "signs, banners and other tile entities it replaces are logged without their details, " +
-                            "and containers it replaces without their contents"
+                    "An edit is being made off the server's region threads, as FAWE does. " +
+                            "Signs, banners and other tile entities it replaces are logged without their details, " +
+                            "and containers it replaces without their contents."
                 }
                 return Before(logShape(state))
             }

@@ -1,5 +1,6 @@
 package com.tracel.plugin.bukkit.entity
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.plugin.listener.world.EntityKinds
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
@@ -66,8 +67,8 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
             buildList { for (surface in surfaces) surface.collect(entity) { if (it != null && !it.isEmpty) add(it) } }
         if (left.isNotEmpty()) {
             Warnings.once(logger, "cargo:${entity.type}") {
-                "a ${entity.type} could not be emptied before being captured — its pose is not recorded, " +
-                        "because recording it would carry its contents into the world log"
+                "${entity.type} could not be emptied before being captured. Its pose is not recorded, " +
+                        "because that would carry its contents into the world log."
             }
             return@runCatching null
         }
@@ -76,8 +77,8 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
         val room = OpaqueBytes.MAX_BYTES - links
         if (nbt.size > room) {
             Warnings.once(logger, "huge:${entity.type}") {
-                "a ${entity.type} serializes to ${nbt.size} bytes, past the $room a " +
-                        "world-log record can hold — it will be restored without its detail"
+                "${entity.type} serializes to ${nbt.size} bytes, past the $room a " +
+                        "world-log record can hold. It will be restored without its detail."
             }
             return@runCatching null
         }
@@ -86,6 +87,6 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
         entity.restoreCargoSurfaces(cargo)
     }
 }.getOrElse {
-    logger.log(Level.FINE, "entity ${entity.type} could not be captured in full", it)
+    logger.log(Level.FINE, "Could not capture entity ${entity.type} in full (${it.messageOrName()}).", it)
     null
 }

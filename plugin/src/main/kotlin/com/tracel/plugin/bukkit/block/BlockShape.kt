@@ -1,5 +1,6 @@
 package com.tracel.plugin.bukkit.block
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
@@ -58,7 +59,7 @@ fun Block.mayHaveTile(): Boolean = type.mayHaveBlockEntity(this)
 /** Writes this shape onto [block]. Physics off unless asked. */
 fun BlockShape.applyTo(block: Block, physics: Boolean = false) {
     val data = BlockDataCache.of(data) ?: run {
-        Warnings.once(logger, "state:${data.value}") { "unknown block state ${data.value} — left alone" }
+        Warnings.once(logger, "state:${data.value}") { "Unknown block state ${data.value}. Left alone." }
         return
     }
     block.setBlockData(data, physics)
@@ -88,7 +89,7 @@ internal fun captureShape(state: BlockState): BlockShape {
 private fun tileExtras(state: BlockState, live: BlockState = state): BlockExtras? = runCatching {
     BannerExtras.of(state) ?: SkullExtras.of(state) ?: BlockStateMetaExtras.of(state, live)
 }.getOrElse {
-    logger.log(Level.FINE, "block entity at ${state.location} could not be captured, keeping its state only", it)
+    logger.log(Level.FINE, "Could not capture block entity at ${state.location} (${it.messageOrName()}). Kept its state only.", it)
     null
 }
 
@@ -161,6 +162,6 @@ private fun applyBlockEntityExtras(
         Warnings.once(
             logger,
             "extras:${block.type}",
-        ) { "${block.type} restored without its block entity detail: ${it.message}" }
+        ) { "${block.type} restored without its block entity detail (${it.message})." }
     }
 }

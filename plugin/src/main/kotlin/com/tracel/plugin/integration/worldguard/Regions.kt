@@ -1,5 +1,6 @@
 package com.tracel.plugin.integration.worldguard
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.api.world.BlockPlace
 import com.tracel.api.world.LookupArea
 import org.bukkit.Bukkit
@@ -50,7 +51,7 @@ internal object Regions {
         return try {
             read()
         } catch (failure: Throwable) {
-            logger.log(Level.FINE, "WorldGuard regions could not be read.", failure)
+            logger.log(Level.FINE, "WorldGuard regions could not be read (${failure.messageOrName()}).", failure)
             null
         }
     }

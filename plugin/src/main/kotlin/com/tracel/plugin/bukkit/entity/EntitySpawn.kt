@@ -89,7 +89,7 @@ private fun EntityShape.putHullBack(
         return it
     }
     if (FallingBlockAdapter.isType(type.value)) {
-        Warnings.once(logger, "falling-nbt") { "a falling block had no nbt to restore from" }
+        Warnings.once(logger, "falling-nbt") { "A falling block had no NBT to restore from." }
         return null
     }
     return null
@@ -106,7 +106,7 @@ private fun revive(entity: Entity) {
 /** Once per type: we spawned a hull whose UUID is not the one the ledger has cargo for. */
 private fun warnLostIdentity(type: String, expected: UUID) {
     Warnings.once(logger, "identity:$type") {
-        "restored a $type without its recorded uuid (e.g. $expected) — its cargo cannot be delivered"
+        "Restored a $type without its recorded UUID (for example $expected). Its cargo cannot be delivered."
     }
 }
 
@@ -164,7 +164,7 @@ private fun EntityShape.spawnByType(world: World, loc: Location): Entity? {
             }
         }
     }.getOrElse {
-        Warnings.once(logger, "spawn:$type") { "could not restore a $type: ${it.message}" }
+        Warnings.once(logger, "spawn:$type") { "Could not restore a $type (${it.message})." }
         null
     }
 }

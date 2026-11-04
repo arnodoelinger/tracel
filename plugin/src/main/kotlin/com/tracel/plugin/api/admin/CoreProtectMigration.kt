@@ -82,7 +82,7 @@ internal class CoreProtectMigration(
             val taken = tally.taken.values.sum();
             services.plugin.logger.info(
                 "CoreProtect import ${if (outcome.stopped) "paused" else "finished"}: " +
-                        "$taken record(s) from ${tally.rows} row(s), ${outcome.tookMillis / MILLIS_PER_SECOND} s.",
+                        "$taken records from ${tally.rows} rows in ${outcome.tookMillis / MILLIS_PER_SECOND} s.",
             )
             return Res.Ok(
                 MigrationOutcome(
@@ -107,12 +107,12 @@ internal class CoreProtectMigration(
     private fun errorOf(failure: Exception): AdminError {
         if (failure is NoRoomForImport) {
             services.plugin.logger.warning(
-                "CoreProtect import refused: this database numbers its own history from the start.",
+                "CoreProtect import refused. This database numbers its own history from the start.",
             )
             return AdminError.NoRoom
         }
         Telemetry.error(failure)
-        services.plugin.logger.log(Level.WARNING, "CoreProtect import failed", failure)
+        services.plugin.logger.log(Level.WARNING, "CoreProtect import failed (${failure.messageOrName()}).", failure)
         return AdminError.Failed(failure.messageOrName())
     }
 }

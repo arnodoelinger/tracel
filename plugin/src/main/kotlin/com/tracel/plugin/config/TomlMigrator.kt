@@ -1,5 +1,6 @@
 package com.tracel.plugin.config
 
+import com.tracel.plugin.util.messageOrName
 import org.tomlj.Toml
 import java.nio.file.Files
 import java.nio.file.Path
@@ -50,7 +51,7 @@ internal object TomlMigrator {
             val migrated = migrate(Files.readString(file), current, steps)
             if (!migrated.changed) {
                 if (migrated.from > current) {
-                    log.warning("$name is version ${migrated.from}, newer than the $current this Tracel reads; what it does not know is ignored.")
+                    log.warning("$name is version ${migrated.from}, newer than the $current this Tracel reads. Unknown settings are ignored.")
                 }
                 return
             }
@@ -59,7 +60,7 @@ internal object TomlMigrator {
             Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING)
             if (announce) log.info("Updated $name to version ${migrated.to}.")
         } catch (failure: java.io.IOException) {
-            log.warning("Could not update $name: ${failure.message}.")
+            log.warning("Could not update $name (${failure.messageOrName()}).")
         }
     }
 

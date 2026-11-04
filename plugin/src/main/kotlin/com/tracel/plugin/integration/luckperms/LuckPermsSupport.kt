@@ -1,5 +1,6 @@
 package com.tracel.plugin.integration.luckperms
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.plugin.listener.registerObserved
 import com.tracel.plugin.services.TracelServices
 import org.bukkit.Bukkit
@@ -30,7 +31,7 @@ internal object LuckPermsSupport {
             services.luckPerms = hook
             logger.info("Following permission changes made with $LUCKPERMS.")
         } catch (failure: Throwable) {
-            logger.log(Level.WARNING, "Tracel will not follow $LUCKPERMS permission changes live: $failure.", failure)
+            logger.log(Level.WARNING, "Permission changes made with $LUCKPERMS will not be followed live (${failure.messageOrName()}).", failure)
         }
     }
 }

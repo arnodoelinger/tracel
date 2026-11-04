@@ -1,5 +1,6 @@
 package com.tracel.storage
 
+import com.tracel.platform.io.reason
 import com.tracel.storage.ffm.Key
 import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.spi.EngineSnapshot
@@ -62,7 +63,7 @@ class StorageUnit(
             runCatching(hook).onFailure {
                 hookLogger.log(
                     Level.WARNING,
-                    "a commit hook failed.",
+                    "Commit hook failed (${it.reason()}).",
                     it
                 )
             }
@@ -80,7 +81,7 @@ class StorageUnit(
             runCatching(hook).onFailure {
                 hookLogger.log(
                     Level.WARNING,
-                    "an abort hook failed.",
+                    "Abort hook failed (${it.reason()}).",
                     it
                 )
             }

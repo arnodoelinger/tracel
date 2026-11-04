@@ -51,7 +51,7 @@ object Messages {
         if (edited.isFile) {
             runCatching { edited.inputStream().use(::read) }
                 .onSuccess { out += it }
-                .onFailure { complain("${edited.path} is broken, using the built-in texts: ${it.message}") }
+                .onFailure { complain("${edited.path} is broken (${it.message}). Using the built-in texts.") }
         }
         return out.mapKeys { PREFIX + it.key }
     }

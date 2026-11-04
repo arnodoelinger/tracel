@@ -100,18 +100,18 @@ internal suspend fun MaterialRestorer.restoreDeltas(
     if (short.isNotEmpty()) {
         logger.log(
             Level.WARNING,
-            "rollback job ${job.raw}: " + short.entries.joinToString(", ") { (key, amount) -> "${key.material} x$amount" } +
-                    " could not be taken, so that much was not handed out" +
-                    if (unfunded.unspent.isEmpty()) "" else "; " +
-                            unfunded.unspent.entries.joinToString(", ") { (key, amount) -> "${key.material} x$amount" } +
-                            " found nothing to hold back, the world now has a spare",
+            "Rollback ${job.raw}: " + short.entries.joinToString(", ") { (key, amount) -> "$amount ${key.material}" } +
+                    " could not be taken, so as much was not handed out." +
+                    if (unfunded.unspent.isEmpty()) "" else " " +
+                            unfunded.unspent.entries.joinToString(", ") { (key, amount) -> "$amount ${key.material}" } +
+                            " found nothing to hold back, so the world now has a spare.",
         )
     }
     if (failures.isNotEmpty()) {
         logger.log(
             Level.WARNING,
-            "physical restoration incomplete for ${failures.size} holder(s) in rollback job ${job.raw}; " +
-                    "first: ${failures.entries.take(SAMPLED_FAILURES).joinToString("; ") { "${it.key}: ${it.value}" }}",
+            "Rollback ${job.raw}: ${failures.size} holders were not fully restored. " +
+                    "First: ${failures.entries.take(SAMPLED_FAILURES).joinToString(", ") { "${it.key} (${it.value})" }}.",
         )
     }
 

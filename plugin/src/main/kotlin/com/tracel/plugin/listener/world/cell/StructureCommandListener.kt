@@ -144,7 +144,7 @@ class StructureCommandListener(services: TracelServices) : TracelListener(servic
                     continue
                 }
                 Warnings.once(logger, "command-hop") {
-                    "a /fill, /setblock or /clone reached chunks another region owns; they are read after the command ran"
+                    "A /fill, /setblock or /clone reached chunks another region owns. They are read after the command ran."
                 }
                 val ticket = services.capturing.pendingCaptures.owed()
                 val at = Location(world, x0.toDouble(), ys.first.toDouble(), z0.toDouble())

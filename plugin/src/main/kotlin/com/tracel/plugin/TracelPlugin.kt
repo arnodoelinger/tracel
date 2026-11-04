@@ -1,5 +1,6 @@
 package com.tracel.plugin
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.engine.store.ImportInterrupted
 import com.tracel.engine.store.StoreFormatException
 import com.tracel.plugin.bukkit.item.PendingItemForms
@@ -33,7 +34,7 @@ class TracelPlugin : JavaPlugin() {
             if (failure is CriticalDiskSpace || failure is StoreFormatException || failure is ImportInterrupted) logger.severe(
                 failure.message
             )
-            else logger.log(Level.SEVERE, "Tracel failed to enable. The server cannot run without a ledger.", failure)
+            else logger.log(Level.SEVERE, "Tracel failed to enable (${failure.messageOrName()}). The server cannot run without a ledger.", failure)
             killServer(this)
             throw failure
         }
@@ -63,7 +64,7 @@ class TracelPlugin : JavaPlugin() {
                     it.join()
                 }
             }
-            if (!clean) logger.warning("Tracel stopped waiting for its last writes after 5 seconds; the rest still goes.")
+            if (!clean) logger.warning("Stopped waiting for the last writes after 5 s. Shutdown goes on.")
         }
         logger.info("Tracel disabled.")
         if (!serverIsStopping()) {
@@ -75,7 +76,7 @@ class TracelPlugin : JavaPlugin() {
     /** Capture failure. */
     internal fun captureFailures() = CoroutineExceptionHandler { _, failure ->
         Telemetry.error(failure)
-        logger.log(Level.WARNING, "Tracel background task failed: ${failure.message}.", failure)
+        logger.log(Level.WARNING, "Background task failed (${failure.messageOrName()}).", failure)
     }
 
     /** If capture dies, kill the server. */
@@ -83,7 +84,7 @@ class TracelPlugin : JavaPlugin() {
         job.invokeOnCompletion { failure ->
             if (!isEnabled || serverIsStopping()) return@invokeOnCompletion
             if (failure == null) return@invokeOnCompletion
-            logger.log(Level.SEVERE, "Tracel's $what died. The server cannot run without a ledger.", failure)
+            logger.log(Level.SEVERE, "Tracel's $what died (${failure.messageOrName()}). The server cannot run without a ledger.", failure)
             killServer(this)
         }
     }

@@ -483,7 +483,7 @@ class LsmEngine(
             // The write-ahead log still holds every one of these writes, so a failed flush costs
             // memory and a longer recovery, not data, as long as it is tried again rather than dropped.
             if (flushFailure == null) {
-                logger.log(Level.SEVERE, "flush failed; the write-ahead log still holds this data, retrying...", e)
+                logger.log(Level.SEVERE, "Flush failed (${e.reason()}). Data is safe in the write-ahead log. Retrying.", e)
             } else {
                 logger.log(Level.FINE, "Flush failed again (${e.reason()}).", e)
             }
@@ -547,7 +547,7 @@ class LsmEngine(
         } catch (e: Throwable) {
             // Nothing was published, so the previous manifest is still in force and the inputs are
             // all still live. The orphaned output gets swept on the next publish or restart.
-            logger.log(Level.SEVERE, "compaction failed; the previous manifest is still in force.", e)
+            logger.log(Level.SEVERE, "Compaction failed (${e.reason()}). Nothing changed on disk. Retrying later.", e)
             return false
         }
     }

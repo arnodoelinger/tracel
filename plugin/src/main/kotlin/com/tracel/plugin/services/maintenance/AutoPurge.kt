@@ -1,5 +1,6 @@
 package com.tracel.plugin.services.maintenance
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.engine.store.PurgeCategory
 import com.tracel.engine.store.PurgeFilter
 import com.tracel.engine.store.PurgeSpec
@@ -20,10 +21,10 @@ internal fun startAutoPurge(plugin: TracelPlugin, services: TracelServices, sett
     if (!settings.enabled) return null
     val keep = settings.keep.mapNotNull { (category, millis) -> millis?.let { category to it } }
     if (keep.isEmpty()) {
-        plugin.logger.warning("Automatic purge is on, but every keep-* is \"forever\"; nothing to do.")
+        plugin.logger.warning("Automatic purge is on, but every keep-* is \"forever\". Nothing to do.")
         return null
     }
-    plugin.logger.info("Automatic purge: on, every ${shortSpan(settings.intervalMillis)}.")
+    plugin.logger.info("Automatic purge is on, every ${shortSpan(settings.intervalMillis)}.")
     return services.scope.launch {
         delay(FIRST_RUN_DELAY_MILLIS.milliseconds)
         while (isActive) {
@@ -35,11 +36,11 @@ internal fun startAutoPurge(plugin: TracelPlugin, services: TracelServices, sett
 
 private suspend fun sweep(plugin: TracelPlugin, services: TracelServices, keep: List<Pair<PurgeCategory, Long>>) {
     if (!services.purging.compareAndSet(false, true)) {
-        plugin.logger.info("Automatic purge: skipped, another purge or an import is running.")
+        plugin.logger.info("Automatic purge skipped. Another purge or an import is running.")
         return
     }
     try {
-        services.purgeGate.awaitIdle { plugin.logger.info("Automatic purge: waiting for a rollback to finish.") }
+        services.purgeGate.awaitIdle { plugin.logger.info("Automatic purge is waiting for a rollback to finish.") }
         services.capturing.flushCapture()
         val now = System.currentTimeMillis()
         var records = 0L
@@ -51,11 +52,11 @@ private suspend fun sweep(plugin: TracelPlugin, services: TracelServices, keep: 
             bytes += report.bytes
         }
         services.lastPurgeMillis = System.currentTimeMillis()
-        if (records > 0) plugin.logger.info("Automatic purge: took $records record(s), %.1f MiB.".format(bytes.toMib()))
+        if (records > 0) plugin.logger.info("Automatic purge took $records records, %.1f MiB.".format(bytes.toMib()))
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {
-        plugin.logger.log(Level.WARNING, "Automatic purge failed: ${failure.message}", failure)
+        plugin.logger.log(Level.WARNING, "Automatic purge failed (${failure.messageOrName()}).", failure)
     } finally {
         services.purging.set(false)
     }

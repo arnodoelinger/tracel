@@ -1,5 +1,6 @@
 package com.tracel.plugin.bukkit.rollback.material.spill
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
@@ -80,6 +81,6 @@ private suspend fun MaterialRestorer.recordSpillGroup(holder: HolderId, at: Bloc
             ) { it == holder }
         }
     }.onFailure {
-        logger.log(Level.WARNING, "material overflowed onto the ground and the move could not be recorded", it)
+        logger.log(Level.WARNING, "Material spilled onto the ground, but the move could not be recorded (${it.messageOrName()}).", it)
     }
 }

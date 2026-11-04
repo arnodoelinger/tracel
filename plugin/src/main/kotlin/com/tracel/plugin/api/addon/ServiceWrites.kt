@@ -1,5 +1,6 @@
 package com.tracel.plugin.api.addon
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.api.actor.Actor
 import com.tracel.api.addon.AddonRecorder
 import com.tracel.api.addon.BlockBatch
@@ -126,7 +127,7 @@ internal class ServiceWrites(
                     for ((action, edits) in batch) services.capturing.shape.edits(action, CauseKind.PLUGIN, by, world, edits, at)
                 }
             } catch (failure: Throwable) {
-                logger.log(Level.WARNING, "An addon's block batch could not be written down.", failure)
+                logger.log(Level.WARNING, "Addon block batch could not be written (${failure.messageOrName()}).", failure)
             } finally {
                 services.capturing.pendingCaptures.done(owed)
             }
@@ -147,8 +148,8 @@ internal class ServiceWrites(
         try {
             work()
         } catch (failure: Throwable) {
-            Warnings.once(logger, "addon-book:$what") { "Tracel could not $what: $failure" }
-            logger.log(Level.FINE, "could not $what", failure)
+            Warnings.once(logger, "addon-book:$what") { "Could not $what ($failure)." }
+            logger.log(Level.FINE, "Could not $what (${failure.messageOrName()}).", failure)
         }
     }
 }

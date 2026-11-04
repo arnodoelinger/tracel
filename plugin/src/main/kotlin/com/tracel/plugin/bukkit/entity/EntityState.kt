@@ -1,5 +1,6 @@
 package com.tracel.plugin.bukkit.entity
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.entity.EntityExtras
 import org.bukkit.Bukkit
@@ -28,6 +29,6 @@ internal fun deserializeEntity(nbt: ByteArray, world: World, preserveUUID: Boole
     @Suppress("DEPRECATION")
     Bukkit.getUnsafe().deserializeEntity(nbt, world, preserveUUID)
 }.getOrElse {
-    logger.log(Level.FINE, "could not deserialize an entity into ${world.name}", it)
+    logger.log(Level.FINE, "Could not deserialize an entity into ${world.name} (${it.messageOrName()}).", it)
     null
 }

@@ -1,5 +1,6 @@
 package com.tracel.plugin.listener.support.drop
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.annotations.Unstable
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
@@ -122,7 +123,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
             runCatching { pass() }.onFailure {
                 logger.log(
                     Level.WARNING,
-                    "block release pass failed; the loop continues",
+                    "Block release pass failed (${it.messageOrName()}). The loop continues.",
                     it
                 )
             }
@@ -224,7 +225,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
                     services.release(mark)
                 } catch (e: IllegalStateException) {
                     services.rollbackTo(mark)
-                    logger.log(Level.FINE, "block release touched untracked material, not recorded", e)
+                    logger.log(Level.FINE, "Block release touched untracked material. Not recorded.", e)
                 }
             }
             for (follow in after) {
@@ -240,7 +241,7 @@ class BlockReleaseQueue(private val services: TracelServices) {
                     services.release(mark)
                 } catch (e: IllegalStateException) {
                     services.rollbackTo(mark)
-                    logger.log(Level.FINE, "a move off a claimed drop found nothing to move, not recorded", e)
+                    logger.log(Level.FINE, "Move off a claimed drop found nothing to move. Not recorded.", e)
                 }
             }
         }

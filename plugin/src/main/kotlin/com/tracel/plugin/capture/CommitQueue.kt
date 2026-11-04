@@ -1,5 +1,6 @@
 package com.tracel.plugin.capture
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -61,14 +62,14 @@ internal class CommitQueue(private val services: TracelServices) {
                     } catch (e: Exception) {
                         services.rollbackTo(mark)
                         val level = if (e is IllegalStateException) Level.FINE else Level.WARNING
-                        logger.log(level, "untracked material in ${commit.what}, not recorded", e)
+                        logger.log(level, "Untracked material in ${commit.what}. Not recorded.", e)
                     }
                 }
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (e: Exception) {
-            logger.log(Level.WARNING, "a batch of ${batch.size} captures failed to commit", e)
+            logger.log(Level.WARNING, "Batch of ${batch.size} captures failed to commit (${e.messageOrName()}).", e)
         }
     }
 }

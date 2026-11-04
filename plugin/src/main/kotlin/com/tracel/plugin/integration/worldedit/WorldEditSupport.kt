@@ -46,7 +46,7 @@ internal object WorldEditSupport {
             } else {
                 failure.toString()
             }
-            logger.log(Level.WARNING, "Edits made with $found will not be logged: $why", failure)
+            logger.log(Level.WARNING, "Edits made with $found will not be logged ($why).", failure)
             false
         }
     }
@@ -72,9 +72,9 @@ internal object WorldEditSupport {
             }
         } catch (failure: Throwable) {
             logger.warning(
-                "Tracel could not add itself to FAWE's extent.allowed-plugins ($failure). Edits FAWE makes block " +
-                        "by block are not logged until `$EXTENT_PACKAGE` is added to extent.allowed-plugins in " +
-                        "FastAsyncWorldEditэ' configuration."
+                "Could not add Tracel to FAWE's extent.allowed-plugins ($failure). Edits FAWE makes block " +
+                        "by block are not logged until $EXTENT_PACKAGE is added to extent.allowed-plugins in " +
+                        "the FastAsyncWorldEdit configuration."
             )
         }
     }

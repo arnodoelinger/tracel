@@ -134,12 +134,12 @@ internal class UpdateChecker(private val services: TracelServices) {
                     val found = ReleaseFeed.newerThan(current)
                     if (found != null && found.version != available?.version) {
                         services.plugin.logger.info(
-                            "Update available: $running -> ${found.version}; ${found.page}"
+                            "Update available: $running -> ${found.version}. Download: ${found.page}"
                         )
                     }
                     available = found
                 } catch (failure: Exception) {
-                    services.plugin.logger.log(Level.FINE, "Could not look for a Tracel update: $failure")
+                    services.plugin.logger.log(Level.FINE, "Could not check for updates ($failure).")
                 }
                 delay(EVERY)
             }

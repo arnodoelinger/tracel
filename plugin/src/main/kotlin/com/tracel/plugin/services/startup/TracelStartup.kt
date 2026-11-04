@@ -229,7 +229,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     services.scope.launch {
         val freed = leases.reapAbandoned(System.currentTimeMillis(), 0L)
         if (freed.isNotEmpty()) {
-            plugin.logger.warning("released lot leases of ${freed.size} rollback job(s) that did not finish before shutdown: ${freed.joinToString { it.raw.toString() }}")
+            plugin.logger.warning("Released the lot leases of ${freed.size} rollbacks that did not finish before shutdown: ${freed.joinToString { it.raw.toString() }}.")
         }
     }
 

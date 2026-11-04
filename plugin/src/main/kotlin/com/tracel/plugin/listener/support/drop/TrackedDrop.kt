@@ -97,7 +97,7 @@ fun TracelServices.releaseAsTrackedDrops(
                 val spawned: List<InventoryDelta> = withContext(schedulers.region(region)) {
                     val world = Bukkit.getWorld(worldId)
                     if (world == null) {
-                        releaseLogger.warning("world for $holder unloaded before its contents could be respawned — contents lost")
+                        releaseLogger.warning("World of $holder unloaded before its contents could be respawned. The contents are lost.")
                         return@withContext emptyList()
                     }
                     // Folia: wait out the blast tick or spawned UUIDs die and rollback compensates
@@ -113,7 +113,7 @@ fun TracelServices.releaseAsTrackedDrops(
                 }
             }
         } catch (e: IllegalStateException) {
-            releaseLogger.log(Level.FINE, "untracked material in $holder, not recorded", e)
+            releaseLogger.log(Level.FINE, "Untracked material in $holder. Not recorded.", e)
         }
         capturing.differ.forget(holder)
         andThen?.invoke()
@@ -153,8 +153,8 @@ fun TracelServices.recordAt(
             }
         } catch (e: IllegalStateException) {
             Warnings.once(releaseLogger, "untracked:$cause:${causedBy ?: where}") {
-                "material in $cause at $where is not on the ledger's books, so it was not recorded " +
-                        "— a rollback cannot put back what was never written down (${e.message})"
+                "Material in $cause at $where is not on the ledger's books (${e.message}). It was not recorded, " +
+                        "and a rollback cannot put back what was never written down."
             }
         }
     }.invokeOnCompletion { capturing.pendingCaptures.done(ticket) }

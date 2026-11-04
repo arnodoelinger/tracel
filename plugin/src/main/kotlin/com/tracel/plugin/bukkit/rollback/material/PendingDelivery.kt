@@ -74,7 +74,7 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
             if (reason == null) {
                 RestorationReport(emptyMap(), emptyMap(), sink.size)
             } else {
-                logger.log(Level.WARNING, "delivering queued material to $holder was incomplete: $reason")
+                logger.log(Level.WARNING, "Delivering queued material to $holder was incomplete ($reason).")
                 RestorationReport(mapOf(holder to reason), emptyMap(), sink.size)
             }
         }
@@ -83,7 +83,7 @@ suspend fun MaterialRestorer.deliverPending(player: Player): RestorationReport {
     } catch (failure: Throwable) {
         // Claim committed; failure without requeue is a delivery nobody is owed
         requeue(player.uniqueId, claimed)
-        logger.log(Level.WARNING, "queued material for $holder could not be delivered and was re-queued", failure)
+        logger.log(Level.WARNING, "Queued material for $holder could not be delivered (${failure.messageOrName()}). It was queued again.", failure)
         RestorationReport(mapOf(holder to (failure.messageOrName())))
     }
     recordSpills(sink)
@@ -101,7 +101,7 @@ private suspend fun MaterialRestorer.rewearDelivered(player: Player, claimed: Li
             .onFailure {
                 logger.log(
                     Level.FINE,
-                    "tools delivered to ${player.name} kept their damage as they were",
+                    "Tools delivered to ${player.name} kept their damage as it was (${it.messageOrName()}).",
                     it
                 )
             }
@@ -120,6 +120,6 @@ internal suspend fun MaterialRestorer.requeue(player: UUID, claimed: List<Pendin
             }
         }
     }.onFailure {
-        logger.log(Level.SEVERE, "queued material for $player was claimed and could not be re-queued", it)
+        logger.log(Level.SEVERE, "Queued material for $player was claimed, but could not be queued again (${it.messageOrName()}).", it)
     }
 }

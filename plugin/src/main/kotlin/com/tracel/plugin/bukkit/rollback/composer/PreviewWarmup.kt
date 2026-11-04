@@ -1,5 +1,6 @@
 package com.tracel.plugin.bukkit.rollback.composer
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
@@ -74,7 +75,7 @@ internal suspend fun warmForPreview(services: TracelServices, planned: Planned) 
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {
-        logger.log(Level.FINE, "preview warm-up gave up", failure)
+        logger.log(Level.FINE, "Preview warm-up gave up (${failure.messageOrName()}).", failure)
     }
 }
 

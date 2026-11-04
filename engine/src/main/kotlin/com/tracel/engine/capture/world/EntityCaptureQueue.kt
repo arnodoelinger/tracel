@@ -1,5 +1,6 @@
 package com.tracel.engine.capture.world
 
+import com.tracel.platform.io.reason
 import com.tracel.platform.storage.UnitOfWork
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
@@ -38,8 +39,7 @@ public class EntityCaptureQueue(
         val total = droppedCount.incrementAndGet()
         if (total == 1L || total % DROP_REPORT_EVERY == 0L) {
             logger.warning(
-                "Tracel entity capture queue is full — $total entity change(s) have been dropped and " +
-                        "cannot be rolled back. The storage thread is not keeping up."
+                "Entity capture queue is full: $total entity changes lost so far. They cannot be rolled back."
             )
         }
         return false
@@ -103,8 +103,8 @@ public class EntityCaptureQueue(
             } catch (failure: Throwable) {
                 val total = droppedCount.incrementAndGet()
                 logger.warning(
-                    "Tracel could not record a ${change.action} of entity ${change.entity} at ${change.at} " +
-                            "(${failure.javaClass.simpleName}: ${failure.message}); $total entity change(s) dropped so far"
+                    "Could not record ${change.action} of entity ${change.entity} at ${change.at} (${failure.reason()}). " +
+                            "$total entity changes lost so far."
                 )
             }
         }

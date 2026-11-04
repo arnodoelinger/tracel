@@ -1,5 +1,6 @@
 package com.tracel.plugin.api.addon
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.api.access.TracelConnection
 import com.tracel.api.addon.Addon
 import com.tracel.api.addon.TracelAddon
@@ -77,11 +78,11 @@ internal class AddonManager(
         if (entry.context != null) return
         val missing = entry.requires.filterNot(isPluginEnabled)
         if (missing.isNotEmpty()) {
-            logger.info("Addon \"${entry.id}\" needs ${missing.joinToString()}; it stays off.")
+            logger.info("Addon \"${entry.id}\" needs ${missing.joinToString()}. It stays off.")
             return
         }
         val owned = Owned { resource, failure ->
-            logger.log(Level.WARNING, "Addon \"${entry.id}\" failed to close $resource.", failure)
+            logger.log(Level.WARNING, "Addon \"${entry.id}\" failed to close $resource (${failure.messageOrName()}).", failure)
         }
         val guard = owned.own(guards(entry.id) { tripped(entry.id) })
         val connection = owned.own(connect(entry.addon))
@@ -92,7 +93,7 @@ internal class AddonManager(
             entry.bindings.forEach { it.bind(context) }
             logger.info("Addon \"${entry.id}\" enabled.")
         } catch (failure: Throwable) {
-            logger.log(Level.SEVERE, "Addon \"${entry.id}\" failed to enable and was disabled.", failure)
+            logger.log(Level.SEVERE, "Addon \"${entry.id}\" failed to enable (${failure.messageOrName()}). It was disabled.", failure)
             disable(entry)
         }
     }
@@ -108,7 +109,7 @@ internal class AddonManager(
         try {
             (entry.addon as? TracelAddon)?.onDisable()
         } catch (failure: Throwable) {
-            logger.log(Level.SEVERE, "Addon \"${entry.id}\" failed on disabling.", failure)
+            logger.log(Level.SEVERE, "Addon \"${entry.id}\" failed while disabling (${failure.messageOrName()}).", failure)
         }
         context.owned.close()
     }

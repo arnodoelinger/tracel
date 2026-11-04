@@ -1,5 +1,6 @@
 package com.tracel.plugin.api.addon
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.api.addon.ActorKind
 import com.tracel.api.addon.BlockLens
 import com.tracel.api.addon.CustomEventType
@@ -234,8 +235,8 @@ internal class Extensions(private val logger: Logger = Logger.getLogger("TracelA
     private inline fun <T> guarded(what: String, work: () -> T): T? = try {
         work()
     } catch (failure: Throwable) {
-        Warnings.once(logger, "addon:$what") { "an addon's $what threw; treated as not knowing: $failure." }
-        logger.log(Level.FINE, "addon $what threw.", failure)
+        Warnings.once(logger, "addon:$what") { "Addon $what threw ($failure). Treated as not knowing." }
+        logger.log(Level.FINE, "Addon $what threw (${failure.messageOrName()}).", failure)
         null
     }
 

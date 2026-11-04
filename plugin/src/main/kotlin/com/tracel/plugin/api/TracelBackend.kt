@@ -1,5 +1,6 @@
 package com.tracel.plugin.api
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.api.TracelSession
 import com.tracel.api.access.AccessError
 import com.tracel.api.access.TracelConnection
@@ -89,7 +90,7 @@ internal class TracelBackend(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
-                    plugin.logger.log(Level.WARNING, "An addon's record feed failed; trying again.", failure)
+                    plugin.logger.log(Level.WARNING, "Addon record feed failed (${failure.messageOrName()}). Retrying.", failure)
                     delay(FEED_RETRY_MILLIS.milliseconds)
                 }
             }
@@ -98,7 +99,7 @@ internal class TracelBackend(
     }
 
     override fun session(name: String): TracelSession = OwnedSession(name, Owned { resource, failure ->
-        plugin.logger.log(Level.WARNING, "Tracel session \"$name\" failed to close $resource.", failure)
+        plugin.logger.log(Level.WARNING, "Session \"$name\" failed to close $resource (${failure.messageOrName()}).", failure)
     })
 
     private class OwnedSession(override val name: String, private val owned: Owned) : TracelSession {

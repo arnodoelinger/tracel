@@ -1,5 +1,6 @@
 package com.tracel.plugin.integration.worldedit
 
+import com.tracel.plugin.util.messageOrName
 import com.fastasyncworldedit.core.extent.processor.ProcessorScope
 import com.fastasyncworldedit.core.queue.IBatchProcessor
 import com.fastasyncworldedit.core.queue.IChunk
@@ -52,8 +53,8 @@ private class ChunkLogger(
         try {
             record(chunk, get, set)
         } catch (failure: Throwable) {
-            Warnings.once(logger, "chunk") { "a FAWE edit could not be logged: $failure" }
-            logger.log(Level.FINE, "FAWE chunk not logged", failure)
+            Warnings.once(logger, "chunk") { "FAWE edit could not be logged ($failure)." }
+            logger.log(Level.FINE, "FAWE chunk not logged (${failure.messageOrName()}).", failure)
         }
         return set
     }

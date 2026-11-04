@@ -1,5 +1,6 @@
 package com.tracel.plugin.api.addon
 
+import com.tracel.plugin.util.messageOrName
 import com.tracel.api.addon.InspectLines
 import com.tracel.api.addon.OnInspect
 import com.tracel.api.addon.OnRecord
@@ -82,7 +83,7 @@ internal class HandlerBinder(
         try {
             method.work()
         } catch (failure: Throwable) {
-            logger.log(Level.SEVERE, "Addon handler ${method.description} threw.", failure)
+            logger.log(Level.SEVERE, "Addon handler ${method.description} threw (${failure.messageOrName()}).", failure)
         }
     }
 }
