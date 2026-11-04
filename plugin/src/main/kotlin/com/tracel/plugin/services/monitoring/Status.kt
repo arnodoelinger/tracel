@@ -51,10 +51,18 @@ enum class Health(val key: String) {
     HIGH_LOAD("load"),
     DEGRADED("degraded"),
     LOW_DISK("low_disk"),
-    CRITICAL_DISK("critical_disk");
+    CRITICAL_DISK("critical_disk"),
+    WRITES_STOPPED("writes_stopped");
 
     companion object {
-        fun of(forwardCompatible: Boolean, mspt: Double?, lagMillis: Long?, disk: DiskLevel): Health = when {
+        fun of(
+            forwardCompatible: Boolean,
+            mspt: Double?,
+            lagMillis: Long?,
+            disk: DiskLevel,
+            writesStopped: Boolean = false,
+        ): Health = when {
+            writesStopped -> WRITES_STOPPED
             disk == DiskLevel.CRITICAL -> CRITICAL_DISK
             lagMillis != null && lagMillis >= LAG_MILLIS -> DEGRADED
             disk == DiskLevel.LOW -> LOW_DISK

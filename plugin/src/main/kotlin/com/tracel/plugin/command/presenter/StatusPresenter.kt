@@ -115,7 +115,9 @@ internal object StatusPresenter {
     }
 
     private fun state(status: StoreStatus, development: Boolean): Component {
-        val health = Health.of(status.forwardCompatible, status.mspt, status.lagMillis, diskLevel(status))
+        val health = Health.of(
+            status.forwardCompatible, status.mspt, status.lagMillis, diskLevel(status), status.writesStopped != null,
+        )
         if (development && health == Health.OK) {
             val word = tr("status.health.dev")
             return tr("status.state", "state" to word.hoverEvent(HoverEvent.showText(tr("status.hover.dev"))))

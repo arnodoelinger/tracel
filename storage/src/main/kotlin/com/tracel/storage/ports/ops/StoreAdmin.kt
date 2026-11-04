@@ -20,6 +20,12 @@ class StoreAdmin(private val storage: TracelStorage) : StoreAdminPort {
 
     override val formatVersion: String get() = StoreFormat.CURRENT.toString()
 
+    override val writesStopped: WritesStop?
+        get() = storage.engine.stopped?.let { stop ->
+            val cause = stop.cause ?: stop
+            WritesStop(stop.since, stop.fatal, cause.message ?: cause.javaClass.simpleName)
+        }
+
     override fun report(): StoreReport {
         val engine = storage.engine
         fun rows(kind: Int) = engine.history(kind).sumOf { it.entries }

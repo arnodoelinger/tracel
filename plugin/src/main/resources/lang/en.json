@@ -624,7 +624,8 @@
       "load": "<yellow>high load</yellow>",
       "degraded": "<yellow>degraded, behind by <span></yellow>",
       "low_disk": "<yellow>low disk space</yellow>",
-      "critical_disk": "<red>critically low disk space</red>"
+      "critical_disk": "<red>critically low disk space</red>",
+      "writes_stopped": "<red>disk failure</red>"
     },
     "hover": {
       "dev": "<white>This is a development build. Expect bugs and unfinished features</white>",
@@ -635,7 +636,8 @@
       "load": "<white>The server tick takes <mspt> ms on average</white>",
       "degraded": "<white>Captured history is written <span> late, so lookup may miss the latest changes</white>",
       "low_disk": "<white>Only <free> (<percent>%) is left where the database lives</white>",
-      "critical_disk": "<white>Only <free> (<percent>%) is left where the database lives. If it gets any lower, Tracel will forcibly shut the server down, because there will be nowhere to write history</white>"
+      "critical_disk": "<white>Only <free> (<percent>%) is left where the database lives. If it gets any lower, Tracel will forcibly shut the server down, because there will be nowhere to write history</white>",
+      "writes_stopped": "<white>The disk refuses to write the history. If it does not recover within 30 seconds, Tracel stops the server</white>"
     }
   },
   "purge": {

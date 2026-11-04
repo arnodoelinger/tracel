@@ -46,6 +46,7 @@ class StatusModelTest {
         assertEquals(Health.LOW_DISK, Health.of(false, 45.0, null, DiskLevel.LOW))
         assertEquals(Health.DEGRADED, Health.of(false, null, LAG_MILLIS, DiskLevel.LOW))
         assertEquals(Health.CRITICAL_DISK, Health.of(true, 45.0, LAG_MILLIS, DiskLevel.CRITICAL))
+        assertEquals(Health.WRITES_STOPPED, Health.of(true, 45.0, LAG_MILLIS, DiskLevel.CRITICAL, writesStopped = true))
     }
 
     @Test

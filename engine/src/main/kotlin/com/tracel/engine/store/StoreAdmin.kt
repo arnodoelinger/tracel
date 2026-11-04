@@ -19,6 +19,9 @@ public interface StoreAdmin {
     /** The format version the database is in, as shown to people. */
     public val formatVersion: String
 
+    /** Why the store refuses writes after an I / O error; `null` while it takes them. */
+    public val writesStopped: WritesStop? get() = null
+
     /** Counts what a purge of [spec] would take, and touches nothing. */
     public suspend fun previewPurge(spec: PurgeSpec): PurgeReport
 
@@ -84,3 +87,6 @@ public interface CaptureHealth {
     /** Waits until everything captured so far is written, or [timeoutMs] runs out. */
     public suspend fun awaitApplied(timeoutMs: Long): Boolean
 }
+
+/** The store stopped taking writes. */
+public data class WritesStop(public val since: Long, public val fatal: Boolean, public val reason: String)

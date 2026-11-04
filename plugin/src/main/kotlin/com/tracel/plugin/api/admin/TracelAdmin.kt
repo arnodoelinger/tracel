@@ -242,6 +242,7 @@ internal class TracelAdmin(
             mspt = runCatching { Bukkit.getAverageTickTime() }.getOrNull(),
             forwardCompatible = services.forwardCompatible,
             format = services.storage.store.formatVersion,
+            writesStopped = instant(services.storage.store.writesStopped?.since),
         )
     }
 

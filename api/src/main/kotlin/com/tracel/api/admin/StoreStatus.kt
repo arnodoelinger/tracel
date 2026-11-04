@@ -43,4 +43,5 @@ public data class StoreStatus(
     public val mspt: Double?,
     public val forwardCompatible: Boolean,
     public val format: String,
+    public val writesStopped: Instant? = null,
 )
