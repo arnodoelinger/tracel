@@ -38,6 +38,7 @@ import com.tracel.plugin.services.maintenance.UpdateListener
 import com.tracel.plugin.services.maintenance.isDevelopmentBuild
 import com.tracel.plugin.services.maintenance.startAutoPurge
 import com.tracel.plugin.services.monitoring.DiskGuard
+import com.tracel.plugin.services.monitoring.StorageGuard
 import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.monitoring.TracelMetrics
 import com.tracel.plugin.services.specifics.ActorWrites
@@ -301,6 +302,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     }
 
     DiskGuard.start(plugin, services, plugin.dataFolder.resolve("database"))
+    StorageGuard.start(plugin, services)
     services.purgeSettings = settings.autoPurge
     services.autoPurge = startAutoPurge(plugin, services, settings.autoPurge)
     services.scope.launch {

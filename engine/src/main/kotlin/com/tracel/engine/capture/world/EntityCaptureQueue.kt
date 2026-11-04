@@ -13,13 +13,17 @@ public class EntityCaptureQueue(
     private val unit: UnitOfWork,
     capacity: Int = DEFAULT_CAPACITY,
     private val maxBatch: Int = DEFAULT_MAX_BATCH,
+    private val waits: (Throwable) -> Boolean = { false },
 ) {
     private val queue = Channel<EntityChange>(capacity)
+
     private val droppedCount = atomic(0L)
+    private val overflowCount = atomic(0L)
     private val offered = atomic(0L)
     private val settled = atomic(0L)
 
     public val dropped: Long get() = droppedCount.value
+    public val overflowed: Long get() = overflowCount.value
 
     /**
      * Hands [change] to the writer.
@@ -30,6 +34,7 @@ public class EntityCaptureQueue(
         offered.incrementAndGet()
         if (queue.trySend(change).isSuccess) return true
         settled.incrementAndGet()
+        overflowCount.incrementAndGet()
         val total = droppedCount.incrementAndGet()
         if (total == 1L || total % DROP_REPORT_EVERY == 0L) {
             logger.warning(
@@ -66,13 +71,22 @@ public class EntityCaptureQueue(
                 batch += next
             }
             try {
-                unit.atomically {
-                    for (i in batch.indices) write(batch[i])
+                while (true) {
+                    try {
+                        unit.atomically {
+                            for (i in batch.indices) write(batch[i])
+                        }
+                        break
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        if (!waits(e)) {
+                            writeOneByOne(batch)
+                            break
+                        }
+                        delay(WAIT_RETRY_MILLIS.milliseconds)
+                    }
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Throwable) {
-                writeOneByOne(batch)
             } finally {
                 settled.addAndGet(batch.size.toLong())
             }
@@ -113,6 +127,7 @@ public class EntityCaptureQueue(
         const val DEFAULT_CAPACITY = 1 shl 14
         const val DEFAULT_MAX_BATCH = 512
         const val DROP_REPORT_EVERY = 1_000L
+        const val WAIT_RETRY_MILLIS = 1_000L
         val logger: Logger = Logger.getLogger("EntityCaptureQueue")
     }
 }

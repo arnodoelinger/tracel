@@ -25,7 +25,8 @@ class CaptureServices(services: TracelServices) {
         WearCapture(storage.repo, storage.log, storage.wear, storage.counters::nextTxnId, storage.counters::nextSeq)
     val worldCapture: WorldCaptureCoordinator =
         WorldCaptureCoordinator(storage.worldLog, storage.counters::nextSeq, storage.counters::nextSeqRange)
-    val entityCapture: EntityCaptureQueue = EntityCaptureQueue(worldCapture, storage.unit)
+    val entityCapture: EntityCaptureQueue =
+        EntityCaptureQueue(worldCapture, storage.unit, waits = { storage.store.writesStopped != null })
     val pendingCaptures: PendingCaptures = PendingCaptures()
     var flushCapture: suspend () -> Boolean = { true }
 }
