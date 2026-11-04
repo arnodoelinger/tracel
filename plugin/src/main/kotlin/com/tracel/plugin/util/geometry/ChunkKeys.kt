@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.geometry
 
 import com.tracel.model.world.TILE_SHIFT
 import com.tracel.model.world.packPair

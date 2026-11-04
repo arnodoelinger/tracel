@@ -5,7 +5,7 @@ import com.tracel.model.world.ActionKind
 import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.args.rollback.RollbackArgument
 import com.tracel.plugin.command.args.scope.LookupScope
-import com.tracel.plugin.util.Messages
+import com.tracel.plugin.util.text.Messages
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator

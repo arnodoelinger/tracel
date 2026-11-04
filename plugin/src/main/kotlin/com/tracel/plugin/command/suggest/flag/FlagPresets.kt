@@ -2,14 +2,14 @@ package com.tracel.plugin.command.suggest.flag
 
 import com.tracel.plugin.command.args.time.TimeArgument
 import com.tracel.plugin.command.suggest.quantity.*
-import com.tracel.plugin.util.MILLIS_PER_DAY
-import com.tracel.plugin.util.MILLIS_PER_HOUR
-import com.tracel.plugin.util.MILLIS_PER_MINUTE
-import com.tracel.plugin.util.MILLIS_PER_SECOND
-import com.tracel.plugin.util.MILLIS_PER_WEEK
-import com.tracel.plugin.util.joined
-import com.tracel.plugin.util.parseDuration
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.joined
+import com.tracel.plugin.util.text.tr
+import com.tracel.plugin.util.units.MILLIS_PER_DAY
+import com.tracel.plugin.util.units.MILLIS_PER_HOUR
+import com.tracel.plugin.util.units.MILLIS_PER_MINUTE
+import com.tracel.plugin.util.units.MILLIS_PER_SECOND
+import com.tracel.plugin.util.units.MILLIS_PER_WEEK
+import com.tracel.plugin.util.units.parseDuration
 import net.kyori.adventure.text.Component
 
 internal val TIME_PRESETS = listOf("10s", "30s", "1m", "5m", "10m", "30m", "1h", "3h", "6h", "12h", "1d", "3d", "7d")

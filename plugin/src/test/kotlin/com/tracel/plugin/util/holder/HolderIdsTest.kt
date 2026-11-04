@@ -5,10 +5,6 @@ import com.tracel.model.holder.SinkKind
 import com.tracel.model.holder.SourceKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.util.blockPos
-import com.tracel.plugin.util.carriesCoordinates
-import com.tracel.plugin.util.entityUuid
-import com.tracel.plugin.util.namedByEntity
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.*

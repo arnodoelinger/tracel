@@ -17,7 +17,7 @@ import com.tracel.plugin.rollback.survey.rooting.inheritMintedBurns
 import com.tracel.plugin.rollback.survey.rooting.mintedStraightThrough
 import com.tracel.plugin.rollback.survey.rooting.pairedGapMints
 import com.tracel.plugin.rollback.survey.rooting.rootedByFlow
-import com.tracel.plugin.util.namedByEntity
+import com.tracel.plugin.util.holder.namedByEntity
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope

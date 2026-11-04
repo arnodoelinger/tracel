@@ -13,8 +13,8 @@ import com.tracel.plugin.command.suggest.preset.PresetNameSuggest
 import com.tracel.plugin.command.suggest.preset.PresetOwnedSuggest
 import com.tracel.plugin.command.tree.CommandActions
 import com.tracel.plugin.command.tree.tokens
-import com.tracel.plugin.util.tr
-import com.tracel.plugin.util.usage
+import com.tracel.plugin.util.text.tr
+import com.tracel.plugin.util.text.usage
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel preset`: saved sets of flags. */

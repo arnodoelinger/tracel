@@ -17,7 +17,7 @@ import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.rewearPlan
 import com.tracel.plugin.rollback.material.spill.Spill
 import com.tracel.plugin.rollback.result.report.RestorationReport
-import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.entity.Player
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue

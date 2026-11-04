@@ -4,7 +4,7 @@ import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.args.action.ActionFilter
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.config.ScopeLimits
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
 import net.kyori.adventure.text.Component
 import org.bukkit.Location
 import org.bukkit.World

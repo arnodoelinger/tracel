@@ -14,11 +14,11 @@ import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.claim
 import com.tracel.plugin.rollback.structure.dispatchAt
-import com.tracel.plugin.util.awaitOrNull
-import com.tracel.plugin.util.chunkKey
-import com.tracel.plugin.util.chunkKeyX
-import com.tracel.plugin.util.chunkKeyZ
-import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.geometry.chunkKey
+import com.tracel.plugin.util.geometry.chunkKeyX
+import com.tracel.plugin.util.geometry.chunkKeyZ
+import com.tracel.plugin.util.runtime.awaitOrNull
+import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.World
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue

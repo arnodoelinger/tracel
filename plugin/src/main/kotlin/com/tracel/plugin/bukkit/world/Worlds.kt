@@ -4,8 +4,8 @@ import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.plugin.command.args.scope.LookupScope
-import com.tracel.plugin.util.ExplosionOrigin
-import com.tracel.plugin.util.lookupRegion
+import com.tracel.plugin.util.geometry.ExplosionOrigin
+import com.tracel.plugin.util.geometry.lookupRegion
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.World

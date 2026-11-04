@@ -5,7 +5,7 @@ import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.packCell
-import com.tracel.plugin.util.LongHashSet
+import com.tracel.plugin.util.collection.LongHashSet
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext

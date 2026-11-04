@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.geometry
 
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.world.WorldId

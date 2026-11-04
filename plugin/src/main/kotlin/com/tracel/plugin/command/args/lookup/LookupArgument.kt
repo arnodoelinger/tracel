@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.args.lookup
 
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
 
 internal sealed interface LookupArgument {
     val prefix: String

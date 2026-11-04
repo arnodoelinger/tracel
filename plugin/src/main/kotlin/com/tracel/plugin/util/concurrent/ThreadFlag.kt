@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.concurrent
 
 /**
  * A flag that is set for the thread running a block, and for no other.

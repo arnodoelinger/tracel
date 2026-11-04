@@ -4,7 +4,7 @@ import com.tracel.plugin.command.args.lookup.FlagHere
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.lookup.filledFrom
 import com.tracel.plugin.command.args.lookup.parseLookupArgs
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
 import java.util.*
 
 /**

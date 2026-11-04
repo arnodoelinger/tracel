@@ -1,6 +1,6 @@
 package com.tracel.plugin.integration.worldedit
 
-import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.runtime.messageOrName
 import com.fastasyncworldedit.core.extent.processor.ProcessorScope
 import com.fastasyncworldedit.core.queue.IBatchProcessor
 import com.fastasyncworldedit.core.queue.IChunk
@@ -12,9 +12,9 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.bukkit.block.AIR
-import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.runtime.Warnings
 import java.util.*
 import java.util.logging.Level
 import java.util.logging.Logger

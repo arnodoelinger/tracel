@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.command
 
 import kotlin.math.floor
 

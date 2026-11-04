@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.geometry
 
 import kotlin.math.floor
 import kotlin.math.roundToInt

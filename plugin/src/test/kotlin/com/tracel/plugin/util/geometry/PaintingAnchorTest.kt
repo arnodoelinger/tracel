@@ -1,7 +1,5 @@
 package com.tracel.plugin.util.geometry
 
-import com.tracel.plugin.util.Facing
-import com.tracel.plugin.util.anchorPoint
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 

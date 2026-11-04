@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.units
 
 internal const val MILLIS_PER_SECOND = 1_000L
 internal const val MILLIS_PER_MINUTE = 60 * MILLIS_PER_SECOND

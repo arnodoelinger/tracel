@@ -3,7 +3,7 @@ package com.tracel.plugin.bukkit.entity
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.entity.EntityExtras
-import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.runtime.Warnings
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.NamespacedKey

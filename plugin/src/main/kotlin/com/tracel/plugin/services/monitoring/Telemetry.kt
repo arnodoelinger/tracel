@@ -11,8 +11,8 @@ import com.tracel.plugin.config.DEFAULT_PASTE_URL
 import com.tracel.plugin.config.Settings
 import com.tracel.plugin.integration.worldedit.WorldEditSupport
 import com.tracel.plugin.rollback.result.report.SkippedStep
-import com.tracel.plugin.util.MILLIS_PER_DAY
-import com.tracel.plugin.util.MILLIS_PER_HOUR
+import com.tracel.plugin.util.units.MILLIS_PER_DAY
+import com.tracel.plugin.util.units.MILLIS_PER_HOUR
 import org.bstats.bukkit.Metrics
 import org.bstats.charts.AdvancedPie
 import org.bstats.charts.DrilldownPie

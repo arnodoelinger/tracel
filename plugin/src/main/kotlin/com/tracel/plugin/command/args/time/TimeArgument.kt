@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.args.time
 
-import com.tracel.plugin.util.parseDuration
+import com.tracel.plugin.util.units.parseDuration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime

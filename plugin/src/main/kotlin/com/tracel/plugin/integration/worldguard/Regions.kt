@@ -1,8 +1,8 @@
 package com.tracel.plugin.integration.worldguard
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.api.world.BlockPlace
 import com.tracel.api.world.LookupArea
+import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.entity.Player

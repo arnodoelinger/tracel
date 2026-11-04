@@ -1,6 +1,5 @@
 package com.tracel.plugin.api
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.api.TracelSession
 import com.tracel.api.access.AccessError
 import com.tracel.api.access.TracelConnection
@@ -17,6 +16,7 @@ import com.tracel.plugin.api.addon.HandlerBinder
 import com.tracel.plugin.api.addon.ServiceWrites
 import com.tracel.plugin.api.read.TracelReads
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.runtime.messageOrName
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import kotlinx.coroutines.CancellationException

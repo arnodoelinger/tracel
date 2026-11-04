@@ -4,7 +4,7 @@ import com.tracel.api.history.FlowKind
 import com.tracel.api.history.ItemFlow
 import com.tracel.api.item.ItemHolder
 import com.tracel.api.item.SourceKind
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
 import net.kyori.adventure.text.Component
 
 /** What a flow of items reads as in lookup: put, took, dropped, picked up... */

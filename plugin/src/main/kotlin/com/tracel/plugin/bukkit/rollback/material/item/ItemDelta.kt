@@ -6,8 +6,8 @@ import com.tracel.model.item.ItemKey
 import com.tracel.plugin.bukkit.item.PendingItemForms
 import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.rollback.material.MaterialRestorer
-import com.tracel.plugin.util.Warnings
-import com.tracel.plugin.util.putOrReset
+import com.tracel.plugin.util.collection.putOrReset
+import com.tracel.plugin.util.runtime.Warnings
 import org.bukkit.Material
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack

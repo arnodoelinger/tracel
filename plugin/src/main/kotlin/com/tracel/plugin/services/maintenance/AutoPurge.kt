@@ -1,15 +1,15 @@
 package com.tracel.plugin.services.maintenance
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.engine.store.PurgeCategory
 import com.tracel.engine.store.PurgeFilter
 import com.tracel.engine.store.PurgeSpec
 import com.tracel.plugin.TracelPlugin
 import com.tracel.plugin.config.AutoPurgeSettings
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.MILLIS_PER_MINUTE
-import com.tracel.plugin.util.shortSpan
-import com.tracel.plugin.util.toMib
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.units.MILLIS_PER_MINUTE
+import com.tracel.plugin.util.units.shortSpan
+import com.tracel.plugin.util.units.toMib
 import java.util.logging.Level
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.*

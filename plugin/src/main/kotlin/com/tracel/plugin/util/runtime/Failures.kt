@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.runtime
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.future.await

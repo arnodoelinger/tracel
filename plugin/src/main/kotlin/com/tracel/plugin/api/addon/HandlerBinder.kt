@@ -1,6 +1,5 @@
 package com.tracel.plugin.api.addon
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.api.addon.InspectLines
 import com.tracel.api.addon.OnInspect
 import com.tracel.api.addon.OnRecord
@@ -13,6 +12,7 @@ import com.tracel.api.history.HistoryRecord
 import com.tracel.api.history.RecordKind
 import com.tracel.api.rollback.RollbackUndone
 import com.tracel.api.world.BlockPlace
+import com.tracel.plugin.util.runtime.messageOrName
 import java.util.logging.Level
 import java.util.logging.Logger
 

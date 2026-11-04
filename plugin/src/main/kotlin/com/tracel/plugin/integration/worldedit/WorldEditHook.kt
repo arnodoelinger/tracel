@@ -1,6 +1,6 @@
 package com.tracel.plugin.integration.worldedit
 
-import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.runtime.messageOrName
 import com.sk89q.worldedit.EditSession
 import com.sk89q.worldedit.WorldEdit
 import com.sk89q.worldedit.WorldEditException
@@ -26,7 +26,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.plugin.bukkit.block.*
 import com.tracel.plugin.bukkit.world.ownsChunkAt
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.runtime.Warnings
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import org.bukkit.Bukkit
 import org.bukkit.World

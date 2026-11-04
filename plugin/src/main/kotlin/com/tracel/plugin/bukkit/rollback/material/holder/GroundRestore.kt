@@ -13,10 +13,10 @@ import com.tracel.plugin.rollback.material.ENTITY_GONE_AT_PLAN
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.census.EntityCensus
 import com.tracel.plugin.rollback.material.spill.Spill
-import com.tracel.plugin.util.blockPos
-import com.tracel.plugin.util.messageOrName
-import com.tracel.plugin.util.regionKey
-import com.tracel.plugin.util.rescueAll
+import com.tracel.plugin.util.geometry.regionKey
+import com.tracel.plugin.util.holder.blockPos
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.runtime.rescueAll
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.ExperienceOrb

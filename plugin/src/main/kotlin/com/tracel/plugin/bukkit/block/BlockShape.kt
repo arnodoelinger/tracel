@@ -1,14 +1,14 @@
 package com.tracel.plugin.bukkit.block
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape
-import com.tracel.plugin.util.Warnings
-import com.tracel.plugin.util.putOrReset
+import com.tracel.plugin.util.collection.putOrReset
+import com.tracel.plugin.util.runtime.Warnings
+import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.Material
 import org.bukkit.Nameable
 import org.bukkit.block.*

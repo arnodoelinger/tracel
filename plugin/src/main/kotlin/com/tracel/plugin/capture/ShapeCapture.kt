@@ -10,11 +10,11 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockShape
+import com.tracel.plugin.bukkit.block.AIR
 import com.tracel.plugin.bukkit.block.toBlockPos
 import com.tracel.plugin.bukkit.block.toShape
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.bukkit.block.AIR
-import com.tracel.plugin.util.regionKey
+import com.tracel.plugin.util.geometry.regionKey
 import kotlinx.coroutines.launch
 import org.bukkit.Bukkit
 import org.bukkit.block.Block

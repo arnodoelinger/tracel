@@ -3,7 +3,7 @@ package com.tracel.plugin.services.monitoring
 import com.tracel.plugin.TracelPlugin
 import com.tracel.plugin.bukkit.server.killServer
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.toGib
+import com.tracel.plugin.util.units.toGib
 import java.io.File
 import java.util.*
 import kotlin.time.Duration.Companion.milliseconds

@@ -6,7 +6,7 @@ import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import com.tracel.plugin.command.args.purge.PurgeArgument
 import com.tracel.plugin.command.suggest.quantity.ago
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import org.bukkit.Bukkit
 import java.util.concurrent.CompletableFuture

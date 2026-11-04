@@ -1,13 +1,13 @@
 package com.tracel.plugin.bukkit.entity
 
-import com.tracel.plugin.util.messageOrName
-import com.tracel.plugin.listener.world.EntityKinds
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.OpaqueBytes
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.*
-import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.listener.world.EntityKinds
+import com.tracel.plugin.util.runtime.Warnings
+import com.tracel.plugin.util.runtime.messageOrName
 import io.papermc.paper.entity.EntitySerializationFlag
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity

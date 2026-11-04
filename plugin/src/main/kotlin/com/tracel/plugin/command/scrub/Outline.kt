@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.scrub
 
-import com.tracel.plugin.util.LongHashSet
+import com.tracel.plugin.util.collection.LongHashSet
 
 /**
  * The edges of a pile of blocks, the way a structure block draws its box:

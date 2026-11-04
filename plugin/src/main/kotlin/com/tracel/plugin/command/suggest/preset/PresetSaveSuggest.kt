@@ -11,7 +11,7 @@ import com.tracel.plugin.command.suggest.flag.FlagSuggest
 import com.tracel.plugin.command.suggest.liveLists
 import com.tracel.plugin.command.suggest.reply
 import com.tracel.plugin.command.suggest.splitTrailing
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player

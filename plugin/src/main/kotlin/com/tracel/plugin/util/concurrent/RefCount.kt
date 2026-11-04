@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.concurrent
 
 import java.util.concurrent.ConcurrentHashMap
 

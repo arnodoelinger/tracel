@@ -1,7 +1,7 @@
 package com.tracel.plugin.command.suggest
 
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
-import com.tracel.plugin.util.Messages
+import com.tracel.plugin.util.text.Messages
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.translation.GlobalTranslator

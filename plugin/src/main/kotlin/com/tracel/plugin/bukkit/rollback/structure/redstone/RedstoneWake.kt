@@ -10,7 +10,7 @@ import com.tracel.plugin.bukkit.world.ownsChunkAt
 import com.tracel.plugin.bukkit.world.worldOf
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.services.monitoring.throttled
-import com.tracel.plugin.util.regionKey
+import com.tracel.plugin.util.geometry.regionKey
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.block.data.AnaloguePowerable

@@ -1,8 +1,8 @@
 package com.tracel.plugin.bukkit.entity
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.entity.EntityExtras
+import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.entity.Entity

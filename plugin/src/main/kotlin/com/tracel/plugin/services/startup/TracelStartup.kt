@@ -43,7 +43,7 @@ import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.monitoring.TracelMetrics
 import com.tracel.plugin.services.specifics.ActorWrites
 import com.tracel.plugin.services.specifics.TracelSchedulers
-import com.tracel.plugin.util.Messages
+import com.tracel.plugin.util.text.Messages
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.Drainer

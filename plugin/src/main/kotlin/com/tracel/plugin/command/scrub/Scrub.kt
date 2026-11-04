@@ -1,8 +1,8 @@
 package com.tracel.plugin.command.scrub
 
 import com.tracel.api.actor.Actor
-import com.tracel.plugin.util.agoText
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.agoText
+import com.tracel.plugin.util.text.tr
 import io.papermc.paper.math.Position
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import net.kyori.adventure.text.Component

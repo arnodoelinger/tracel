@@ -1,6 +1,6 @@
 package com.tracel.plugin.config
 
-import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.runtime.messageOrName
 import org.tomlj.Toml
 import java.nio.file.Files
 import java.nio.file.Path

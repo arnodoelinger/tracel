@@ -1,11 +1,11 @@
 package com.tracel.plugin.bukkit.rollback.structure.rescue
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
 import com.tracel.plugin.rollback.structure.StructureRestorer
+import com.tracel.plugin.util.runtime.messageOrName
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
 import org.bukkit.Bukkit

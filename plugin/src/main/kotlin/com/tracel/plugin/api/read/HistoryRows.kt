@@ -13,8 +13,8 @@ import com.tracel.model.world.WorldChange
 import com.tracel.plugin.api.addon.withItemLens
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.monitoring.Telemetry
-import com.tracel.plugin.util.messageOrName
-import com.tracel.plugin.util.rescue
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.runtime.rescue
 
 /** One entry of a log, before it is a record: what the lookup lines are made of, and the API's records too. */
 internal sealed interface Row {

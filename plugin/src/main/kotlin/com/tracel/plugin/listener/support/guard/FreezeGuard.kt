@@ -2,7 +2,7 @@ package com.tracel.plugin.listener.support.guard
 
 import com.tracel.model.holder.HolderId
 import com.tracel.plugin.listener.session.FreezeGuardListener
-import com.tracel.plugin.util.RefCount
+import com.tracel.plugin.util.concurrent.RefCount
 import org.bukkit.event.Cancellable
 
 /**

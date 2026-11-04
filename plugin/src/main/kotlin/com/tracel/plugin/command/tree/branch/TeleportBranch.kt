@@ -10,8 +10,8 @@ import com.tracel.plugin.command.brigadier.literal
 import com.tracel.plugin.command.brigadier.requiresPermission
 import com.tracel.plugin.command.permission.Permission
 import com.tracel.plugin.command.tree.CommandActions
-import com.tracel.plugin.util.failed
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.failed
+import com.tracel.plugin.util.text.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import org.bukkit.Bukkit
 import org.bukkit.Location

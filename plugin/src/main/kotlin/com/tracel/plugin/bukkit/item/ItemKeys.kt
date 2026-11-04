@@ -2,7 +2,7 @@ package com.tracel.plugin.bukkit.item
 
 import com.tracel.model.item.ContentHash
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.util.putOrReset
+import com.tracel.plugin.util.collection.putOrReset
 import org.bukkit.Material
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BundleMeta

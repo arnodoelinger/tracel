@@ -54,7 +54,7 @@ import com.tracel.plugin.integration.coreprotect.source.*
 import com.tracel.plugin.integration.coreprotect.tally.ImportTally
 import com.tracel.plugin.integration.coreprotect.tally.Skipped
 import com.tracel.plugin.integration.coreprotect.tally.Taken
-import com.tracel.plugin.util.MILLIS_PER_SECOND
+import com.tracel.plugin.util.units.MILLIS_PER_SECOND
 import java.util.*
 
 /**

@@ -4,7 +4,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
 import com.tracel.plugin.bukkit.world.ownsChunkAt
 import com.tracel.plugin.rollback.structure.StructureRestorer
-import com.tracel.plugin.util.chunkKey
+import com.tracel.plugin.util.geometry.chunkKey
 import org.bukkit.World
 import org.bukkit.util.BoundingBox
 import kotlin.math.floor

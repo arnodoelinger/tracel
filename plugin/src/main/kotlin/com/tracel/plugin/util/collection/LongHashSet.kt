@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.collection
 
 /** A set of longs without a boxed `Long` per element: open addressing over a primitive array. */
 internal class LongHashSet(expected: Int = 16) {

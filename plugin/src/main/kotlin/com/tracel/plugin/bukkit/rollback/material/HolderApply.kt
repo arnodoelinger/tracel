@@ -9,8 +9,8 @@ import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.material.ApplyResult
 import com.tracel.plugin.rollback.material.MaterialRestorer
 import com.tracel.plugin.rollback.material.spill.Spill
-import com.tracel.plugin.util.messageOrName
-import com.tracel.plugin.util.rescueAll
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.runtime.rescueAll
 import org.bukkit.Bukkit
 import org.bukkit.entity.Projectile
 import kotlinx.coroutines.withContext

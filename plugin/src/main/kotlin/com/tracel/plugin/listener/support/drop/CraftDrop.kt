@@ -2,8 +2,8 @@ package com.tracel.plugin.listener.support.drop
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
-import com.tracel.plugin.util.ExpiringMap
-import com.tracel.plugin.util.ExpiringSet
+import com.tracel.plugin.util.concurrent.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringSet
 import java.util.*
 
 /** Crafts thrown straight from the result slot (Q, ctrl-Q). */

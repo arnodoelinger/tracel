@@ -21,7 +21,7 @@ import com.tracel.plugin.rollback.result.report.RestorationReport
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructurePass
-import com.tracel.plugin.util.attempt
+import com.tracel.plugin.util.runtime.attempt
 import java.util.*
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.async

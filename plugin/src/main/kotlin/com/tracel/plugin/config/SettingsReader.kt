@@ -7,8 +7,8 @@ import com.tracel.engine.store.StoreSync
 import com.tracel.plugin.command.args.time.TimeArgument
 import com.tracel.plugin.integration.privatebin.PrivateBin
 import com.tracel.plugin.services.monitoring.GovernorSettings
-import com.tracel.plugin.util.parseBytes
-import com.tracel.plugin.util.parseDuration
+import com.tracel.plugin.util.units.parseBytes
+import com.tracel.plugin.util.units.parseDuration
 import org.tomlj.TomlArray
 import org.tomlj.TomlTable
 import java.net.URI

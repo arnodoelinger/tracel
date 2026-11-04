@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.text
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser

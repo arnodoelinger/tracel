@@ -3,7 +3,7 @@ package com.tracel.plugin.command.permission
 import com.tracel.annotations.Observes
 import com.tracel.annotations.Priority
 import com.tracel.plugin.command.tree.HelpTopic
-import com.tracel.plugin.util.send
+import com.tracel.plugin.util.text.send
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import java.util.Locale

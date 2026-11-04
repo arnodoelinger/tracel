@@ -1,6 +1,7 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.runtime
 
 import com.tracel.plugin.services.monitoring.Telemetry
+import com.tracel.plugin.util.text.said
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 

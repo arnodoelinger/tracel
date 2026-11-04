@@ -6,7 +6,7 @@ import com.tracel.model.item.ItemKey
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.bukkit.rollback.structure.block.check.standsAlone
 import com.tracel.plugin.rollback.result.outcome.Planned
-import com.tracel.plugin.util.blockPos
+import com.tracel.plugin.util.holder.blockPos
 import java.util.*
 
 /** Which steps go in which wait, and whose cargo the ledger owns. Worked out once, before anything moves. */

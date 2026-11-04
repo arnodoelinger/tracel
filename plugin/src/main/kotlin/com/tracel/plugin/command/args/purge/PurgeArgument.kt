@@ -2,8 +2,8 @@ package com.tracel.plugin.command.args.purge
 
 import com.tracel.api.admin.PurgeCategory
 import com.tracel.plugin.command.args.time.TimeArgument
-import com.tracel.plugin.util.parseDuration
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
+import com.tracel.plugin.util.units.parseDuration
 import net.kyori.adventure.text.Component
 
 internal object PurgeArgument {

@@ -23,8 +23,8 @@ import com.tracel.plugin.bukkit.block.toShape
 import com.tracel.plugin.bukkit.entity.toBlockPos
 import com.tracel.plugin.bukkit.item.toItemKey
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.messageOrName
-import com.tracel.plugin.util.rescue
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.runtime.rescue
 import org.bukkit.Bukkit
 import org.bukkit.block.data.BlockData
 import org.bukkit.entity.Player

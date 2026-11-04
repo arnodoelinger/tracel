@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.text
 
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.text.Component

@@ -8,11 +8,11 @@ import com.tracel.plugin.command.action.support.NothingWeCanDo
 import com.tracel.plugin.command.action.support.actor
 import com.tracel.plugin.command.action.support.askedAboutEntities
 import com.tracel.plugin.command.presenter.RollbackPresenter
-import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.said
-import com.tracel.plugin.util.send
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.services.monitoring.Telemetry
+import com.tracel.plugin.util.text.said
+import com.tracel.plugin.util.text.send
+import com.tracel.plugin.util.text.tr
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import org.bukkit.command.CommandSender

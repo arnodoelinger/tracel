@@ -6,8 +6,8 @@ import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.scope.LookupScope
 import com.tracel.plugin.command.preset.PresetStore
 import com.tracel.plugin.command.preset.parseWithPresets
-import com.tracel.plugin.util.MILLIS_PER_MINUTE
-import com.tracel.plugin.util.send
+import com.tracel.plugin.util.text.send
+import com.tracel.plugin.util.units.MILLIS_PER_MINUTE
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 

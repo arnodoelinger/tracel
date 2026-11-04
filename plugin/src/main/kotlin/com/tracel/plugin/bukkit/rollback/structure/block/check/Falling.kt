@@ -3,9 +3,9 @@ package com.tracel.plugin.bukkit.rollback.structure.block.check
 import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.packPair
-import com.tracel.plugin.util.chunkKey
-import com.tracel.plugin.util.chunkKeyX
-import com.tracel.plugin.util.chunkKeyZ
+import com.tracel.plugin.util.geometry.chunkKey
+import com.tracel.plugin.util.geometry.chunkKeyX
+import com.tracel.plugin.util.geometry.chunkKeyZ
 import org.bukkit.World
 import org.bukkit.entity.FallingBlock
 

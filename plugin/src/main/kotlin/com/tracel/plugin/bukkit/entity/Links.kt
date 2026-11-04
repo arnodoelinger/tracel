@@ -1,7 +1,7 @@
 package com.tracel.plugin.bukkit.entity
 
 import com.tracel.annotations.Unstable
-import com.tracel.plugin.util.ThreadFlag
+import com.tracel.plugin.util.concurrent.ThreadFlag
 import io.papermc.paper.entity.Leashable
 import org.bukkit.Bukkit
 import org.bukkit.Location

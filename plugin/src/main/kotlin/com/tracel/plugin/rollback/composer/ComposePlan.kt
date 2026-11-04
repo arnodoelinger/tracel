@@ -8,6 +8,7 @@ import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldChange
+import com.tracel.plugin.bukkit.world.VanillaWorldRules
 import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.survey.NO_MATERIAL
@@ -17,8 +18,7 @@ import com.tracel.plugin.rollback.survey.rooting.awayFromAirToAir
 import com.tracel.plugin.rollback.survey.rooting.awayFromEntitiesGone
 import com.tracel.plugin.rollback.survey.withStructuralPartners
 import com.tracel.plugin.rollback.survey.withTrails
-import com.tracel.plugin.bukkit.world.VanillaWorldRules
-import com.tracel.plugin.util.chunkKey
+import com.tracel.plugin.util.geometry.chunkKey
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay

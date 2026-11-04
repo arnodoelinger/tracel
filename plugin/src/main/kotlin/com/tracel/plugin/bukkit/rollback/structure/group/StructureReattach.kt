@@ -6,7 +6,7 @@ import com.tracel.model.world.entity.vehicle
 import com.tracel.plugin.bukkit.entity.applyLeash
 import com.tracel.plugin.bukkit.entity.applyVehicle
 import com.tracel.plugin.rollback.structure.StructureRestorer
-import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.runtime.Warnings
 import org.bukkit.entity.Entity
 
 /** Other region's spawn should be done. */

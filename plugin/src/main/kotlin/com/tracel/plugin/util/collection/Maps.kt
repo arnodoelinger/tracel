@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.collection
 
 /**
  * Puts [value] under [key]; a map that already holds [limit] entries is emptied first:

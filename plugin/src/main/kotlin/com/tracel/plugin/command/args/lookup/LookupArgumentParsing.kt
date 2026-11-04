@@ -10,10 +10,10 @@ import com.tracel.plugin.command.args.time.TimeExpr
 import com.tracel.plugin.command.suggest.LookupSuggest
 import com.tracel.plugin.command.suggest.SuggestLists
 import com.tracel.plugin.services.monitoring.Telemetry
-import com.tracel.plugin.util.messageOrName
-import com.tracel.plugin.util.parseDuration
-import com.tracel.plugin.util.said
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.text.said
+import com.tracel.plugin.util.text.tr
+import com.tracel.plugin.util.units.parseDuration
 import java.util.UUID
 
 private fun ParsedLookupArgs.within(window: TimeExpr): ParsedLookupArgs =

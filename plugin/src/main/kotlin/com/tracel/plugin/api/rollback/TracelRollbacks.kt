@@ -42,8 +42,8 @@ import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.monitoring.Telemetry
-import com.tracel.plugin.util.messageOrName
-import com.tracel.plugin.util.rescue
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.runtime.rescue
 import org.bukkit.entity.Player
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.AbstractCoroutineContextElement

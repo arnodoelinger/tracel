@@ -3,11 +3,11 @@ package com.tracel.plugin.command.action
 import com.tracel.api.result.Res
 import com.tracel.plugin.command.action.support.describe
 import com.tracel.plugin.command.presenter.StatusPresenter
-import com.tracel.plugin.util.failed
-import com.tracel.plugin.util.say
-import com.tracel.plugin.util.tr
-import com.tracel.plugin.services.maintenance.isDevelopmentBuild
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.services.maintenance.isDevelopmentBuild
+import com.tracel.plugin.util.text.failed
+import com.tracel.plugin.util.text.say
+import com.tracel.plugin.util.text.tr
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
 import org.bukkit.command.CommandSender

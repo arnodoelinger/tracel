@@ -1,8 +1,8 @@
 package com.tracel.plugin.listener.support.lectern
 
 import com.tracel.model.world.BlockPos
-import com.tracel.plugin.util.ExpiringMap
-import com.tracel.plugin.util.MILLIS_PER_DAY
+import com.tracel.plugin.util.concurrent.ExpiringMap
+import com.tracel.plugin.util.units.MILLIS_PER_DAY
 
 /**
  * Storage for lectern page numbers.

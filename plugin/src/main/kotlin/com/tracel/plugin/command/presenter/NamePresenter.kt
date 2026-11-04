@@ -1,6 +1,6 @@
 package com.tracel.plugin.command.presenter
 
-import com.tracel.plugin.util.titleWords
+import com.tracel.plugin.util.text.titleWords
 import net.kyori.adventure.text.Component
 import org.bukkit.NamespacedKey
 import org.bukkit.Registry

@@ -1,6 +1,6 @@
 package com.tracel.plugin.listener.support.guard
 
-import com.tracel.plugin.util.ThreadFlag
+import com.tracel.plugin.util.concurrent.ThreadFlag
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 

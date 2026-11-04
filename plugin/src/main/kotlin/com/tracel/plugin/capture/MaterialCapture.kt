@@ -29,7 +29,7 @@ import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.listener.support.flow.worldgenMintFlows
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.carriesCoordinates
+import com.tracel.plugin.util.holder.carriesCoordinates
 import org.bukkit.Location
 import org.bukkit.block.Block
 import org.bukkit.entity.Player

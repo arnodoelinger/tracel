@@ -3,10 +3,10 @@ package com.tracel.plugin.command.action.support
 import com.tracel.api.actor.Actor
 import com.tracel.api.world.NamespacedName
 import com.tracel.plugin.command.presenter.RollbackPresenter.mostly
-import com.tracel.plugin.util.confirmHint
-import com.tracel.plugin.util.needed
-import com.tracel.plugin.util.tr
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.text.confirmHint
+import com.tracel.plugin.util.text.needed
+import com.tracel.plugin.util.text.tr
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 

@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.geometry
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.BlockPos

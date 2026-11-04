@@ -11,8 +11,8 @@ import com.tracel.plugin.command.suggest.ExportSuggest
 import com.tracel.plugin.command.suggest.PurgeSuggest
 import com.tracel.plugin.command.tree.CommandActions
 import com.tracel.plugin.command.tree.tokens
-import com.tracel.plugin.util.tr
-import com.tracel.plugin.util.usage
+import com.tracel.plugin.util.text.tr
+import com.tracel.plugin.util.text.usage
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
 /** `/tracel data`: export, import, migrate, purge. */

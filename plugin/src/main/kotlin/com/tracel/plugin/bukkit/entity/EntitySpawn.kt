@@ -3,9 +3,9 @@ package com.tracel.plugin.bukkit.entity
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.entity.*
 import com.tracel.plugin.bukkit.block.toBlockFace
-import com.tracel.plugin.util.anchorPoint
-import com.tracel.plugin.util.facingFromPose
-import com.tracel.plugin.util.Warnings
+import com.tracel.plugin.util.geometry.anchorPoint
+import com.tracel.plugin.util.geometry.facingFromPose
+import com.tracel.plugin.util.runtime.Warnings
 import org.bukkit.*
 import org.bukkit.attribute.Attribute
 import org.bukkit.entity.*

@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.support.cell
 
 import com.tracel.annotations.Unstable
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import org.bukkit.block.Block
 import org.bukkit.entity.Entity
 import java.util.*

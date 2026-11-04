@@ -1,9 +1,9 @@
 package com.tracel.plugin.command.action
 
 import com.tracel.plugin.bukkit.command.requirePlayer
-import com.tracel.plugin.util.send
-import com.tracel.plugin.util.tr
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.text.send
+import com.tracel.plugin.util.text.tr
 import org.bukkit.command.CommandSender
 
 /** Action responsible for toggling the inspector mode for players. */

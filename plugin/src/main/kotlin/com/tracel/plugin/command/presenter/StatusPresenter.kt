@@ -6,11 +6,11 @@ import com.tracel.api.admin.StoreStatus
 import com.tracel.plugin.services.monitoring.DiskLevel
 import com.tracel.plugin.services.monitoring.Health
 import com.tracel.plugin.services.monitoring.RollbackSize
-import com.tracel.plugin.util.formatCount
-import com.tracel.plugin.util.shortSpan
-import com.tracel.plugin.util.toGib
-import com.tracel.plugin.util.toMib
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
+import com.tracel.plugin.util.units.formatCount
+import com.tracel.plugin.util.units.shortSpan
+import com.tracel.plugin.util.units.toGib
+import com.tracel.plugin.util.units.toMib
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.HoverEvent

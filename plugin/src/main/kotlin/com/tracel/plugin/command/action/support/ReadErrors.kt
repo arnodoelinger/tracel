@@ -1,7 +1,7 @@
 package com.tracel.plugin.command.action.support
 
 import com.tracel.api.history.HistoryReadError
-import com.tracel.plugin.util.said
+import com.tracel.plugin.util.text.said
 
 /** What a failed read says, the way a failure is told to the sender. */
 internal fun HistoryReadError.describe(): String = said(

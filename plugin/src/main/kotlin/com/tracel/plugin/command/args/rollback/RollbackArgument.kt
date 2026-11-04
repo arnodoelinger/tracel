@@ -5,13 +5,13 @@ import com.tracel.plugin.command.args.action.ActionArgument
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
 import com.tracel.plugin.command.args.lookup.partsLimitArea
 import com.tracel.plugin.command.args.lookup.rollbackQuery
-import com.tracel.plugin.config.ScopeLimits
-import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.scope.actionProblems
+import com.tracel.plugin.command.args.scope.areaOf
 import com.tracel.plugin.command.args.scope.region
 import com.tracel.plugin.command.args.scope.scopeProblem
 import com.tracel.plugin.command.args.scope.unknownPlace
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.config.ScopeLimits
+import com.tracel.plugin.util.text.tr
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender

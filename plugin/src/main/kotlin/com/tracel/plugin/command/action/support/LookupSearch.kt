@@ -15,7 +15,7 @@ import com.tracel.plugin.command.presenter.LookupPresenter
 import com.tracel.plugin.command.presenter.line.ChangeLinePresenter
 import com.tracel.plugin.command.presenter.line.LineStack
 import com.tracel.plugin.command.presenter.line.LoggedLine
-import com.tracel.plugin.util.MILLIS_PER_MINUTE
+import com.tracel.plugin.util.units.MILLIS_PER_MINUTE
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 

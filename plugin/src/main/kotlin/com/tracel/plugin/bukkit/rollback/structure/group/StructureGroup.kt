@@ -6,6 +6,7 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.leashHolder
 import com.tracel.model.world.entity.vehicle
+import com.tracel.plugin.bukkit.block.AIR
 import com.tracel.plugin.bukkit.block.BlockDataCache
 import com.tracel.plugin.bukkit.block.applyTo
 import com.tracel.plugin.bukkit.block.toShape
@@ -19,7 +20,6 @@ import com.tracel.plugin.bukkit.rollback.structure.block.write.apply
 import com.tracel.plugin.bukkit.rollback.structure.block.write.place
 import com.tracel.plugin.bukkit.rollback.structure.entity.despawn
 import com.tracel.plugin.bukkit.rollback.structure.fluid.fixSnowyGround
-import com.tracel.plugin.services.monitoring.Throttle
 import com.tracel.plugin.rollback.result.report.SkippedStep
 import com.tracel.plugin.rollback.result.report.StructureReport
 import com.tracel.plugin.rollback.structure.StructureRestorer
@@ -28,10 +28,10 @@ import com.tracel.plugin.rollback.structure.block.write.Refused
 import com.tracel.plugin.rollback.structure.block.write.Unchanged
 import com.tracel.plugin.rollback.structure.dispatchAt
 import com.tracel.plugin.rollback.structure.entity.Despawn
-import com.tracel.plugin.bukkit.block.AIR
-import com.tracel.plugin.util.chunkKey
-import com.tracel.plugin.util.chunkKeyX
-import com.tracel.plugin.util.chunkKeyZ
+import com.tracel.plugin.services.monitoring.Throttle
+import com.tracel.plugin.util.geometry.chunkKey
+import com.tracel.plugin.util.geometry.chunkKeyX
+import com.tracel.plugin.util.geometry.chunkKeyZ
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.block.BlockFace

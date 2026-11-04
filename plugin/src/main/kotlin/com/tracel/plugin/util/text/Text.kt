@@ -1,5 +1,6 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.text
 
+import com.tracel.plugin.util.runtime.messageOrName
 import com.mojang.brigadier.LiteralMessage
 import com.mojang.brigadier.Message
 import com.tracel.plugin.services.monitoring.Telemetry

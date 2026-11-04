@@ -4,7 +4,7 @@ import com.tracel.engine.rollback.job.record.RollbackJobRecord
 import com.tracel.engine.rollback.plan.RollbackTarget
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
-import com.tracel.plugin.util.blockPos
+import com.tracel.plugin.util.holder.blockPos
 
 /** Records the position of an entity being spawned during the rollback process. */
 internal fun RollbackComposer.rememberHull(step: StructureStep.SpawnEntity) {

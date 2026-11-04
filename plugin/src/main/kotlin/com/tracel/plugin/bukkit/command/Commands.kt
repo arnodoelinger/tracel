@@ -1,8 +1,8 @@
 package com.tracel.plugin.bukkit.command
 
-import com.tracel.plugin.util.say
-import com.tracel.plugin.util.CommandOrigin
-import com.tracel.plugin.util.ParsedBlockPos
+import com.tracel.plugin.util.command.CommandOrigin
+import com.tracel.plugin.util.command.ParsedBlockPos
+import com.tracel.plugin.util.text.say
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender

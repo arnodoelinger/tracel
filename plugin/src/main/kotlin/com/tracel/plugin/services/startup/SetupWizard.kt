@@ -12,8 +12,8 @@ import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.integration.coreprotect.source.CoreProtectLocator
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.maintenance.startAutoPurge
-import com.tracel.plugin.util.MILLIS_PER_DAY
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
+import com.tracel.plugin.util.units.MILLIS_PER_DAY
 import io.papermc.paper.dialog.Dialog
 import io.papermc.paper.dialog.DialogResponseView
 import io.papermc.paper.registry.data.dialog.ActionButton

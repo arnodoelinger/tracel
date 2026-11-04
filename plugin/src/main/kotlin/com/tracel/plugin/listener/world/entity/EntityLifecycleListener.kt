@@ -32,8 +32,8 @@ import com.tracel.plugin.listener.support.cell.ColumnCell
 import com.tracel.plugin.listener.support.cell.DispenseCell
 import com.tracel.plugin.listener.support.flow.causeOr
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.ExpiringMap
-import com.tracel.plugin.util.ExpiringSet
+import com.tracel.plugin.util.concurrent.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringSet
 import io.papermc.paper.event.player.PlayerNameEntityEvent
 import io.papermc.paper.event.player.PrePlayerAttackEntityEvent
 import org.bukkit.NamespacedKey

@@ -24,11 +24,11 @@ import com.tracel.plugin.bukkit.block.AirBlock
 import com.tracel.plugin.command.presenter.ItemPresenter
 import com.tracel.plugin.command.presenter.NamePresenter
 import com.tracel.plugin.command.presenter.support.Glyphs
-import com.tracel.plugin.util.agoText
-import com.tracel.plugin.util.lower
-import com.tracel.plugin.util.newlines
-import com.tracel.plugin.util.plainEnglish
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.agoText
+import com.tracel.plugin.util.text.lower
+import com.tracel.plugin.util.text.newlines
+import com.tracel.plugin.util.text.plainEnglish
+import com.tracel.plugin.util.text.tr
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.event.ClickEvent

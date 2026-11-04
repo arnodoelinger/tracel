@@ -11,8 +11,8 @@ import com.tracel.plugin.bukkit.entity.unleash
 import com.tracel.plugin.bukkit.entity.unleashHeld
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.entity.Despawn
-import com.tracel.plugin.util.Warnings
-import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.runtime.Warnings
+import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material

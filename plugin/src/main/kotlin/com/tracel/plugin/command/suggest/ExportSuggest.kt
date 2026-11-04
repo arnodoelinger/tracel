@@ -1,7 +1,7 @@
 package com.tracel.plugin.command.suggest
 
 import com.mojang.brigadier.suggestion.SuggestionProvider
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.tr
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import java.nio.file.Files
 import java.nio.file.Path

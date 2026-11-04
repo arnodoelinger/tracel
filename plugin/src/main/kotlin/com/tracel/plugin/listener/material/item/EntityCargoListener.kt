@@ -18,7 +18,7 @@ import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.listener.support.flow.DESTROYED_SINK
 import com.tracel.plugin.listener.support.flow.isLedgeredHolder
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.ExpiringSet
+import com.tracel.plugin.util.concurrent.ExpiringSet
 import org.bukkit.Bukkit
 import org.bukkit.entity.*
 import org.bukkit.event.entity.EntityDeathEvent

@@ -2,8 +2,8 @@ package com.tracel.plugin.bukkit.entity
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
-import com.tracel.plugin.util.EntityWhereabouts
-import com.tracel.plugin.util.GroundWhereabouts
+import com.tracel.plugin.util.whereabouts.EntityWhereabouts
+import com.tracel.plugin.util.whereabouts.GroundWhereabouts
 import org.bukkit.entity.Entity
 
 /** Remember the entity's current block position. */

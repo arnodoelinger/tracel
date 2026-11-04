@@ -10,7 +10,7 @@ import com.tracel.plugin.bukkit.block.holdsFreeFluid
 import com.tracel.plugin.bukkit.block.isFluidShape
 import com.tracel.plugin.bukkit.block.makesBubbles
 import com.tracel.plugin.bukkit.block.poursLikeFluid
-import com.tracel.plugin.util.LongHashSet
+import com.tracel.plugin.util.collection.LongHashSet
 import org.bukkit.World
 import org.bukkit.block.data.Levelled
 import org.bukkit.block.data.Waterlogged

@@ -4,9 +4,9 @@ import com.tracel.annotations.Unstable
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.world.BlockPos
 import com.tracel.plugin.rollback.structure.StructureRestorer
-import com.tracel.plugin.util.chunkKey
-import com.tracel.plugin.util.chunkKeyX
-import com.tracel.plugin.util.chunkKeyZ
+import com.tracel.plugin.util.geometry.chunkKey
+import com.tracel.plugin.util.geometry.chunkKeyX
+import com.tracel.plugin.util.geometry.chunkKeyZ
 import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.Block

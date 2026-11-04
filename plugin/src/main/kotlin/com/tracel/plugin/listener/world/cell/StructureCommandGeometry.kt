@@ -1,7 +1,7 @@
 package com.tracel.plugin.listener.world.cell
 
 import com.tracel.plugin.bukkit.command.vector
-import com.tracel.plugin.util.ParsedBlockPos
+import com.tracel.plugin.util.command.ParsedBlockPos
 import org.bukkit.GameRules
 import org.bukkit.World
 import org.bukkit.util.BoundingBox

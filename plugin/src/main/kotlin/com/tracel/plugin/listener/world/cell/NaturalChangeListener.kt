@@ -17,7 +17,7 @@ import com.tracel.plugin.listener.support.cell.DragonEggCell
 import com.tracel.plugin.listener.support.cell.FireCell
 import com.tracel.plugin.listener.support.flow.causeOr
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.ExpiringSet
+import com.tracel.plugin.util.concurrent.ExpiringSet
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace

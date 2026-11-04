@@ -8,8 +8,8 @@ import com.tracel.plugin.listener.support.guard.FreezeGuard
 import com.tracel.plugin.listener.support.guard.SelfManagedWorldGuard
 import com.tracel.plugin.listener.support.guard.SpawnGuard
 import com.tracel.plugin.listener.support.redstone.RedstoneTrigger
-import com.tracel.plugin.util.EntityWhereabouts
-import com.tracel.plugin.util.GroundWhereabouts
+import com.tracel.plugin.util.whereabouts.EntityWhereabouts
+import com.tracel.plugin.util.whereabouts.GroundWhereabouts
 
 private const val WHEREABOUTS_KEPT = 200_000
 

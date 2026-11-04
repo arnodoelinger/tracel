@@ -1,6 +1,5 @@
 package com.tracel.plugin.api.addon
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.api.addon.ActorKind
 import com.tracel.api.addon.BlockLens
 import com.tracel.api.addon.CustomEventType
@@ -27,8 +26,9 @@ import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.rollback.result.outcome.RollbackResult
 import com.tracel.plugin.rollback.result.outcome.UndoResult
 import com.tracel.plugin.rollback.result.outcome.Unreachable
-import com.tracel.plugin.util.Warnings
-import com.tracel.plugin.util.titleWords
+import com.tracel.plugin.util.runtime.Warnings
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.text.titleWords
 import net.kyori.adventure.text.Component
 import org.bukkit.inventory.ItemStack
 import java.util.Optional

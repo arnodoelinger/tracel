@@ -25,8 +25,8 @@ import com.tracel.model.world.WorldId
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.monitoring.LAG_PROBE_MILLIS
 import com.tracel.plugin.services.monitoring.Telemetry
-import com.tracel.plugin.util.messageOrName
-import com.tracel.plugin.util.rescue
+import com.tracel.plugin.util.runtime.messageOrName
+import com.tracel.plugin.util.runtime.rescue
 import org.bukkit.Bukkit
 import java.nio.file.AccessDeniedException
 import java.nio.file.FileSystemException

@@ -1,6 +1,5 @@
 package com.tracel.plugin.bukkit.rollback.composer
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.engine.rollback.structure.StructureStep
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.WorldId
@@ -11,8 +10,9 @@ import com.tracel.plugin.bukkit.world.worldOf
 import com.tracel.plugin.rollback.result.outcome.Planned
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.monitoring.throttled
-import com.tracel.plugin.util.awaitOrNull
-import com.tracel.plugin.util.regionKey
+import com.tracel.plugin.util.geometry.regionKey
+import com.tracel.plugin.util.runtime.awaitOrNull
+import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.World
 import java.util.logging.Level
 import java.util.logging.Logger

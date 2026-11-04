@@ -4,8 +4,8 @@ import com.tracel.api.access.Grant
 import com.tracel.engine.store.PurgeCategory
 import com.tracel.engine.store.StoreSettings
 import com.tracel.plugin.services.monitoring.GovernorSettings
-import com.tracel.plugin.util.MILLIS_PER_DAY
-import com.tracel.plugin.util.MILLIS_PER_MINUTE
+import com.tracel.plugin.util.units.MILLIS_PER_DAY
+import com.tracel.plugin.util.units.MILLIS_PER_MINUTE
 
 /**
  * `Tracel` settings.

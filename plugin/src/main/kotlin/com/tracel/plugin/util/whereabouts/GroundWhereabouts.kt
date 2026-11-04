@@ -1,4 +1,4 @@
-package com.tracel.plugin.util
+package com.tracel.plugin.util.whereabouts
 
 import com.tracel.engine.world.GroundPositions
 import com.tracel.model.holder.HolderId

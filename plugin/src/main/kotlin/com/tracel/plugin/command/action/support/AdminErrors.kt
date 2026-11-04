@@ -1,7 +1,7 @@
 package com.tracel.plugin.command.action.support
 
 import com.tracel.api.admin.AdminError
-import com.tracel.plugin.util.said
+import com.tracel.plugin.util.text.said
 
 /** What a failed admin call says when nothing more specific is known. */
 internal fun AdminError.describe(): String = said(

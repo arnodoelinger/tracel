@@ -11,7 +11,7 @@ import com.tracel.plugin.bukkit.item.addTo
 import com.tracel.plugin.bukkit.item.toItemTotals
 import com.tracel.plugin.listener.TracelListener
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.ExpiringMap
+import com.tracel.plugin.util.concurrent.ExpiringMap
 import org.bukkit.Bukkit
 import org.bukkit.GameEvent
 import org.bukkit.block.Block

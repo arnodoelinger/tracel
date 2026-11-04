@@ -1,9 +1,9 @@
 package com.tracel.plugin.command.args.scope
 
 import com.tracel.plugin.command.args.lookup.ParsedLookupArgs
-import com.tracel.plugin.util.tr
 import com.tracel.plugin.integration.worldguard.RegionBox
 import com.tracel.plugin.integration.worldguard.Regions
+import com.tracel.plugin.util.text.tr
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender

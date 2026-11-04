@@ -2,7 +2,7 @@ package com.tracel.plugin.bukkit.rollback.structure.rescue
 
 import com.tracel.plugin.bukkit.block.HazardBlock
 import com.tracel.plugin.rollback.structure.StructureRestorer
-import com.tracel.plugin.util.chunkKey
+import com.tracel.plugin.util.geometry.chunkKey
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.util.BoundingBox

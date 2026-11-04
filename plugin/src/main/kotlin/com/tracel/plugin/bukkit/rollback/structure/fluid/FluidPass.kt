@@ -13,8 +13,8 @@ import com.tracel.plugin.bukkit.world.worldOf
 import com.tracel.plugin.rollback.structure.StructureRestorer
 import com.tracel.plugin.rollback.structure.claim
 import com.tracel.plugin.services.monitoring.throttled
-import com.tracel.plugin.util.LongHashSet
-import com.tracel.plugin.util.chunkKey
+import com.tracel.plugin.util.collection.LongHashSet
+import com.tracel.plugin.util.geometry.chunkKey
 import java.util.concurrent.atomic.AtomicIntegerArray
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll

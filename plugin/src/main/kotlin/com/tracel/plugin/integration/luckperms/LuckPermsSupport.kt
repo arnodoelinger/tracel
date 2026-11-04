@@ -1,8 +1,8 @@
 package com.tracel.plugin.integration.luckperms
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.plugin.listener.registerObserved
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.Bukkit
 import java.util.logging.Level
 import java.util.logging.Logger

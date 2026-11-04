@@ -1,12 +1,12 @@
 package com.tracel.plugin.command.suggest.flag
 
-import com.tracel.plugin.config.ScopeLimits
 import com.tracel.plugin.command.suggest.SuggestLists
 import com.tracel.plugin.command.suggest.Suggestion
 import com.tracel.plugin.command.suggest.quantity.presetsOf
 import com.tracel.plugin.command.suggest.quantity.suggestQuantity
 import com.tracel.plugin.command.suggest.rank
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.config.ScopeLimits
+import com.tracel.plugin.util.text.tr
 import net.kyori.adventure.text.Component
 
 internal object FlagSuggest {

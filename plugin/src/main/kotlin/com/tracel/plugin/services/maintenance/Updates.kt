@@ -7,8 +7,8 @@ import com.tracel.annotations.Observes
 import com.tracel.plugin.command.permission.Permission
 import com.tracel.plugin.command.permission.has
 import com.tracel.plugin.services.TracelServices
-import com.tracel.plugin.util.say
-import com.tracel.plugin.util.tr
+import com.tracel.plugin.util.text.say
+import com.tracel.plugin.util.text.tr
 import io.github.z4kn4fein.semver.Version
 import io.github.z4kn4fein.semver.toVersionOrNull
 import net.kyori.adventure.text.Component

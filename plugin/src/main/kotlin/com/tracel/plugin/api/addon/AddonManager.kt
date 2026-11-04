@@ -1,10 +1,10 @@
 package com.tracel.plugin.api.addon
 
-import com.tracel.plugin.util.messageOrName
 import com.tracel.api.access.TracelConnection
 import com.tracel.api.addon.Addon
 import com.tracel.api.addon.TracelAddon
 import com.tracel.plugin.api.Owned
+import com.tracel.plugin.util.runtime.messageOrName
 import java.util.logging.Level
 import java.util.logging.Logger
 

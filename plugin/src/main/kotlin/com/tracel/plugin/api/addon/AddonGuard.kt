@@ -1,6 +1,6 @@
 package com.tracel.plugin.api.addon
 
-import com.tracel.plugin.util.messageOrName
+import com.tracel.plugin.util.runtime.messageOrName
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

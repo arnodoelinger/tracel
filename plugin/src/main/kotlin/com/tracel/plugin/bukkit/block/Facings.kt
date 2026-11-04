@@ -1,6 +1,6 @@
 package com.tracel.plugin.bukkit.block
 
-import com.tracel.plugin.util.Facing
+import com.tracel.plugin.util.geometry.Facing
 import org.bukkit.block.BlockFace
 
 /** This side of a block as `Bukkit` names it. */
