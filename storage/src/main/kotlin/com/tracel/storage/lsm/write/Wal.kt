@@ -2,6 +2,7 @@ package com.tracel.storage.lsm.write
 
 import com.tracel.storage.ffm.Bytes
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -35,15 +36,19 @@ class Wal private constructor(
     val path: Path,
     private val stream: FileOutputStream,
     private var written: Long,
+    private val beforeSync: () -> Unit,
 ) : AutoCloseable {
     private val header: ByteBuffer = ByteBuffer.allocate(HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN)
     private var payload: ByteBuffer = ByteBuffer.allocate(INITIAL_PAYLOAD).order(ByteOrder.LITTLE_ENDIAN)
     private var unsynced = false
 
+    var broken: IOException? = null; private set
+
     val bytes: Long get() = written
 
     /** Appends a batch to the log, with its sequence. */
     fun append(sequence: Long, batch: com.tracel.storage.spi.MutationBatch) {
+        broken?.let { throw IOException("$path is broken since an earlier fsync failed.", it) }
         payload.clear()
         batch.forEach { key, value ->
             ensure(8 + key.size + (value?.size ?: 0))
@@ -63,16 +68,28 @@ class Wal private constructor(
         header.putLong(sequence)
         header.flip()
 
-        stream.write(header.array(), 0, HEADER_BYTES)
-        stream.write(payload.array(), 0, length)
+        try {
+            stream.write(header.array(), 0, HEADER_BYTES)
+            stream.write(payload.array(), 0, length)
+        } catch (e: IOException) {
+            broken = e
+            throw e
+        }
         written += HEADER_BYTES + length
         unsynced = true
     }
 
-    /** Forces what has been written to the platter. */
+    /** Forces what has been written to the platter. Once that failed, it fails every time after. */
     fun sync() {
+        broken?.let { throw IOException("$path is broken since an earlier fsync failed.", it) }
         if (!unsynced) return
-        stream.fd.sync()
+        try {
+            beforeSync()
+            stream.fd.sync()
+        } catch (e: IOException) {
+            broken = e
+            throw e
+        }
         unsynced = false
         syncCount++
     }
@@ -82,8 +99,20 @@ class Wal private constructor(
     val syncs: Long get() = syncCount
 
     override fun close() {
+        if (broken != null) return abandon()
         sync()
         stream.close()
+    }
+
+    /**
+     * Closes without `fsync`: for a log whose contents are on disk elsewhere already,
+     * or are lost anyway.
+     */
+    fun abandon() {
+        try {
+            stream.close()
+        } catch (_: IOException) {
+        }
     }
 
     private fun ensure(additional: Int) {
@@ -100,9 +129,9 @@ class Wal private constructor(
         private const val INITIAL_PAYLOAD = 1 shl 16
 
         /** Creates a new [Wal] for [path], appending to it if it already exists. */
-        fun create(path: Path): Wal { // Don't change this to FileChannel
+        fun create(path: Path, beforeSync: () -> Unit = { }): Wal { // Don't change this to FileChannel
             val existing = if (Files.exists(path)) Files.size(path) else 0L
-            return Wal(path, FileOutputStream(path.toFile(), true), existing)
+            return Wal(path, FileOutputStream(path.toFile(), true), existing, beforeSync)
         }
 
         /**

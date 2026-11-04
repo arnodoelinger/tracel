@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm
 
+import com.tracel.platform.io.reason
 import com.tracel.platform.io.closeQuietly
 import com.tracel.storage.lsm.read.LsmSnapshot
 import com.tracel.storage.lsm.read.SegmentRun
@@ -13,12 +14,15 @@ import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.write.WalSet
 import com.tracel.storage.spi.*
 import it.unimi.dsi.fastutil.longs.LongArrayList
+import java.io.SyncFailedException
 import java.lang.foreign.MemorySegment
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import java.util.logging.Level
@@ -93,12 +97,25 @@ class LsmEngine(
     private var logs: WalSet
 
     @Volatile
-    private var failure: Throwable? = null
+    private var failure: WritesStopped? = null
+
+    private var healable = true
+
+    @Volatile
+    private var flushFailure: Throwable? = null
+
+    private val healQueued = AtomicBoolean(false)
+    private var healDelay = HEAL_FIRST_MILLIS
 
     private var closed = false
 
     @Volatile
     private var version: Version
+
+    internal var syncFault: (() -> Unit)? = null
+    internal var flushFault: (() -> Unit)? = null
+
+    override val stopped: WritesStopped? get() = failure
 
     // region Startup and recovery
 
@@ -120,7 +137,7 @@ class LsmEngine(
         nextFileId = recovered.nextFileId
 
         recovered.active.walId = nextFileId++
-        logs = WalSet(directory, config.sync, recovered.active.walId)
+        logs = WalSet(directory, config.sync, recovered.active.walId) { syncFault?.invoke() }
         version = Version(
             recovered.active,
             emptyList(),
@@ -136,7 +153,12 @@ class LsmEngine(
         // An interval policy only synced inside a later write: one write and then silence stayed unsynced
         (config.sync as? SyncPolicy.Interval)?.let { policy ->
             syncer.scheduleWithFixedDelay(
-                { runCatching { if (!closed) sync() } },
+                {
+                    if (!closed && failure == null) try {
+                        sync()
+                    } catch (_: Throwable) {
+                    }
+                },
                 policy.millis,
                 policy.millis,
                 TimeUnit.MILLISECONDS
@@ -153,20 +175,15 @@ class LsmEngine(
 
         lock.withLock {
             check(!closed) { "storage engine is closed." }
-            check(failure == null) { "storage engine stopped taking writes after an I / O error: ${failure?.message}." }
-            if (!fits(version.active, batch)) rotate(batch)
+            failure?.let { throw WritesStopped(it.since, it.cause ?: it, it.fatal) }
+            if (!fits(version.active, batch)) stopOnFailure { rotate(batch) }
             check(fits(version.active, batch)) {
                 "a ${needs(batch)}-byte batch does not fit a freshly rotated " +
                         "${version.active.capacity}-byte memtable; the size accounting is wrong."
             }
 
             val seq = sequence.incrementAndGet()
-            try {
-                logs.append(seq, batch)
-            } catch (e: Throwable) {
-                failure = e
-                throw e
-            }
+            stopOnFailure { logs.append(seq, batch) }
 
             // fits() above already reserved room for this exact batch under the same lock, so
             // put() failing here would mean two batches raced into one memtable without a
@@ -181,20 +198,16 @@ class LsmEngine(
             version.lastSequence = seq
             writeCount.incrementAndGet()
 
-            if (durable) {
-                try {
-                    logs.syncPerPolicy()
-                } catch (e: Throwable) {
-                    failure = e
-                    throw e
-                }
-            }
+            // The batch is in the memtable and readers see it, so from here on a failure stops the writes after it,
+            // not this one. Throwing would make the caller redo a batch that is already applied. The drainer, for
+            // one, would book the same events twice. It goes to disk with the rest when the engine heals.
+            if (durable) stopAfterCommit { logs.syncPerPolicy() }
 
             // A batch too big for an ordinary memtable got one sized for it. Send that one on its
             // way now rather than letting the server run on an oversized table for however long it
             // takes to fill — the write-ahead log tracks the table, and a table that does not
             // rotate is a log that does not get retired.
-            if (table.capacity > config.memtableBytes) rotate(null)
+            if (table.capacity > config.memtableBytes) stopAfterCommit { rotate(null) }
         }
     }
 
@@ -220,7 +233,10 @@ class LsmEngine(
     }
 
     override fun sync() {
-        lock.withLock { logs.sync() }
+        lock.withLock {
+            failure?.let { throw WritesStopped(it.since, it.cause ?: it, it.fatal) }
+            stopOnFailure { logs.sync() }
+        }
     }
 
     override fun stats(): EngineStats {
@@ -314,7 +330,7 @@ class LsmEngine(
                 for (table in discardedTables) retirement.retire(table, at)
                 publish()
             } catch (e: Throwable) {
-                failure = e
+                stop(e, healable = false)
                 throw e
             }
         }
@@ -329,7 +345,7 @@ class LsmEngine(
 
     /** Flushes the active memtable and waits for it. Tests and shutdown. */
     fun flushNow() {
-        lock.withLock { if (version.active.entries > 0) rotate(null) }
+        lock.withLock { if (failure == null && version.active.entries > 0) stopOnFailure { rotate(null) } }
         quiesce()
         quiesce()
     }
@@ -344,7 +360,11 @@ class LsmEngine(
         lock.withLock {
             if (closed) return
             closed = true
-            logs.close()
+            try {
+                logs.close()
+            } catch (e: Throwable) {
+                logger.log(Level.WARNING, "Write-ahead log failed to sync on shutdown (${e.reason()}). Sealing still saves what is in memory.", e)
+            }
         }
         syncer.shutdownNow()
         flusher.shutdown()
@@ -352,7 +372,12 @@ class LsmEngine(
         compactor.shutdown()
         compactor.awaitTermination(SHUTDOWN_WAIT_SECONDS, TimeUnit.SECONDS)
         lock.withLock {
-            if (seal) runCatching { sealOnShutdown() }
+            if (seal) try {
+                sealOnShutdown()
+            } catch (e: Throwable) {
+                val what = if (logs.broken) "It is lost, the write-ahead log is broken too." else "It is replayed from the write-ahead log on the next start."
+                logger.log(Level.SEVERE, "Could not save what was in memory on shutdown (${e.reason()}). $what", e)
+            }
             open.forEach { it.closeQuietly() }
             retirement.closeAll()
             version.closeMemTables()
@@ -396,10 +421,15 @@ class LsmEngine(
     private fun needs(batch: MutationBatch): Long = batch.byteSize() + batch.size * MemTable.MAX_ENTRY_OVERHEAD
 
     private fun rotate(oversized: MutationBatch?) {
-        var waited = 0
-        while (version.frozen.size >= config.maxFrozenMemtables && waited < FLUSH_WAIT_MILLIS) {
+        var waited = 0L
+        while (version.frozen.size >= config.maxFrozenMemtables) {
+            check(!closed) { "storage engine is closed." }
+            flushFailure?.let { throw stop(it) }
             flushed.await(FLUSH_POLL_MILLIS.toLong(), TimeUnit.MILLISECONDS)
             waited += FLUSH_POLL_MILLIS
+            if (waited == FLUSH_WAIT_MILLIS) {
+                logger.warning("Flushes are behind: ${version.frozen.size} memtables wait for the disk. Writes are slowed down.")
+            }
         }
 
         val needed = oversized?.let(::needs) ?: 0L
@@ -418,7 +448,9 @@ class LsmEngine(
     // region The maintenance threads
 
     private fun flush(frozen: MemTable) {
+        if (lock.withLock { closed || version.frozen.none { it === frozen } }) return
         try {
+            flushFault?.invoke()
             val ids = LongArrayList()
             try {
                 val readers =
@@ -438,6 +470,10 @@ class LsmEngine(
                     publish()
                     flushed.signalAll()
                 }
+                if (flushFailure != null) {
+                    flushFailure = null
+                    logger.info("Flushes work again.")
+                }
             } finally {
                 writing.removeAll(ids)
             }
@@ -446,7 +482,12 @@ class LsmEngine(
         } catch (e: Throwable) {
             // The write-ahead log still holds every one of these writes, so a failed flush costs
             // memory and a longer recovery, not data, as long as it is tried again rather than dropped.
-            logger.log(Level.SEVERE, "flush failed; the write-ahead log still holds this data, retrying...", e)
+            if (flushFailure == null) {
+                logger.log(Level.SEVERE, "flush failed; the write-ahead log still holds this data, retrying...", e)
+            } else {
+                logger.log(Level.FINE, "Flush failed again (${e.reason()}).", e)
+            }
+            flushFailure = e
             if (!closed) {
                 runCatching {
                     flusher.execute {
@@ -513,6 +554,103 @@ class LsmEngine(
 
     private fun reserveSegmentId(): Long = lock.withLock { nextFileId++.also { writing += it } }
 
+    // endregion
+
+    // region Stopping and healing
+
+    private inline fun <T> stopOnFailure(work: () -> T): T = try {
+        work()
+    } catch (e: WritesStopped) {
+        throw e
+    } catch (e: Throwable) {
+        throw stop(e)
+    }
+
+    private inline fun stopAfterCommit(work: () -> Unit) {
+        try {
+            work()
+        } catch (_: WritesStopped) {
+        } catch (e: Throwable) {
+            stop(e)
+        }
+    }
+
+    private fun stop(cause: Throwable, healable: Boolean = true): WritesStopped = lock.withLock {
+        failure?.let { return it }
+        if (closed) return WritesStopped(System.currentTimeMillis(), cause)
+        val stopped = WritesStopped(System.currentTimeMillis(), cause, fatal = !healable || cause.isHopeless())
+        failure = stopped
+        this.healable = healable
+        val after = if (healable) "New history is kept in memory. Retrying." else "Nothing is written until a restart."
+        logger.log(Level.SEVERE, "Storage stopped writing (${cause.reason()}). $after", cause)
+        if (healable) scheduleHeal()
+        stopped
+    }
+
+    private fun Throwable.isHopeless(): Boolean = generateSequence(this) { it.cause }.any {
+        it is SyncFailedException || it.message?.contains("Read-only file system") == true
+    }
+
+    private fun scheduleHeal() {
+        if (!healQueued.compareAndSet(false, true)) return
+        try {
+            syncer.schedule({
+                try {
+                    flusher.execute { heal() }
+                } catch (_: RejectedExecutionException) {
+                    healQueued.set(false)
+                }
+            }, healDelay, TimeUnit.MILLISECONDS)
+        } catch (_: RejectedExecutionException) {
+            healQueued.set(false)
+        }
+    }
+
+    private fun heal() {
+        healQueued.set(false)
+        val since = failure ?: return
+        if (closed || !healable) return
+        val ids = LongArrayList()
+        try {
+            flushFault?.invoke()
+            val tables = version.let { current -> current.frozen + current.active }
+            val written = tables.filter { it.entries > 0 }.sortedBy { it.minSequence }
+                .flatMap { segmentWriter.seal(it, { reserveSegmentId().also(ids::add) }, retirement.horizon()) }
+
+            lock.withLock {
+                if (closed) {
+                    written.forEach { it.closeQuietly() }
+                    return
+                }
+                val current = version
+                check(current.active === tables.last() && current.frozen == tables.dropLast(1)) {
+                    "the memtables changed while writes were stopped."
+                }
+                val fresh = MemTable(config.memtableBytes)
+                fresh.walId = nextFileId++
+                logs.replaceAll(fresh.walId)
+                open += written
+                val at = generation.incrementAndGet()
+                val last = current.lastSequence
+                version = Version(fresh, emptyList(), current.segments + written, last, last, at)
+                for (table in tables) retirement.retire(table, at)
+                publish()
+                failure = null
+                flushFailure = null
+                healDelay = HEAL_FIRST_MILLIS
+                flushed.signalAll()
+            }
+            val seconds = (System.currentTimeMillis() - since.since) / 1000
+            logger.info("Storage is writing again after $seconds s.")
+        } catch (e: Throwable) {
+            logger.log(Level.FINE, "Storage still cannot write (${e.reason()}). Retrying in $healDelay ms.", e)
+            healDelay = (healDelay * 2).coerceAtMost(HEAL_MAX_MILLIS)
+            scheduleHeal()
+        } finally {
+            writing.removeAll(ids)
+        }
+    }
+
     private fun publish() {
         val manifest = Manifest(
             lastSequence = version.durableSequence,
@@ -568,7 +706,7 @@ class LsmEngine(
         }
         lock.withLock {
             if (closed) {
-                replacement?.let { it.closeQuietly() }
+                replacement?.closeQuietly()
                 return Rewritten(0, 0)
             }
             replacement?.let { open += it }
@@ -587,8 +725,10 @@ class LsmEngine(
     private companion object {
         val EMPTY_KEY = ByteArray(0)
 
-        const val FLUSH_WAIT_MILLIS = 2000
+        const val FLUSH_WAIT_MILLIS = 2000L
         const val FLUSH_RETRY_MILLIS = 1000L
+        const val HEAL_FIRST_MILLIS = 1000L
+        const val HEAL_MAX_MILLIS = 30_000L
         const val FLUSH_POLL_MILLIS = 25
         const val SHUTDOWN_WAIT_SECONDS = 30L
     }

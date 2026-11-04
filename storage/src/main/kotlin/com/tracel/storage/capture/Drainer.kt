@@ -12,6 +12,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.intern.Interning
+import com.tracel.storage.spi.WritesStopped
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -60,11 +61,20 @@ class Drainer(
      * across a suspension point that could be canceled mid-flight.
      */
     fun start(scope: CoroutineScope): Job = scope.launch(storage.dispatcher) {
+        var waiting = false
         while (isActive) {
             val drained = try {
-                drainOnce()
+                drainOnce().also {
+                    if (waiting) logger.info("Capture caught up.")
+                    waiting = false
+                }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: WritesStopped) {
+                if (!waiting) logger.warning("Capture is on hold until storage writes again. Events are queued.")
+                waiting = true
+                delay(STOPPED_RETRY_MILLIS.milliseconds)
+                continue
             } catch (e: Throwable) {
                 // If the drain loop dies because of one corrupted batch, the whole
                 // capture pipeline goes up in flames. Log it, skip it, and move on.
@@ -272,5 +282,6 @@ class Drainer(
         const val DEFAULT_MAX_BATCH = 1024
         const val DEFAULT_IDLE_MILLIS = 2L
         const val DEFAULT_FLUSH_MILLIS = 2_000L
+        const val STOPPED_RETRY_MILLIS = 1_000L
     }
 }
