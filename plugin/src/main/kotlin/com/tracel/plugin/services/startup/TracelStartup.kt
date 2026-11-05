@@ -28,7 +28,9 @@ import com.tracel.plugin.listener.listenersOf
 import com.tracel.plugin.listener.registerObserved
 import com.tracel.plugin.listener.session.specifics.PlayerModes
 import com.tracel.plugin.listener.session.specifics.PlayerSessions
+import com.tracel.plugin.listener.support.entity.LiveProjectile
 import com.tracel.plugin.listener.support.flow.ignoranceIsPermanent
+import com.tracel.plugin.listener.support.lectern.LecternPages
 import com.tracel.plugin.listener.world.EntityKinds
 import com.tracel.plugin.services.StorageService
 import com.tracel.plugin.services.TracelServices
@@ -58,6 +60,7 @@ import com.tracel.storage.ports.ledger.ItemForms
 import com.tracel.storage.ports.ledger.Leases
 import com.tracel.storage.ports.ledger.LotRepository
 import com.tracel.storage.ports.ledger.PendingDeliveryRepository
+import com.tracel.storage.ports.ledger.PendingWear
 import com.tracel.storage.ports.log.RolledBack
 import com.tracel.storage.ports.log.TransactionLog
 import com.tracel.storage.ports.log.WorldLog
@@ -66,7 +69,9 @@ import com.tracel.storage.ports.ops.ForeignHistory
 import com.tracel.storage.ports.ops.InterruptedImport
 import com.tracel.storage.ports.ops.StoreAdmin
 import com.tracel.storage.ports.wear.WearLog
+import com.tracel.storage.ports.world.BlockNotes
 import com.tracel.storage.ports.world.GroundPositions
+import com.tracel.storage.ports.world.LiveEntities
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.Bukkit
 import org.tomlj.Toml
@@ -167,6 +172,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             store = admin,
             jobs = jobs,
             pendingDeliveries = pendingDeliveries,
+            pendingWear = PendingWear(storage, counters),
             events = events,
             rolledBack = RolledBack(storage),
             foreign = ForeignHistory(storage, worldLog, log, events, counters),
@@ -176,6 +182,8 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             wear = wear,
             actors = actors,
             itemForms = ItemForms(storage),
+            blockNotes = BlockNotes(storage),
+            liveEntities = LiveEntities(storage),
         ),
         schedulers = schedulers,
         scope = CoroutineScope(SupervisorJob() + schedulers.async + plugin.captureFailures()),
@@ -233,6 +241,10 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         }
     }
 
+    // Before the drains and the listeners: both write to them
+    LecternPages.open(services.storage.blockNotes)
+    LiveProjectile.open(services.storage.liveEntities)
+
     val drain = drainer.start(services.scope)
     plugin.haltIfCaptureDies(drain, "capture drain")
 
@@ -246,6 +258,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             val settled = entities.await() && services.capturing.entityCapture.flush()
             plugin.writeItemForms(services)
             services.listeners.groundWhereabouts.flush()
+            flushMirrors()
             first && second && settled && drained
         }
     }
@@ -257,6 +270,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         services.capturing.entityCapture.flush(LAST_CAPTURE_WAIT_MILLIS)
         plugin.writeItemForms(services)
         services.listeners.groundWhereabouts.flush()
+        flushMirrors()
     }
 
     val entityDrain = services.capturing.entityCapture.start(services.scope)
@@ -271,12 +285,14 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             while (isActive) {
                 plugin.writeItemForms(services)
                 services.listeners.groundWhereabouts.flush()
+                flushMirrors()
                 PendingItemForms.awaitWork(5_000L)
             }
         } finally {
             withContext(NonCancellable) {
                 plugin.writeItemForms(services)
                 services.listeners.groundWhereabouts.flush()
+                flushMirrors()
             }
         }
     }
@@ -353,4 +369,9 @@ internal fun resumeImport(plugin: TracelPlugin, storage: TracelStorage) {
     plugin.logger.info("Finishing the import of ${pending.file}, which was cut short.")
     InterruptedImport.resume(storage)
     plugin.logger.info("Import finished.")
+}
+
+private suspend fun flushMirrors() {
+    LecternPages.flush()
+    LiveProjectile.flush()
 }

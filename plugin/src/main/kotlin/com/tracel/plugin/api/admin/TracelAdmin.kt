@@ -22,6 +22,8 @@ import com.tracel.engine.store.PurgeReport as StoredReport
 import com.tracel.engine.store.PurgeSpec
 import com.tracel.engine.store.StoppedByRequest
 import com.tracel.model.world.WorldId
+import com.tracel.plugin.listener.support.entity.LiveProjectile
+import com.tracel.plugin.listener.support.lectern.LecternPages
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.monitoring.LAG_PROBE_MILLIS
 import com.tracel.plugin.services.monitoring.Telemetry
@@ -44,6 +46,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val GATE_POLL_MILLIS = 500L
 private const val SNAPSHOT_SUFFIX = ".tracel"
@@ -96,6 +99,8 @@ internal class TracelAdmin(
         try {
             val summary = services.storage.store.purgeAll()
             services.capturing.differ.forgetAll()
+            LecternPages.forgetAll()
+            LiveProjectile.forgetAll()
             Res.Ok(PurgeSummary(summary.rows, summary.bytes, instant(summary.oldest), instant(summary.newest)))
         } finally {
             services.restoring.composite.releaseGate()
@@ -206,12 +211,11 @@ internal class TracelAdmin(
             services.capturing.pendingCaptures.owedNow() + services.storage.store.capture.backlog.coerceAtMost(Int.MAX_VALUE.toLong())
                 .toInt()
 
-        // How late the queue is is how long it takes to empty
+        // How late the queue is how long it takes to empty
         val started = System.nanoTime()
-        val applied =
-            withTimeoutOrNull(LAG_PROBE_MILLIS) { services.storage.store.capture.awaitApplied(LAG_PROBE_MILLIS) } == true
+        val applied = withTimeoutOrNull(LAG_PROBE_MILLIS.milliseconds) { services.storage.store.capture.awaitApplied(LAG_PROBE_MILLIS) } == true
         val left = (LAG_PROBE_MILLIS - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(1)
-        val settled = withTimeoutOrNull(left) { services.capturing.pendingCaptures.await(left) } == true
+        val settled = withTimeoutOrNull(left.milliseconds) { services.capturing.pendingCaptures.await(left) } == true
         val took = (System.nanoTime() - started) / 1_000_000
         val beyond = !applied || !settled
         val lag = if (beyond) LAG_PROBE_MILLIS else took

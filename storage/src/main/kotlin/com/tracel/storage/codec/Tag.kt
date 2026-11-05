@@ -82,7 +82,10 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
     META(0x32, U8),
     ROLLED_SET(0x33, U64, U64),
     ROLLED_SET_JOB(0x34, U64, U64),
-    OUTSIDE_STEP(0x36, U64);
+    OUTSIDE_STEP(0x36, U64),
+    BLOCK_NOTE(0x37, U32, ORD32, ORD32, ORD32),
+    LIVE_ENTITY(0x38, UUID),
+    PENDING_WEAR(0x39, UUID, U64);
 
     private val offsets = IntArray(fields.size).also { offsets ->
         var at = 1

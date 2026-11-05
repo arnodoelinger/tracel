@@ -7,7 +7,6 @@ import com.tracel.model.rollback.RollbackJobId
 import com.tracel.plugin.bukkit.item.heldTotals
 import com.tracel.plugin.bukkit.rollback.material.deliverPending
 import com.tracel.plugin.bukkit.rollback.material.item.Moves
-import com.tracel.plugin.bukkit.rollback.material.item.PendingWorn
 import com.tracel.plugin.bukkit.rollback.material.item.WornStacks
 import com.tracel.plugin.bukkit.rollback.material.item.applyDelta
 import com.tracel.plugin.bukkit.rollback.material.spill.spillInRegion
@@ -37,18 +36,20 @@ internal suspend fun MaterialRestorer.applyToPlayer(
     withContext(services.schedulers.entity(holder.uuid)) {
         val player = playerOf(holder.uuid)
         if (player == null || player.isDead) {
+            val kept = HashMap<ItemKey, MutableList<ByteArray>>()
             if (worn != null) {
                 for ((itemKey, delta) in deltas) {
                     if (delta <= 0L || !WornStacks.wears(itemKey)) continue
                     var left = delta
                     while (left > 0L) {
                         val real = worn.next(itemKey) ?: break
-                        PendingWorn.keep(holder.uuid, itemKey, real)
+                        kept.getOrPut(itemKey, ::ArrayList) += real.serializeAsBytes()
                         left -= real.amount
                     }
                 }
             }
             services.atomically {
+                services.storage.pendingWear.keepAll(holder.uuid, kept)
                 services.storage.pendingDeliveries.enqueueAll(holder.uuid, deltas, job, System.currentTimeMillis())
             }
             deliverIfBack(holder.uuid)

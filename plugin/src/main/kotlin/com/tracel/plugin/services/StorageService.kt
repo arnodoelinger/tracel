@@ -7,6 +7,7 @@ import com.tracel.engine.foreign.ForeignHistory
 import com.tracel.engine.ledger.ItemForms
 import com.tracel.engine.ledger.LotLedger
 import com.tracel.engine.ledger.PendingDeliveryRepository
+import com.tracel.engine.ledger.PendingWear
 import com.tracel.engine.ledger.repository.LotRepository
 import com.tracel.engine.log.RolledBack
 import com.tracel.engine.log.TransactionLog
@@ -14,7 +15,9 @@ import com.tracel.engine.rollback.job.record.RollbackJobRepository
 import com.tracel.engine.store.Counters
 import com.tracel.engine.store.StoreAdmin
 import com.tracel.engine.wear.WearLog
+import com.tracel.engine.world.BlockNotes
 import com.tracel.engine.world.GroundPositions
+import com.tracel.engine.world.LiveEntities
 import com.tracel.engine.world.WorldLog
 import com.tracel.platform.storage.UnitOfWork
 
@@ -29,6 +32,7 @@ import com.tracel.platform.storage.UnitOfWork
  * @param store what an operator can do to the stored history
  * @param jobs stores rollback jobs
  * @param pendingDeliveries stores pending item deliveries
+ * @param pendingWear stores the real stacks behind those deliveries, wear and all
  * @param events stores the event log
  * @param rolledBack which records a rollback took back
  * @param foreign history that came from somewhere else
@@ -38,6 +42,8 @@ import com.tracel.platform.storage.UnitOfWork
  * @param wear stores how worn each tool was over time
  * @param actors stores a mob's type and a player's game mode
  * @param itemForms stores item metadata needed to reconstruct items
+ * @param blockNotes stores what a block remembers about what left it
+ * @param liveEntities stores which booked entities are still in the world
  */
 class StorageService(
     val repo: LotRepository,
@@ -48,6 +54,7 @@ class StorageService(
     val store: StoreAdmin,
     val jobs: RollbackJobRepository,
     val pendingDeliveries: PendingDeliveryRepository,
+    val pendingWear: PendingWear,
     val events: EventLog,
     val rolledBack: RolledBack,
     val foreign: ForeignHistory,
@@ -57,4 +64,6 @@ class StorageService(
     val wear: WearLog,
     val actors: ActorFacts,
     val itemForms: ItemForms,
+    val blockNotes: BlockNotes,
+    val liveEntities: LiveEntities,
 )
