@@ -118,4 +118,31 @@ class MemTableTest {
             assertEquals(sequence - 1, table.sequenceOf(node))
         }
     }
+
+    @Test
+    fun `a batch sized by the entry overhead fits, whatever heights the skip list draws`() {
+        val random = SplittableRandom(20261105)
+        repeat(3000) { round ->
+            MemTable(1024L + random.nextInt(2048)).use { table ->
+                var sequence = 1L
+                while (table.put(byteArrayOf(1, random.nextInt(256).toByte()), ByteArray(random.nextInt(40)), sequence)) {
+                    sequence++
+                    if (table.capacity - table.bytesUsed < 300) break
+                }
+                var room = table.capacity - table.bytesUsed
+                val batch = ArrayList<Pair<ByteArray, ByteArray>>()
+                while (true) {
+                    val key = byteArrayOf(2, random.nextInt(256).toByte(), batch.size.toByte())
+                    val value = ByteArray(random.nextInt(24))
+                    val needs = key.size + value.size + MemTable.MAX_ENTRY_OVERHEAD
+                    if (needs > room) break
+                    room -= needs
+                    batch += key to value
+                }
+                for ((key, value) in batch) {
+                    assertTrue(table.put(key, value, sequence++)) { "round $round: ${batch.size} entries were promised room" }
+                }
+            }
+        }
+    }
 }

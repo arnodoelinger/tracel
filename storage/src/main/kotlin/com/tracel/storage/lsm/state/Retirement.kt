@@ -1,10 +1,10 @@
 package com.tracel.storage.lsm.state
 
 import com.tracel.platform.io.closeQuietly
+import com.tracel.storage.lsm.disk.Disk
 import com.tracel.storage.lsm.segment.SegmentReader
 import com.tracel.storage.lsm.write.MemTable
 import it.unimi.dsi.fastutil.longs.Long2IntRBTreeMap
-import java.nio.file.Files
 import java.util.*
 
 /**
@@ -17,7 +17,7 @@ import java.util.*
  *
  * So nothing is deleted on publish.
  */
-internal class Retirement {
+internal class Retirement(private val disk: Disk) {
     private val pins = Any()
     private val generations = Long2IntRBTreeMap()
     private val sequences = Long2IntRBTreeMap()
@@ -55,17 +55,19 @@ internal class Retirement {
      *
      * An entry retired at generation `at` is safe once the oldest pin is `at` or newer: every
      * reader older than that has closed, and no new reader can pin a generation that is gone.
+     *
+     * A segment also waits for [published] to reach `at`, so no manifest on disk still names it.
      */
-    fun sweep() {
+    fun sweep(published: Long) {
         if (segments.isEmpty() && tables.isEmpty()) return
         val oldest = oldestPinned()
 
         val files = segments.iterator()
         while (files.hasNext()) {
             val (reader, at) = files.next()
-            if (oldest < at) continue
+            if (oldest < at || published < at) continue
             reader.closeQuietly()
-            runCatching { Files.deleteIfExists(reader.path) }
+            runCatching { disk.delete(reader.path) }
             files.remove()
         }
 

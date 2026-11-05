@@ -1,14 +1,13 @@
 package com.tracel.storage.lsm.write
 
 import com.tracel.storage.ffm.Bytes
-import java.io.FileOutputStream
+import com.tracel.storage.lsm.disk.Disk
+import com.tracel.storage.spi.MutationBatch
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
-import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardOpenOption
+import java.util.zip.CRC32C
 
 /** What [Wal.replay] found: the highest sequence it applied, and the damage it stopped at, if any. */
 class Replayed(val highest: Long, val damage: Damage?)
@@ -16,8 +15,8 @@ class Replayed(val highest: Long, val damage: Damage?)
 /**
  * Where a log stopped being readable.
  *
- * A [tear] is what a power cut leaves: a frame cut short at the end of the file. Anything else is a frame that is
- * whole and wrong, or has more behind it, and that is not a crash.
+ * A [tear] is what a power cut usually leaves: past [at] there is no intact frame, only a cut-short one, zeros
+ * or junk. When an intact frame does follow, either pages landed out of order or bytes went bad on the disk.
  */
 class Damage(val at: Long, val size: Long, val tear: Boolean)
 
@@ -34,7 +33,7 @@ class Damage(val at: Long, val size: Long, val tear: Boolean)
  */
 class Wal private constructor(
     val path: Path,
-    private val stream: FileOutputStream,
+    private val sink: Disk.Sink,
     private var written: Long,
     private val beforeSync: () -> Unit,
 ) : AutoCloseable {
@@ -47,7 +46,7 @@ class Wal private constructor(
     val bytes: Long get() = written
 
     /** Appends a batch to the log, with its sequence. */
-    fun append(sequence: Long, batch: com.tracel.storage.spi.MutationBatch) {
+    fun append(sequence: Long, batch: MutationBatch) {
         broken?.let { throw IOException("$path is broken since an earlier fsync failed.", it) }
         payload.clear()
         batch.forEach { key, value ->
@@ -60,7 +59,7 @@ class Wal private constructor(
         payload.flip()
 
         val length = payload.remaining()
-        val crc = java.util.zip.CRC32C().apply { update(payload.duplicate()) }.value.toInt()
+        val crc = CRC32C().apply { update(payload.duplicate()) }.value.toInt()
 
         header.clear()
         header.putInt(length)
@@ -69,8 +68,8 @@ class Wal private constructor(
         header.flip()
 
         try {
-            stream.write(header.array(), 0, HEADER_BYTES)
-            stream.write(payload.array(), 0, length)
+            sink.write(header.array(), 0, HEADER_BYTES)
+            sink.write(payload.array(), 0, length)
         } catch (e: IOException) {
             broken = e
             throw e
@@ -85,7 +84,7 @@ class Wal private constructor(
         if (!unsynced) return
         try {
             beforeSync()
-            stream.fd.sync()
+            sink.sync()
         } catch (e: IOException) {
             broken = e
             throw e
@@ -101,7 +100,7 @@ class Wal private constructor(
     override fun close() {
         if (broken != null) return abandon()
         sync()
-        stream.close()
+        sink.close()
     }
 
     /**
@@ -110,7 +109,7 @@ class Wal private constructor(
      */
     fun abandon() {
         try {
-            stream.close()
+            sink.close()
         } catch (_: IOException) {
         }
     }
@@ -128,57 +127,52 @@ class Wal private constructor(
         private const val HEADER_BYTES = 16
         private const val INITIAL_PAYLOAD = 1 shl 16
 
+        const val MIN_PAYLOAD = 8
+
         /** Creates a new [Wal] for [path], appending to it if it already exists. */
-        fun create(path: Path, beforeSync: () -> Unit = { }): Wal { // Don't change this to FileChannel
-            val existing = if (Files.exists(path)) Files.size(path) else 0L
-            return Wal(path, FileOutputStream(path.toFile(), true), existing, beforeSync)
+        fun create(path: Path, disk: Disk, beforeSync: () -> Unit = { }): Wal {
+            val existing = disk.size(path).coerceAtLeast(0)
+            return Wal(path, disk.write(path, fresh = false), existing, beforeSync)
         }
 
         /**
          * Replays every intact frame of [path] with a sequence above [afterSequence].
          *
-         * Stops at the first frame that is truncated or fails its checksum, and says what it found. At the end of
-         * the newest log that is where the machine died mid-write. Anywhere else it is damage, and the caller
-         * decides what to do with the logs after it.
+         * Stops at the first frame that is truncated, fails its checksum or could never have been written, and
+         * says what it found. In the newest log that is where the machine died mid-write; anywhere else it is
+         * damage, and the caller decides what to do with the logs after it.
          *
-         * A length field flipped in the middle reads as a cut-short frame, so it is told apart from a tear only
-         * when the frame is whole and a bad checksum has more behind it.
+         * A power cut does not leave a clean cut. The size can reach the disk before the data, so a log (!) may end in
+         * zeros, and pages land in any order, so it (!) may end in a hole and then more frames.
+         *
+         * Zeros are actually why a frame shorter than [MIN_PAYLOAD], or numbered no higher than the one before it, is
+         * damage: an all-zero header would pass its own checksum, `CRC32C` of nothing being `0`.
          *
          * @return the highest sequence applied, and the damage if the log did not end cleanly.
          */
-        fun replay(path: Path, afterSequence: Long, apply: (Long, ByteArray, ByteArray?) -> Unit): Replayed {
-            if (!Files.exists(path)) return Replayed(afterSequence, null)
+        fun replay(path: Path, disk: Disk, afterSequence: Long, apply: (Long, ByteArray, ByteArray?) -> Unit): Replayed {
+            if (!disk.exists(path)) return Replayed(afterSequence, null)
             var highest = afterSequence
             var damage: Damage? = null
-            FileChannel.open(path, StandardOpenOption.READ).use { channel ->
-                val size = channel.size()
+            disk.read(path).use { source ->
+                val size = source.size
                 var at = 0L
+                var previous = 0L
                 val head = ByteBuffer.allocate(HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN)
                 while (at + HEADER_BYTES <= size) {
                     head.clear()
-                    if (readFully(channel, head, at) < HEADER_BYTES) {
-                        damage = Damage(at, size, tear = true)
-                        break
-                    }
+                    if (readFully(source, head, at) < HEADER_BYTES) break
                     head.flip()
                     val length = head.int
                     val crc = head.int
                     val sequence = head.long
-                    if (length < 0 || at + HEADER_BYTES + length > size) {
-                        damage = Damage(at, size, tear = true)
-                        break
-                    }
+                    if (length < MIN_PAYLOAD || sequence <= previous || at + HEADER_BYTES + length > size) break
 
                     val body = ByteBuffer.allocate(length).order(ByteOrder.LITTLE_ENDIAN)
-                    if (readFully(channel, body, at + HEADER_BYTES) < length) {
-                        damage = Damage(at, size, tear = true)
-                        break
-                    }
+                    if (readFully(source, body, at + HEADER_BYTES) < length) break
                     body.flip()
-                    if (Bytes.checksum(body.array()) != crc) {
-                        damage = Damage(at, size, tear = at + HEADER_BYTES + length >= size)
-                        break
-                    }
+                    if (Bytes.checksum(body.array()) != crc) break
+                    previous = sequence
 
                     if (sequence > afterSequence) {
                         while (body.hasRemaining()) {
@@ -192,16 +186,34 @@ class Wal private constructor(
                     }
                     at += HEADER_BYTES + length
                 }
-                if (damage == null && at < size) damage = Damage(at, size, tear = true)
+                if (at < size) damage = Damage(at, size, tear = !resumes(source, at + 1, size, previous))
             }
             return Replayed(highest, damage)
         }
 
-        private fun readFully(channel: FileChannel, buffer: ByteBuffer, at: Long): Int {
+        /** Whether an intact frame numbered above [after] starts anywhere in [from]..[size]. Damage only. */
+        private fun resumes(source: Disk.Source, from: Long, size: Long, after: Long): Boolean {
+            if (size - from < HEADER_BYTES + MIN_PAYLOAD) return false
+            val rest = ByteBuffer.allocate(Math.toIntExact(size - from)).order(ByteOrder.LITTLE_ENDIAN)
+            readFully(source, rest, from)
+            val bytes = rest.array()
+            val crc = CRC32C()
+            for (at in 0..bytes.size - HEADER_BYTES - MIN_PAYLOAD) {
+                val length = rest.getInt(at)
+                if (length < MIN_PAYLOAD || length > bytes.size - at - HEADER_BYTES) continue
+                if (rest.getLong(at + 8) <= after) continue
+                crc.reset()
+                crc.update(bytes, at + HEADER_BYTES, length)
+                if (crc.value.toInt() == rest.getInt(at + 4)) return true
+            }
+            return false
+        }
+
+        private fun readFully(source: Disk.Source, buffer: ByteBuffer, at: Long): Int {
             var position = at
             var total = 0
             while (buffer.hasRemaining()) {
-                val read = channel.read(buffer, position)
+                val read = source.read(buffer, position)
                 if (read <= 0) break
                 position += read
                 total += read

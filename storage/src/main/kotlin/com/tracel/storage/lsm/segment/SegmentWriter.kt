@@ -1,8 +1,8 @@
 package com.tracel.storage.lsm.segment
 
 import com.tracel.storage.ffm.Bytes.readBytes
-import com.tracel.storage.ffm.fsyncDirectory
 import com.tracel.storage.lsm.LsmConfig
+import com.tracel.storage.lsm.disk.Disk
 import com.tracel.storage.lsm.read.MemTableRun
 import com.tracel.storage.lsm.read.Run
 import com.tracel.storage.lsm.read.minimumOf
@@ -15,6 +15,7 @@ import java.nio.file.Path
 /** Sorted input in, one immutable segment out. The only thing in this engine that creates a file. */
 internal class SegmentWriter(
     private val directory: Path,
+    private val disk: Disk,
     private val blocks: BlockCache,
     private val config: LsmConfig = LsmConfig(),
 ) {
@@ -40,7 +41,9 @@ internal class SegmentWriter(
         val flush = runs.all { it is MemTableRun }
         val zstdLevel = if (flush) SegmentFile.FLUSH_ZSTD_LEVEL else SegmentFile.COMPACTION_ZSTD_LEVEL
         val blockBytes = if (category == 0) config.stateBlockBytes else config.historyBlockBytes
-        val meta = SegmentFile.Writer(path, expectedEntries, zstdLevel, blockBytes, pointRead = config.pointRead).use { writer ->
+        val meta = SegmentFile.Writer(
+            path, expectedEntries, zstdLevel, blockBytes, pointRead = config.pointRead, disk = disk,
+        ).use { writer ->
             var lastKey: ByteArray? = null
             var keptBelowHorizon = false
             while (true) {
@@ -71,8 +74,8 @@ internal class SegmentWriter(
 
         // The segment's own bytes are already durable; this is the directory entry that names it.
         // Without it a crash can leave a manifest pointing at a file the filesystem has forgotten.
-        fsyncDirectory(Manifest.segmentsDirectory(directory))
-        return SegmentFile.open(path, meta, blocks)
+        disk.syncDirectory(Manifest.segmentsDirectory(directory))
+        return SegmentFile.open(path, meta, blocks, disk)
     }
 
     /**

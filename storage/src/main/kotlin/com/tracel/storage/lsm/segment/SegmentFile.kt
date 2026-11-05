@@ -11,6 +11,8 @@ import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.ffm.MappedFile
 import com.tracel.storage.ffm.SegmentCompare
 import com.tracel.storage.lsm.InternalKey
+import com.tracel.storage.lsm.disk.Disk
+import com.tracel.storage.lsm.disk.LocalDisk
 import java.io.BufferedOutputStream
 import java.io.OutputStream
 import java.lang.foreign.MemorySegment
@@ -18,7 +20,6 @@ import java.lang.invoke.MethodHandles
 import java.lang.invoke.VarHandle
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.CRC32C
 
@@ -67,13 +68,14 @@ object SegmentFile {
         private val blockTarget: Int = BLOCK_TARGET,
         private val version: Int = VERSION,
         private val pointRead: (keyTag: Int) -> Boolean = { true },
+        private val disk: Disk = LocalDisk,
     ) : AutoCloseable {
         private val tabled = version >= RESTARTS_SINCE
         private val summed = version >= CHECKSUMS_SINCE
         private val planed = version >= PLANES_SINCE
 
-        private val file = java.io.FileOutputStream(path.toFile())
-        private val out: OutputStream = BufferedOutputStream(file, 1 shl 16)
+        private val file = disk.write(path, fresh = true)
+        private val out: OutputStream = BufferedOutputStream(file.stream(), 1 shl 16)
         private val bloom = BloomBuilder(expectedEntries.coerceAtLeast(1))
         private var lastTag = -1
         private var lastTagRead = true
@@ -159,14 +161,14 @@ object SegmentFile {
             footer.put(MAGIC)
             out.write(footer.array())
             out.flush()
-            file.fd.sync()
+            file.sync()
             file.close()
 
             return SegmentMeta(
                 id,
                 level,
                 count,
-                Files.size(path),
+                disk.size(path),
                 firstKey ?: ByteArray(0),
                 lastKey.copyOf(lastKeyLength),
                 category,
@@ -268,10 +270,10 @@ object SegmentFile {
     }
 
     /** Opens a segment for reading. The file is not modified, and the caller must close the reader. */
-    fun open(path: Path, meta: SegmentMeta): SegmentReader = open(path, meta, BlockCache())
+    fun open(path: Path, meta: SegmentMeta, disk: Disk = LocalDisk): SegmentReader = open(path, meta, BlockCache(), disk)
 
-    internal fun open(path: Path, meta: SegmentMeta, cache: BlockCache): SegmentReader {
-        val mapped = MappedFile.openRead(path)
+    internal fun open(path: Path, meta: SegmentMeta, cache: BlockCache, disk: Disk): SegmentReader {
+        val mapped = MappedFile.openRead(path, disk)
         val segment = mapped.segment
         val footerAt = segment.byteSize() - FOOTER_BYTES
         require(footerAt >= 0) { "$path is too short to be a segment" }

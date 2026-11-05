@@ -1,6 +1,7 @@
 package com.tracel.storage.lsm
 
 import com.tracel.storage.ffm.Bytes.readBytes
+import com.tracel.storage.lsm.disk.LocalDisk
 import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.write.Wal
 import com.tracel.storage.spi.MutationBatch
@@ -37,7 +38,7 @@ class WritesStoppedTest {
     @Test
     fun `a log whose fsync failed never says it synced again`(@TempDir dir: Path) {
         var fail = true
-        Wal.create(dir.resolve("a.log")) { if (fail) throw IOException("EIO") }.use { wal ->
+        Wal.create(dir.resolve("a.log"), LocalDisk) { if (fail) throw IOException("EIO") }.use { wal ->
             wal.append(1, MutationBatch().apply { put(key(1), value(1)) })
             assertThrows<IOException> { wal.sync() }
             fail = false

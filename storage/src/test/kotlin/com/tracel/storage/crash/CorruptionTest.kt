@@ -2,6 +2,7 @@ package com.tracel.storage.crash
 
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
+import com.tracel.storage.lsm.disk.LocalDisk
 import com.tracel.storage.lsm.state.Manifest
 import com.tracel.storage.lsm.write.SyncPolicy
 import com.tracel.storage.lsm.write.Wal
@@ -140,10 +141,10 @@ class CorruptionTest {
 
     private fun twoLogs(dir: Path): Pair<Path, Path> {
         Files.createDirectories(Manifest.segmentsDirectory(dir))
-        Manifest(lastSequence = 0, nextFileId = 3, walIds = listOf(1, 2), segments = emptyList()).write(dir)
+        Manifest(lastSequence = 0, nextFileId = 3, walIds = listOf(1, 2), segments = emptyList()).write(dir, LocalDisk)
         val paths = listOf(1L, 2L).map { Manifest.walPath(dir, it) }
         paths.forEachIndexed { n, path ->
-            Wal.create(path).use { wal ->
+            Wal.create(path, LocalDisk).use { wal ->
                 repeat(5) { i ->
                     val at = n * 5 + i
                     wal.append(at + 1L, MutationBatch().apply { put(key(at), "value-${at % 10}".toByteArray()) })
@@ -190,5 +191,46 @@ class CorruptionTest {
 
         val failure = runCatching { engine(dir).close() }.exceptionOrNull()
         assertTrue(failure is IllegalStateException, "an older log was synced when it closed, got $failure")
+    }
+
+    private fun oneLog(dir: Path, batches: Int): Path {
+        engine(dir).let { engine ->
+            repeat(batches) { i ->
+                MutationBatch().apply { put(key(i), "value-$i".toByteArray()) }.let { engine.write(it, durable = true) }
+            }
+            engine.halt()
+        }
+        return Files.list(dir)
+            .use { stream -> stream.filter { it.toString().endsWith(Manifest.LOG_SUFFIX) }.toList().single() }
+    }
+
+    private fun LsmEngine.keptPrefix(of: Int): Int = snapshot().use { snapshot ->
+        val kept = (0 until of).takeWhile { snapshot.get(key(it)) != null }.size
+        for (i in kept until of) assertNull(snapshot.get(key(i)), "key $i came back after a gap at $kept")
+        kept
+    }
+
+    @Test
+    fun `a newest log that ends in zeros is a power cut, not damage`(@TempDir dir: Path) {
+        val wal = oneLog(dir, 40)
+        val bytes = Files.readAllBytes(wal)
+        bytes.fill(0, bytes.size / 2, bytes.size)
+        Files.write(wal, bytes)
+
+        engine(dir).use { engine ->
+            val kept = engine.keptPrefix(40)
+            assertTrue(kept in 1 until 40, "kept $kept of 40")
+        }
+    }
+
+    @Test
+    fun `damage in the newest log starts from what is before it`(@TempDir dir: Path) {
+        val wal = oneLog(dir, 40)
+        flip(wal, Files.size(wal) / 2)
+
+        engine(dir).use { engine ->
+            val kept = engine.keptPrefix(40)
+            assertTrue(kept in 1 until 40, "kept $kept of 40")
+        }
     }
 }

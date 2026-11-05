@@ -2,6 +2,8 @@ package com.tracel.storage.lsm
 
 import com.tracel.platform.io.reason
 import com.tracel.platform.io.closeQuietly
+import com.tracel.storage.lsm.disk.Disk
+import com.tracel.storage.lsm.disk.LocalDisk
 import com.tracel.storage.lsm.read.LsmSnapshot
 import com.tracel.storage.lsm.read.SegmentRun
 import com.tracel.storage.lsm.segment.*
@@ -16,7 +18,6 @@ import com.tracel.storage.spi.*
 import it.unimi.dsi.fastutil.longs.LongArrayList
 import java.io.SyncFailedException
 import java.lang.foreign.MemorySegment
-import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -45,9 +46,6 @@ import kotlin.concurrent.withLock
  * the same shape — compute outside the lock, then take it, swap the version, publish the manifest,
  * retire what the swap replaced — and that last half is the part a crash has to survive.
  *
- * @param directory where to put the segments and logs
- * @param config how to size the memtables and when to sync the logs
- *
  * @see Version
  * @see SegmentFile
  * @see Retirement
@@ -58,6 +56,7 @@ import kotlin.concurrent.withLock
 class LsmEngine(
     private val directory: Path,
     internal val config: LsmConfig = LsmConfig(),
+    private val disk: Disk = LocalDisk,
 ) : KeyValueEngine {
     override val name: String = "lsm"
 
@@ -86,8 +85,8 @@ class LsmEngine(
     private val compactionCount = AtomicLong(0)
 
     private val blocks = BlockCache()
-    private val segmentWriter = SegmentWriter(directory, blocks, config)
-    private val retirement = Retirement()
+    private val segmentWriter = SegmentWriter(directory, disk, blocks, config)
+    private val retirement = Retirement(disk)
 
     private val open = ArrayList<SegmentReader>()
 
@@ -105,12 +104,14 @@ class LsmEngine(
     private var flushFailure: Throwable? = null
 
     private val healQueued = AtomicBoolean(false)
-    private var healDelay = HEAL_FIRST_MILLIS
+    private var healDelay = config.retryMillis
 
     private var closed = false
 
     @Volatile
     private var version: Version
+
+    private var published = -1L
 
     internal var syncFault: (() -> Unit)? = null
     internal var flushFault: (() -> Unit)? = null
@@ -120,16 +121,23 @@ class LsmEngine(
     // region Startup and recovery
 
     init {
-        Files.createDirectories(directory)
-        Files.createDirectories(Manifest.segmentsDirectory(directory))
-        Manifest.requireNotLost(directory)
-        val manifest = Manifest.read(directory)
-        Manifest.sweep(directory, manifest)
+        disk.createDirectories(directory)
+        disk.createDirectories(Manifest.segmentsDirectory(directory))
+        Manifest.requireNotLost(directory, disk)
+        val manifest = Manifest.read(directory, disk)
+        Manifest.sweep(directory, disk, manifest)
 
         val onDisk = manifest.segments.map { meta ->
-            SegmentFile.open(Manifest.segmentPath(directory, meta.id), meta, blocks)
+            SegmentFile.open(Manifest.segmentPath(directory, meta.id), meta, blocks, disk)
         }
-        val recovered = replayWals(directory, manifest, config, segmentWriter)
+        val recovered = replayWals(directory, disk, manifest, config, segmentWriter)
+        recovered.damaged?.let { (path, damage) ->
+            logger.severe(
+                "Write-ahead log ${path.fileName} is damaged ${damage.at} bytes into ${damage.size} and intact " +
+                        "frames follow, so more went wrong than a write cut short. Started from everything before " +
+                        "the damage; the ${damage.size - damage.at} bytes after it are dropped."
+            )
+        }
 
         open += onDisk
         open += recovered.sealed
@@ -137,7 +145,7 @@ class LsmEngine(
         nextFileId = recovered.nextFileId
 
         recovered.active.walId = nextFileId++
-        logs = WalSet(directory, config.sync, recovered.active.walId) { syncFault?.invoke() }
+        logs = WalSet(directory, disk, config.sync, recovered.active.walId) { syncFault?.invoke() }
         version = Version(
             recovered.active,
             emptyList(),
@@ -192,7 +200,9 @@ class LsmEngine(
             val table = version.active
             batch.forEach { key, value ->
                 check(table.put(key, value, seq)) {
-                    "memtable overflowed mid-batch; the fit check above exists so this cannot happen."
+                    "memtable overflowed mid-batch (${table.bytesUsed} of ${table.capacity} bytes used, the batch " +
+                            "needs ${needs(batch)} for ${batch.size} entries); the fit check above exists so this " +
+                            "cannot happen."
                 }
             }
             version.lastSequence = seq
@@ -225,7 +235,7 @@ class LsmEngine(
         retirement.release(generation, at)
         if (lock.tryLock()) {
             try {
-                retirement.sweep()
+                retirement.sweep(published)
             } finally {
                 lock.unlock()
             }
@@ -439,16 +449,16 @@ class LsmEngine(
         logs.rollTo(fresh.walId)
 
         version = version.freezing(frozen, fresh, generation.incrementAndGet())
-        Manifest(version.durableSequence, nextFileId, logs.ids, version.segments.map { it.meta }).write(directory)
-        flusher.execute { flush(frozen) }
+        writeManifest()
+        flusher.execute { flushOldest() }
     }
 
     // endregion
 
     // region The maintenance threads
 
-    private fun flush(frozen: MemTable) {
-        if (lock.withLock { closed || version.frozen.none { it === frozen } }) return
+    private fun flushOldest() {
+        val frozen = lock.withLock { if (closed) null else version.frozen.firstOrNull() } ?: return
         try {
             flushFault?.invoke()
             val ids = LongArrayList()
@@ -491,8 +501,8 @@ class LsmEngine(
             if (!closed) {
                 runCatching {
                     flusher.execute {
-                        Thread.sleep(FLUSH_RETRY_MILLIS)
-                        if (!closed) flush(frozen)
+                        Thread.sleep(config.retryMillis)
+                        if (!closed) flushOldest()
                     }
                 }
             }
@@ -637,7 +647,7 @@ class LsmEngine(
                 publish()
                 failure = null
                 flushFailure = null
-                healDelay = HEAL_FIRST_MILLIS
+                healDelay = config.retryMillis
                 flushed.signalAll()
             }
             val seconds = (System.currentTimeMillis() - since.since) / 1000
@@ -652,15 +662,22 @@ class LsmEngine(
     }
 
     private fun publish() {
+        val manifest = writeManifest()
+        retirement.sweep(published)
+        runCatching { Manifest.sweep(directory, disk, manifest, writing) }
+    }
+
+    private fun writeManifest(): Manifest {
+        val current = version
         val manifest = Manifest(
-            lastSequence = version.durableSequence,
+            lastSequence = current.durableSequence,
             nextFileId = nextFileId,
             walIds = logs.ids,
-            segments = version.segments.map { it.meta },
+            segments = current.segments.map { it.meta },
         )
-        manifest.write(directory)
-        retirement.sweep()
-        runCatching { Manifest.sweep(directory, manifest, writing) }
+        manifest.write(directory, disk)
+        published = current.generation
+        return manifest
     }
 
     private fun dropNow(category: Int, endedBefore: Long): Dropped = lock.withLock {
@@ -726,8 +743,6 @@ class LsmEngine(
         val EMPTY_KEY = ByteArray(0)
 
         const val FLUSH_WAIT_MILLIS = 2000L
-        const val FLUSH_RETRY_MILLIS = 1000L
-        const val HEAL_FIRST_MILLIS = 1000L
         const val HEAL_MAX_MILLIS = 30_000L
         const val FLUSH_POLL_MILLIS = 25
         const val SHUTDOWN_WAIT_SECONDS = 30L

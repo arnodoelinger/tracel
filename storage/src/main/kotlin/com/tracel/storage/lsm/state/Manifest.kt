@@ -2,13 +2,11 @@ package com.tracel.storage.lsm.state
 
 import com.tracel.platform.Versions
 import com.tracel.storage.ffm.Bytes
-import com.tracel.storage.ffm.fsyncDirectory
+import com.tracel.storage.lsm.disk.Disk
 import com.tracel.storage.lsm.segment.SegmentMeta
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 
 /**
  * The one file that says what the database is: which segments are live, which write-ahead
@@ -36,7 +34,7 @@ data class Manifest(
     val segments: List<SegmentMeta>,
 ) {
     /** Writes this manifest to disk, atomically, of course, replacing any previous manifest. */
-    fun write(directory: Path) {
+    fun write(directory: Path, disk: Disk) {
         var size = MAGIC.size + 4 + 8 + 8 + 4 + walIds.size * 8 + 4
         for ((_, _, _, _, firstKey, lastKey) in segments) {
             size += 8 + 4 + 4 + 8 + 4 + firstKey.size + 4 + lastKey.size + 4 + 8
@@ -67,13 +65,12 @@ data class Manifest(
         buffer.putInt(Bytes.checksum(body))
 
         val temp = directory.resolve("$NAME.tmp")
-        java.io.FileOutputStream(temp.toFile()).use { out ->
-            out.write(buffer.array())
-            out.flush()
-            out.fd.sync()
+        disk.write(temp, fresh = true).use { out ->
+            out.write(buffer.array(), 0, size)
+            out.sync()
         }
-        Files.move(temp, directory.resolve(NAME), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-        fsyncDirectory(directory)
+        disk.replace(temp, directory.resolve(NAME))
+        disk.syncDirectory(directory)
     }
 
     companion object {
@@ -92,10 +89,10 @@ data class Manifest(
          *
          * @return the manifest, or [EMPTY] if it doesn't exist
          */
-        fun read(directory: Path): Manifest {
+        fun read(directory: Path, disk: Disk): Manifest {
             val path = directory.resolve(NAME)
-            if (!Files.exists(path)) return EMPTY
-            val bytes = Files.readAllBytes(path)
+            if (!disk.exists(path)) return EMPTY
+            val bytes = disk.readAll(path)
             require(bytes.size >= 12) { "$path is truncated." }
 
             val stated = ByteBuffer.wrap(bytes, bytes.size - 4, 4).order(ByteOrder.LITTLE_ENDIAN).int
@@ -132,23 +129,16 @@ data class Manifest(
          *
          * That is right for a new database... but a disaster for one whose index went missing.
          */
-        fun requireNotLost(directory: Path) {
-            if (Files.exists(directory.resolve(NAME))) return
+        fun requireNotLost(directory: Path, disk: Disk) {
+            if (disk.exists(directory.resolve(NAME))) return
             val first = walPath(directory, EMPTY.walIds.single()).fileName
             val orphans = ArrayList<String>()
-            Files.newDirectoryStream(directory).use { stream ->
-                for (path in stream) {
-                    val name = path.fileName
-                    if (name.toString().endsWith(LOG_SUFFIX) && name != first) orphans += name.toString()
-                }
+            for (path in disk.list(directory)) {
+                val name = path.fileName
+                if (name.toString().endsWith(LOG_SUFFIX) && name != first) orphans += name.toString()
             }
-            val segments = segmentsDirectory(directory)
-            if (Files.isDirectory(segments)) {
-                Files.newDirectoryStream(segments).use { stream ->
-                    for (path in stream) {
-                        if (path.fileName.toString().endsWith(SEGMENT_SUFFIX)) orphans += path.fileName.toString()
-                    }
-                }
+            for (path in disk.list(segmentsDirectory(directory))) {
+                if (path.fileName.toString().endsWith(SEGMENT_SUFFIX)) orphans += path.fileName.toString()
             }
             check(orphans.isEmpty()) {
                 "$directory has ${orphans.size} data files (${orphans.take(3).joinToString()}...) but no $NAME. " +
@@ -168,26 +158,18 @@ data class Manifest(
             directory.resolve("%08d%s".format(id, LOG_SUFFIX))
 
         /** Removes any files in the directory that are not referenced by the manifest. */
-        fun sweep(directory: Path, manifest: Manifest, writing: Set<Long> = emptySet()) {
+        fun sweep(directory: Path, disk: Disk, manifest: Manifest, writing: Set<Long> = emptySet()) {
             val liveWals = manifest.walIds.mapTo(HashSet()) { walPath(directory, it).fileName }
-            Files.newDirectoryStream(directory).use { stream ->
-                for (path in stream) {
-                    val name = path.fileName.toString()
-                    if (name.endsWith(LOG_SUFFIX) && path.fileName !in liveWals) Files.deleteIfExists(path)
-                    if (name == "$NAME.tmp") Files.deleteIfExists(path)
-                }
+            for (path in disk.list(directory)) {
+                val name = path.fileName.toString()
+                if (name.endsWith(LOG_SUFFIX) && path.fileName !in liveWals) disk.delete(path)
+                if (name == "$NAME.tmp") disk.delete(path)
             }
 
-            val segments = segmentsDirectory(directory)
-            if (!Files.isDirectory(segments)) return
             val live = manifest.segments.mapTo(HashSet()) { segmentPath(directory, it.id).fileName }
             for (id in writing) live.add(segmentPath(directory, id).fileName)
-            Files.newDirectoryStream(segments).use { stream ->
-                for (path in stream) {
-                    if (path.fileName.toString().endsWith(SEGMENT_SUFFIX) && path.fileName !in live) {
-                        Files.deleteIfExists(path)
-                    }
-                }
+            for (path in disk.list(segmentsDirectory(directory))) {
+                if (path.fileName.toString().endsWith(SEGMENT_SUFFIX) && path.fileName !in live) disk.delete(path)
             }
         }
     }

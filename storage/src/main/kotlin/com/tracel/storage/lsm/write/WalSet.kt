@@ -1,5 +1,6 @@
 package com.tracel.storage.lsm.write
 
+import com.tracel.storage.lsm.disk.Disk
 import com.tracel.storage.lsm.state.Manifest
 import com.tracel.storage.spi.MutationBatch
 import it.unimi.dsi.fastutil.longs.LongArrayList
@@ -15,6 +16,7 @@ import java.nio.file.Path
  */
 internal class WalSet(
     private val directory: Path,
+    private val disk: Disk,
     private val policy: SyncPolicy,
     firstId: Long,
     private val beforeSync: () -> Unit = { },
@@ -103,5 +105,5 @@ internal class WalSet(
         closedSyncs += current.syncs
     }
 
-    private fun open(id: Long): Wal = Wal.create(Manifest.walPath(directory, id), beforeSync)
+    private fun open(id: Long): Wal = Wal.create(Manifest.walPath(directory, id), disk, beforeSync)
 }

@@ -314,7 +314,7 @@ class MemTable(capacityBytes: Long) : AutoCloseable {
         private val BE_LONG: VarHandle =
             MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.BIG_ENDIAN)
 
-        const val MAX_ENTRY_OVERHEAD: Long = 24L + InternalKey.TRAILER_BYTES + 7L
+        const val MAX_ENTRY_OVERHEAD: Long = 16L + (MAX_HEIGHT shl 3) + InternalKey.TRAILER_BYTES + 7L
 
         private const val DELETION_MARK = 0xFFFFFFFFL
 

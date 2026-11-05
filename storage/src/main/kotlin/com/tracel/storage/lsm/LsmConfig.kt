@@ -22,6 +22,7 @@ data class LsmConfig(
     val stateBlockBytes: Int = SegmentFile.BLOCK_TARGET,
     val historyBlockBytes: Int = SegmentFile.BLOCK_TARGET,
     val pointRead: (keyTag: Int) -> Boolean = { true },
+    val retryMillis: Long = 1000L,
 ) {
     /** The number of segments that can pile up at [level] before a compaction is needed. */
     fun fanout(level: Int): Int = if (level == 0) level0Fanout else deeperFanout

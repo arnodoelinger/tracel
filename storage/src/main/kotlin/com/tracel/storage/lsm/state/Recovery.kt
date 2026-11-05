@@ -1,11 +1,12 @@
 package com.tracel.storage.lsm.state
 
 import com.tracel.storage.lsm.LsmConfig
+import com.tracel.storage.lsm.disk.Disk
 import com.tracel.storage.lsm.segment.SegmentReader
 import com.tracel.storage.lsm.segment.SegmentWriter
+import com.tracel.storage.lsm.write.Damage
 import com.tracel.storage.lsm.write.MemTable
 import com.tracel.storage.lsm.write.Wal
-import java.nio.file.Files
 import java.nio.file.Path
 
 /** What replaying the write-ahead logs left behind. */
@@ -14,6 +15,7 @@ internal class Recovered(
     val sealed: List<SegmentReader>,
     val lastSequence: Long,
     val nextFileId: Long,
+    val damaged: Pair<Path, Damage>? = null,
 )
 
 /**
@@ -26,6 +28,7 @@ internal class Recovered(
  */
 internal fun replayWals(
     directory: Path,
+    disk: Disk,
     manifest: Manifest,
     config: LsmConfig,
     writer: SegmentWriter,
@@ -42,12 +45,14 @@ internal fun replayWals(
     }
 
     // Replay every log in order, and if a memtable fills up, seal it to a segment and start a new one.
-    // Only the newest log may end torn. Every older one was synced when it was closed, so damage there is not a
-    // crash, and applying the logs after it would put their writes on top of a gap.
+    // Every older log was synced when it was closed, so damage there is not a crash, and applying the logs after it
+    // would put their writes on top of a gap. The newest stops wherever it stops: what follows its damage cannot be
+    // applied either way, so refusing to start saves nothing and leaves the server down.
+    var damaged: Pair<Path, Damage>? = null
     for ((index, id) in manifest.walIds.withIndex()) {
         val path = Manifest.walPath(directory, id)
         val newest = index == manifest.walIds.lastIndex
-        val replayed = Wal.replay(path, manifest.lastSequence) { seq, key, value ->
+        val replayed = Wal.replay(path, disk, manifest.lastSequence) { seq, key, value ->
             if (!active.put(key, value, seq)) {
                 seal(active)
                 active = MemTable(maxOf(config.memtableBytes, entryBytes(key, value) * 2))
@@ -58,12 +63,16 @@ internal fun replayWals(
         }
         if (replayed.highest > recovered) recovered = replayed.highest
 
-        val missing = !newest && !Files.exists(path)
-        val damage = replayed.damage?.takeUnless { newest && it.tear }
+        if (newest) {
+            replayed.damage?.takeUnless { it.tear }?.let { damaged = path to it }
+            continue
+        }
+        val damage = replayed.damage
+        val missing = !disk.exists(path)
         if (!missing && damage == null) continue
 
-        val what = if (missing) "$path is listed but missing." else
-            "$path is damaged ${damage!!.at} bytes into ${damage.size}."
+        val what = if (missing) "$path is listed but missing" else
+            "$path is damaged ${damage!!.at} bytes into ${damage.size}"
         throw IllegalStateException(
             "$what, and ${manifest.walIds.size - index - 1} later logs would be applied over the gap. " +
                     "Restore the log from a backup."
@@ -74,7 +83,7 @@ internal fun replayWals(
         active = MemTable(config.memtableBytes)
     }
 
-    return Recovered(active, sealed, recovered, nextFileId)
+    return Recovered(active, sealed, recovered, nextFileId, damaged)
 }
 
 internal fun entryBytes(key: ByteArray, value: ByteArray?): Long =
