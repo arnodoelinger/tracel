@@ -1,13 +1,13 @@
 package com.tracel.storage.ports.ops
 
-import com.tracel.storage.codec.records.PackSum
+import com.tracel.storage.codec.PackSum
 import com.tracel.engine.store.PurgeSummary
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.util.eachRow
@@ -21,7 +21,7 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
         var oldest = Long.MAX_VALUE
         var newest = Long.MIN_VALUE
         val bytes = storage.engine.stats().liveBytes
-        StorageUnit(storage.engine.snapshot(), MutationBatch()).use { unit ->
+        StorageUnit.open(storage.engine).use { unit ->
             unit.eachRow(ByteArray(0)) { cursor ->
                 total++
                 val key = cursor.key()

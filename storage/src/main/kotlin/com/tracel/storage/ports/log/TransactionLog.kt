@@ -1,7 +1,8 @@
 package com.tracel.storage.ports.log
 
+import com.tracel.storage.codec.Txn
+import com.tracel.storage.codec.Index
 import com.tracel.engine.log.lookup.LookupFilter
-import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowLot
@@ -20,11 +21,9 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
-import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Packed
-import com.tracel.storage.codec.records.Index
-import com.tracel.storage.codec.records.Scalar
-import com.tracel.storage.codec.records.Txn
+import com.tracel.storage.codec.Tag
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.intern.Interning
 import com.tracel.storage.util.ascending
 import com.tracel.storage.util.eachIndex
@@ -35,6 +34,8 @@ import it.unimi.dsi.fastutil.ints.IntSet
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
 import it.unimi.dsi.fastutil.longs.LongArrayList
 import java.lang.foreign.MemorySegment
+import java.util.Arrays
+import java.util.stream.IntStream
 import com.tracel.engine.log.TransactionLog as TransactionLogPort
 
 /**
@@ -154,7 +155,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         if (seqs.isEmpty()) return emptyMap()
         val n = seqs.size
         val sorted = seqs.copyOf()
-        java.util.Arrays.sort(sorted)
+        Arrays.sort(sorted)
         val slices = sliceCount(n)
         QueryProbe.cursors(slices.toLong())
         QueryProbe.scanned(n.toLong())
@@ -177,7 +178,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
             parts[s] = out
         }
         if (slices > 1) {
-            java.util.stream.IntStream.range(0, slices).parallel().forEach(take)
+            IntStream.range(0, slices).parallel().forEach(take)
         } else {
             take(0)
         }
@@ -218,7 +219,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         val records = ArrayList<MemorySegment>()
         val take = { seq: Long ->
             val record = get(Tag.TXN[seq])
-            if (record != null && accepts(record, filter, ids, materialIds)) {
+            if (record != null && TransactionFilter.accepts(this, interning, record, filter, ids, materialIds)) {
                 matched.add(seq)
                 records += record
             }
@@ -255,7 +256,7 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         if (seqs.isEmpty()) return emptyList()
         val accepted = pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
             QueryProbe.opened(slice.size.toLong())
-            val got = unit.fetchSlices(Tag.TXN, slice) { unit.accepts(it, filter, ids, materialIds) }
+            val got = unit.fetchSlices(Tag.TXN, slice) { TransactionFilter.accepts(unit, interning, it, filter, ids, materialIds) }
             for (i in 0 until got.seqs.size) keep(got.seqs.getLong(i), got.records[i])
         }
         val n = accepted.seqs.size
@@ -289,119 +290,6 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         eachRow(byteArrayOf(Tag.INTERN_FORWARD.byte, Keys.NS_ITEM_KEY)) { cursor -> out += Packed.decodeItemKey(cursor.value()) }
         out
     }
-
-    private fun StorageUnit.accepts(
-        record: MemorySegment,
-        filter: LookupFilter,
-        ids: FilterIds,
-        materialIds: IntSet?,
-    ): Boolean {
-        val holderIds = ids.holders
-        val excludedIds = ids.excluded
-        val regionWorldId = ids.regionWorld
-        val filterWorldId = ids.world
-        val epochMillis = Txn.epochMillis[record]
-        val since = filter.since
-        val until = filter.until
-        if (since != null && epochMillis < since) return false
-        if (until != null && epochMillis > until) return false
-        val cause = Txn.cause[record]
-        if (cause.isBookkeeping) return false
-        if (filter.causes.isNotEmpty() && cause !in filter.causes) return false
-        if (filter.excludedCauses.isNotEmpty() && cause in filter.excludedCauses) return false
-
-        val flowCount = Txn.flowCount[record]
-        if (holderIds.isNotEmpty()) {
-            var hit = Txn.causedBy[record] in holderIds
-            if (!hit) {
-                for (i in 0 until flowCount) {
-                    if (Txn.source[record, i] in holderIds || Txn.destination[record, i] in holderIds) {
-                        hit = true
-                        break
-                    }
-                }
-            }
-            if (!hit) return false
-        }
-        if (excludedIds.isNotEmpty()) {
-            if (Txn.causedBy[record] in excludedIds) return false
-            for (i in 0 until flowCount) {
-                if (Txn.source[record, i] in excludedIds) return false
-                if (Txn.destination[record, i] in excludedIds) return false
-            }
-        }
-        if (materialIds != null) {
-            var hit = false
-            for (i in 0 until flowCount) {
-                if (Txn.item[record, i] in materialIds) {
-                    hit = true
-                    break
-                }
-            }
-            if (!hit) return false
-        }
-        if (filterWorldId != null && !inWorld(record, flowCount, filterWorldId)) return false
-        val region = filter.region
-        if (region != null) {
-            if (regionWorldId == null || !inRegion(record, flowCount, region, regionWorldId)) return false
-        }
-        return true
-    }
-
-    private fun StorageUnit.inRegion(
-        record: MemorySegment,
-        flowCount: Int,
-        region: LookupRegion,
-        regionWorldId: Int,
-    ): Boolean {
-        if (Txn.world[record] == regionWorldId &&
-            region.containsBlock(Txn.x[record], Txn.y[record], Txn.z[record])
-        ) {
-            return true
-        }
-        if (holderInRegion(Txn.causedBy[record], region, regionWorldId)) return true
-        for (i in 0 until flowCount) {
-            if (holderInRegion(Txn.source[record, i], region, regionWorldId)) return true
-            if (holderInRegion(Txn.destination[record, i], region, regionWorldId)) return true
-        }
-        return false
-    }
-
-    private fun StorageUnit.inWorld(record: MemorySegment, flowCount: Int, worldId: Int): Boolean {
-        if (Txn.world[record] == worldId) return true
-        if (holderWorldId(Txn.causedBy[record]) == worldId) return true
-        for (i in 0 until flowCount) {
-            if (holderWorldId(Txn.source[record, i]) == worldId) return true
-            if (holderWorldId(Txn.destination[record, i]) == worldId) return true
-        }
-        return false
-    }
-
-    private fun StorageUnit.holderInRegion(id: Int, region: LookupRegion, regionWorldId: Int): Boolean {
-        val at = holderBlock(id) ?: return false
-        return at.worldId == regionWorldId && region.containsBlock(at.x, at.y, at.z)
-    }
-
-    private fun StorageUnit.holderWorldId(id: Int): Int? = holderBlock(id)?.worldId
-
-    private fun StorageUnit.holderBlock(id: Int): HolderBlock? {
-        if (id == 0) return null
-        return when (val holder = interning.resolveHolder(this, id)) {
-            is HolderId.Block -> HolderBlock(
-                interning.findWorldId(this, holder.world) ?: return null,
-                holder.x, holder.y, holder.z,
-            )
-
-            is HolderId.PlacedBlock -> HolderBlock(
-                interning.findWorldId(this, holder.world) ?: return null,
-                holder.x, holder.y, holder.z,
-            )
-
-            else -> null
-        }
-    }
-
-    private data class HolderBlock(val worldId: Int, val x: Int, val y: Int, val z: Int)
 
     private fun index(unit: StorageUnit, holder: HolderId, seq: Long, epochMillis: Long, cause: CauseKind) {
         val world: WorldId

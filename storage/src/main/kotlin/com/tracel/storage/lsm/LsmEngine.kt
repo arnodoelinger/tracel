@@ -43,8 +43,13 @@ import kotlin.concurrent.withLock
  * rename, which is what makes a crash at any instant recover to a consistent prefix.
  *
  * This class is the lock and the [version] field, and almost nothing else. Every state change has
- * the same shape — compute outside the lock, then take it, swap the version, publish the manifest,
- * retire what the swap replaced — and that last half is the part a crash has to survive.
+ * the same shape — compute outside the lock, then take it and [install] the result: swap the version,
+ * retire what the swap replaced, publish the manifest — and that last half is the part a crash has
+ * to survive. A rotation is the one swap that retires nothing, and it only writes the manifest.
+ *
+ * Threads: one writer calls [write]; readers take [snapshot]s without the lock; a flush thread,
+ * a compaction thread and a sync thread do the rest, and none of them holds the lock while it
+ * writes a segment.
  *
  * @see Version
  * @see SegmentFile
@@ -329,16 +334,15 @@ class LsmEngine(
                 }
                 wipeHook?.invoke()
 
-                val at = generation.incrementAndGet()
-                val discardedSegments = version.segments
-                val discardedTables = buildList {
-                    add(version.active)
-                    addAll(version.frozen)
-                }
-                version = Version(fresh, emptyList(), emptyList(), last, previous, at)
-                for (segment in discardedSegments) retirement.retire(segment, at)
-                for (table in discardedTables) retirement.retire(table, at)
-                publish()
+                val discarded = version
+                install(
+                    Version(fresh, emptyList(), emptyList(), last, previous, generation.incrementAndGet()),
+                    segments = discarded.segments,
+                    tables = buildList {
+                        add(discarded.active)
+                        addAll(discarded.frozen)
+                    },
+                )
             } catch (e: Throwable) {
                 stop(e, healable = false)
                 throw e
@@ -410,15 +414,16 @@ class LsmEngine(
             .flatMap { segmentWriter.seal(it, { nextFileId++ }, horizon = Long.MAX_VALUE) }
         open += written
         logs.clear()
-        version = Version(
-            version.active,
-            version.frozen,
-            version.segments + written,
-            version.lastSequence,
-            version.lastSequence,
-            generation.incrementAndGet(),
+        install(
+            Version(
+                version.active,
+                version.frozen,
+                version.segments + written,
+                version.lastSequence,
+                version.lastSequence,
+                generation.incrementAndGet(),
+            ),
         )
-        publish()
     }
 
     // endregion
@@ -473,11 +478,8 @@ class LsmEngine(
                     }
                     open += readers
                     logs.forget(frozen.walId)
-                    val at = generation.incrementAndGet()
-                    version = version.flushed(frozen, readers, at)
-                    retirement.retire(frozen, at)
                     writing.removeAll(ids)
-                    publish()
+                    install(version.flushed(frozen, readers, generation.incrementAndGet()), tables = listOf(frozen))
                     flushed.signalAll()
                 }
                 if (flushFailure != null) {
@@ -545,12 +547,9 @@ class LsmEngine(
                     return false
                 }
                 open += reader
-                val at = generation.incrementAndGet()
-                version = version.compacted(plan.inputs, listOf(reader), at)
                 open.removeAll(plan.inputs.toSet())
-                plan.inputs.forEach { retirement.retire(it, at) }
                 writing -= id
-                publish()
+                install(version.compacted(plan.inputs, listOf(reader), generation.incrementAndGet()), segments = plan.inputs)
             }
             compactionCount.incrementAndGet()
             return true
@@ -640,11 +639,11 @@ class LsmEngine(
                 fresh.walId = nextFileId++
                 logs.replaceAll(fresh.walId)
                 open += written
-                val at = generation.incrementAndGet()
                 val last = current.lastSequence
-                version = Version(fresh, emptyList(), current.segments + written, last, last, at)
-                for (table in tables) retirement.retire(table, at)
-                publish()
+                install(
+                    Version(fresh, emptyList(), current.segments + written, last, last, generation.incrementAndGet()),
+                    tables = tables,
+                )
                 failure = null
                 flushFailure = null
                 healDelay = config.retryMillis
@@ -659,6 +658,17 @@ class LsmEngine(
         } finally {
             writing.removeAll(ids)
         }
+    }
+
+    private fun install(
+        next: Version,
+        segments: Collection<SegmentReader> = emptyList(),
+        tables: Collection<MemTable> = emptyList(),
+    ) {
+        version = next
+        for (segment in segments) retirement.retire(segment, next.generation)
+        for (table in tables) retirement.retire(table, next.generation)
+        publish()
     }
 
     private fun publish() {
@@ -686,11 +696,8 @@ class LsmEngine(
             it.meta.category == category && (it.meta.window + 1) * config.windowMillis <= endedBefore
         }
         if (doomed.isEmpty()) return@withLock Dropped(0, 0, 0)
-        val at = generation.incrementAndGet()
-        version = version.compacted(doomed, emptyList(), at)
         open.removeAll(doomed.toSet())
-        doomed.forEach { retirement.retire(it, at) }
-        publish()
+        install(version.compacted(doomed, emptyList(), generation.incrementAndGet()), segments = doomed)
         Dropped(doomed.size, doomed.sumOf { it.meta.entries.toLong() }, doomed.sumOf { it.meta.fileBytes })
     }
 
@@ -727,12 +734,9 @@ class LsmEngine(
                 return Rewritten(0, 0)
             }
             replacement?.let { open += it }
-            val at = generation.incrementAndGet()
-            version = version.compacted(listOf(old), listOfNotNull(replacement), at)
             open.remove(old)
-            retirement.retire(old, at)
             replacement?.let { writing -= it.meta.id }
-            publish()
+            install(version.compacted(listOf(old), listOfNotNull(replacement), generation.incrementAndGet()), segments = listOf(old))
         }
         return Rewritten(removed, old.meta.fileBytes - (replacement?.meta?.fileBytes ?: 0))
     }

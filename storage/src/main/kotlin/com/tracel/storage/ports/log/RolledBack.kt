@@ -1,8 +1,8 @@
 package com.tracel.storage.ports.log
 
+import com.tracel.storage.codec.RolledSet
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.RolledSet
 import com.tracel.storage.util.eachRow
 import com.tracel.engine.log.RolledBack as RolledBackPort
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap

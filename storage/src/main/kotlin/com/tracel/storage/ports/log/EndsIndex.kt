@@ -1,13 +1,20 @@
 package com.tracel.storage.ports.log
 
+import com.tracel.model.world.*
 import com.tracel.storage.util.eachBatch
 import com.tracel.storage.util.eachTask
 import java.util.concurrent.ForkJoinPool
-import java.util.concurrent.atomic.AtomicIntegerArray
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicIntegerArray
 
 // Heavily inspired by the open-addressing hash maps in Agrona
 // https://github.com/aeron-io/agrona/blob/master/agrona/src/main/java/org/agrona/collections/Int2IntHashMap.java
+
+internal const val BLOCK_KEY: Byte = 1
+internal const val ENTITY_KEY: Byte = 2
+
+private const val PACKED_ENDS_FROM = 1024
 
 /**
  * Finds the first and last occurrence of every key among [n] rows.
@@ -148,4 +155,64 @@ internal class EndsIndex(
 
         private fun slotOf(hash: Long, mask: Int): Int = hash.toInt() and mask
     }
+}
+
+/** The first and the last change of every block and entity in [ordered], newest first. */
+internal fun structureEndsOf(ordered: List<WorldChange>): ArrayList<WorldChange> {
+    val n = ordered.size
+    packedEndsOf(ordered)?.let { return it }
+    // Both ends in one entry. Two maps meant hashing every coordinate twice on the way in and
+    // walking two sets of values on the way out, for an answer one map already held.
+    val ends = HashMap<Any, IntArray>(n.coerceAtMost(65_536))
+    for (i in n - 1 downTo 0) {
+        val slot = ends.getOrPut(ordered[i].structureKey()) { intArrayOf(i, i) }
+        slot[1] = i
+    }
+    val pick = BooleanArray(n)
+    for (slot in ends.values) {
+        pick[slot[0]] = true
+        pick[slot[1]] = true
+    }
+    val out = ArrayList<WorldChange>(ends.size * 2)
+    for (i in n - 1 downTo 0) if (pick[i]) out += ordered[i]
+    return out
+}
+
+private fun packedEndsOf(ordered: List<WorldChange>): ArrayList<WorldChange>? {
+    val n = ordered.size
+    if (n < PACKED_ENDS_FROM) return null
+    val world = ordered[0].at.world
+    val ends = EndsIndex(n)
+    val foreign = AtomicBoolean()
+    eachBatch(n) { from, to ->
+        for (i in from until to) {
+            val change = ordered[i]
+            val subject = change.subject
+            if (subject is ChangeSubject.Entity) {
+                ends.k1[i] = subject.entity.mostSignificantBits
+                ends.k2[i] = subject.entity.leastSignificantBits
+                ends.kind[i] = ENTITY_KEY
+            } else {
+                val at = change.at
+                if (at.world != world) {
+                    foreign.set(true)
+                    return@eachBatch
+                }
+                ends.k1[i] = (at.x.toLong() shl 32) or (at.z.toLong() and 0xFFFFFFFFL)
+                ends.k2[i] = at.y.toLong() shl 32
+                ends.kind[i] = BLOCK_KEY
+            }
+        }
+    }
+    if (foreign.get()) return null
+    val pick = BooleanArray(n)
+    val count = ends.mark(pick)
+    val out = ArrayList<WorldChange>(count)
+    for (i in n - 1 downTo 0) if (pick[i]) out += ordered[i]
+    return out
+}
+
+private fun WorldChange.structureKey(): Any = when (val subject = subject) {
+    is ChangeSubject.Block -> at
+    is ChangeSubject.Entity -> subject.entity
 }

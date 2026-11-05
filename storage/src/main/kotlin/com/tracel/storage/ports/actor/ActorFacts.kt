@@ -8,7 +8,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.Scalar
 import java.util.*
 import com.tracel.engine.actor.ActorFacts as ActorFactsPort
 

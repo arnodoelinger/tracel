@@ -1,11 +1,11 @@
 package com.tracel.storage.ports.ledger
 
-import com.tracel.storage.codec.records.PackSum
-import com.tracel.storage.codec.records.PackLocation
-import com.tracel.storage.codec.records.PackRecord
+import com.tracel.storage.codec.PackSum
+import com.tracel.storage.codec.PackLocation
+import com.tracel.storage.codec.PackRecord
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.ports.ops.Counters
 import java.lang.foreign.MemorySegment
 

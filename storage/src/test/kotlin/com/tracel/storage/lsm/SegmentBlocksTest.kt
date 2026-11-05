@@ -2,6 +2,7 @@ package com.tracel.storage.lsm
 
 import com.tracel.storage.ffm.Bytes.readBytes
 import com.tracel.storage.lsm.read.SegmentRun
+import com.tracel.storage.lsm.segment.SegmentBuilder
 import com.tracel.storage.lsm.segment.SegmentFile
 import com.tracel.storage.lsm.segment.SegmentMeta
 import com.tracel.storage.lsm.segment.SegmentReader
@@ -29,7 +30,7 @@ class SegmentBlocksTest {
 
     private fun write(dir: Path, name: String, blockTarget: Int, version: Int = SegmentFile.VERSION): SegmentReader {
         val path = dir.resolve(name)
-        val meta = SegmentFile.Writer(path, rows, blockTarget = blockTarget, version = version).use { writer ->
+        val meta = SegmentBuilder(path, rows, blockTarget = blockTarget, version = version).use { writer ->
             for (i in 0 until rows) writer.add(internal(userKey(i)), value(i))
             writer.finish(1, 0)
         }
@@ -121,7 +122,7 @@ class SegmentBlocksTest {
         val keys = (0 until rows).map(::indexKey).distinctBy { it.toList() }.sortedWith(Arrays::compareUnsigned)
         fun written(version: Int): SegmentReader {
             val path = dir.resolve("index-v$version.seg")
-            val meta = SegmentFile.Writer(path, keys.size, version = version).use { writer ->
+            val meta = SegmentBuilder(path, keys.size, version = version).use { writer ->
                 for ((i, key) in keys.withIndex()) writer.add(internal(key), if (i % 11 == 0) null else ByteArray(0))
                 writer.finish(1, 0)
             }

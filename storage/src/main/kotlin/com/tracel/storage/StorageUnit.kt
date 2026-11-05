@@ -4,15 +4,17 @@ import com.tracel.platform.io.reason
 import com.tracel.storage.ffm.Key
 import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.spi.EngineSnapshot
+import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
 import java.lang.foreign.MemorySegment
-import java.util.Arrays
 import java.util.logging.Level
 import java.util.logging.Logger
 
 /**
  * One unit of storage work: a snapshot to read from and a batch to write into, committed
  * together or not at all.
+ *
+ * Not thread-safe: the thread that opened it writes it.
  */
 class StorageUnit(
     private val snapshot: EngineSnapshot,
@@ -57,8 +59,8 @@ class StorageUnit(
         (onCommit ?: ArrayList<() -> Unit>().also { onCommit = it }) += action
     }
 
-    /** What [afterCommit] queued, for whoever just wrote the batch. */
-    fun committed() {
+    /** What [afterCommit] queued, for whoever just wrote the batch. A hook that throws is logged and skipped. */
+    internal fun committed() {
         onCommit?.forEach { hook ->
             runCatching(hook).onFailure {
                 hookLogger.log(
@@ -75,8 +77,12 @@ class StorageUnit(
         (onAbort ?: ArrayList<() -> Unit>().also { onAbort = it }) += action
     }
 
-    /** What [afterAbort] queued, for whoever just dropped the batch. */
-    fun aborted() {
+    /**
+     * What [afterAbort] queued, for whoever just dropped the batch.
+     *
+     * A hook that throws is logged and skipped.
+     */
+    internal fun aborted() {
         onAbort?.forEach { hook ->
             runCatching(hook).onFailure {
                 hookLogger.log(
@@ -99,125 +105,8 @@ class StorageUnit(
     override fun close() {
         snapshot.close()
     }
-}
 
-private class OverlayCursor(
-    private val batch: MutationBatch,
-    private val committed: EngineCursor,
-    private val prefix: ByteArray,
-    from: ByteArray,
-    private val to: ByteArray?,
-) : EngineCursor {
-    private var pending = batch.keysFrom(Key(from))
-    private var pendingKey: Key? = null
-    private var pendingValue: ByteArray? = null
-    private var committedValid = committed.next()
-
-    private var currentKey: ByteArray? = null
-    private var currentValue: MemorySegment? = null
-
-    init {
-        advancePending()
-    }
-
-    override fun next(): Boolean {
-        while (true) {
-            val overlay = pendingKey
-            if (overlay == null && !committedValid) return finish()
-
-            if (overlay == null) {
-                currentKey = committed.key()
-                currentValue = committed.value()
-                committedValid = committed.next()
-                return true
-            }
-
-            if (!committedValid) {
-                val value = pendingValue
-                val key = overlay.bytes
-                advancePending()
-                if (value != null) {
-                    currentKey = key
-                    currentValue = MemorySegment.ofArray(value)
-                    return true
-                }
-                continue
-            }
-
-            val order = overlay.compareTo(Key(committed.key()))
-            when {
-                order < 0 -> {
-                    val value = pendingValue
-                    val key = overlay.bytes
-                    advancePending()
-                    if (value != null) {
-                        currentKey = key
-                        currentValue = MemorySegment.ofArray(value)
-                        return true
-                    }
-                }
-
-                order > 0 -> {
-                    currentKey = committed.key()
-                    currentValue = committed.value()
-                    committedValid = committed.next()
-                    return true
-                }
-
-                else -> {
-                    val value = pendingValue
-                    val key = overlay.bytes
-                    advancePending()
-                    committedValid = committed.next()
-                    if (value != null) {
-                        currentKey = key
-                        currentValue = MemorySegment.ofArray(value)
-                        return true
-                    }
-                }
-            }
-        }
-    }
-
-    override fun key(): ByteArray = currentKey ?: error("cursor is not positioned.")
-
-    override fun keyLength(): Int = key().size
-
-    override fun keyByte(at: Int): Byte = key()[at]
-
-    override fun value(): MemorySegment = currentValue ?: error("cursor is not positioned.")
-
-    override fun skipTo(from: ByteArray) {
-        committed.skipTo(from)
-        committedValid = committed.next()
-        pending = batch.keysFrom(Key(from))
-        pendingKey = null
-        pendingValue = null
-        advancePending()
-        currentKey = null
-        currentValue = null
-    }
-
-    override fun close() {
-        committed.close()
-    }
-
-    private fun advancePending() {
-        while (pending.hasNext()) {
-            val key = pending.next()
-            if (!key.startsWith(prefix)) break
-            if (to != null && Arrays.compareUnsigned(key.bytes, to) >= 0) break
-            pendingKey = key
-            pendingValue = batch.valueOf(key)
-            return
-        }
-        pendingKey = null
-        pendingValue = null
-    }
-
-    private fun finish(): Boolean {
-        currentKey = null
-        currentValue = null
-        return false
+    companion object {
+        fun open(engine: KeyValueEngine): StorageUnit = StorageUnit(engine.snapshot(), MutationBatch())
     }
 }

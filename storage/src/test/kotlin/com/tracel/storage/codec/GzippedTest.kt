@@ -1,4 +1,4 @@
-package com.tracel.storage.codec.records
+package com.tracel.storage.codec
 
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.entity.EntityExtras

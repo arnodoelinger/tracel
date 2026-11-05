@@ -7,7 +7,7 @@ import com.tracel.model.transaction.TxnId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.spi.MutationBatch
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock

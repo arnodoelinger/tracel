@@ -1,10 +1,10 @@
 package com.tracel.storage.ports.log
 
+import com.tracel.storage.codec.RolledSet
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyWriter
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.RolledSet
-import com.tracel.storage.codec.records.recordBytes
+import com.tracel.storage.codec.recordBytes
 import com.tracel.storage.ffm.Bytes.putI64
 import com.tracel.storage.format.FormatVersion
 import com.tracel.storage.format.StoreFormat

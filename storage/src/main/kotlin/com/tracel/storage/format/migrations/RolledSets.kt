@@ -2,13 +2,12 @@ package com.tracel.storage.format.migrations
 
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.KeyWriter
+import com.tracel.storage.codec.RolledSet
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.RolledSet
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.format.FormatVersion
 import com.tracel.storage.format.Migration
 import com.tracel.storage.spi.KeyValueEngine
-import com.tracel.storage.spi.MutationBatch
 import kotlin.collections.iterator
 
 /**
@@ -85,7 +84,7 @@ internal object RolledSets {
     }
 
     private fun commit(engine: KeyValueEngine, work: (StorageUnit) -> Long): Long =
-        StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
+        StorageUnit.open(engine).use { unit ->
             val next = work(unit)
             if (!unit.batch.isEmpty()) engine.write(unit.batch, durable = true)
             next

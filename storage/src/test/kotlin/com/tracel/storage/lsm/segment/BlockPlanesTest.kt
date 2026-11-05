@@ -18,7 +18,7 @@ class BlockPlanesTest {
                 ByteArray(width) { random.nextInt(if (it < 4) 3 else 256).toByte() }
             }.distinctBy { it.toList() }.sortedWith(Arrays::compareUnsigned)
             val path = dir.resolve("$round.seg")
-            val meta = SegmentFile.Writer(path, keys.size, blockTarget = 1 shl random.nextInt(6, 16), version = 2).use { writer ->
+            val meta = SegmentBuilder(path, keys.size, blockTarget = 1 shl random.nextInt(6, 16), version = 2).use { writer ->
                 for (key in keys) {
                     val trailer = InternalKey.trailer(random.nextLong(0, 1L shl 40), InternalKey.TYPE_VALUE)
                     val value = when (random.nextInt(4)) {

@@ -1,4 +1,4 @@
-package com.tracel.storage.codec.records
+package com.tracel.storage.codec
 
 import com.tracel.engine.rollback.plan.step.LotContribution
 import com.tracel.engine.rollback.plan.step.RollbackStep
@@ -20,8 +20,6 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
-import com.tracel.storage.codec.Record
-import com.tracel.storage.codec.Writer
 import com.tracel.storage.ffm.Bytes.i16
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64

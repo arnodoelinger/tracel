@@ -3,7 +3,7 @@ package com.tracel.storage.ports.world
 import com.tracel.model.holder.HolderId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.engine.world.GroundPositions as GroundPositionsPort
 

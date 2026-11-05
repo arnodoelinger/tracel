@@ -4,7 +4,7 @@ import com.tracel.engine.wear.WearMark
 import com.tracel.model.lot.LotId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Wear
+import com.tracel.storage.codec.Wear
 import com.tracel.storage.ports.log.walkWanted
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.engine.wear.WearLog as WearLogPort

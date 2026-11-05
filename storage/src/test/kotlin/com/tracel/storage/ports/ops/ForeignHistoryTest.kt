@@ -23,7 +23,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.player

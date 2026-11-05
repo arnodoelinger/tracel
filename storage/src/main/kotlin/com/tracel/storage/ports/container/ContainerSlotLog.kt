@@ -4,7 +4,7 @@ import com.tracel.engine.container.ContainerSlotEntry
 import com.tracel.model.holder.HolderId
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.ContainerSlot
+import com.tracel.storage.codec.ContainerSlot
 import com.tracel.storage.ports.ops.Counters
 import com.tracel.engine.container.ContainerSlotLog as ContainerSlotLogPort
 

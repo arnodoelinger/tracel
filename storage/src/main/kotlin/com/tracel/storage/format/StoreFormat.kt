@@ -5,12 +5,11 @@ import com.tracel.platform.Versions
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.recordBytes
+import com.tracel.storage.codec.recordBytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.putI32
 import com.tracel.storage.format.migrations.RolledSets
 import com.tracel.storage.spi.KeyValueEngine
-import com.tracel.storage.spi.MutationBatch
 import java.lang.foreign.MemorySegment
 
 /**
@@ -84,7 +83,7 @@ object StoreFormat {
         migrations: List<Migration> = MIGRATIONS,
     ): FormatOutcome {
         val engine = storage.engine
-        val (stored, empty) = StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
+        val (stored, empty) = StorageUnit.open(engine).use { unit ->
             unit.get(Tag.META[0])?.let(::decode) to !unit.scan(ByteArray(0)).use { it.next() }
         }
 
@@ -128,7 +127,7 @@ object StoreFormat {
 
     private fun commit(storage: TracelStorage, version: FormatVersion, step: (StorageUnit) -> Unit) {
         val engine = storage.engine
-        StorageUnit(engine.snapshot(), MutationBatch()).use { unit ->
+        StorageUnit.open(engine).use { unit ->
             step(unit)
             unit.put(Tag.META[0], encode(version))
             engine.write(unit.batch, durable = true)

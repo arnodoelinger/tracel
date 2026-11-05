@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.ledger
 
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.support.Stack
 import com.tracel.storage.util.eachRow
 import com.tracel.tests.support.Fixtures.block

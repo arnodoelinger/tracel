@@ -4,15 +4,14 @@ import com.tracel.model.world.BlockPos
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
-import com.tracel.storage.spi.MutationBatch
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.util.eachRow
 import com.tracel.engine.world.BlockNotes as BlockNotesPort
 
 /** One row per block that has a note, keyed by where it stands. */
 class BlockNotes(private val storage: TracelStorage) : BlockNotesPort {
     override fun loadAll(): Map<BlockPos, Int> =
-        StorageUnit(storage.engine.snapshot(), MutationBatch()).use { unit ->
+        StorageUnit.open(storage.engine).use { unit ->
             val out = HashMap<BlockPos, Int>()
             unit.eachRow(Tag.BLOCK_NOTE.prefix) { cursor ->
                 val world = storage.interning.resolveWorld(unit, Tag.BLOCK_NOTE.int(cursor, 0))

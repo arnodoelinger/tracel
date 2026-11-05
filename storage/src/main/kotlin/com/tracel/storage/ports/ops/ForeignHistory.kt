@@ -1,7 +1,7 @@
 package com.tracel.storage.ports.ops
 
-import com.tracel.storage.codec.records.Wchg
-import com.tracel.storage.codec.records.Txn
+import com.tracel.storage.codec.Txn
+import com.tracel.storage.codec.Wchg
 import com.tracel.engine.foreign.ForeignRecord
 import com.tracel.engine.foreign.ImportMark
 import com.tracel.engine.foreign.ImportRoom
@@ -18,8 +18,8 @@ import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
-import com.tracel.storage.codec.records.recordBytes
+import com.tracel.storage.codec.Scalar
+import com.tracel.storage.codec.recordBytes
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.putI64
 import com.tracel.storage.ports.event.EventLog

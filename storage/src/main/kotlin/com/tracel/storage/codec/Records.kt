@@ -1,12 +1,10 @@
-package com.tracel.storage.codec.records
+package com.tracel.storage.codec
 
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.log.LogKind
 import com.tracel.model.world.ActionKind
 import com.tracel.platform.Versions
-import com.tracel.storage.codec.I32
-import com.tracel.storage.codec.Record
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8

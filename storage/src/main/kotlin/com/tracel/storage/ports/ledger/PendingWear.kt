@@ -3,7 +3,7 @@ package com.tracel.storage.ports.ledger
 import com.tracel.model.item.ItemKey
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.recordBytes
+import com.tracel.storage.codec.recordBytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.putI32
 import com.tracel.storage.ffm.Bytes.readBytes

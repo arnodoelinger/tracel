@@ -5,7 +5,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Scalar
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.util.eachRow
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import java.lang.foreign.MemorySegment

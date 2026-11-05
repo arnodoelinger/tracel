@@ -1,6 +1,5 @@
 package com.tracel.storage.codec
 
-import com.tracel.storage.codec.records.Scalar
 import com.tracel.model.log.LogKind
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.SegmentClassifier

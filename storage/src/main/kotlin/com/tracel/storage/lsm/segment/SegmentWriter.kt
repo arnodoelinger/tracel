@@ -41,7 +41,7 @@ internal class SegmentWriter(
         val flush = runs.all { it is MemTableRun }
         val zstdLevel = if (flush) SegmentFile.FLUSH_ZSTD_LEVEL else SegmentFile.COMPACTION_ZSTD_LEVEL
         val blockBytes = if (category == 0) config.stateBlockBytes else config.historyBlockBytes
-        val meta = SegmentFile.Writer(
+        val meta = SegmentBuilder(
             path, expectedEntries, zstdLevel, blockBytes, pointRead = config.pointRead, disk = disk,
         ).use { writer ->
             var lastKey: ByteArray? = null

@@ -1,11 +1,5 @@
 package com.tracel.storage.codec
 
-import com.tracel.storage.codec.records.EntityChange
-import com.tracel.storage.codec.records.BlockChange
-import com.tracel.storage.codec.records.Wchg
-import com.tracel.storage.codec.records.Index
-import com.tracel.storage.codec.records.Scalar
-import com.tracel.storage.codec.records.Txn
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.FlowKind
 import com.tracel.model.holder.HolderId

@@ -1,6 +1,7 @@
 package com.tracel.storage.ports.ops
 
-import com.tracel.storage.codec.records.Wchg
+import com.tracel.storage.codec.Txn
+import com.tracel.storage.codec.Wchg
 import com.tracel.engine.store.*
 import com.tracel.model.holder.HolderId
 import com.tracel.storage.StorageUnit
@@ -9,8 +10,7 @@ import com.tracel.storage.codec.History
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.records.Txn
-import com.tracel.storage.codec.records.ContainerSlot
+import com.tracel.storage.codec.ContainerSlot
 import com.tracel.storage.ports.event.EventLog
 import com.tracel.storage.spi.HistorySegment
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet
