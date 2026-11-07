@@ -10,27 +10,26 @@ import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.lot.Lot
 import com.tracel.storage.TracelStorage
+import com.tracel.storage.admin.StoredCounters
+import com.tracel.storage.capture.CaptureDrainer
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.CaptureRing
-import com.tracel.storage.capture.CaptureDrainer
 import com.tracel.storage.codec.History
-import com.tracel.storage.lsm.LsmConfig
+import com.tracel.storage.history.StoredContainerSlotLog
+import com.tracel.storage.history.StoredTransactionLog
+import com.tracel.storage.history.StoredWorldLog
+import com.tracel.storage.ledger.StoredLotRepository
+import com.tracel.storage.ledger.StoredPendingDeliveryRepository
 import com.tracel.storage.lsm.LsmEngine
-import com.tracel.storage.ports.container.ContainerSlotLog
-import com.tracel.storage.ports.job.Journal
-import com.tracel.storage.ports.job.RollbackJobRepository
-import com.tracel.storage.ports.ledger.Leases
-import com.tracel.storage.ports.ledger.LotRepository
-import com.tracel.storage.ports.ledger.PendingDeliveryRepository
-import com.tracel.storage.ports.log.TransactionLog
-import com.tracel.storage.ports.log.WorldLog
-import com.tracel.storage.ports.ops.Counters
+import com.tracel.storage.lsm.LsmOptions
+import com.tracel.storage.rollback.StoredJournal
+import com.tracel.storage.rollback.StoredLeases
+import com.tracel.storage.rollback.StoredRollbackJobRepository
 import java.nio.file.Path
-
 
 class Stack(
     path: Path,
-    config: LsmConfig = LsmConfig(),
+    config: LsmOptions = LsmOptions(),
     ringSlots: Int = TracelStorage.DEFAULT_RING_SLOTS,
     overflowSlots: Int = ringSlots * CaptureRing.OVERFLOW_FACTOR,
 ) : AutoCloseable {
@@ -41,19 +40,19 @@ class Stack(
                 History.configured(config)
             )
         }
-    val counters: Counters = Counters(storage)
-    val repo: LotRepository = LotRepository(storage, counters)
+    val counters: StoredCounters = StoredCounters(storage)
+    val repo: StoredLotRepository = StoredLotRepository(storage, counters)
     val ledger: LotLedger = LotLedger(repo)
-    val log: TransactionLog = TransactionLog(storage)
-    val worldLog: WorldLog = WorldLog(storage)
-    val containerSlots: ContainerSlotLog = ContainerSlotLog(storage, counters)
+    val log: StoredTransactionLog = StoredTransactionLog(storage)
+    val worldLog: StoredWorldLog = StoredWorldLog(storage)
+    val containerSlots: StoredContainerSlotLog = StoredContainerSlotLog(storage, counters)
     val worldCapture: WorldCaptureCoordinator =
         WorldCaptureCoordinator(worldLog, counters::nextSeq, counters::nextSeqRange)
-    val leases: Leases = Leases(storage)
-    val jobs: RollbackJobRepository = RollbackJobRepository(storage)
-    val journal: Journal = Journal.forRollback(storage)
-    val involutionJournal: Journal = Journal.forInvolution(storage)
-    val pending: PendingDeliveryRepository = PendingDeliveryRepository(storage, counters)
+    val leases: StoredLeases = StoredLeases(storage)
+    val jobs: StoredRollbackJobRepository = StoredRollbackJobRepository(storage)
+    val journal: StoredJournal = StoredJournal.forRollback(storage)
+    val involutionJournal: StoredJournal = StoredJournal.forInvolution(storage)
+    val pending: StoredPendingDeliveryRepository = StoredPendingDeliveryRepository(storage, counters)
     val capture: CaptureCoordinator = CaptureCoordinator(ledger, log, counters::nextTxnId, counters::nextSeq)
     val gate: CaptureGate = CaptureGate(storage.ring)
 

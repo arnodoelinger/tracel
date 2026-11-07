@@ -1,11 +1,11 @@
 package com.tracel.storage.crash
 
 import com.tracel.storage.ffm.Bytes.readBytes
-import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
-import com.tracel.storage.lsm.disk.Disk
-import com.tracel.storage.lsm.state.Manifest
-import com.tracel.storage.lsm.write.SyncPolicy
+import com.tracel.storage.lsm.LsmOptions
+import com.tracel.storage.lsm.io.Disk
+import com.tracel.storage.lsm.version.Manifest
+import com.tracel.storage.lsm.wal.WalSyncPolicy
 import com.tracel.storage.spi.MutationBatch
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -16,7 +16,7 @@ import kotlin.random.Random
 
 class PublishFailureTest {
     private val root = Path.of("/tracel-power-cut/publish-failure")
-    private val config = LsmConfig(memtableBytes = 64L shl 10, level0Fanout = 2, sync = SyncPolicy.EveryBatch)
+    private val config = LsmOptions(memtableBytes = 64L shl 10, level0Fanout = 2, sync = WalSyncPolicy.EveryBatch)
 
     private fun key(i: Int) = byteArrayOf(1, (i shr 8).toByte(), i.toByte())
     private fun value(i: Int) = "value-$i".toByteArray()

@@ -136,7 +136,7 @@ internal class TracelReads(
 
     private suspend fun learnItemNames(rows: List<Row>) {
         val keys = rows.filterIsInstance<Row.Txn>().flatMapTo(HashSet()) { row -> row.transaction.flows.map { it.itemKey } }
-        if (keys.isNotEmpty()) Extensions.live.learnItemNames(keys) { services.storage.itemForms.find(it) }
+        if (keys.isNotEmpty()) Extensions.live.learnItemNames(keys) { services.storage.itemForms.get(it) }
     }
 
     private inner class LogHistory(override val query: HistoryQuery) : History {

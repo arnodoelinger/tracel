@@ -1,11 +1,11 @@
 package com.tracel.storage.crash
 
-import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
-import com.tracel.storage.lsm.disk.LocalDisk
-import com.tracel.storage.lsm.state.Manifest
-import com.tracel.storage.lsm.write.SyncPolicy
-import com.tracel.storage.lsm.write.Wal
+import com.tracel.storage.lsm.LsmOptions
+import com.tracel.storage.lsm.io.LocalDisk
+import com.tracel.storage.lsm.version.Manifest
+import com.tracel.storage.lsm.wal.WalSyncPolicy
+import com.tracel.storage.lsm.wal.WriteAheadLog
 import com.tracel.storage.spi.MutationBatch
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -20,7 +20,7 @@ import java.nio.file.StandardOpenOption
 class CorruptionTest {
     private fun key(i: Int) = byteArrayOf(1) + ByteArray(8) { (i.toLong() ushr (56 - it * 8)).toByte() }
 
-    private fun engine(dir: Path) = LsmEngine(dir, LsmConfig(memtableBytes = 1 shl 20, sync = SyncPolicy.EveryBatch))
+    private fun engine(dir: Path) = LsmEngine(dir, LsmOptions(memtableBytes = 1 shl 20, sync = WalSyncPolicy.EveryBatch))
 
     @Test
     fun `a torn write-ahead log frame truncates the log rather than poisoning it`(@TempDir dir: Path) {
@@ -144,7 +144,7 @@ class CorruptionTest {
         Manifest(lastSequence = 0, nextFileId = 3, walIds = listOf(1, 2), segments = emptyList()).write(dir, LocalDisk)
         val paths = listOf(1L, 2L).map { Manifest.walPath(dir, it) }
         paths.forEachIndexed { n, path ->
-            Wal.create(path, LocalDisk).use { wal ->
+            WriteAheadLog.create(path, LocalDisk).use { wal ->
                 repeat(5) { i ->
                     val at = n * 5 + i
                     wal.append(at + 1L, MutationBatch().apply { put(key(at), "value-${at % 10}".toByteArray()) })

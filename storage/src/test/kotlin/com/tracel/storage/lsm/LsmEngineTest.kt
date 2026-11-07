@@ -2,8 +2,8 @@ package com.tracel.storage.lsm
 
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.ffm.Bytes.readBytes
-import com.tracel.storage.lsm.state.Manifest
-import com.tracel.storage.lsm.write.SyncPolicy
+import com.tracel.storage.lsm.version.Manifest
+import com.tracel.storage.lsm.wal.WalSyncPolicy
 import com.tracel.storage.spi.MutationBatch
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -18,7 +18,7 @@ class LsmEngineTest {
     private fun value(i: Int): ByteArray = "value-$i".toByteArray()
 
     private fun engine(dir: Path, memtable: Long = 64 * 1024) =
-        LsmEngine(dir, LsmConfig(memtableBytes = memtable, sync = SyncPolicy.EveryBatch))
+        LsmEngine(dir, LsmOptions(memtableBytes = memtable, sync = WalSyncPolicy.EveryBatch))
 
     @Test
     fun `a crash and restart leaves neither a giant log nor a giant memtable`(@TempDir dir: Path) {

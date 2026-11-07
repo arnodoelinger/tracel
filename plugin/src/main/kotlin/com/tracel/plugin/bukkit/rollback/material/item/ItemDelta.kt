@@ -73,7 +73,7 @@ internal suspend fun MaterialRestorer.formsFor(deltas: Map<HolderId, Map<ItemKey
     val decorated = deltas.values.flatMap { it.keys }.filter { it.decoration != null }.distinct()
     if (decorated.isEmpty()) return emptyMap()
     val stored = services.atomically {
-        decorated.mapNotNull { key -> key.decoration?.let { services.storage.itemForms.find(it) }?.let { key to it } }.toMap()
+        decorated.mapNotNull { key -> key.decoration?.let { services.storage.itemForms.get(it) }?.let { key to it } }.toMap()
     }
     if (stored.size == decorated.size) return stored
     val missing = decorated.filter { it !in stored }

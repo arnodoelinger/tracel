@@ -9,7 +9,7 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.WorldId
-import com.tracel.engine.capture.CaptureGate as CaptureGatePort
+import com.tracel.engine.capture.CaptureGate as CaptureGatePort // Lol
 
 /**
  * What a listener actually calls. Wraps [CaptureRing] in the five shapes real capture code has,

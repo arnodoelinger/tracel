@@ -5,10 +5,9 @@ import com.tracel.platform.concurrency.SingleWriterGuard
 import com.tracel.platform.storage.UnitOfWork
 import com.tracel.storage.capture.CaptureRing
 import com.tracel.storage.codec.History
-import com.tracel.storage.intern.Interning
-import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
-import com.tracel.storage.lsm.toLsmConfig
+import com.tracel.storage.lsm.LsmOptions
+import com.tracel.storage.lsm.toLsmOptions
 import com.tracel.storage.spi.KeyValueEngine
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -214,12 +213,12 @@ class TracelStorage private constructor(
         private const val CLOSE_GRACE_MILLIS = 1_000L
 
         fun open(path: Path, settings: StoreSettings): TracelStorage =
-            open(path, ringSlots = settings.ringSlots, lsm = settings.toLsmConfig())
+            open(path, ringSlots = settings.ringSlots, lsm = settings.toLsmOptions())
 
         fun open(
             path: Path,
             ringSlots: Int = DEFAULT_RING_SLOTS,
-            lsm: LsmConfig = LsmConfig(),
+            lsm: LsmOptions = LsmOptions(),
             overflowSlots: Int = ringSlots * CaptureRing.OVERFLOW_FACTOR,
             engineFactory: (Path) -> KeyValueEngine = { LsmEngine(it, History.configured(lsm)) },
         ): TracelStorage {

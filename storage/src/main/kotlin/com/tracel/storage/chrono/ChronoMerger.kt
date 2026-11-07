@@ -3,7 +3,7 @@ package com.tracel.storage.chrono
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.chrono.capsule.CapsuleView
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.intern.Interning
+import com.tracel.storage.Interning
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
 

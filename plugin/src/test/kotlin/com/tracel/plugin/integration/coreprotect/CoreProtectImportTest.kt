@@ -12,20 +12,20 @@ import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
+import com.tracel.plugin.bukkit.block.AIR
 import com.tracel.plugin.integration.coreprotect.source.CoreProtectDatabase
 import com.tracel.plugin.integration.coreprotect.source.CoreProtectLocation
 import com.tracel.plugin.integration.coreprotect.tally.Skipped
 import com.tracel.plugin.integration.coreprotect.tally.Taken
 import com.tracel.plugin.integration.coreprotect.translate.BlockDetail
 import com.tracel.plugin.integration.coreprotect.translate.ImportPlatform
-import com.tracel.plugin.bukkit.block.AIR
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.ports.actor.ActorFacts
-import com.tracel.storage.ports.event.EventLog
-import com.tracel.storage.ports.log.TransactionLog
-import com.tracel.storage.ports.log.WorldLog
-import com.tracel.storage.ports.ops.Counters
-import com.tracel.storage.ports.ops.ForeignHistory
+import com.tracel.storage.admin.StoredCounters
+import com.tracel.storage.admin.StoredForeignHistory
+import com.tracel.storage.history.StoredActorFacts
+import com.tracel.storage.history.StoredEventLog
+import com.tracel.storage.history.StoredTransactionLog
+import com.tracel.storage.history.StoredWorldLog
 import com.tracel.tests.support.Fixtures
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
@@ -88,11 +88,11 @@ class CoreProtectImportTest {
 
     private class Store(dir: Path) : AutoCloseable {
         val storage: TracelStorage = TracelStorage.open(dir)
-        val counters = Counters(storage)
-        val log = WorldLog(storage)
-        val transactions = TransactionLog(storage)
-        val events = EventLog(storage)
-        val foreign = ForeignHistory(storage, log, transactions, events, counters)
+        val counters = StoredCounters(storage)
+        val log = StoredWorldLog(storage)
+        val transactions = StoredTransactionLog(storage)
+        val events = StoredEventLog(storage)
+        val foreign = StoredForeignHistory(storage, log, transactions, events, counters)
         override fun close() = storage.close()
     }
 
@@ -390,7 +390,7 @@ class CoreProtectImportTest {
             val blown = store.at(17).single()
             assertEquals(CauseKind.EXPLOSION, blown.cause)
             val tnt = blown.causedBy as HolderId.Entity
-            assertEquals("minecraft:tnt", ActorFacts(store.storage).kindsOf(listOf(tnt.uuid))[tnt.uuid]?.value)
+            assertEquals("minecraft:tnt", StoredActorFacts(store.storage).kindsOf(listOf(tnt.uuid))[tnt.uuid]?.value)
 
             val lava = store.at(50).single()
             assertEquals(CauseKind.NATURAL, lava.cause)

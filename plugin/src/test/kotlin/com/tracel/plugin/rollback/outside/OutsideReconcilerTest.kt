@@ -1,8 +1,6 @@
 package com.tracel.plugin.rollback.outside
 
-import com.tracel.engine.log.RolledBack
 import com.tracel.engine.rollback.outside.OutsideStep
-import com.tracel.engine.rollback.outside.OutsideSteps
 import com.tracel.plugin.api.addon.AddonGuard
 import com.tracel.plugin.api.addon.BoundReversible
 import kotlinx.coroutines.CoroutineScope
@@ -15,30 +13,30 @@ import java.util.logging.Logger
 class OutsideReconcilerTest {
     private val logger = Logger.getAnonymousLogger().apply { useParentHandlers = false }
 
-    private class Marks(val taken: MutableSet<Long> = HashSet()) : RolledBack {
-        override suspend fun mark(job: Long, seqs: LongArray, millis: Long) {
+    private class Marks(val taken: MutableSet<Long> = HashSet()) {
+        suspend fun mark(job: Long, seqs: LongArray, millis: Long) {
             taken += seqs.toList()
         }
 
-        override suspend fun restore(job: Long) = taken.clear()
+        suspend fun restore(job: Long) = taken.clear()
 
-        override suspend fun of(seqs: Collection<Long>): Map<Long, Long> =
+        suspend fun of(seqs: Collection<Long>): Map<Long, Long> =
             seqs.filter { it in taken }.associateWith { 1L }
     }
 
-    private class Kept : OutsideSteps {
+    private class Kept {
         val rows = LinkedHashMap<Long, OutsideStep>()
 
-        override suspend fun stage(steps: List<OutsideStep>) = steps.forEach { rows.putIfAbsent(it.seq, it) }
+        suspend fun stage(steps: List<OutsideStep>) = steps.forEach { rows.putIfAbsent(it.seq, it) }
 
-        override suspend fun bind(job: Long, seqs: LongArray) =
+        suspend fun bind(job: Long, seqs: LongArray) =
             seqs.forEach { seq -> rows[seq]?.let { rows[seq] = it.copy(job = job) } }
 
-        override suspend fun ofJob(job: Long) = rows.values.filter { it.job == job }
+        suspend fun ofJob(job: Long) = rows.values.filter { it.job == job }
 
-        override suspend fun ofKind(kind: String) = rows.values.filter { it.kind == kind }
+        suspend fun ofKind(kind: String) = rows.values.filter { it.kind == kind }
 
-        override suspend fun told(seq: Long, undone: Boolean, generation: Int) {
+        suspend fun told(seq: Long, undone: Boolean, generation: Int) {
             val kept = rows[seq] ?: return
             if (generation > kept.generation) rows[seq] = kept.copy(undone = undone, generation = generation)
         }
@@ -57,7 +55,7 @@ class OutsideReconcilerTest {
     }
 
     private fun reconciler(scope: CoroutineScope) =
-        OutsideReconciler(marks, kept, scope) { if (present) bound else null }
+        OutsideReconciler(marks::of, kept::ofKind, kept::told, scope) { if (present) bound else null }
 
     private val paid = OutsideStep(10, "eco:paid", "@1! alice bob 100", job = 7)
 

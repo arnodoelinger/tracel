@@ -12,7 +12,7 @@ internal object LiveProjectile {
     /** Starts from what [store] holds. Before any listener runs. */
     fun open(store: LiveEntities) {
         uuids.open(store.loadAll().associateWith { }) { changes ->
-            store.writeAll(changes.mapValues { (_, live) -> live != null })
+            store.putAll(changes.mapValues { (_, live) -> live != null })
         }
     }
 

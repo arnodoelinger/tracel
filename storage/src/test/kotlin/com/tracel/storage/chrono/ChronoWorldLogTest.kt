@@ -21,8 +21,8 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.storage.admin.purgeSome
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.ports.ops.purgeSome
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest

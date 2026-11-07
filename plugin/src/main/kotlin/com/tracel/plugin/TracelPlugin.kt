@@ -94,7 +94,7 @@ class TracelPlugin : JavaPlugin() {
         val batch = PendingItemForms.drain()
         if (batch.isEmpty()) return
         try {
-            services.storage.itemForms.rememberAll(batch)
+            services.storage.itemForms.putAll(batch)
         } catch (failure: Throwable) {
             PendingItemForms.requeue(batch)
             throw failure

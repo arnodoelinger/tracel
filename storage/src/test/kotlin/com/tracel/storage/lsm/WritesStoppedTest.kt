@@ -1,9 +1,9 @@
 package com.tracel.storage.lsm
 
 import com.tracel.storage.ffm.Bytes.readBytes
-import com.tracel.storage.lsm.disk.LocalDisk
-import com.tracel.storage.lsm.write.SyncPolicy
-import com.tracel.storage.lsm.write.Wal
+import com.tracel.storage.lsm.io.LocalDisk
+import com.tracel.storage.lsm.wal.WalSyncPolicy
+import com.tracel.storage.lsm.wal.WriteAheadLog
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.spi.WritesStopped
 import org.junit.jupiter.api.Assertions.*
@@ -19,7 +19,7 @@ class WritesStoppedTest {
     private fun value(i: Int): ByteArray = "value-$i".toByteArray()
 
     private fun engine(dir: Path, memtable: Long = 64 * 1024, frozen: Int = 3) =
-        LsmEngine(dir, LsmConfig(memtableBytes = memtable, maxFrozenMemtables = frozen, sync = SyncPolicy.EveryBatch))
+        LsmEngine(dir, LsmOptions(memtableBytes = memtable, maxFrozenMemtables = frozen, sync = WalSyncPolicy.EveryBatch))
 
     private fun LsmEngine.put(i: Int) = write(MutationBatch().apply { put(key(i), value(i)) }, durable = true)
 
@@ -38,7 +38,7 @@ class WritesStoppedTest {
     @Test
     fun `a log whose fsync failed never says it synced again`(@TempDir dir: Path) {
         var fail = true
-        Wal.create(dir.resolve("a.log"), LocalDisk) { if (fail) throw IOException("EIO") }.use { wal ->
+        WriteAheadLog.create(dir.resolve("a.log"), LocalDisk) { if (fail) throw IOException("EIO") }.use { wal ->
             wal.append(1, MutationBatch().apply { put(key(1), value(1)) })
             assertThrows<IOException> { wal.sync() }
             fail = false

@@ -1,9 +1,9 @@
 package com.tracel.storage.crash
 
 import com.tracel.storage.ffm.Bytes.readBytes
-import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
-import com.tracel.storage.lsm.write.SyncPolicy
+import com.tracel.storage.lsm.LsmOptions
+import com.tracel.storage.lsm.wal.WalSyncPolicy
 import com.tracel.storage.spi.MutationBatch
 import com.tracel.storage.spi.WritesStopped
 import org.junit.jupiter.api.Test
@@ -57,13 +57,13 @@ class PowerCutTest {
 
         private val root = Path.of("/tracel-power-cut/$seed")
 
-        private val config = LsmConfig(
+        private val config = LsmOptions(
             memtableBytes = random.nextLong(16L shl 10, 160L shl 10),
             maxFrozenMemtables = random.nextInt(1, 4),
             sync = when (random.nextInt(3)) {
-                0 -> SyncPolicy.EveryBatch
-                1 -> SyncPolicy.Interval(random.nextLong(1, 20))
-                else -> SyncPolicy.Never
+                0 -> WalSyncPolicy.EveryBatch
+                1 -> WalSyncPolicy.Interval(random.nextLong(1, 20))
+                else -> WalSyncPolicy.Never
             },
             level0Fanout = random.nextInt(2, 5),
             deeperFanout = random.nextInt(2, 5),
@@ -184,7 +184,7 @@ class PowerCutTest {
             engine.write(batch, durable)
             tally.batches.incrementAndGet()
             batches += Batch(wipe = false, rows)
-            if (durable && config.sync == SyncPolicy.EveryBatch && engine.stopped == null) promised = batches.size
+            if (durable && config.sync == WalSyncPolicy.EveryBatch && engine.stopped == null) promised = batches.size
         }
 
         /** A wipe that threw may or may not have happened, and leaves the engine shut: the life ends there. */

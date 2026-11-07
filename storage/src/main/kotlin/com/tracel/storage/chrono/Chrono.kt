@@ -3,10 +3,10 @@ package com.tracel.storage.chrono
 import com.tracel.platform.io.reason
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.chrono.query.ChronoReader
 import com.tracel.storage.chrono.capsule.CapsuleView
+import com.tracel.storage.chrono.query.ChronoReader
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.lsm.LsmConfig
+import com.tracel.storage.lsm.LsmOptions
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /** How chrono files the world's history. */
 data class ChronoSettings(
-    val windowMillis: Long = LsmConfig.DAY_MILLIS,
+    val windowMillis: Long = LsmOptions.DAY_MILLIS,
     val mergeAfterMillis: Long = 30_000L,
     val mergeFragments: Int = 16,
     val passMillis: Long = 5_000L,

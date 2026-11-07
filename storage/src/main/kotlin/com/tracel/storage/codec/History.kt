@@ -2,8 +2,8 @@ package com.tracel.storage.codec
 
 import com.tracel.model.log.LogKind
 import com.tracel.storage.chrono.Lane
-import com.tracel.storage.lsm.LsmConfig
-import com.tracel.storage.lsm.SegmentClassifier
+import com.tracel.storage.lsm.LsmOptions
+import com.tracel.storage.lsm.table.SegmentClassifier
 import java.lang.foreign.MemorySegment
 
 /**
@@ -71,6 +71,6 @@ object History {
     }
 
     /** The settings an engine needs to keep history in windows and index rows out of the filters. */
-    fun configured(config: LsmConfig): LsmConfig =
+    fun configured(config: LsmOptions): LsmOptions =
         config.copy(classifier = classifier, pointRead = ::pointRead)
 }

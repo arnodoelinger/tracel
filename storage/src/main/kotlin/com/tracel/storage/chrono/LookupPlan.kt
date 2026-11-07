@@ -10,9 +10,9 @@ import com.tracel.storage.chrono.query.Found
 import com.tracel.storage.chrono.query.IdTest
 import com.tracel.storage.chrono.query.Sieve
 import com.tracel.storage.chrono.query.and
-import com.tracel.storage.intern.Interning
-import com.tracel.storage.ports.log.WorldFilter
-import com.tracel.storage.ports.log.idsFor
+import com.tracel.storage.history.WorldFilter
+import com.tracel.storage.history.idsFor
+import com.tracel.storage.Interning
 import java.util.UUID
 
 /**

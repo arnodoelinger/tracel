@@ -15,7 +15,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.chrono.bits.RadixSort
 import com.tracel.storage.chrono.query.Found
 import com.tracel.storage.codec.Extras
-import com.tracel.storage.intern.Interning
+import com.tracel.storage.Interning
 import java.util.UUID
 
 /** Rows back into the model, every ID resolved once per unit. */

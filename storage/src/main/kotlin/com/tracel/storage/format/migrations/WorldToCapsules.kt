@@ -1,43 +1,43 @@
 package com.tracel.storage.format.migrations
 
-import com.tracel.storage.intern.Interning
-import com.tracel.storage.codec.Txn
-import com.tracel.storage.codec.Scalar
-import com.tracel.storage.codec.ContainerSlot
-import com.tracel.storage.chrono.bits.ByteWriter
-import com.tracel.model.world.BlockPos
-import com.tracel.model.lot.LotId
-import com.tracel.model.item.Quantity
-import com.tracel.model.holder.HolderId
-import com.tracel.model.flow.FlowLot
 import com.tracel.engine.actor.VisitTimeline
+import com.tracel.model.flow.FlowLot
+import com.tracel.model.holder.HolderId
+import com.tracel.model.item.Quantity
+import com.tracel.model.lot.LotId
+import com.tracel.model.world.BlockPos
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.chrono.Cell
 import com.tracel.storage.chrono.Chrono
 import com.tracel.storage.chrono.ChronoKeys
-import com.tracel.storage.chrono.ItemRows
 import com.tracel.storage.chrono.ChronoKinds
+import com.tracel.storage.chrono.ItemRows
 import com.tracel.storage.chrono.Lane
 import com.tracel.storage.chrono.RowsBuilder
-import com.tracel.storage.chrono.TrackIds
 import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.TrackIds
+import com.tracel.storage.chrono.bits.ByteWriter
 import com.tracel.storage.chrono.capsule.CapsuleView
 import com.tracel.storage.codec.BlockChange
+import com.tracel.storage.codec.ContainerSlot
 import com.tracel.storage.codec.EntityChange
+import com.tracel.storage.codec.Scalar
 import com.tracel.storage.codec.Section
 import com.tracel.storage.codec.Tag
+import com.tracel.storage.codec.Txn
 import com.tracel.storage.codec.Wchg
+import com.tracel.storage.ffm.Bytes.i32
+import com.tracel.storage.ffm.Bytes.i64
+import com.tracel.storage.ffm.Bytes.i8
 import com.tracel.storage.format.FormatVersion
 import com.tracel.storage.format.Migration
-import com.tracel.storage.lsm.LsmConfig
+import com.tracel.storage.Interning
+import com.tracel.storage.lsm.LsmOptions
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
 import java.util.UUID
-import com.tracel.storage.ffm.Bytes.i32
-import com.tracel.storage.ffm.Bytes.i64
-import com.tracel.storage.ffm.Bytes.i8
 
 /**
  * 1.0 to 1.1.
@@ -52,7 +52,7 @@ internal object WorldToCapsules {
     private const val CONVERTED = 3
     private const val FLUSH_ROWS = 2_000_000
     private const val BATCH_ROWS = 4096
-    private const val WINDOW_MILLIS = LsmConfig.DAY_MILLIS
+    private const val WINDOW_MILLIS = LsmOptions.DAY_MILLIS
 
     private fun convert(engine: KeyValueEngine) {
         val done = engine.snapshot().use { it.get(Tag.META[CONVERTED]) != null }

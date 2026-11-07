@@ -46,7 +46,7 @@ internal class ServiceWrites(
 ) : AddonWrites {
     override fun recorder(addon: String, owned: Owned): AddonRecorder = Recorder(owned)
 
-    private val reconciler = OutsideReconciler(services.storage.rolledBack, services.outside, services.scope) { kind ->
+    private val reconciler = OutsideReconciler(services.storage.rolledBack::of, services.outside::ofKind, services.outside::told, services.scope) { kind ->
         extensions.reversibles[kind]
     }
 

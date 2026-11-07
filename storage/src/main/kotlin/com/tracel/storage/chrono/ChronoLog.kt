@@ -8,7 +8,7 @@ import com.tracel.engine.world.Unlogged
 import com.tracel.model.log.Seq
 import com.tracel.model.world.WorldId
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.intern.Interning
+import com.tracel.storage.Interning
 import java.util.concurrent.ConcurrentHashMap
 import com.tracel.storage.chrono.query.Rewound as RewoundTile
 

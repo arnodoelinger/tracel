@@ -47,46 +47,46 @@ import com.tracel.plugin.services.specifics.ActorWrites
 import com.tracel.plugin.services.specifics.TracelSchedulers
 import com.tracel.plugin.util.text.Messages
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.capture.CaptureGate
+import com.tracel.storage.admin.InterruptedImport
+import com.tracel.storage.admin.StoredCounters
+import com.tracel.storage.admin.StoredForeignHistory
+import com.tracel.storage.admin.StoredStoreAdmin
 import com.tracel.storage.capture.CaptureDrainer
-import com.tracel.storage.format.StoreFormat
-import com.tracel.storage.ports.actor.ActorFacts
-import com.tracel.storage.ports.container.ContainerSlotLog
-import com.tracel.storage.ports.event.EventLog
-import com.tracel.storage.ports.job.Journal
-import com.tracel.storage.ports.job.OutsideSteps
-import com.tracel.storage.ports.job.RollbackJobRepository
-import com.tracel.storage.ports.ledger.ItemForms
-import com.tracel.storage.ports.ledger.Leases
-import com.tracel.storage.ports.ledger.LotRepository
-import com.tracel.storage.ports.ledger.PendingDeliveryRepository
-import com.tracel.storage.ports.ledger.PendingWear
-import com.tracel.storage.ports.log.RolledBack
-import com.tracel.storage.ports.log.TransactionLog
-import com.tracel.storage.ports.log.WorldLog
-import com.tracel.storage.ports.ops.Counters
-import com.tracel.storage.ports.ops.ForeignHistory
-import com.tracel.storage.ports.ops.InterruptedImport
-import com.tracel.storage.ports.ops.StoreAdmin
-import com.tracel.storage.ports.wear.WearLog
-import com.tracel.storage.ports.world.BlockNotes
-import com.tracel.storage.ports.world.GroundPositions
-import com.tracel.storage.ports.world.LiveEntities
+import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.chrono.Chrono
 import com.tracel.storage.chrono.ChronoLog
+import com.tracel.storage.format.StoreFormat
+import com.tracel.storage.history.StoredActorFacts
+import com.tracel.storage.history.StoredContainerSlotLog
+import com.tracel.storage.history.StoredEventLog
+import com.tracel.storage.history.StoredRolledBack
+import com.tracel.storage.history.StoredTransactionLog
+import com.tracel.storage.history.StoredWearLog
+import com.tracel.storage.history.StoredWorldLog
+import com.tracel.storage.ledger.StoredItemForms
+import com.tracel.storage.ledger.StoredLotRepository
+import com.tracel.storage.ledger.StoredPendingDeliveryRepository
+import com.tracel.storage.ledger.StoredPendingWear
+import com.tracel.storage.rollback.StoredJournal
+import com.tracel.storage.rollback.StoredLeases
+import com.tracel.storage.rollback.StoredOutsideSteps
+import com.tracel.storage.rollback.StoredRollbackJobRepository
+import com.tracel.storage.world.StoredBlockNotes
+import com.tracel.storage.world.StoredGroundPositions
+import com.tracel.storage.world.StoredLiveEntities
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
+import kotlinx.coroutines.*
+import kotlinx.coroutines.Job
 import org.bukkit.Bukkit
 import org.tomlj.Toml
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.*
-import kotlinx.coroutines.Job
 
 private const val LAST_CAPTURE_WAIT_MILLIS = 500L
 private const val WRITE_RATE_SAMPLE_MILLIS = 5_000L
 
 /** Wired plugin after a successful plugin enable. */
 internal class TracelRuntime(
-    val store: StoreAdmin,
+    val store: StoredStoreAdmin,
     val services: TracelServices,
     val drain: Job,
     val entityDrain: Job,
@@ -136,26 +136,26 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val entityKinds = EntityKinds()
     storage.interning.entityKinds = entityKinds
     val schedulers = TracelSchedulers(plugin, storage.dispatcher)
-    val counters = Counters(storage)
-    val repo = LotRepository(storage, counters)
+    val counters = StoredCounters(storage)
+    val repo = StoredLotRepository(storage, counters)
     val ledger = LotLedger(repo)
-    val log = TransactionLog(storage)
-    val worldLog = WorldLog(storage, chrono)
-    val containerSlots = ContainerSlotLog(storage, counters)
-    val wear = WearLog(storage, counters)
-    val actors = ActorFacts(storage)
-    val events = EventLog(storage)
-    val admin = StoreAdmin(storage)
-    val leases = Leases(storage)
-    val jobs = RollbackJobRepository(storage)
-    val pendingDeliveries = PendingDeliveryRepository(storage, counters)
+    val log = StoredTransactionLog(storage)
+    val worldLog = StoredWorldLog(storage, chrono)
+    val containerSlots = StoredContainerSlotLog(storage, counters)
+    val wear = StoredWearLog(storage, counters)
+    val actors = StoredActorFacts(storage)
+    val events = StoredEventLog(storage)
+    val admin = StoredStoreAdmin(storage)
+    val leases = StoredLeases(storage)
+    val jobs = StoredRollbackJobRepository(storage)
+    val pendingDeliveries = StoredPendingDeliveryRepository(storage, counters)
     val journalExecutor = JournalExecutor(
         RollbackExecutor(ledger, log, counters::nextSeq),
-        Journal.forRollback(storage),
+        StoredJournal.forRollback(storage),
         leases,
         counters::nextTxnId,
     )
-    val undoJournal = Journal.forInvolution(storage)
+    val undoJournal = StoredJournal.forInvolution(storage)
     val involutionCoordinator = InvolutionJobCoordinator(
         jobs,
         repo,
@@ -175,18 +175,18 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             store = admin,
             jobs = jobs,
             pendingDeliveries = pendingDeliveries,
-            pendingWear = PendingWear(storage, counters),
+            pendingWear = StoredPendingWear(storage, counters),
             events = events,
-            rolledBack = RolledBack(storage),
-            foreign = ForeignHistory(storage, worldLog, log, events, counters),
-            groundPositions = GroundPositions(storage),
+            rolledBack = StoredRolledBack(storage),
+            foreign = StoredForeignHistory(storage, worldLog, log, events, counters),
+            groundPositions = StoredGroundPositions(storage),
             worldLog = worldLog,
             containerSlots = containerSlots,
             wear = wear,
             actors = actors,
-            itemForms = ItemForms(storage),
-            blockNotes = BlockNotes(storage),
-            liveEntities = LiveEntities(storage),
+            itemForms = StoredItemForms(storage),
+            blockNotes = StoredBlockNotes(storage),
+            liveEntities = StoredLiveEntities(storage),
             chronicle = ChronoLog(storage, chrono),
         ),
         schedulers = schedulers,
@@ -203,7 +203,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         undo = involutionCoordinator,
         undoJournal = undoJournal,
         gate = CaptureGate(storage.ring),
-        outside = OutsideSteps(storage),
+        outside = StoredOutsideSteps(storage),
         exportDirectory = plugin.dataFolder.resolve("database").resolve("exports").toPath(),
         entityRestoreLimit = settings.entityRestoreLimit,
         governorSettings = settings.governor,

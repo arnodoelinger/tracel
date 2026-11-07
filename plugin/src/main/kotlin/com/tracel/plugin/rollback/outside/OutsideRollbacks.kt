@@ -30,7 +30,7 @@ internal class OutsideRollbacks(
     private val inner: RollbackGenius,
     private val extensions: Extensions,
 ) : RollbackGenius by inner {
-    private val reconciler = OutsideReconciler(services.storage.rolledBack, services.outside, services.scope) { kind ->
+    private val reconciler = OutsideReconciler(services.storage.rolledBack::of, services.outside::ofKind, services.outside::told, services.scope) { kind ->
         extensions.reversibles[kind]
     }
 

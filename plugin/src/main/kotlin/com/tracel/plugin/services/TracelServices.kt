@@ -25,12 +25,12 @@ import com.tracel.plugin.services.monitoring.GovernorSettings
 import com.tracel.plugin.services.monitoring.TickGovernor
 import com.tracel.plugin.services.monitoring.WriteRate
 import com.tracel.plugin.services.specifics.ListenerState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 
 /**
  * Shared services used by `Tracel` listeners and commands.

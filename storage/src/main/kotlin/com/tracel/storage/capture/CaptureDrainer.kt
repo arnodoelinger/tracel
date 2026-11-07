@@ -12,7 +12,7 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.intern.Interning
+import com.tracel.storage.Interning
 import com.tracel.storage.spi.WritesStopped
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.*
@@ -68,7 +68,7 @@ class CaptureDrainer(
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: WritesStopped) {
+            } catch (_: WritesStopped) {
                 if (!waiting) logger.warning("Capture is on hold until storage writes again. Events are queued.")
                 waiting = true
                 delay(STOPPED_RETRY_MILLIS.milliseconds)

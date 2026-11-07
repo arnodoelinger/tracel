@@ -17,12 +17,11 @@ import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.util.runtime.messageOrName
 import com.tracel.plugin.util.runtime.rescue
 import com.tracel.plugin.util.units.MILLIS_PER_SECOND
-import java.time.Instant
-import java.util.logging.Level
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
+import java.time.Instant
+import java.util.logging.Level
 
 /** [Migration] over what `CoreProtect` left in its folder. */
 internal class CoreProtectMigration(

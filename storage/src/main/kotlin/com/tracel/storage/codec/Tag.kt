@@ -132,6 +132,10 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
 
     fun long(cursor: EngineCursor, field: Int): Long = longOf(cursor.keyU64(offsets[field]), fields[field])
 
+    fun uuid(cursor: EngineCursor, field: Int): UUID = UUID(cursor.keyU64(offsets[field]), cursor.keyU64(offsets[field] + 8))
+
+    fun raw(key: ByteArray, field: Int): ByteArray = key.copyOfRange(offsets[field], key.size)
+
     private val offsets = IntArray(fields.size).also { offsets ->
         var at = 1
         for (i in fields.indices) {

@@ -24,7 +24,7 @@ class GroundWhereabouts(private val store: GroundPositions) {
     suspend fun at(uuid: UUID): HolderId.Block? {
         recent.at(uuid)?.let { return it }
         pending[HolderId.ItemEntity(uuid)]?.let { return it }
-        return store.find(HolderId.ItemEntity(uuid))
+        return store.get(HolderId.ItemEntity(uuid))
     }
 
     /** Commits everything queued. */
@@ -34,6 +34,6 @@ class GroundWhereabouts(private val store: GroundPositions) {
         for (item in pending.keys.toList()) {
             pending.remove(item)?.let { batch[item] = it }
         }
-        store.rememberAll(batch)
+        store.putAll(batch)
     }
 }

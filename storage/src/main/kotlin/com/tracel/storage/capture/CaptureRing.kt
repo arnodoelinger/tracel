@@ -10,7 +10,7 @@ import com.tracel.model.world.WorldId
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.storage.codec.CaptureSlot
 import com.tracel.storage.ffm.OffHeapRing
-import com.tracel.storage.intern.Interning
+import com.tracel.storage.Interning
 import it.unimi.dsi.fastutil.ints.IntList
 import kotlinx.coroutines.delay
 import java.util.concurrent.ConcurrentHashMap
@@ -71,7 +71,7 @@ class CaptureRing(
     /** Events that found neither a free slot nor room to wait, and were lost. */
     val dropped: Long get() = lost.get() + interning.droppedForCapacity
 
-    /** How many times an event found the ring full, whether or not it then found room to wait. */
+    /** How many times an event found the ring full, whether it then found room to wait. */
     val ringFull: Long get() = ring.dropped
 
     /** Slots capture has claimed that the drain has not applied yet, and the slots' worth of events waiting outside. */
@@ -177,7 +177,7 @@ class CaptureRing(
     }
 
     /**
-     * Enqueues "everything [fromHolderId] had went to [toHolderId]" in one slot.
+     * Enqueues "everything [fromHolderId] had gone to [toHolderId]" in one slot.
      *
      * Unlike [begin], it publishes by itself: there is no payload to wait for.
      *
@@ -312,7 +312,7 @@ class CaptureRing(
     internal fun parked(token: Int): Any? = parked[token]
 
     internal fun forgetParked(tokens: IntList) {
-        for (i in 0 until tokens.size) parked.remove(tokens.getInt(i))
+        for (i in tokens.indices) parked.remove(tokens.getInt(i))
     }
 
     override fun close() {

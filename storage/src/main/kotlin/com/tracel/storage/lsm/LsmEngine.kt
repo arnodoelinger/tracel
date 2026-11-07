@@ -1,19 +1,24 @@
 package com.tracel.storage.lsm
 
-import com.tracel.platform.io.reason
 import com.tracel.platform.io.closeQuietly
-import com.tracel.storage.lsm.disk.Disk
-import com.tracel.storage.lsm.disk.LocalDisk
-import com.tracel.storage.lsm.read.LsmSnapshot
-import com.tracel.storage.lsm.read.SegmentRun
-import com.tracel.storage.lsm.segment.*
-import com.tracel.storage.lsm.state.Manifest
-import com.tracel.storage.lsm.state.Retirement
-import com.tracel.storage.lsm.state.Version
-import com.tracel.storage.lsm.state.replayWals
-import com.tracel.storage.lsm.write.MemTable
-import com.tracel.storage.lsm.write.SyncPolicy
-import com.tracel.storage.lsm.write.WalSet
+import com.tracel.platform.io.reason
+import com.tracel.storage.lsm.io.Disk
+import com.tracel.storage.lsm.io.LocalDisk
+import com.tracel.storage.lsm.memtable.MemTable
+import com.tracel.storage.lsm.table.BlockCache
+import com.tracel.storage.lsm.table.SegmentClassifier
+import com.tracel.storage.lsm.table.SegmentFileFormat
+import com.tracel.storage.lsm.table.SegmentFileReader
+import com.tracel.storage.lsm.table.SegmentMergeWriter
+import com.tracel.storage.lsm.table.SegmentRun
+import com.tracel.storage.lsm.version.CompactionPlan
+import com.tracel.storage.lsm.version.Manifest
+import com.tracel.storage.lsm.version.SegmentRetirement
+import com.tracel.storage.lsm.version.VersionSnapshot
+import com.tracel.storage.lsm.version.planCompaction
+import com.tracel.storage.lsm.wal.WalSegmentSet
+import com.tracel.storage.lsm.wal.WalSyncPolicy
+import com.tracel.storage.lsm.wal.replayWals
 import com.tracel.storage.spi.*
 import it.unimi.dsi.fastutil.longs.LongArrayList
 import java.io.SyncFailedException
@@ -51,16 +56,16 @@ import kotlin.concurrent.withLock
  * a compaction thread and a sync thread do the rest, and none of them holds the lock while it
  * writes a segment.
  *
- * @see Version
- * @see SegmentFile
- * @see Retirement
+ * @see VersionSnapshot
+ * @see SegmentFileFormat
+ * @see SegmentRetirement
  * @see LsmSnapshot
  * @see planCompaction
  * @see replayWals
  */
 class LsmEngine(
     private val directory: Path,
-    internal val config: LsmConfig = LsmConfig(),
+    internal val config: LsmOptions = LsmOptions(),
     private val disk: Disk = LocalDisk,
 ) : KeyValueEngine {
     override val name: String = "lsm"
@@ -90,15 +95,15 @@ class LsmEngine(
     private val compactionCount = AtomicLong(0)
 
     private val blocks = BlockCache()
-    private val segmentWriter = SegmentWriter(directory, disk, blocks, config)
-    private val retirement = Retirement(disk)
+    private val segmentWriter = SegmentMergeWriter(directory, disk, blocks, config)
+    private val retirement = SegmentRetirement(disk)
 
-    private val open = ArrayList<SegmentReader>()
+    private val open = ArrayList<SegmentFileReader>()
 
     private val writing = ConcurrentHashMap.newKeySet<Long>()
 
     private var nextFileId: Long = 1
-    private var logs: WalSet
+    private var logs: WalSegmentSet
 
     @Volatile
     private var failure: WritesStopped? = null
@@ -114,7 +119,7 @@ class LsmEngine(
     private var closed = false
 
     @Volatile
-    private var version: Version
+    private var version: VersionSnapshot
 
     private var published = -1L
 
@@ -133,7 +138,7 @@ class LsmEngine(
         Manifest.sweep(directory, disk, manifest)
 
         val onDisk = manifest.segments.map { meta ->
-            SegmentFile.open(Manifest.segmentPath(directory, meta.id), meta, blocks, disk)
+            SegmentFileFormat.open(Manifest.segmentPath(directory, meta.id), meta, blocks, disk)
         }
         val recovered = replayWals(directory, disk, manifest, config, segmentWriter)
         recovered.damaged?.let { (path, damage) ->
@@ -150,8 +155,8 @@ class LsmEngine(
         nextFileId = recovered.nextFileId
 
         recovered.active.walId = nextFileId++
-        logs = WalSet(directory, disk, config.sync, recovered.active.walId) { syncFault?.invoke() }
-        version = Version(
+        logs = WalSegmentSet(directory, disk, config.sync, recovered.active.walId) { syncFault?.invoke() }
+        version = VersionSnapshot(
             recovered.active,
             emptyList(),
             onDisk + recovered.sealed,
@@ -164,7 +169,7 @@ class LsmEngine(
         // since, so nothing else will notice until it does.
         if (recovered.sealed.isNotEmpty()) compactor.execute { compactWhileNeeded() }
         // An interval policy only synced inside a later write: one write and then silence stayed unsynced
-        (config.sync as? SyncPolicy.Interval)?.let { policy ->
+        (config.sync as? WalSyncPolicy.Interval)?.let { policy ->
             syncer.scheduleWithFixedDelay(
                 {
                     if (!closed && failure == null) try {
@@ -336,7 +341,7 @@ class LsmEngine(
 
                 val discarded = version
                 install(
-                    Version(fresh, emptyList(), emptyList(), last, previous, generation.incrementAndGet()),
+                    VersionSnapshot(fresh, emptyList(), emptyList(), last, previous, generation.incrementAndGet()),
                     segments = discarded.segments,
                     tables = buildList {
                         add(discarded.active)
@@ -415,7 +420,7 @@ class LsmEngine(
         open += written
         logs.clear()
         install(
-            Version(
+            VersionSnapshot(
                 version.active,
                 version.frozen,
                 version.segments + written,
@@ -641,7 +646,7 @@ class LsmEngine(
                 open += written
                 val last = current.lastSequence
                 install(
-                    Version(fresh, emptyList(), current.segments + written, last, last, generation.incrementAndGet()),
+                    VersionSnapshot(fresh, emptyList(), current.segments + written, last, last, generation.incrementAndGet()),
                     tables = tables,
                 )
                 failure = null
@@ -661,8 +666,8 @@ class LsmEngine(
     }
 
     private fun install(
-        next: Version,
-        segments: Collection<SegmentReader> = emptyList(),
+        next: VersionSnapshot,
+        segments: Collection<SegmentFileReader> = emptyList(),
         tables: Collection<MemTable> = emptyList(),
     ) {
         version = next

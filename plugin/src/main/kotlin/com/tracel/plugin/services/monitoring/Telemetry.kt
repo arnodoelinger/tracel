@@ -26,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.LongAdder
 
-
 /**
  * Counts what happened since the last report: which commands and flags get used, how rollbacks go, what breaks.
  *

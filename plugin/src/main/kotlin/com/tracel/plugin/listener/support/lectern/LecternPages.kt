@@ -10,7 +10,7 @@ internal object LecternPages {
 
     /** Starts from what [store] holds. Before any listener runs. */
     fun open(store: BlockNotes) {
-        byLectern.open(store.loadAll(), store::writeAll)
+        byLectern.open(store.loadAll(), store::putAll)
     }
 
     /**

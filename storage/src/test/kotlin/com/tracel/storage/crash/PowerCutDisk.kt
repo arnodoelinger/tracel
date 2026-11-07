@@ -1,6 +1,6 @@
 package com.tracel.storage.crash
 
-import com.tracel.storage.lsm.disk.Disk
+import com.tracel.storage.lsm.io.Disk
 import java.io.IOException
 import java.io.SyncFailedException
 import java.lang.foreign.Arena

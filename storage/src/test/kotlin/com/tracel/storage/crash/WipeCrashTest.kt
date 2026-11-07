@@ -1,7 +1,7 @@
 package com.tracel.storage.crash
 
-import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
+import com.tracel.storage.lsm.LsmOptions
 import com.tracel.storage.spi.MutationBatch
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -23,12 +23,12 @@ class WipeCrashTest {
 
     @Test
     fun `after a wipe that keeps rows, a kill leaves exactly the kept rows`(@TempDir dir: Path) {
-        val first = LsmEngine(dir, LsmConfig())
+        val first = LsmEngine(dir, LsmOptions())
         first.write(batch(history, numbering), durable = true)
         first.wipe(batch(numbering))
         first.halt()
 
-        val second = LsmEngine(dir, LsmConfig())
+        val second = LsmEngine(dir, LsmOptions())
         try {
             assertNull(second.snapshot().use { it.get(history) }, "the history is gone")
             assertNotNull(second.snapshot().use { it.get(numbering) }, "the numbering is not")
@@ -41,13 +41,13 @@ class WipeCrashTest {
 
     @Test
     fun `a kill before the wipe is committed leaves the history exactly as it was`(@TempDir dir: Path) {
-        val first = LsmEngine(dir, LsmConfig())
+        val first = LsmEngine(dir, LsmOptions())
         first.write(batch(history, numbering), durable = true)
         first.wipeHook = { throw IllegalStateException("killed after the new log, before the manifest") }
         assertThrows<IllegalStateException> { first.wipe(batch(numbering)) }
         first.halt()
 
-        val second = LsmEngine(dir, LsmConfig())
+        val second = LsmEngine(dir, LsmOptions())
         try {
             assertEquals(true, has(second, history), "the history is still there")
             assertEquals(true, has(second, numbering))
@@ -58,12 +58,12 @@ class WipeCrashTest {
 
     @Test
     fun `a wipe that keeps nothing still empties the store for good`(@TempDir dir: Path) {
-        val first = LsmEngine(dir, LsmConfig())
+        val first = LsmEngine(dir, LsmOptions())
         first.write(batch(history), durable = true)
         first.wipe()
         first.halt()
 
-        val second = LsmEngine(dir, LsmConfig())
+        val second = LsmEngine(dir, LsmOptions())
         try {
             assertEquals(false, has(second, history))
         } finally {

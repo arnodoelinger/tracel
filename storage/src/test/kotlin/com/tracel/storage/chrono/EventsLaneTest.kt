@@ -1,6 +1,5 @@
 package com.tracel.storage.chrono
 
-import com.tracel.engine.event.EventLog as EventLogPort
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.store.PurgeCategory
@@ -11,8 +10,8 @@ import com.tracel.model.event.EventKind
 import com.tracel.model.log.Seq
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.WorldId
-import com.tracel.storage.ports.event.EventLog
-import com.tracel.storage.ports.ops.purgeSome
+import com.tracel.storage.admin.purgeSome
+import com.tracel.storage.history.StoredEventLog
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.player
 import kotlinx.coroutines.test.runTest
@@ -54,7 +53,7 @@ class EventsLaneTest {
         return at.world == world && (f.region?.contains(at) ?: true)
     }
 
-    private suspend fun assertAll(log: EventLogPort, written: List<ActorEvent>, label: String) {
+    private suspend fun assertAll(log: StoredEventLog, written: List<ActorEvent>, label: String) {
         val since = millis0 + (written.maxOf { it.epochMillis } - millis0) / 2
         val kinds = EventKind.entries.toSet()
         val filters = listOf(
@@ -77,21 +76,21 @@ class EventsLaneTest {
     fun `events answer every filter the way a list would, merged or not, and after a reopen`(@TempDir dir: Path) = runTest {
         val written = events(1200)
         Stack(dir).use { stack ->
-            val log = EventLog(stack.storage)
+            val log = StoredEventLog(stack.storage)
             for (e in written.take(700)) log.append(e)
             assertAll(log, written.take(700), "fragments")
             Chrono.of(stack.storage).mergeAll()
             for (e in written.drop(700)) log.append(e)
             assertAll(log, written, "merged then more")
         }
-        Stack(dir).use { stack -> assertAll(EventLog(stack.storage), written, "reopened") }
+        Stack(dir).use { stack -> assertAll(StoredEventLog(stack.storage), written, "reopened") }
     }
 
     @Test
     fun `a purge of events takes events and leaves the world's changes alone`(@TempDir dir: Path) = runTest {
         val written = events(600)
         Stack(dir).use { stack ->
-            val log = EventLog(stack.storage)
+            val log = StoredEventLog(stack.storage)
             for (e in written) log.append(e)
             Chrono.of(stack.storage).mergeAll()
             val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.EVENTS), PurgeFilter(player = steve.uuid)))

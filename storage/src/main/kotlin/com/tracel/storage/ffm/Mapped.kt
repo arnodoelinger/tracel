@@ -1,6 +1,6 @@
 package com.tracel.storage.ffm
 
-import com.tracel.storage.lsm.disk.Disk
+import com.tracel.storage.lsm.io.Disk
 import java.lang.foreign.Arena
 import java.lang.foreign.MemorySegment
 import java.nio.file.Path
