@@ -2,256 +2,136 @@ package com.tracel.storage.ports.log
 
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.world.edit.BlockEdits
-import com.tracel.model.log.LogKind
 import com.tracel.model.log.Seq
 import com.tracel.model.transaction.Transaction
-import com.tracel.model.world.*
+import com.tracel.model.world.BlockPos
+import com.tracel.model.world.ChangeSubject
+import com.tracel.model.world.WorldChange
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.RawBlockEdits
-import com.tracel.storage.codec.Keys
-import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Section
+import com.tracel.storage.chrono.Cell
+import com.tracel.storage.chrono.Changes
+import com.tracel.storage.chrono.Chrono
+import com.tracel.storage.chrono.ChronoKinds
+import com.tracel.storage.chrono.Lane
+import com.tracel.storage.chrono.LookupPlan
+import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.query.Found
+import com.tracel.storage.codec.Extras
 import com.tracel.storage.intern.Interning
-import com.tracel.storage.util.Accepted
-import com.tracel.storage.util.ascending
-import com.tracel.storage.util.pageAccepted
-import it.unimi.dsi.fastutil.longs.LongArrayList
-import java.lang.foreign.MemorySegment
-import java.util.Arrays
-import java.util.stream.IntStream
 import com.tracel.engine.log.TransactionLog as TransactionLogPort
 import com.tracel.engine.world.WorldLog as WorldLogPort
 
 /**
- * The world-change log, plus the indexes that make it searchable.
- *
- * One record per change under its sequence number, one per-coordinate entry so "what stood here
- * before" is a prefix scan of a single block, and entries in the actor, time and spatial families
- * — which it shares with [TransactionLog], numbering out of the same counter, so a region scan
- * returns block edits and item movements already interleaved in the order they happened.
- *
- * Sequences are stored inverted everywhere, so newest-first is a forward scan and the engine
- * still never needs a backwards cursor.
+ * The world-change log, kept by place: every block and entity change goes into its tile's history, as [Chrono]
+ * keeps it, and every lookup is answered from there.
  */
-class WorldLog(private val storage: TracelStorage) : WorldLogPort {
+class WorldLog(private val storage: TracelStorage, private val chrono: Chrono = Chrono.of(storage)) : WorldLogPort {
     private val interning: Interning get() = storage.interning
-    private val writer = WorldWriter(storage)
-    private val decoder = WorldDecoder(storage.interning)
-    private val pages = WorldPages(decoder, storage.interning)
 
-    override suspend fun append(change: WorldChange) = writer.append(change)
+    override suspend fun append(change: WorldChange) {
+        storage.write {
+            val worldId = interning.internWorld(this, change.at.world)
+            val (_, x, y, z) = change.at
+            val tile = Tile.at(worldId, x, z)
+            val cell = Cell.of(x, y, z).packed
+            val actor = change.causedBy?.let { interning.internHolder(this, it) } ?: 0
+            val kind = ChronoKinds.of(change.cause, change.action)
+            val seq = change.seq.raw
+            when (val subject = change.subject) {
+                is ChangeSubject.Block -> {
+                    val writer = chrono.writer(this, Lane.BLOCKS)
+                    refuseTwice(this, writer.holds(seq), tile, Lane.BLOCKS, change.seq)
+                    writer.add(
+                        tile, seq, change.epochMillis, cell, actor, kind,
+                        interning.internBlockData(this, subject.before.data), interning.internBlockData(this, subject.after.data),
+                        Extras.block(subject.before.extras), Extras.block(subject.after.extras),
+                    )
+                }
 
-    override suspend fun appendAll(edits: BlockEdits, nextSeqRange: suspend (Int) -> Seq): Int =
-        writer.appendAll(edits, nextSeqRange)
+                is ChangeSubject.Entity -> {
+                    val writer = chrono.writer(this, Lane.ENTITIES)
+                    refuseTwice(this, writer.holds(seq), tile, Lane.ENTITIES, change.seq)
+                    writer.addEntity(
+                        tile, seq, change.epochMillis, cell, actor, kind, interning.internEntityType(this, subject.type),
+                        subject.entity.mostSignificantBits, subject.entity.leastSignificantBits,
+                        Extras.shape(subject.before), Extras.shape(subject.after),
+                    )
+                }
+            }
+        }
+    }
 
-    /**
-     * [appendAll] for edits that never left their interned IDs: no shape is resolved only to be interned again,
-     * the whole event takes one range of sequences and lands in one write.
-     */
-    suspend fun appendRaw(raw: RawBlockEdits, nextSeqRange: suspend (Int) -> Seq): Int = writer.appendRaw(raw, nextSeqRange)
+    override suspend fun appendAll(edits: BlockEdits, nextSeqRange: suspend (Int) -> Seq): Int {
+        val real = edits.edits.filter { it.before != it.after }
+        if (real.isEmpty()) return 0
+        val base = nextSeqRange(real.size).raw
+        storage.write {
+            val writer = chrono.writer(this, Lane.BLOCKS)
+            val actor = edits.causedBy?.let { interning.internHolder(this, it) } ?: 0
+            val kind = ChronoKinds.of(edits.cause, edits.action)
+            for ((i, edit) in real.withIndex()) {
+                val (world, x, y, z) = edit.at
+                writer.add(
+                    Tile.at(interning.internWorld(this, world), x, z), base + i, edits.epochMillis, Cell.of(x, y, z).packed, actor, kind,
+                    interning.internBlockData(this, edit.before.data), interning.internBlockData(this, edit.after.data),
+                    Extras.block(edit.before.extras), Extras.block(edit.after.extras),
+                )
+            }
+        }
+        return real.size
+    }
+
+    suspend fun appendRaw(raw: RawBlockEdits, nextSeqRange: suspend (Int) -> Seq): Int {
+        val n = raw.count
+        if (n == 0) return 0
+        val base = nextSeqRange(n).raw
+        storage.write {
+            val writer = chrono.writer(this, Lane.BLOCKS)
+            val kind = ChronoKinds.of(raw.cause, raw.action)
+            val c = raw.coordinates
+            for (i in 0 until n) {
+                val x = c[i * 3]
+                val y = c[i * 3 + 1]
+                val z = c[i * 3 + 2]
+                writer.add(
+                    Tile.at(raw.worldId, x, z), base + i, raw.epochMillis, Cell.of(x, y, z).packed, raw.causedById, kind,
+                    raw.befores[i], raw.afters[i], null, null,
+                )
+            }
+        }
+        return n
+    }
 
     override suspend fun at(pos: BlockPos, limit: Int): List<WorldChange> = storage.read {
         val worldId = interning.findWorldId(this, pos.world) ?: return@read emptyList()
-        val single = ArrayList<WorldChange>(limit.coerceAtMost(INITIAL_CAPACITY))
-        scan(Tag.WCHG_AT[worldId, pos.x, pos.y, pos.z]).use { cursor ->
-            while (single.size < limit && cursor.next()) {
-                val seq = Keys.invert(cursor.keyU64(17))
-                get(Tag.WCHG[seq])?.let { single += decoder.decode(this, seq, it) }
-            }
-        }
-
-        val packed = Section.position(pos.x, pos.y, pos.z)
-        val fromSections = ArrayList<WorldChange>()
-        scan(Tag.WCHG_AT_SECTION[worldId, pos.x shr 4, pos.y shr 4, pos.z shr 4]).use { cursor ->
-            while (fromSections.size < limit && cursor.next()) {
-                val baseSeq = Keys.invert(cursor.keyU64(17))
-                val record = get(Tag.WCHG[baseSeq]) ?: continue
-                val index = Section.indexOf(record, packed)
-                if (index < 0) continue
-                fromSections += decoder.sectionChangeAt(this, record, index, packed)
-            }
-        }
-
-        if (fromSections.isEmpty()) return@read single
-        if (single.isEmpty()) return@read fromSections.take(limit)
-
-        val out = ArrayList<WorldChange>(limit.coerceAtMost(single.size + fromSections.size))
-        var a = 0
-        var b = 0
-        while (out.size < limit && (a < single.size || b < fromSections.size)) {
-            out += when {
-                a == single.size -> fromSections[b++]
-                b == fromSections.size -> single[a++]
-                single[a].seq.raw >= fromSections[b].seq.raw -> single[a++]
-                else -> fromSections[b++]
-            }
-        }
-        out
+        val tile = Tile.at(worldId, pos.x, pos.z)
+        val cell = Cell.of(pos.x, pos.y, pos.z)
+        val reader = chrono.reader(this)
+        val found = Lane.WORLD.map { lane -> lane to Found(tile, reader.history(tile, cell, limit, lane)) }
+        Changes(interning, this).newestFirst(found, 0, limit)
     }
 
-    @Suppress("UNCHECKED_CAST")
+    override suspend fun query(filter: LookupFilter): List<WorldChange> = storage.read { select(this, filter, ends = false) }
+
     override suspend fun queryTogether(
         transactions: TransactionLogPort,
         filter: LookupFilter,
         includeWorld: Boolean,
         structureEnds: Boolean,
-    ): Pair<List<WorldChange>, List<Transaction>> = storage.read {
-        val ids = interning.idsFor(this, filter)
-        if (ids.matchesNothing) return@read emptyList<WorldChange>() to emptyList()
-        val holderIds = ids.holders
-        val filterWorldId = ids.world
-        val regionWorldId = ids.regionWorld
-        val region = filter.region
-        val scans: List<Scan>? = when {
-            region != null -> regionScans(this, interning, region, filter.since, filter.until)
-            holderIds.isNotEmpty() -> scansOver(holderIds.map { Tag.ACTOR[it] })
-            else -> null
-        }
-        val inlineWorld = includeWorld && scans != null && region != null && regionWorldId != null &&
-                (filterWorldId == null || filterWorldId == regionWorldId) &&
-                filter.material == null && filter.itemKeys.isEmpty() && filter.offset == 0 && filter.limit == Int.MAX_VALUE
-        val worldRows = if (inlineWorld) SpatialRows() else null
-
-        val piped = scans == null && includeWorld && filter.offset == 0 && filter.limit == Int.MAX_VALUE
-        var fetched: Accepted? = null
-        val (worldSeqs, txnSeqs) = when {
-            scans != null && scans.isEmpty() -> return@read emptyList<WorldChange>() to emptyList()
-            piped -> QueryProbe.phase("index + fetch") {
-                val (world, txns) = fetchByTime(filter.since, filter.until, filter.excludedCauses) { record ->
-                    WorldFilter.accepts(this, interning, record, filter, ids)
-                }
-                fetched = world
-                LongArrayList() to txns
-            }
-
-            else -> QueryProbe.phase("index") {
-                gatherForFilter(scans, filter.since, filter.until, filter.excludedCauses, region, worldRows)
-            }
-        }
-        val worldArr = if (inlineWorld || piped) LongArray(0) else ascending(worldSeqs)
-        val txnLog = transactions as TransactionLog
-        val byItem =
-            if (scans == null) txnLog.itemKeyIdsFor(this, filter) else null
-        val txnArr = if (byItem == null) ascending(txnSeqs) else ascending(
-            QueryProbe.phase("item index") {
-                gatherSeqs(
-                    LogKind.TRANSACTION,
-                    scansOver(byItem.map { Tag.ITEM[it] }),
-                    filter.since,
-                    filter.until,
-                    Int.MAX_VALUE,
-                    filter.excludedCauses,
-                    null
-                )
-            },
-        )
-        val unit = this
-        val slot = arrayOfNulls<Any>(2)
-        IntStream.range(0, 2).parallel().forEach { i ->
-            if (i == 0) {
-                slot[0] = when {
-                    !includeWorld -> emptyList()
-                    worldRows != null -> QueryProbe.phase("world rows") {
-                        pages.fromRows(unit, worldRows, filter, ids, regionWorldId!!, structureEnds)
-                    }
-
-                    fetched != null -> QueryProbe.phase("world records") {
-                        pages.decodeAccepted(unit, fetched!!, filter, structureEnds)
-                    }
-
-                    else -> QueryProbe.phase("world records") {
-                        loadSeqs(unit, worldArr, filter, ids, structureEnds)
-                    }
-                }
-            } else {
-                val loaded = QueryProbe.phase("txn records") { txnLog.loadSeqs(unit, txnArr, filter) }
-                val lots = QueryProbe.phase("txn lots") {
-                    txnLog.loadLots(unit, LongArray(loaded.size) { loaded[it].seq.raw }.also(Arrays::sort))
-                }
-                slot[1] = if (lots.isEmpty()) loaded else loaded.map { txn ->
-                    lots[txn.seq.raw]?.let { txn.copy(lots = it) } ?: txn
-                }
-            }
-        }
-        (slot[0] as List<WorldChange>) to (slot[1] as List<Transaction>)
+    ): Pair<List<WorldChange>, List<Transaction>> {
+        val world = if (!includeWorld) emptyList() else storage.read { select(this, filter, structureEnds) }
+        val log = transactions as? TransactionLog ?: return world to transactions.query(filter)
+        return world to storage.read { log.select(this, filter, withLots = true) }
     }
 
-    override suspend fun query(filter: LookupFilter): List<WorldChange> = storage.read {
-        val ids = interning.idsFor(this, filter)
-        if (ids.matchesNothing) return@read emptyList()
-        val holderIds = ids.holders
-
-        val wanted = filter.limit + filter.offset
-        val region = filter.region
-        val batched = wanted >= BATCHED_FROM || region != null
-        val scans: List<Scan>? = when {
-            region != null -> regionScans(this, interning, region, filter.since, filter.until)
-            holderIds.isNotEmpty() -> scansOver(holderIds.map { Tag.ACTOR[it] })
-            else -> null
-        }
-        val matched = LongArrayList()
-        val records = ArrayList<MemorySegment>()
-        val take = { seq: Long ->
-            val record = get(Tag.WCHG[seq])
-            if (record != null && WorldFilter.accepts(this, interning, record, filter, ids)) {
-                matched.add(seq)
-                records += record
-            }
-            matched.size
-        }
-
-        if (batched) {
-            val seqs = ascending(
-                gatherSeqs(
-                    LogKind.WORLD,
-                    scans,
-                    filter.since,
-                    filter.until,
-                    Int.MAX_VALUE,
-                    filter.excludedCauses,
-                    region
-                ),
-            )
-            return@read loadSeqs(this, seqs, filter, ids, structureEnds = false)
-        }
-
-        if (scans != null) {
-            if (scans.isEmpty()) return@read emptyList()
-            mergeDescending(
-                scans, LogKind.WORLD, wanted, take,
-                sinceMillis = filter.since, untilMillis = filter.until, excludedCauses = filter.excludedCauses,
-            )
-        } else {
-            scanDescendingByTime(LogKind.WORLD, filter.since, filter.until, wanted, take)
-        }
-
-        val from = filter.offset.coerceAtMost(matched.size)
-        val until = (from.toLong() + filter.limit).coerceAtMost(matched.size.toLong()).toInt()
-        val out = ArrayList<WorldChange>(until - from)
-        for (i in from until until) decoder.expandInto(this, matched.getLong(i), records[i], null, filter, out)
-        out
+    private fun refuseTwice(unit: StorageUnit, pending: Boolean, tile: Tile, lane: Lane, seq: Seq) {
+        check(!pending && !chrono.holds(unit, tile, lane, seq.raw)) { "world change at $seq already appended; the log is append-only." }
     }
 
-    private fun loadSeqs(
-        unit: StorageUnit,
-        seqs: LongArray,
-        filter: LookupFilter,
-        ids: FilterIds,
-        structureEnds: Boolean,
-    ): List<WorldChange> {
-        if (seqs.isEmpty()) return emptyList()
-        val accepted = QueryProbe.phase("world records fetch") {
-            pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
-                QueryProbe.opened(slice.size.toLong())
-                val got = unit.fetchSlices(Tag.WCHG, slice) { WorldFilter.accepts(unit, interning, it, filter, ids) }
-                for (i in 0 until got.seqs.size) keep(got.seqs.getLong(i), got.records[i])
-            }
-        }
-        return pages.decodeAccepted(unit, accepted, filter, structureEnds)
-    }
-
-    private companion object {
-        const val INITIAL_CAPACITY = 32
+    private fun select(unit: StorageUnit, filter: LookupFilter, ends: Boolean): List<WorldChange> {
+        val plan = LookupPlan.of(unit, interning, filter) ?: return emptyList()
+        return Changes(interning, unit).newestFirst(plan.run(chrono.reader(unit), ends), filter.offset, filter.limit)
     }
 }

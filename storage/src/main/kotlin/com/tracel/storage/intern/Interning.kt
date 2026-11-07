@@ -14,7 +14,10 @@ import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Scalar
 import com.tracel.storage.ffm.Key
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap
 import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
+import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -254,6 +257,8 @@ private class Interned<T : Any>(
     private val byValue: Cache<T, Int> = bounded(cacheSize)
     private val byId: Cache<Int, T> = bounded(cacheSize)
     private val counter = AtomicInteger(0)
+    private val hashed = Long2IntOpenHashMap().apply { defaultReturnValue(0) }
+    private val shared = HashMap<ByteBuffer, Int>()
 
     /** What the shared cache already knows, without touching the store. The capture path's second look. */
     fun cached(value: T): Int? = byValue.getIfPresent(value)
@@ -274,7 +279,8 @@ private class Interned<T : Any>(
         val id = counter.incrementAndGet()
         check(id > 0) { "intern namespace $namespace ran out of IDs." }
         unit.putPinned(Tag.INTERN_FORWARD[namespace, id], packed)
-        unit.putPinned(Tag.INTERN_REVERSE[namespace, packed], Scalar.int(id))
+        register(packed, id)
+        unit.afterAbort { unregister(packed, id) }
         unit.putPinned(Tag.COUNTER[COUNTER_BASE + namespace], Scalar.long(id.toLong()))
         unit.afterCommit { remember(value, id) }
         onAssigned?.invoke(unit, value, id)
@@ -290,18 +296,55 @@ private class Interned<T : Any>(
     fun forget() {
         byValue.invalidateAll()
         byId.invalidateAll()
+        synchronized(hashed) {
+            hashed.clear()
+            shared.clear()
+        }
     }
 
     /** Restores the counter from the store. */
     fun restore(unit: StorageUnit) {
         counter.set(unit.get(Tag.COUNTER[COUNTER_BASE + namespace])?.let(Scalar::asLong)?.toInt() ?: 0)
+        val prefix = byteArrayOf(Tag.INTERN_FORWARD.byte, namespace)
+        unit.scan(prefix).use { cursor ->
+            while (cursor.next()) {
+                val value = cursor.value()
+                register(value.toArray(ValueLayout.JAVA_BYTE), Tag.INTERN_FORWARD.int(cursor, 1))
+            }
+        }
     }
-
-    private fun idOf(unit: StorageUnit, packed: ByteArray): Int? =
-        unit.get(Tag.INTERN_REVERSE[namespace, packed])?.let(Scalar::asInt)
 
     /** Whether [id] came out of [unit]'s own batch and has not landed yet. */
     fun isPending(unit: StorageUnit, id: Int): Boolean = unit.batch.touches(Key(Tag.INTERN_FORWARD[namespace, id]))
+
+    private fun idOf(unit: StorageUnit, packed: ByteArray): Int? {
+        val id = synchronized(hashed) { shared[ByteBuffer.wrap(packed)] ?: hashed.get(hashOf(packed)) }
+        if (id == 0) return null
+        val stored = unit.get(Tag.INTERN_FORWARD[namespace, id]) ?: return null
+        return if (stored.byteSize() == packed.size.toLong() && stored.mismatch(MemorySegment.ofArray(packed)) == -1L) id else null
+    }
+
+    private fun register(packed: ByteArray, id: Int) = synchronized(hashed) {
+        val hash = hashOf(packed)
+        val held = hashed.get(hash)
+        if (held == 0 || held == id) hashed.put(hash, id) else shared[ByteBuffer.wrap(packed)] = id
+    }
+
+    private fun unregister(packed: ByteArray, id: Int) = synchronized(hashed) {
+        if (shared.remove(ByteBuffer.wrap(packed), id)) return@synchronized
+        val hash = hashOf(packed)
+        if (hashed.get(hash) == id) hashed.remove(hash)
+    }
+
+    private fun hashOf(packed: ByteArray): Long {
+        var h = -0x340d631b7bdddcdbL
+        for (b in packed) h = (h xor (b.toLong() and 0xFF)) * 0x100000001b3L
+        h = h xor (h ushr 33)
+        h *= -0xae502812aa7333L
+        h = h xor (h ushr 33)
+        h *= -0x3b314601e57a13adL
+        return h xor (h ushr 33)
+    }
 
     private fun remember(unit: StorageUnit, value: T, id: Int) {
         if (isPending(unit, id)) unit.afterCommit { remember(value, id) } else remember(value, id)

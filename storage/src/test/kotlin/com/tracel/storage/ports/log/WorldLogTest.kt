@@ -373,12 +373,6 @@ class WorldLogTest {
                 listOf(1L),
                 stack.worldLog.query(LookupFilter(region = LookupRegion(world, 0, 0, 0, 0))).map { it.seq.raw },
             )
-            val spatialKeys = stack.storage.read {
-                var n = 0
-                scan(Tag.SPATIAL.prefix).use { cursor -> while (cursor.next()) n++ }
-                n
-            }
-            assertEquals(1, spatialKeys, "a restore must not add spatial keys for the next query to walk")
             assertEquals(3, stack.worldLog.at(at(1, 70, 1)).size, "inspect-at-block still sees the raw record")
         }
     }

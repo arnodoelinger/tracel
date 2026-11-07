@@ -16,6 +16,7 @@ import com.tracel.engine.store.Counters
 import com.tracel.engine.store.StoreAdmin
 import com.tracel.engine.wear.WearLog
 import com.tracel.engine.world.BlockNotes
+import com.tracel.engine.world.Chronicle
 import com.tracel.engine.world.GroundPositions
 import com.tracel.engine.world.LiveEntities
 import com.tracel.engine.world.WorldLog
@@ -66,4 +67,6 @@ class StorageService(
     val itemForms: ItemForms,
     val blockNotes: BlockNotes,
     val liveEntities: LiveEntities,
+    /** History by place: what an area looked like at any moment. */
+    val chronicle: Chronicle,
 )

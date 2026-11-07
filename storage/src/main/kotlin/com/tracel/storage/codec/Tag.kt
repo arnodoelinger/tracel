@@ -50,7 +50,7 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
     PENDING(0x13, UUID, U64),
     COUNTER(0x14, U32),
     INTERN_FORWARD(0x15, U8, U32),
-    INTERN_REVERSE(0x16, U8, RAW),
+    INTERN_REVERSE(0x16, U8, RAW), // Retired
     WCHG(0x17, U64),
     WCHG_AT(0x18, U32, ORD32, ORD32, ORD32, INV64),
     WCHG_AT_SECTION(0x20, U32, ORD32, ORD32, ORD32, INV64),
@@ -85,15 +85,12 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
     OUTSIDE_STEP(0x36, U64),
     BLOCK_NOTE(0x37, U32, ORD32, ORD32, ORD32),
     LIVE_ENTITY(0x38, UUID),
-    PENDING_WEAR(0x39, UUID, U64);
-
-    private val offsets = IntArray(fields.size).also { offsets ->
-        var at = 1
-        for (i in fields.indices) {
-            offsets[i] = at
-            at += fields[i].size
-        }
-    }
+    PENDING_WEAR(0x39, UUID, U64),
+    CHRONO_CAPSULE(0x3A, U32, ORD32, ORD32, U8, INV64),
+    CHRONO_TRACK(0x3B, U32, INV64, U32, ORD32, ORD32, U8),
+    CHRONO_TIME(0x3C, INV64, U32, ORD32, ORD32, U8),
+    CHRONO_MARK(0x3D), // Retired
+    CHRONO_FRAGMENT(0x3E, U32, ORD32, ORD32, U8, INV64);
 
     val label: String = name.lowercase().split('_')
         .mapIndexed { i, word -> if (i == 0) word else word.replaceFirstChar(Char::uppercase) }.joinToString("")
@@ -125,11 +122,23 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
 
     fun int(key: ByteArray, field: Int): Int = intOf(KeyReader.u32(key, offsets[field]), fields[field])
 
+    fun u8(key: ByteArray, field: Int): Int = key[offsets[field]].toInt() and 0xFF
+
+    fun u8(cursor: EngineCursor, field: Int): Int = cursor.keyByte(offsets[field]).toInt() and 0xFF
+
     fun int(cursor: EngineCursor, field: Int): Int = intOf(cursor.keyU32(offsets[field]), fields[field])
 
     fun long(key: ByteArray, field: Int): Long = longOf(KeyReader.u64(key, offsets[field]), fields[field])
 
     fun long(cursor: EngineCursor, field: Int): Long = longOf(cursor.keyU64(offsets[field]), fields[field])
+
+    private val offsets = IntArray(fields.size).also { offsets ->
+        var at = 1
+        for (i in fields.indices) {
+            offsets[i] = at
+            at += fields[i].size
+        }
+    }
 
     private fun number(writer: KeyWriter, field: Field, value: Long): KeyWriter = when (field) {
         U8 -> writer.u8(value.toByte())
@@ -154,6 +163,6 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
         fun labelOf(byte: Byte): String = of(byte)?.label ?: "tag%02x".format(byte.toInt() and 0xFF)
 
         val KEEPS_NUMBERING: List<Tag> =
-            listOf(COUNTER, INTERN_FORWARD, INTERN_REVERSE, ITEM_FORM, ACTOR_KIND, ACTOR_MODE, META)
+            listOf(COUNTER, INTERN_FORWARD, ITEM_FORM, ACTOR_KIND, ACTOR_MODE, META)
     }
 }

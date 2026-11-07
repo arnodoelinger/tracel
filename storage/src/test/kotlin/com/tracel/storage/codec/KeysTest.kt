@@ -9,7 +9,6 @@ class KeysTest {
     fun `the numbering is not purgeable`() {
         assertTrue(Tag.COUNTER in Tag.KEEPS_NUMBERING, "the counters outlive a purge")
         assertTrue(Tag.INTERN_FORWARD in Tag.KEEPS_NUMBERING, "so does interning")
-        assertTrue(Tag.INTERN_REVERSE in Tag.KEEPS_NUMBERING, "both directions of it")
     }
 
     @Test

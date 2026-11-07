@@ -18,8 +18,7 @@ internal class Borrows {
     /** One hold. [expired] is set when its block ends, and everything made from it stops working. */
     class Lease(val plugin: String, val area: LookupArea) {
         @Volatile
-        var expired: Boolean = false
-            private set
+        var expired: Boolean = false; private set
 
         fun expire() {
             expired = true

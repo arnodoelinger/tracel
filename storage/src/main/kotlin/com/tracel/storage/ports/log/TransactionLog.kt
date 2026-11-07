@@ -1,277 +1,182 @@
 package com.tracel.storage.ports.log
 
-import com.tracel.storage.codec.Txn
-import com.tracel.storage.codec.Index
 import com.tracel.engine.log.lookup.LookupFilter
-import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowLot
 import com.tracel.model.holder.HolderId
 import com.tracel.model.item.ItemKey
 import com.tracel.model.item.Quantity
 import com.tracel.model.item.namesMaterial
-import com.tracel.model.log.LogKind
 import com.tracel.model.log.Seq
-import com.tracel.model.lot.LotId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.transaction.TxnId
 import com.tracel.model.world.BlockPos
-import com.tracel.model.world.WorldId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.KeyReader
+import com.tracel.storage.chrono.Cell
+import com.tracel.storage.chrono.Chrono
+import com.tracel.storage.chrono.ItemRows
+import com.tracel.storage.chrono.Lane
+import com.tracel.storage.chrono.Rows
+import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.query.IdTest
+import com.tracel.storage.chrono.query.Sieve
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Packed
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Scalar
 import com.tracel.storage.intern.Interning
-import com.tracel.storage.util.ascending
-import com.tracel.storage.util.eachIndex
 import com.tracel.storage.util.eachRow
-import com.tracel.storage.util.pageAccepted
+import com.tracel.storage.chrono.query.Found
+import com.tracel.storage.chrono.capsule.CapsuleView
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import it.unimi.dsi.fastutil.ints.IntSet
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
-import it.unimi.dsi.fastutil.longs.LongArrayList
-import java.lang.foreign.MemorySegment
-import java.util.Arrays
-import java.util.stream.IntStream
 import com.tracel.engine.log.TransactionLog as TransactionLogPort
 
 /**
- * The append-only log, plus the four indexes that make it searchable.
+ * The item log, kept by place: every flow of every transaction is a row in the capsules of the tiles the transaction
+ * happened in, or touched through a block it moved items to or from.
  *
- * A transaction is one record — header and every flow packed contiguously — under its sequence
- * number, and four secondary index entries per distinct thing it touches: the holders, the item
- * keys, the timestamp, and the chunk columns.
- *
- * Every one of those stores the sequence inverted, so "newest first" is a forward prefix scan and
- * the engine never needs a backwards cursor.
+ * A transaction that happened nowhere in particular goes to tile zero of world zero. One that touches blocks in other
+ * tiles is filed in each of them, whole, and read back once. The only row of its own is [Tag.TXN_BY_ID], which says
+ * which sequence an id has: the one thing a capsule cannot be asked.
  */
-class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
+class TransactionLog(private val storage: TracelStorage, private val chrono: Chrono = Chrono.of(storage)) : TransactionLogPort {
     private val interning: Interning get() = storage.interning
 
     override suspend fun append(transaction: Transaction) {
         storage.write {
-            check(get(Tag.TXN_BY_ID[transaction.id.raw]) == null) {
-                "transaction ${transaction.id} already appended — the log is append-only"
-            }
-
             val seq = transaction.seq.raw
             val causedById = transaction.causedBy?.let { interning.internHolder(this, it) } ?: 0
-            val record = ByteArray(Txn.size(transaction.flows.size))
-            val into = MemorySegment.ofArray(record)
             val at = transaction.at
             val atWorldId = at?.let { interning.internWorld(this, it.world) } ?: 0
-            Txn.writeHeader(
-                into,
-                transaction.cause,
-                transaction.flows.size,
-                causedById,
-                transaction.id.raw,
-                transaction.epochMillis,
-                atWorldId,
-                at?.x ?: 0,
-                at?.y ?: 0,
-                at?.z ?: 0,
-            )
+            val cell = if (at == null) 0 else Cell.of(at.x, at.y, at.z).packed
+            val kindCause = transaction.cause
+            val writer = chrono.writer(this, Lane.ITEMS)
 
-            val holders = IntOpenHashSet()
-            val itemKeys = IntOpenHashSet()
-            val bookkeeping = transaction.cause.isBookkeeping
-            if (causedById != 0) holders.add(causedById)
-            if (!bookkeeping) transaction.causedBy?.let {
-                index(
-                    this,
-                    it,
-                    seq,
-                    transaction.epochMillis,
-                    transaction.cause
+            val tiles = LinkedHashSet<Long>()
+            val home = (if (at == null) Tile.of(0, 0, 0) else Tile.at(atWorldId, at.x, at.z)).packed
+            tiles += home
+            fun touch(holder: HolderId?) {
+                val pos = holder?.let(::blockOf) ?: return
+                tiles += Tile.at(interning.internWorld(this, pos.world), pos.x, pos.z).packed
+            }
+            touch(transaction.causedBy)
+
+            val flows = transaction.flows
+            val ids = Array(flows.size) { i ->
+                val flow = flows[i]
+                touch(flow.source)
+                touch(flow.destination)
+                intArrayOf(
+                    interning.internItemKey(this, flow.itemKey), interning.internHolder(this, flow.source),
+                    interning.internHolder(this, flow.destination),
                 )
             }
-
-            transaction.flows.forEachIndexed { i, flow ->
-                val itemKeyId = interning.internItemKey(this, flow.itemKey)
-                val sourceId = interning.internHolder(this, flow.source)
-                val destinationId = interning.internHolder(this, flow.destination)
-                Txn.writeFlow(into, i, itemKeyId, sourceId, destinationId, flow.kind, flow.quantity.raw)
-                if (bookkeeping) return@forEachIndexed
-                if (holders.add(sourceId)) index(this, flow.source, seq, transaction.epochMillis, transaction.cause)
-                if (holders.add(destinationId)) index(
-                    this,
-                    flow.destination,
-                    seq,
-                    transaction.epochMillis,
-                    transaction.cause
-                )
-                itemKeys.add(itemKeyId)
+            val lots = ItemRows.lotsByFlow(transaction.lots, flows.size)
+            check(!writer.holds(seq) && tiles.none { chrono.holds(this, Tile(it), Lane.ITEMS, seq) }) {
+                "transaction ${transaction.id} already appended — the log is append-only"
             }
-
-            put(Tag.TXN[seq], record)
-            put(Tag.TXN_BY_ID[transaction.id.raw], Scalar.long(seq))
-            if (bookkeeping) return@write
-            val timed = Index.timed(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause)
-            for (holderId in holders.toIntArray()) put(Tag.ACTOR[holderId, seq], timed)
-            for (itemKeyId in itemKeys.toIntArray()) put(Tag.ITEM[itemKeyId, seq], timed)
-            put(Tag.TIME[transaction.epochMillis, seq], OWN_LOG)
-            if (at != null && atWorldId != 0) {
-                put(
-                    Tag.SPATIAL[atWorldId, at.x shr 4, at.z shr 4, transaction.epochMillis, Keys.yBin(at.y), seq],
-                    Index.at(LogKind.TRANSACTION, transaction.epochMillis, transaction.cause, at.x, at.y, at.z),
-                )
-            }
-            for ((flowIndex, lotId, quantity) in transaction.lots) {
-                put(Tag.TXN_LOT[seq, flowIndex, lotId.raw], Scalar.long(quantity.raw))
+            for (tile in tiles) {
+                for ((i, flow) in flows.withIndex()) {
+                    writer.addFlow(
+                        Tile(tile), seq, transaction.epochMillis, cell, causedById, ItemRows.kindOf(kindCause, flow.kind),
+                        ids[i][0], ids[i][1], ids[i][2], i, flow.quantity.raw, transaction.id.raw, lots[i], Tile(home),
+                    )
+                }
             }
         }
     }
 
+    /**
+     * The transaction with [id], found by reading every flow there is, newest first. Nothing asks for a transaction by
+     * id while the plugin runs, so there is no index of ids: it would be a row per transaction for a question nobody
+     * puts.
+     */
     override suspend fun find(id: TxnId): Transaction? = storage.read {
-        val seq = get(Tag.TXN_BY_ID[id.raw])?.let(Scalar::asLong) ?: return@read null
-        get(Tag.TXN[seq])?.let { decode(this, seq, it) }
+        val found = chrono.reader(this).selectAnywhere(null, Sieve.ALL, Lane.ITEMS)
+        val seq = found.firstNotNullOfOrNull { f -> f.rows.uuidLow?.let { ids -> (0 until f.rows.size).firstOrNull { ids[it] == id.raw }?.let { f.rows.seq[it] } } }
+            ?: return@read null
+        transactionsOf(this, found.map { it.tile to it.rows.let { rows -> rows.pick(IntArray(rows.size) { i -> i }.filter { rows.seq[it] == seq }.toIntArray()) } }, withLots = true)[seq]
     }
 
-    override suspend fun lotsAt(seq: Seq): List<FlowLot> = storage.read {
-        val out = ArrayList<FlowLot>()
-        eachRow(Tag.TXN_LOT[seq.raw]) { cursor ->
-            out += FlowLot(
-                cursor.keyU32(9),
-                LotId(cursor.keyU64(13)),
-                Quantity(Scalar.asLong(cursor.value())),
-            )
-        }
-        out
-    }
+    override suspend fun lotsAt(seq: Seq): List<FlowLot> = lotsAtAll(listOf(seq))[seq].orEmpty()
 
     override suspend fun lotsAtAll(seqs: List<Seq>): Map<Seq, List<FlowLot>> = storage.read {
-        val loaded = loadLots(this, LongArray(seqs.size) { i -> seqs[i].raw })
+        val loaded = loadLots(this, LongArray(seqs.size) { seqs[it].raw })
         val out = HashMap<Seq, List<FlowLot>>(loaded.size)
         for ((seq, lots) in loaded) out[Seq(seq)] = lots
         out
     }
 
-    /** @return the lots at every `seq` in [seqs], newest first. */
+    /** The lots at every sequence in [seqs] that moved any. */
     internal fun loadLots(unit: StorageUnit, seqs: LongArray): Map<Long, List<FlowLot>> {
-        if (seqs.isEmpty()) return emptyMap()
-        val n = seqs.size
-        val sorted = seqs.copyOf()
-        Arrays.sort(sorted)
-        val slices = sliceCount(n)
-        QueryProbe.cursors(slices.toLong())
-        QueryProbe.scanned(n.toLong())
-
-        val parts = arrayOfNulls<Long2ObjectOpenHashMap<MutableList<FlowLot>>>(slices)
-        val take = { s: Int ->
-            val out = Long2ObjectOpenHashMap<MutableList<FlowLot>>()
-            unit.walkWanted(Tag.TXN_LOT, sorted, n * s / slices, n * (s + 1) / slices) { at, cursor ->
-                var lots = out.get(at)
-                if (lots == null) {
-                    lots = ArrayList()
-                    out.put(at, lots)
-                }
-                lots += FlowLot(
-                    cursor.keyU32(9),
-                    LotId(cursor.keyU64(13)),
-                    Quantity(Scalar.asLong(cursor.value())),
-                )
-            }
-            parts[s] = out
-        }
-        if (slices > 1) {
-            IntStream.range(0, slices).parallel().forEach(take)
-        } else {
-            take(0)
-        }
-
-        if (slices == 1) return parts[0]!!
-        val out = Long2ObjectOpenHashMap<MutableList<FlowLot>>(n)
-        for (s in 0 until slices) {
-            for (entry in parts[s]!!.long2ObjectEntrySet()) {
-                val existing = out.putIfAbsent(entry.longKey, entry.value)
-                if (existing != null) existing += entry.value
-            }
-        }
+        val found = transactionsOfViews(unit, chrono.holding(unit, Lane.ITEMS, seqs), withLots = true)
+        val wanted = seqs.toHashSet()
+        val out = HashMap<Long, List<FlowLot>>()
+        for ((seq, txn) in found) if (seq in wanted && txn.lots.isNotEmpty()) out[seq] = txn.lots
         return out
     }
 
-    override suspend fun query(filter: LookupFilter): List<Transaction> = storage.read {
-        val ids = interning.idsFor(this, filter)
-        if (ids.matchesNothing) return@read emptyList()
-        val holderIds = ids.holders
+    override suspend fun query(filter: LookupFilter): List<Transaction> = storage.read { select(this, filter, withLots = false) }
 
-        val materialIds = itemKeyIdsFor(this, filter)
-        if (materialIds != null && materialIds.isEmpty()) return@read emptyList()
-
-        val region = filter.region
-        val since = filter.since
-        val until = filter.until
-
-        val wanted = filter.limit + filter.offset
-        val batched = wanted >= BATCHED_FROM || region != null
-
-        val scans: List<Scan>? = when {
-            region != null -> regionScans(this, interning, region, since, until)
-            holderIds.isNotEmpty() -> scansOver(holderIds.map { Tag.ACTOR[it] })
-            materialIds != null -> scansOver(materialIds.map { Tag.ITEM[it] })
-            else -> null
-        }
-        val matched = LongArrayList()
-        val records = ArrayList<MemorySegment>()
-        val take = { seq: Long ->
-            val record = get(Tag.TXN[seq])
-            if (record != null && TransactionFilter.accepts(this, interning, record, filter, ids, materialIds)) {
-                matched.add(seq)
-                records += record
-            }
-            matched.size
-        }
-
-        if (batched) {
-            val seqs = ascending(
-                gatherSeqs(LogKind.TRANSACTION, scans, since, until, Int.MAX_VALUE, filter.excludedCauses, region),
-            )
-            return@read loadSeqs(this, seqs, filter)
-        }
-
-        if (scans != null) {
-            if (scans.isEmpty()) return@read emptyList()
-            mergeDescending(
-                scans, LogKind.TRANSACTION, wanted, take,
-                sinceMillis = since, untilMillis = until, excludedCauses = filter.excludedCauses,
-            )
-        } else {
-            scanDescendingByTime(LogKind.TRANSACTION, since, until, wanted, take)
-        }
-
-        val from = filter.offset.coerceAtMost(matched.size)
-        val until2 = (from.toLong() + filter.limit).coerceAtMost(matched.size.toLong()).toInt()
-        val out = ArrayList<Transaction>(until2 - from)
-        for (i in from until until2) out += decode(this, matched.getLong(i), records[i])
-        out
-    }
-
-    internal fun loadSeqs(unit: StorageUnit, seqs: LongArray, filter: LookupFilter): List<Transaction> {
+    /** [query] with the lots on every transaction, for a caller that reads them anyway. */
+    internal fun select(unit: StorageUnit, filter: LookupFilter, withLots: Boolean): List<Transaction> {
         val ids = interning.idsFor(unit, filter)
+        if (ids.matchesNothing) return emptyList()
         val materialIds = itemKeyIdsFor(unit, filter)
-        if (seqs.isEmpty()) return emptyList()
-        val accepted = pageAccepted(seqs, filter.offset, filter.limit) { slice, keep ->
-            QueryProbe.opened(slice.size.toLong())
-            val got = unit.fetchSlices(Tag.TXN, slice) { TransactionFilter.accepts(unit, interning, it, filter, ids, materialIds) }
-            for (i in 0 until got.seqs.size) keep(got.seqs.getLong(i), got.records[i])
+        if (materialIds != null && materialIds.isEmpty()) return emptyList()
+
+        val causes = filter.causes
+        val sieve = Sieve(
+            since = filter.since ?: Long.MIN_VALUE,
+            until = filter.until ?: Long.MAX_VALUE,
+            kinds = IdTest { kind ->
+                val cause = ItemRows.causeOf(kind)
+                !cause.isBookkeeping && (causes.isEmpty() || cause in causes) && cause !in filter.excludedCauses
+            },
+        )
+        val reader = chrono.reader(unit)
+        val found = ArrayList<Found>()
+        val region = filter.region
+        var walkAll = false
+        when {
+            region != null -> {
+                val worldId = ids.regionWorld ?: return emptyList()
+                val tiles = ArrayList<Tile>()
+                for (x in region.minTileX..region.maxTileX) for (z in region.minTileZ..region.maxTileZ) tiles += Tile.of(worldId, x, z)
+                found += reader.select(tiles, sieve, Lane.ITEMS)
+            }
+            filter.holders.isNotEmpty() -> {
+                // A player or an entity is found by its track; a block is a place, and its transactions are in its tile.
+                val tiles = LinkedHashSet<Tile>()
+                for (holder in filter.holders) {
+                    val pos = blockOf(holder)
+                    if (pos != null) {
+                        interning.findWorldId(unit, pos.world)?.let { tiles += Tile.at(it, pos.x, pos.z) }
+                    } else if (holder is HolderId.Player) {
+                        interning.findHolderId(unit, holder)?.let { found += reader.selectAnywhere(it, sieve, Lane.ITEMS) }
+                    } else {
+                        walkAll = true
+                    }
+                }
+                if (tiles.isNotEmpty()) found += reader.select(tiles, sieve, Lane.ITEMS)
+                // Only players are tracked: any other holder is found by reading what there is, newest first.
+                if (walkAll) found += reader.selectAnywhere(null, sieve, Lane.ITEMS)
+            }
+            materialIds != null -> for (item in materialIds) found += reader.selectAnywhere(-item, sieve, Lane.ITEMS)
+            else -> found += reader.selectAnywhere(null, sieve, Lane.ITEMS)
         }
-        val n = accepted.seqs.size
-        if (n == 0) return emptyList()
-        val slots = arrayOfNulls<Transaction>(n)
-        eachIndex(n) { i -> slots[i] = decode(unit, accepted.seqs.getLong(i), accepted.records[i]) }
-        val out = ArrayList<Transaction>(n)
-        for (i in n - 1 downTo 0) out += slots[i]!!
-        return out
+        val byTile = found.map { it.tile to it.rows }
+        val all = transactionsOf(unit, byTile, withLots)
+        val holderBlocks = HashMap<Int, HolderBlock?>()
+        val out = all.values.filter { accepts(unit, it, filter, ids, materialIds, holderBlocks) }.sortedByDescending { it.seq.raw }
+        val from = filter.offset.coerceAtMost(out.size)
+        val to = (from.toLong() + filter.limit).coerceAtMost(out.size.toLong()).toInt()
+        return out.subList(from, to)
     }
 
-    /**
-     * Interned IDs of the item keys [filter] asks for: its exact keys, or else its material;
-     * `null` for any.
-     */
+    /** The interned ids of the item keys [filter] asks for: its exact keys, or else its material; `null` for any. */
     internal fun itemKeyIdsFor(unit: StorageUnit, filter: LookupFilter): IntSet? {
         val keys = filter.itemKeys
         val material = filter.material
@@ -291,64 +196,107 @@ class TransactionLog(private val storage: TracelStorage) : TransactionLogPort {
         out
     }
 
-    private fun index(unit: StorageUnit, holder: HolderId, seq: Long, epochMillis: Long, cause: CauseKind) {
-        val world: WorldId
-        val x: Int
-        val y: Int
-        val z: Int
-        when (holder) {
-            is HolderId.Block -> {
-                world = holder.world; x = holder.x; y = holder.y; z = holder.z
+    // region rows to transactions
+
+    private fun transactionsOfViews(unit: StorageUnit, views: List<Pair<Tile, CapsuleView>>, withLots: Boolean): Map<Long, Transaction> =
+        transactionsOf(unit, views.map { (tile, view) -> tile to view.rows() }, withLots)
+
+    /** Every transaction in [parts], once, however many tiles it was filed in. Flows come back in index order. */
+    private fun transactionsOf(unit: StorageUnit, parts: List<Pair<Tile, Rows>>, withLots: Boolean): Map<Long, Transaction> {
+        val seen = HashSet<Pair<Long, Int>>()
+        val bySeq = LinkedHashMap<Long, ArrayList<Pair<Rows, Int>>>()
+        for ((_, rows) in parts) {
+            val flow = rows.aux?.get(1) ?: continue
+            for (r in 0 until rows.size) {
+                if (!seen.add(rows.seq[r] to flow[r])) continue
+                bySeq.getOrPut(rows.seq[r]) { ArrayList() } += rows to r
             }
-
-            is HolderId.PlacedBlock -> {
-                world = holder.world; x = holder.x; y = holder.y; z = holder.z
+        }
+        val holders = HashMap<Int, HolderId>()
+        fun holder(id: Int): HolderId = holders.getOrPut(id) { interning.resolveHolder(unit, id) }
+        val items = HashMap<Int, ItemKey>()
+        val out = LinkedHashMap<Long, Transaction>()
+        for ((seq, refs) in bySeq) {
+            refs.sortBy { (rows, r) -> rows.aux!![1][r] }
+            val (first, f) = refs[0]
+            val flows = ArrayList<Flow>(refs.size)
+            val lots = ArrayList<FlowLot>()
+            for ((rows, r) in refs) {
+                val index = rows.aux!![1][r]
+                flows += Flow(
+                    items.getOrPut(rows.before[r]) { interning.resolveItemKey(unit, rows.before[r]) }, Quantity(rows.uuidHigh!![r]),
+                    holder(rows.after[r]), holder(rows.aux[0][r]), ItemRows.flowKindOf(rows.kind[r]),
+                )
+                if (withLots) rows.beforeExtrasAt(r)?.let { lots += ItemRows.readLots(index, it) }
             }
-
-            else -> return
-        }
-        val worldId = interning.internWorld(unit, world)
-        unit.put(
-            Tag.SPATIAL[worldId, x shr 4, z shr 4, epochMillis, Keys.yBin(y), seq],
-            Index.at(LogKind.TRANSACTION, epochMillis, cause, x, y, z),
-        )
-    }
-
-    private fun decode(unit: StorageUnit, seq: Long, record: MemorySegment): Transaction {
-        val version = Txn.version[record]
-        check(version == Scalar.VERSION) {
-            "transaction at seq $seq was written by codec v$version, this build reads v${Scalar.VERSION}"
-        }
-        val flowCount = Txn.flowCount[record]
-        val flows = ArrayList<Flow>(flowCount)
-        for (i in 0 until flowCount) {
-            flows += Flow(
-                interning.resolveItemKey(unit, Txn.item[record, i]),
-                Quantity(Txn.quantity[record, i]),
-                interning.resolveHolder(unit, Txn.source[record, i]),
-                interning.resolveHolder(unit, Txn.destination[record, i]),
-                Txn.kind[record, i],
+            val causedBy = first.actor[f]
+            val cell = Cell(first.cell[f])
+            out[seq] = Transaction(
+                TxnId(first.uuidLow!![f]), Seq(seq), first.millis[f], ItemRows.causeOf(first.kind[f]),
+                if (causedBy == 0) null else holder(causedBy), flows, lots,
+                at = home(unit, first, f, cell),
             )
         }
-        val causedById = Txn.causedBy[record]
-        val atWorldId = Txn.world[record]
-        return Transaction(
-            TxnId(Txn.id[record]),
-            Seq(seq),
-            Txn.epochMillis[record],
-            Txn.cause[record],
-            if (causedById == 0) null else interning.resolveHolder(unit, causedById),
-            flows,
-            at = if (atWorldId == 0) null else BlockPos(
-                interning.resolveWorld(unit, atWorldId),
-                Txn.x[record],
-                Txn.y[record],
-                Txn.z[record],
-            ),
-        )
+        return out
     }
 
-    private companion object {
-        val OWN_LOG = Index.bare(LogKind.TRANSACTION)
+    /** Where the transaction happened: the home tile every copy carries, and the cell in it; `null` for nowhere. */
+    private fun home(unit: StorageUnit, rows: Rows, i: Int, cell: Cell): BlockPos? {
+        val aux = rows.aux!!
+        val world = aux[2][i]
+        if (world == 0) return null
+        val tile = Tile.of(world, aux[3][i], aux[4][i])
+        return BlockPos(interning.resolveWorld(unit, world), tile.originX + cell.x, cell.y, tile.originZ + cell.z)
     }
+
+    // endregion
+
+    // region filter
+
+    private class HolderBlock(val worldId: Int, val x: Int, val y: Int, val z: Int)
+
+    /**
+     * Whether [txn] is one [filter] asks for. A transaction counts as in a region or a world when it happened there or
+     * any holder it touches is a block there.
+     */
+    private fun accepts(
+        unit: StorageUnit,
+        txn: Transaction,
+        filter: LookupFilter,
+        ids: FilterIds,
+        materialIds: IntSet?,
+        blocks: HashMap<Int, HolderBlock?>,
+    ): Boolean {
+        val touched = ArrayList<HolderId?>(1 + txn.flows.size * 2)
+        touched += txn.causedBy
+        for (flow in txn.flows) {
+            touched += flow.source
+            touched += flow.destination
+        }
+        fun idOf(holder: HolderId?): Int = holder?.let { interning.findHolderId(unit, it) } ?: 0
+        if (ids.holders.isNotEmpty() && touched.none { idOf(it) in ids.holders }) return false
+        if (ids.excluded.isNotEmpty() && touched.any { idOf(it) in ids.excluded }) return false
+        if (materialIds != null && txn.flows.none { (interning.findItemKeyId(unit, it.itemKey) ?: -1) in materialIds }) return false
+        val at = txn.at
+        fun placeOf(holder: HolderId?): HolderBlock? {
+            val pos = holder?.let(::blockOf) ?: return null
+            val world = interning.findWorldId(unit, pos.world) ?: return null
+            return HolderBlock(world, pos.x, pos.y, pos.z)
+        }
+        val places = touched.map { placeOf(it) }
+        val happened = at?.let { pos -> interning.findWorldId(unit, pos.world)?.let { HolderBlock(it, pos.x, pos.y, pos.z) } }
+        val spots = listOfNotNull(happened) + places.filterNotNull()
+        if (ids.world != null && spots.none { it.worldId == ids.world }) return false
+        val region = filter.region
+        if (region != null && (ids.regionWorld == null || spots.none { it.worldId == ids.regionWorld && region.containsBlock(it.x, it.y, it.z) })) return false
+        return true
+    }
+
+    private fun blockOf(holder: HolderId): BlockPos? = when (holder) {
+        is HolderId.Block -> BlockPos(holder.world, holder.x, holder.y, holder.z)
+        is HolderId.PlacedBlock -> BlockPos(holder.world, holder.x, holder.y, holder.z)
+        else -> null
+    }
+
+    // endregion
 }

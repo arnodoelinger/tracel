@@ -5,7 +5,7 @@ import com.tracel.storage.codec.CaptureSlot
 /**
  * One published ring event, copied off the `mmap`. Slots will go back immediately.
  *
- * IDs are intern numbers. [Drainer] resolves them on the storage thread.
+ * IDs are intern numbers. [CaptureDrainer] resolves them on the storage thread.
  */
 internal sealed interface RingEvent {
     val cause: Int
@@ -55,7 +55,7 @@ internal class Collected(val events: List<RingEvent>, val end: Long)
 
 /**
  * Copies up to [maxBatch] published events off the ring without releasing them: a batch that never
- * commits is read again, not lost. One consumer at a time; the [Drainer] serialises it.
+ * commits is read again, not lost. One consumer at a time; the [CaptureDrainer] serialises it.
  *
  * Stops at the first slot that is not published yet — a claimed event is not an event until its header is.
  *

@@ -25,6 +25,9 @@ import com.tracel.model.world.entity.EntityTypeKey
 import com.tracel.storage.codec.History
 import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.StorageUnit
+import com.tracel.storage.chrono.Lane
+import com.tracel.storage.chrono.Tile
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.support.Stack
@@ -98,28 +101,53 @@ class PurgeSomeTest {
         stack.containerSlots.record(HolderId.Block(overworld, 1, 64, 1), 630, listOf(ContainerSlotEntry(1, diamond, 1)))
     }
 
+    /** Every row of [lanes] that capsules and fragments hold, as (lane, seq, whether it is the one a transaction counts by). */
+    private fun StorageUnit.capsuled(vararg lanes: Lane): List<Triple<Lane, Long, Boolean>> {
+        val out = ArrayList<Triple<Lane, Long, Boolean>>()
+        for (tag in listOf(Tag.CHRONO_CAPSULE, Tag.CHRONO_FRAGMENT)) {
+            scan(tag.prefix).use { c ->
+                while (c.next()) {
+                    val lane = Lane.of(tag.u8(c.key(), 3))
+                    if (lane !in lanes) continue
+                    val tile = Tile.of(tag.int(c.key(), 0), tag.int(c.key(), 1), tag.int(c.key(), 2))
+                    val rows = lane.open(c.value()).rows()
+                    for (r in 0 until rows.size) {
+                        // A transaction is filed in several tiles and counts once, in the one it happened in.
+                        val once = lane != Lane.ITEMS || (rows.aux!![1][r] == 0 && Tile.of(rows.aux[2][r], rows.aux[3][r], rows.aux[4][r]) == tile)
+                        out += Triple(lane, rows.seq[r], once)
+                    }
+                }
+            }
+        }
+        return out
+    }
+
     private suspend fun rows(stack: Stack): Map<Tag, Int> = stack.storage.read {
+        val held = capsuled(*Lane.entries.toTypedArray())
+        val counts = mapOf(
+            Tag.WCHG to held.count { it.first in Lane.WORLD },
+            Tag.TXN to held.count { it.first == Lane.ITEMS && it.third },
+            Tag.CONTAINER_SLOT to held.count { it.first == Lane.CONTAINERS },
+            Tag.ACTOR_VISIT to held.count { it.first == Lane.VISITS },
+        )
         touched.associateWith { tag ->
-            var n = 0
-            scan(tag.prefix).use { while (it.next()) n++ }
-            n
+            counts[tag] ?: run {
+                var n = 0
+                scan(tag.prefix).use { while (it.next()) n++ }
+                n
+            }
         }
     }
 
     private suspend fun orphans(stack: Stack): List<String> = stack.storage.read {
         val live = HashSet<Long>()
-        for (tag in listOf(Tag.TXN, Tag.WCHG)) {
-            scan(tag.prefix).use { while (it.next()) live += KeyReader.u64(it.key(), 1) }
-        }
+        for ((_, seq, _) in capsuled(Lane.BLOCKS, Lane.ENTITIES, Lane.ITEMS)) live += seq
         val lost = ArrayList<String>()
         for (tag in listOf(
             Tag.ACTOR,
             Tag.ITEM,
             Tag.TIME,
             Tag.SPATIAL,
-            Tag.WCHG_AT,
-            Tag.WCHG_AT_SECTION,
-            Tag.WCHG_ENTITY
         )) {
             scan(tag.prefix).use {
                 while (it.next()) {

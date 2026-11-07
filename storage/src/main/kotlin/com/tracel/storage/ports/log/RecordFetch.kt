@@ -1,16 +1,12 @@
 package com.tracel.storage.ports.log
 
-import com.tracel.model.cause.CauseKind
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.spi.EngineCursor
 import com.tracel.storage.util.Accepted
-import com.tracel.storage.util.ascending
 import com.tracel.storage.util.concatenated
 import com.tracel.storage.util.eachIndex
 import com.tracel.storage.util.eachTask
-import com.tracel.storage.util.mergedAscending
-import it.unimi.dsi.fastutil.longs.LongArrayList
 import java.lang.foreign.MemorySegment
 
 private const val MIN_FETCH_SLICE = 4096
@@ -80,36 +76,6 @@ internal fun StorageUnit.fetchSlice(
         }
     }
     return out
-}
-
-/** The time index and the records it names, read as one pipeline. */
-internal fun StorageUnit.fetchByTime(
-    since: Long?,
-    until: Long?,
-    excludedCauses: Set<CauseKind>,
-    keep: (MemorySegment) -> Boolean,
-): Pair<Accepted, LongArrayList> {
-    val top = timeTop(until)
-    val bottom = timeBottom(since)
-    val parts = Runtime.getRuntime().availableProcessors() * SLICES_PER_THREAD
-    val cuts = splitKeys(Tag.TIME.prefix, top, bottom, parts)
-    val pieces = cuts.size + 1
-    val worlds = arrayOfNulls<Accepted>(pieces)
-    val txns = arrayOfNulls<LongArrayList>(pieces)
-    eachTask(pieces) { p ->
-        val world = LongArrayList()
-        val txn = LongArrayList()
-        val from = if (p == 0) top else cuts[p - 1]
-        val to = if (p == cuts.size) bottom else cuts[p]
-        walkTime(from, to, since, excludedCauses, null, world, txn)
-        worlds[p] = fetchSlice(Tag.WCHG, ascending(world), keep)
-        txns[p] = txn
-    }
-    var txnCount = 0
-    for (txn in txns) txnCount += txn!!.size
-    val txn = LongArrayList(txnCount)
-    for (part in txns) txn.addAll(part!!)
-    return mergedAscending(worlds) to txn
 }
 
 /** Walks the [tag] family for the keys in `sorted[from until to]`, one cursor for all of them. */

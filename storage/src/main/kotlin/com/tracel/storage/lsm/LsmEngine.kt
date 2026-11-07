@@ -302,8 +302,8 @@ class LsmEngine(
         }
     }
 
-    override fun rewriteSegment(id: Long, keep: (ByteArray, MemorySegment?) -> Boolean): Rewritten =
-        compactor.submit<Rewritten> { rewriteNow(id, keep) }.get()
+    override fun editSegment(id: Long, edit: (ByteArray, MemorySegment?) -> SegmentEdit): Rewritten =
+        compactor.submit<Rewritten> { rewriteNow(id, edit) }.get()
 
     /** Set by tests to stop a wipe after its log is on disk and before the manifest that makes it count. */
     internal var wipeHook: (() -> Unit)? = null
@@ -701,27 +701,40 @@ class LsmEngine(
         Dropped(doomed.size, doomed.sumOf { it.meta.entries.toLong() }, doomed.sumOf { it.meta.fileBytes })
     }
 
-    private fun rewriteNow(id: Long, keep: (ByteArray, MemorySegment?) -> Boolean): Rewritten {
+    private fun rewriteNow(id: Long, edit: (ByteArray, MemorySegment?) -> SegmentEdit): Rewritten {
         val old = lock.withLock { if (closed) null else version.segments.firstOrNull { it.meta.id == id } }
             ?: return Rewritten(0, 0)
 
         var kept = 0
         var removed = 0L
+        var replaced = 0
         val census = SegmentRun(old)
         census.seek(EMPTY_KEY)
         while (census.valid) {
-            if (keep(census.userKeyBytes(), census.value())) kept++ else removed++
+            when (edit(census.userKeyBytes(), census.value())) {
+                SegmentEdit.Drop -> removed++
+                SegmentEdit.Keep -> kept++
+                is SegmentEdit.Replace -> {
+                    kept++
+                    replaced++
+                }
+            }
             census.next()
         }
-        if (removed == 0L) return Rewritten(0, 0)
+        if (removed == 0L && replaced == 0) return Rewritten(0, 0)
 
         val replacement = if (kept == 0) null else {
             val newId = reserveSegmentId()
+            var current: SegmentEdit = SegmentEdit.Keep
             try {
                 segmentWriter.write(
                     arrayOf(SegmentRun(old)), newId, old.meta.level, kept, retirement.horizon(),
                     category = old.meta.category, window = old.meta.window,
-                    accept = { run -> keep(run.userKeyBytes(), run.value()) },
+                    accept = { run ->
+                        current = edit(run.userKeyBytes(), run.value())
+                        current != SegmentEdit.Drop
+                    },
+                    replace = { _ -> (current as? SegmentEdit.Replace)?.value },
                 )
             } catch (e: Throwable) {
                 writing -= newId

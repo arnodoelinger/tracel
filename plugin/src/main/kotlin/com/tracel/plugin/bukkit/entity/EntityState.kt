@@ -2,6 +2,7 @@ package com.tracel.plugin.bukkit.entity
 
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.entity.EntityExtras
+import com.tracel.plugin.bukkit.entity.nbt.EntityEssence
 import com.tracel.plugin.util.runtime.messageOrName
 import org.bukkit.Bukkit
 import org.bukkit.World
@@ -14,7 +15,9 @@ private val logger = Logger.getLogger("EntityState")
 /** Copies `Paper` capabilities from a deserialized ghost onto the live hull. */
 internal fun applyShapeInPlace(entity: Entity, extras: EntityExtras.Opaque?) {
     extras ?: return
-    val ghost = deserializeEntity(extras.bytes, entity.world, preserveUUID = false) ?: return
+    val at = entity.location
+    val nbt = EntityEssence.inflate(extras.bytes, null, at.x, at.y, at.z, at.yaw, at.pitch)
+    val ghost = deserializeEntity(nbt, entity.world, preserveUUID = false) ?: return
     if (ghost.isInWorld) {
         ghost.emptyCargo()
         runCatching { ghost.remove() }

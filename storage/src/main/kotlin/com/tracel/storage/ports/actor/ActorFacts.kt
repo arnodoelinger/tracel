@@ -4,45 +4,46 @@ import com.tracel.engine.actor.ModeTimeline
 import com.tracel.engine.actor.VisitTimeline
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.KeyReader
-import com.tracel.storage.codec.Keys
-import com.tracel.storage.codec.Tag
+import com.tracel.storage.chrono.Chrono
+import com.tracel.storage.chrono.Lane
+import com.tracel.storage.chrono.Rows
+import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.query.Sieve
 import com.tracel.storage.codec.Scalar
-import java.util.*
+import com.tracel.storage.codec.Tag
+import java.util.TreeMap
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import com.tracel.engine.actor.ActorFacts as ActorFactsPort
 
-/**
- * What the log cannot say about who did a thing: a mob's type and a player's game mode.
- *
- * A mob's type is written once, when the mob first gets an ID (see `Interning.entityKinds`). A player's mode is a
- * timeline, one row per switch.
- */
-class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
+/** What the log cannot say about who did a thing: a mob's type and a player's game mode. */
+class ActorFacts(private val storage: TracelStorage, private val chrono: Chrono = Chrono.of(storage)) : ActorFactsPort {
     override suspend fun noteMode(player: UUID, mode: Int, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
-            val latest = scan(Tag.ACTOR_MODE[holder]).use { cursor ->
-                if (cursor.next()) Scalar.asInt(cursor.value()) else null
+            val latest = rowsOf(this, Lane.MODES, holder).lastOrNull()
+            if (latest?.type != mode) {
+                chrono.writer(this, Lane.MODES).addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, 0, mode, 0L, 0L, null, null)
             }
-            if (latest != mode) put(Tag.ACTOR_MODE[holder, millis], Scalar.int(mode))
         }
     }
 
     override suspend fun openVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
-            put(Tag.ACTOR_VISIT[holder, millis], Scalar.long(VisitTimeline.OPEN))
+            chrono.writer(this, Lane.VISITS).addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, OPEN, 0, 0L, 0L, null, null)
         }
     }
 
     override suspend fun closeVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: return@write
-            val (key, open) = scan(Tag.ACTOR_VISIT[holder]).use { cursor ->
-                if (cursor.next()) cursor.key() to (Scalar.asLong(cursor.value()) == VisitTimeline.OPEN) else return@write
+            val latest = rowsOf(this, Lane.VISITS, holder).lastOrNull() ?: return@write
+            if (latest.kind == OPEN) {
+                chrono.writer(this, Lane.VISITS).addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, CLOSE, 0, 0L, 0L, null, null)
             }
-            if (open) put(key, Scalar.long(millis))
         }
     }
 
@@ -53,9 +54,15 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
             for (player in players) {
                 val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: continue
                 val rows = TreeMap<Long, Long>()
-                scan(Tag.ACTOR_VISIT[holder]).use { cursor ->
-                    while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] =
-                        Scalar.asLong(cursor.value())
+                var open: Long? = null
+                for (row in rowsOf(this, Lane.VISITS, holder)) {
+                    if (row.kind == OPEN) {
+                        rows[row.millis] = VisitTimeline.OPEN
+                        open = row.millis
+                    } else {
+                        open?.let { rows[it] = row.millis }
+                        open = null
+                    }
                 }
                 if (rows.isNotEmpty()) out[player] = VisitTimeline(rows)
             }
@@ -70,10 +77,7 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
             for (player in players) {
                 val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: continue
                 val rows = TreeMap<Long, Int>()
-                scan(Tag.ACTOR_MODE[holder]).use { cursor ->
-                    while (cursor.next()) rows[Keys.invert(KeyReader.u64(cursor.key(), 5))] =
-                        Scalar.asInt(cursor.value())
-                }
+                for (row in rowsOf(this, Lane.MODES, holder)) rows[row.millis] = row.type
                 if (rows.isNotEmpty()) out[player] = ModeTimeline(rows)
             }
             out
@@ -91,5 +95,27 @@ class ActorFacts(private val storage: TracelStorage) : ActorFactsPort {
             }
             out
         }
+    }
+
+    private class Row(val seq: Long, val millis: Long, val kind: Int, val type: Int)
+
+    private fun rowsOf(unit: StorageUnit, lane: Lane, holder: Int): List<Row> {
+        val out = ArrayList<Row>()
+        for (found in chrono.reader(unit).selectAnywhere(holder, Sieve.ALL, lane)) {
+            val rows: Rows = found.rows
+            for (r in 0 until rows.size) if (rows.actor[r] == holder) out += Row(rows.seq[r], rows.millis[r], rows.kind[r], rows.after[r])
+        }
+        out.sortBy { it.seq }
+        return out
+    }
+
+    private fun nextSeq(millis: Long): Long = (millis shl SEQ_BITS) or (counter.incrementAndGet() and ((1L shl SEQ_BITS) - 1))
+
+    private companion object {
+        val GLOBAL = Tile.of(0, 0, 0)
+        val counter = AtomicLong()
+        const val SEQ_BITS = 12
+        const val OPEN = 0
+        const val CLOSE = 1
     }
 }

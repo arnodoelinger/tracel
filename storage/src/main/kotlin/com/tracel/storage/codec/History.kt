@@ -1,6 +1,7 @@
 package com.tracel.storage.codec
 
 import com.tracel.model.log.LogKind
+import com.tracel.storage.chrono.Lane
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.SegmentClassifier
 import java.lang.foreign.MemorySegment
@@ -20,6 +21,8 @@ object History {
     /** The kind of history a row with this [tag] and this first byte of value is, or [SegmentClassifier.STATE]. */
     fun categoryOf(tag: Int, valueFirst: Int): Int = when (tag.toByte()) {
         Tag.WCHG.byte, Tag.WCHG_AT.byte, Tag.WCHG_AT_SECTION.byte, Tag.WCHG_ENTITY.byte -> BLOCKS
+        Tag.CHRONO_CAPSULE.byte, Tag.CHRONO_FRAGMENT.byte -> Lane.ofMagic(valueFirst).let { if (it == null) BLOCKS else categoryOf(it) }
+        Tag.CHRONO_TRACK.byte, Tag.CHRONO_TIME.byte -> if (valueFirst in 0 until Lane.entries.size) categoryOf(Lane.of(valueFirst)) else BLOCKS
         Tag.TXN.byte, Tag.TXN_BY_ID.byte, Tag.ITEM.byte, Tag.TXN_LOT.byte -> ITEMS
         Tag.CONTAINER_SLOT.byte, Tag.ACTOR_VISIT.byte -> CONTAINERS
         Tag.EVENT.byte, Tag.EVENT_ACTOR.byte, Tag.EVENT_TIME.byte, Tag.EVENT_ENTITY.byte -> EVENTS
@@ -30,6 +33,15 @@ object History {
         }
 
         else -> SegmentClassifier.STATE
+    }
+
+    /** The kind of history a lane's capsules are. Modes are state. */
+    fun categoryOf(lane: Lane): Int = when (lane) {
+        Lane.BLOCKS, Lane.ENTITIES -> BLOCKS
+        Lane.EVENTS -> EVENTS
+        Lane.ITEMS -> ITEMS
+        Lane.CONTAINERS, Lane.VISITS -> CONTAINERS
+        Lane.MODES -> SegmentClassifier.STATE
     }
 
     /** The sequence number the record behind this row has, or `-1` for a row that is not tied to one. */
@@ -52,6 +64,7 @@ object History {
         Tag.ACTOR.byte, Tag.ITEM.byte, Tag.TIME.byte, Tag.SPATIAL.byte, Tag.TXN_LOT.byte,
         Tag.WCHG_AT.byte, Tag.WCHG_AT_SECTION.byte, Tag.WCHG_ENTITY.byte,
         Tag.EVENT_ACTOR.byte, Tag.EVENT_TIME.byte, Tag.EVENT_ENTITY.byte, Tag.ROLLED_JOB.byte, Tag.ROLLED_SET_JOB.byte,
+        Tag.CHRONO_TRACK.byte, Tag.CHRONO_TIME.byte, Tag.CHRONO_FRAGMENT.byte,
             -> false
 
         else -> true

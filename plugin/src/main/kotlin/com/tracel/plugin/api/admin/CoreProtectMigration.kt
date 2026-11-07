@@ -79,7 +79,7 @@ internal class CoreProtectMigration(
                 CoreProtectDatabase.open(location).use { database -> importer.run(database, stop, progress) }
             }
             val tally = outcome.tally
-            val taken = tally.taken.values.sum();
+            val taken = tally.taken.values.sum()
             services.plugin.logger.info(
                 "CoreProtect import ${if (outcome.stopped) "paused" else "finished"}: " +
                         "$taken records from ${tally.rows} rows in ${outcome.tookMillis / MILLIS_PER_SECOND} s.",
@@ -90,7 +90,7 @@ internal class CoreProtectMigration(
                     tookMillis = outcome.tookMillis,
                     rows = tally.rows,
                     taken = taken,
-                    skipped = tally.skipped.values.sum().toLong(),
+                    skipped = tally.skipped.values.sum(),
                     oldest = tally.oldest.takeIf { it <= tally.newest }?.let(Instant::ofEpochMilli),
                     newest = tally.newest.takeIf { tally.oldest <= it }?.let(Instant::ofEpochMilli),
                 ),

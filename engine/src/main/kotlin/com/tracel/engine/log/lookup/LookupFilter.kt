@@ -32,7 +32,8 @@ public data class LookupFilter(
     public val offset: Int = 0,
 ) {
     /**
-     * Whether something that happened at [epochMillis] lies between [since] and [until], either end left open if unset.
+     * Whether something that happened at [epochMillis] lies between [since] and [until],
+     * either end left open if unset.
      */
     public fun admitsTime(epochMillis: Long): Boolean =
         (since == null || epochMillis >= since) && (until == null || epochMillis <= until)

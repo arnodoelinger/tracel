@@ -48,7 +48,7 @@ import com.tracel.plugin.services.specifics.TracelSchedulers
 import com.tracel.plugin.util.text.Messages
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
-import com.tracel.storage.capture.Drainer
+import com.tracel.storage.capture.CaptureDrainer
 import com.tracel.storage.format.StoreFormat
 import com.tracel.storage.ports.actor.ActorFacts
 import com.tracel.storage.ports.container.ContainerSlotLog
@@ -72,6 +72,8 @@ import com.tracel.storage.ports.wear.WearLog
 import com.tracel.storage.ports.world.BlockNotes
 import com.tracel.storage.ports.world.GroundPositions
 import com.tracel.storage.ports.world.LiveEntities
+import com.tracel.storage.chrono.Chrono
+import com.tracel.storage.chrono.ChronoLog
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.Bukkit
 import org.tomlj.Toml
@@ -130,6 +132,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val storage = TracelStorage.open(plugin.dataFolder.resolve("database").toPath(), settings.store)
     resumeImport(plugin, storage)
     migrateStore(plugin, storage)
+    val chrono = Chrono.of(storage)
     val entityKinds = EntityKinds()
     storage.interning.entityKinds = entityKinds
     val schedulers = TracelSchedulers(plugin, storage.dispatcher)
@@ -137,7 +140,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val repo = LotRepository(storage, counters)
     val ledger = LotLedger(repo)
     val log = TransactionLog(storage)
-    val worldLog = WorldLog(storage)
+    val worldLog = WorldLog(storage, chrono)
     val containerSlots = ContainerSlotLog(storage, counters)
     val wear = WearLog(storage, counters)
     val actors = ActorFacts(storage)
@@ -184,6 +187,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
             itemForms = ItemForms(storage),
             blockNotes = BlockNotes(storage),
             liveEntities = LiveEntities(storage),
+            chronicle = ChronoLog(storage, chrono),
         ),
         schedulers = schedulers,
         scope = CoroutineScope(SupervisorJob() + schedulers.async + plugin.captureFailures()),
@@ -210,7 +214,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
         logging = settings.logging,
     )
     Bukkit.getAsyncScheduler().runNow(plugin) { services.warmRollback() }
-    val drainer = Drainer(
+    val drainer = CaptureDrainer(
         storage = storage,
         ring = storage.ring,
         interning = storage.interning,

@@ -23,11 +23,8 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
 
-/**
- * Drains the capture ring and turns it back into ledger work — the storage-thread half of the
- * pipeline.
- */
-class Drainer(
+/** Drains the capture ring and turns it back into ledger work. */
+class CaptureDrainer(
     private val storage: TracelStorage,
     private val ring: CaptureRing,
     private val interning: Interning,
@@ -39,7 +36,7 @@ class Drainer(
     private val placedSink: suspend (PlacedDeltas) -> Unit = { sink(it.deltas, it.epochMillis, it.cause, it.causedBy) },
     private val rawWorldSink: (suspend (RawBlockEdits) -> Unit)? = null,
 ) {
-    private val logger = Logger.getLogger(Drainer::class.java.name)
+    private val logger = Logger.getLogger(CaptureDrainer::class.java.name)
     private val drainedEvents = AtomicLong(0)
     private val drainedBatches = AtomicLong(0)
     private val rejected = AtomicLong(0)

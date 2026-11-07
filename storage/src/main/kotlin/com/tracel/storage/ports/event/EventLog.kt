@@ -1,5 +1,6 @@
 package com.tracel.storage.ports.event
 
+import com.tracel.engine.event.EventLog as EventLogPort
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.model.event.ActorEvent
 import com.tracel.model.event.EventKind
@@ -7,143 +8,99 @@ import com.tracel.model.log.Seq
 import com.tracel.model.world.BlockPos
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.codec.Keys
-import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.recordBytes
-import com.tracel.storage.ffm.Bytes.i32
-import com.tracel.storage.ffm.Bytes.i64
-import com.tracel.storage.ffm.Bytes.i8
-import com.tracel.storage.ffm.Bytes.putI32
-import com.tracel.storage.ffm.Bytes.putI64
-import com.tracel.storage.ffm.Bytes.putI8
-import com.tracel.storage.ffm.Bytes.readBytes
-import com.tracel.storage.ffm.Bytes.writeBytes
+import com.tracel.storage.chrono.Cell
+import com.tracel.storage.chrono.Chrono
+import com.tracel.storage.chrono.Lane
+import com.tracel.storage.chrono.Rows
+import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.query.Box
+import com.tracel.storage.chrono.query.Found
+import com.tracel.storage.chrono.query.IdTest
+import com.tracel.storage.chrono.query.Sieve
+import com.tracel.storage.chrono.query.and
+import com.tracel.model.holder.HolderId
 import com.tracel.storage.intern.Interning
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet
-import java.lang.foreign.MemorySegment
-import com.tracel.engine.event.EventLog as EventLogPort
 
 /** The event log: what was said, what was typed, who joined and disconnected. */
-class EventLog(private val storage: TracelStorage) : EventLogPort {
+class EventLog(private val storage: TracelStorage, private val chrono: Chrono = Chrono.of(storage)) : EventLogPort {
     private val interning: Interning get() = storage.interning
 
     override suspend fun append(event: ActorEvent) {
         storage.write {
-            val seq = event.seq.raw
-            check(get(Tag.EVENT[seq]) == null) { "event at ${event.seq} already appended; the log is append-only." }
             val byId = event.by?.let { interning.internHolder(this, it) } ?: 0
             val at = event.at
             val worldId = at?.let { interning.internWorld(this, it.world) } ?: 0
-            val text = event.text?.toByteArray(Charsets.UTF_8) ?: NO_TEXT
-            put(Tag.EVENT[seq], recordBytes(HEADER_BYTES + text.size) {
-                putI8(KIND, event.kind.ordinal.toByte())
-                putI32(BY, byId)
-                putI32(WORLD, worldId)
-                putI32(X, at?.x ?: 0)
-                putI32(Y, at?.y ?: 0)
-                putI32(Z, at?.z ?: 0)
-                putI64(EPOCH, event.epochMillis)
-                writeBytes(HEADER_BYTES.toLong(), text)
-            })
-            if (byId != 0) put(Tag.EVENT_ACTOR[byId, event.epochMillis, seq], NONE)
-            put(Tag.EVENT_TIME[event.epochMillis, seq], NONE)
-            event.entity?.let { put(Tag.EVENT_ENTITY[it, seq], NONE) }
+            val tile = if (at == null) Tile.of(0, 0, 0) else Tile.at(worldId, at.x, at.z)
+            val writer = chrono.writer(this, Lane.EVENTS)
+            check(!writer.holds(event.seq.raw) && !chrono.holds(this, tile, Lane.EVENTS, event.seq.raw)) {
+                "event at ${event.seq} already appended; the log is append-only."
+            }
+            val entity = event.entity
+            writer.addEntity(
+                tile, event.seq.raw, event.epochMillis, if (at == null) 0 else Cell.of(at.x, at.y, at.z).packed, byId,
+                event.kind.ordinal, 0, entity?.mostSignificantBits ?: 0L, entity?.leastSignificantBits ?: 0L,
+                event.text?.toByteArray(Charsets.UTF_8), null,
+            )
         }
     }
 
     override suspend fun query(filter: LookupFilter, kinds: Set<EventKind>): List<ActorEvent> = storage.read {
         if (kinds.isEmpty() || filter.material != null || filter.blockMaterials.isNotEmpty()) return@read emptyList()
-        val holderIds = filter.holders.map { interning.findHolderId(this, it) ?: return@map null }
-        if (filter.holders.isNotEmpty() && holderIds.all { it == null }) return@read emptyList()
-        val excluded = IntOpenHashSet()
-        for (holder in filter.excludedHolders) interning.findHolderId(this, holder)?.let(excluded::add)
-        val worldId = (filter.region?.world ?: filter.world)?.takeIf { filter.entity == null }
-            ?.let { interning.findWorldId(this, it) ?: return@read emptyList() }
-        val until = filter.until ?: Long.MAX_VALUE
-        val want = filter.offset.toLong() + filter.limit
-
-        fun accepts(record: MemorySegment): Boolean {
-            if (EventKind.entries[record.i8(KIND).toInt()] !in kinds) return false
-            if (record.i32(BY) in excluded) return false
-            if (worldId == null) return true
-            if (record.i32(WORLD) != worldId) return false
-            val region = filter.region ?: return true
-            return region.containsBlock(record.i32(X), record.i32(Y), record.i32(Z))
-        }
-
-        val found = ArrayList<ActorEvent>()
-        fun walk(prefix: ByteArray, from: ByteArray, millisAt: Int) {
-            var taken = 0L
-            scan(prefix, from).use { cursor ->
-                while (taken < want && cursor.next()) {
-                    if (Keys.invert(cursor.keyU64(millisAt)) < (filter.since ?: Long.MIN_VALUE)) break
-                    val seq = Keys.invert(cursor.keyU64(millisAt + 8))
-                    val record = get(Tag.EVENT[seq]) ?: continue
-                    if (!accepts(record)) continue
-                    found += decode(this, seq, record)
-                    taken++
-                }
-            }
-        }
-
+        val holderIds = filter.holders.mapNotNull { interning.findHolderId(this, it) }
+        if (filter.holders.isNotEmpty() && holderIds.isEmpty()) return@read emptyList()
+        val excluded = filter.excludedHolders.mapNotNull { interning.findHolderId(this, it) }
         val entity = filter.entity
-        if (entity != null) {
-            val prefix = Tag.EVENT_ENTITY[entity]
-            scan(prefix, prefix).use { cursor ->
-                while (cursor.next()) {
-                    val seq = Keys.invert(cursor.keyU64(17))
-                    val record = get(Tag.EVENT[seq]) ?: continue
-                    if (record.i64(EPOCH) !in (filter.since ?: Long.MIN_VALUE)..until) continue
-                    if (EventKind.entries[record.i8(KIND).toInt()] !in kinds) continue
-                    found += decode(this, seq, record)
-                }
-            }
-            found.sortWith(compareByDescending<ActorEvent> { it.epochMillis }.thenByDescending { it.seq })
-        } else if (filter.holders.isEmpty()) {
-            walk(Tag.EVENT_TIME.prefix, Tag.EVENT_TIME[until], 1)
-        } else {
-            for (id in holderIds.filterNotNull()) walk(Tag.EVENT_ACTOR[id], Tag.EVENT_ACTOR[id, until], 5)
-            found.sortWith(compareByDescending<ActorEvent> { it.epochMillis }.thenByDescending { it.seq })
-        }
-        found.drop(filter.offset).take(filter.limit)
-    }
+        val world = (filter.region?.world ?: filter.world)?.takeIf { entity == null }
+        val worldId = world?.let { interning.findWorldId(this, it) ?: return@read emptyList() }
+        val kindIds = kinds.map { it.ordinal }
+        val reader = chrono.reader(this)
 
-    private fun decode(unit: StorageUnit, seq: Long, record: MemorySegment): ActorEvent {
-        val byId = record.i32(BY)
-        val worldId = record.i32(WORLD)
-        val length = (record.byteSize() - HEADER_BYTES).toInt()
-        return ActorEvent(
-            seq = Seq(seq),
-            kind = EventKind.entries[record.i8(KIND).toInt()],
-            by = if (byId == 0) null else interning.resolveHolder(unit, byId),
-            epochMillis = record.i64(EPOCH),
-            at = if (worldId == 0) null else BlockPos(
-                interning.resolveWorld(unit, worldId),
-                record.i32(X),
-                record.i32(Y),
-                record.i32(Z)
-            ),
-            text = if (length == 0) null else record.readBytes(HEADER_BYTES.toLong(), length).toString(Charsets.UTF_8),
+        val sieve = Sieve(
+            since = filter.since ?: Long.MIN_VALUE,
+            until = filter.until ?: Long.MAX_VALUE,
+            actors = if (excluded.isEmpty()) IdTest.ANY else IdTest.none(excluded),
+            kinds = IdTest.of(kindIds),
         )
+        val found = ArrayList<Found>()
+        val region = filter.region
+        when {
+            worldId != null && region != null -> {
+                val tiles = ArrayList<Tile>()
+                for (x in region.minTileX..region.maxTileX) for (z in region.minTileZ..region.maxTileZ) tiles += Tile.of(worldId, x, z)
+                val boxed = Sieve(
+                    sieve.since, sieve.until, sieve.actors, sieve.kinds, null,
+                    Box(region.minX, region.maxX, region.minY, region.maxY, region.minZ, region.maxZ),
+                )
+                found += reader.select(tiles, boxed, Lane.EVENTS)
+            }
+            holderIds.isNotEmpty() && filter.holders.all { it is HolderId.Player } ->
+                for (id in holderIds) found += reader.selectAnywhere(id, sieve.onlyBy(id), Lane.EVENTS)
+            holderIds.isNotEmpty() -> found += reader.selectAnywhere(null, Sieve(sieve.since, sieve.until, sieve.actors and IdTest.of(holderIds), sieve.kinds), Lane.EVENTS)
+            else -> found += reader.selectAnywhere(null, sieve, Lane.EVENTS)
+        }
+        val keep = ArrayList<Pair<Found, Int>>()
+        for (f in found) {
+            if (worldId != null && f.tile.world != worldId) continue
+            val rows = f.rows
+            for (i in 0 until rows.size) {
+                if (entity != null && !(rows.uuidHigh!![i] == entity.mostSignificantBits && rows.uuidLow!![i] == entity.leastSignificantBits)) continue
+                keep += f to i
+            }
+        }
+        keep.sortWith(compareByDescending<Pair<Found, Int>> { (f, i) -> f.rows.millis[i] }.thenByDescending { (f, i) -> f.rows.seq[i] })
+        keep.drop(filter.offset).take(filter.limit).map { (f, i) -> decode(this, f.tile, f.rows, i) }
     }
 
-    companion object {
-        private val NONE = ByteArray(0)
-        private val NO_TEXT = ByteArray(0)
-
-        private const val KIND = 0L
-        private const val BY = 1L
-        private const val WORLD = 5L
-        private const val X = 9L
-        private const val Y = 13L
-        private const val Z = 17L
-        private const val EPOCH = 21L
-        private const val HEADER_BYTES = 29
-
-        fun epochMillis(record: MemorySegment): Long = record.i64(EPOCH)
-
-        fun worldId(record: MemorySegment): Int = record.i32(WORLD)
-
-        fun byId(record: MemorySegment): Int = record.i32(BY)
+    private fun decode(unit: StorageUnit, tile: Tile, rows: Rows, i: Int): ActorEvent {
+        val actor = rows.actor[i]
+        val cell = Cell(rows.cell[i])
+        return ActorEvent(
+            seq = Seq(rows.seq[i]),
+            kind = EventKind.entries[rows.kind[i]],
+            by = if (actor == 0) null else interning.resolveHolder(unit, actor),
+            epochMillis = rows.millis[i],
+            at = if (tile.world == 0) null else BlockPos(interning.resolveWorld(unit, tile.world), tile.originX + cell.x, cell.y, tile.originZ + cell.z),
+            text = rows.beforeExtrasAt(i)?.toString(Charsets.UTF_8),
+        )
     }
 }

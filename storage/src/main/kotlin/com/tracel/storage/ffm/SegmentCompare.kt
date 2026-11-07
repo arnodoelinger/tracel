@@ -94,7 +94,7 @@ object SegmentCompare {
     }
 
     /**
-     * @return true if the bytes in [segment] starting at [offset] with length [length] start with
+     * @return `true` if the bytes in [segment] starting at [offset] with length [length] start with
      * the given [prefix].
      */
     fun startsWith(segment: MemorySegment, offset: Long, length: Int, prefix: ByteArray): Boolean =
@@ -117,6 +117,7 @@ object SegmentCompare {
 
     /**
      * @return the first 8 bytes of [segment] starting at [offset] as a big-endian long.
+     *
      * If the segment has fewer than 8 bytes remaining, the result is undefined.
      */
     fun prefixOf(segment: MemorySegment, offset: Long): Long =

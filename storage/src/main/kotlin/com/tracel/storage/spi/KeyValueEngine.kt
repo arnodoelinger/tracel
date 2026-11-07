@@ -78,5 +78,23 @@ interface KeyValueEngine : AutoCloseable {
      * Replaces segment [id] with one that has only the rows [keep] says yes to,
      * which is how a purge takes some of a window and leaves the rest.
      */
-    fun rewriteSegment(id: Long, keep: (key: ByteArray, value: MemorySegment?) -> Boolean): Rewritten
+    fun rewriteSegment(id: Long, keep: (key: ByteArray, value: MemorySegment?) -> Boolean): Rewritten =
+        editSegment(id) { key, value -> if (keep(key, value)) SegmentEdit.Keep else SegmentEdit.Drop }
+
+    /**
+     * [rewriteSegment] that may also change a row's value in place: the key,
+     * the window and the level stay, only the bytes are new.
+     *
+     * A purge that takes some changes out of a capsule and leaves the rest of it.
+     */
+    fun editSegment(id: Long, edit: (key: ByteArray, value: MemorySegment?) -> SegmentEdit): Rewritten
+}
+
+/** What [KeyValueEngine.editSegment] does with one row. */
+sealed interface SegmentEdit {
+    data object Keep : SegmentEdit
+
+    data object Drop : SegmentEdit
+
+    class Replace(val value: ByteArray) : SegmentEdit
 }

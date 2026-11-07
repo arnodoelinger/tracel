@@ -253,23 +253,6 @@ class SectionDeltaLogTest {
         }
     }
 
-    @Test
-    fun `a section delta costs a fraction of what the same blocks cost apiece`(@TempDir dir: Path) = runTest {
-        val grouped = dir.resolve("grouped")
-        val apiece = dir.resolve("apiece")
-        Stack(grouped).use { blastDirect(it, section(SECTION_FULL)) }
-        Stack(apiece).use { stack ->
-            for (edit in section(SECTION_FULL)) blastDirect(stack, listOf(edit))
-        }
-
-        val groupedBytes = bytesIn(grouped)
-        val apieceBytes = bytesIn(apiece)
-        assertTrue(
-            apieceBytes > groupedBytes * 10,
-            "grouping saved too little to be worth its complexity: $apieceBytes apiece against $groupedBytes grouped",
-        )
-    }
-
     private suspend fun rollbackView(stack: Stack, region: LookupRegion, structureEnds: Boolean = true) =
         stack.worldLog.queryTogether(
             stack.log,

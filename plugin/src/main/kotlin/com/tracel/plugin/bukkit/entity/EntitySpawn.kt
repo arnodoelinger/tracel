@@ -3,6 +3,7 @@ package com.tracel.plugin.bukkit.entity
 import com.tracel.annotations.Unstable
 import com.tracel.model.world.entity.*
 import com.tracel.plugin.bukkit.block.toBlockFace
+import com.tracel.plugin.bukkit.entity.nbt.EntityEssence
 import com.tracel.plugin.util.geometry.anchorPoint
 import com.tracel.plugin.util.geometry.facingFromPose
 import com.tracel.plugin.util.runtime.Warnings
@@ -71,8 +72,9 @@ private fun EntityShape.putHullBack(
 
     val opaque = extras.opaque
     if (opaque != null) {
-        val restored = deserializeEntity(opaque.bytes, world, preserveUUID = true)
-            ?: deserializeEntity(opaque.bytes, world, preserveUUID = false)
+        val nbt = EntityEssence.inflate(opaque.bytes, expected, x, y, z, yaw, pitch)
+        val restored = deserializeEntity(nbt, world, preserveUUID = true)
+            ?: deserializeEntity(nbt, world, preserveUUID = false)
         if (restored != null && place(restored, loc)) {
             if (!keepCargo) stripCargo(restored)
             revive(restored)

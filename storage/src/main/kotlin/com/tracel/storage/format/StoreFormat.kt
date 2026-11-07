@@ -9,6 +9,7 @@ import com.tracel.storage.codec.recordBytes
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.putI32
 import com.tracel.storage.format.migrations.RolledSets
+import com.tracel.storage.format.migrations.WorldToCapsules
 import com.tracel.storage.spi.KeyValueEngine
 import java.lang.foreign.MemorySegment
 
@@ -71,7 +72,7 @@ object StoreFormat {
     val LEGACY = FormatVersion(1, 0)
 
     /** Every step there is, in no particular order. Add one for each bump of [CURRENT]'s minor. */
-    val MIGRATIONS: List<Migration> = listOf(RolledSets.STEP)
+    val MIGRATIONS: List<Migration> = listOf(RolledSets.STEP, WorldToCapsules.STEP)
 
     /**
      * Brings [storage] to [current], or throws [StoreFormatException] if that cannot be done.

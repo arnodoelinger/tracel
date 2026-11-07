@@ -23,7 +23,6 @@ class MappedFile private constructor(
     }
 
     companion object {
-        /** Opens a file for read-only access, mapping it into memory. */
         fun openRead(path: Path, disk: Disk): MappedFile {
             val arena = Arena.ofShared()
             return try {

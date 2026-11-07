@@ -1,7 +1,6 @@
 package com.tracel.storage.ports.ops
 
 import com.tracel.storage.codec.Txn
-import com.tracel.storage.codec.Wchg
 import com.tracel.engine.foreign.ForeignRecord
 import com.tracel.engine.foreign.ImportMark
 import com.tracel.engine.foreign.ImportRoom
@@ -22,6 +21,7 @@ import com.tracel.storage.codec.Scalar
 import com.tracel.storage.codec.recordBytes
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.putI64
+import com.tracel.storage.chrono.Chrono
 import com.tracel.storage.ports.event.EventLog
 import java.lang.foreign.MemorySegment
 import java.util.*
@@ -35,11 +35,13 @@ class ForeignHistory(
     private val events: EventLog,
     private val counters: Counters,
 ) : ForeignHistoryPort {
+    private val chrono = Chrono.of(storage)
+
     override suspend fun room(source: Long): ImportRoom = storage.write {
         val seqKey = Tag.COUNTER[Counters.SEQ]
         val own = get(seqKey)?.let(Scalar::asLong)
         if (own != null && own < Counters.SEQ_BASE) {
-            if (firstEpoch(Tag.WCHG[0], { Wchg.epochMillis[it] }) != null ||
+            if (chrono.firstMillisFrom(this, 0L) != null ||
                 firstEpoch(Tag.TXN[0], { Txn.epochMillis[it] }) != null
             ) throw NoRoomForImport()
             putPinned(Tag.COUNTER[Counters.IMPORT_SEQ], Scalar.long(maxOf(nextImportSeq(), own)))
@@ -47,7 +49,7 @@ class ForeignHistory(
             afterCommit(counters::forget)
         }
         val ownSince = listOfNotNull(
-            firstEpoch(Tag.WCHG[Counters.SEQ_BASE], { Wchg.epochMillis[it] }),
+            chrono.firstMillisFrom(this, Counters.SEQ_BASE),
             firstEpoch(Tag.TXN[Counters.SEQ_BASE], { Txn.epochMillis[it] }),
         ).minOrNull()
         ImportRoom(ownSince, get(Tag.IMPORT_MARK[source])?.let(::mark))

@@ -5,7 +5,10 @@ import com.tracel.engine.store.PurgeSummary
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.KeyReader
+import com.tracel.storage.codec.History
 import com.tracel.storage.codec.Keys
+import com.tracel.storage.lsm.SegmentClassifier
+import java.lang.foreign.ValueLayout
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.codec.Scalar
 import com.tracel.storage.ffm.Bytes.readBytes
@@ -35,6 +38,16 @@ suspend fun purgeAll(storage: TracelStorage): PurgeSummary {
                 unit.eachRow(family.prefix) { cursor ->
                     val value = cursor.value()
                     kept += cursor.key() to value.readBytes(0, value.byteSize().toInt())
+                }
+            }
+            for (family in listOf(Tag.CHRONO_CAPSULE, Tag.CHRONO_FRAGMENT, Tag.CHRONO_TRACK, Tag.CHRONO_TIME)) {
+                unit.eachRow(family.prefix) { cursor ->
+                    val value = cursor.value()
+                    if (value.byteSize() == 0L) return@eachRow
+                    val first = value.get(ValueLayout.JAVA_BYTE, 0).toInt() and 0xFF
+                    if (History.categoryOf(family.byte.toInt() and 0xFF, first) == SegmentClassifier.STATE) {
+                        kept += cursor.key() to value.readBytes(0, value.byteSize().toInt())
+                    }
                 }
             }
             val seqKey = Tag.COUNTER[Counters.SEQ]

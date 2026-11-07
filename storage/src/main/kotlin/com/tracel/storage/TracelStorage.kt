@@ -49,6 +49,7 @@ class TracelStorage private constructor(
     private val closed = AtomicBoolean(false)
 
     private val replaced = CopyOnWriteArrayList<() -> Unit>()
+    private val closing = CopyOnWriteArrayList<() -> Unit>()
 
     /** Reads inside the current unit of work, or opens a throwaway one if there is none. */
     suspend fun <T> read(block: StorageUnit.() -> T): T {
@@ -97,14 +98,25 @@ class TracelStorage private constructor(
     suspend fun <T> batched(block: suspend () -> T): T = suspendingUnit(block)
 
     /**
-     * Runs [block] with no unit of work open anywhere, on the storage thread: the drainer and every other
-     * writer wait. For replacing the store wholesale, where one batch landing mid-wipe resurrects old data.
+     * Runs [block] with no unit of work open anywhere, on the storage thread:
+     * the drainer and every other writer wait.
+     *
+     * For replacing the store wholesale, where one batch landing mid-wipe resurrects
+     * old data.
      */
     suspend fun <T> alone(block: () -> T): T = lock.withLock { withContext(dispatcher) { block() } }
 
     /** Runs [action] whenever the store is replaced wholesale, for whoever caches what was in it. */
     fun afterReplace(action: () -> Unit) {
         replaced += action
+    }
+
+    /**
+     * Runs [action] when the store starts to close, before the engine goes:
+     * background work that writes stops here.
+     */
+    fun whenClosing(action: () -> Unit) {
+        closing += action
     }
 
     /** Re-reads interned ids after the store was replaced under them. Call inside [alone]. */
@@ -114,8 +126,10 @@ class TracelStorage private constructor(
     }
 
     /**
-     * Runs [last] to its end or for [timeoutMillis], whichever comes first, then closes. Blocks the
-     * caller, so shutdown only: that is the one place something has to wait for the last writes.
+     * Runs [last] to its end or for [timeoutMillis], whichever comes first, then closes.
+     *
+     * Blocks the caller, so shutdown only: that is the one place something has to wait
+     * for the last writes.
      *
      * @return whether [last] finished in time.
      */
@@ -136,6 +150,7 @@ class TracelStorage private constructor(
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        closing.forEach { it() }
         engine.close()
         ring.close()
         executor.shutdown()
@@ -165,6 +180,7 @@ class TracelStorage private constructor(
     private inline fun <T> commitOrAbort(open: StorageUnit, work: () -> T): T {
         val result = try {
             work().also {
+                open.prepareCommit()
                 WriteLog.dump(open.batch)
                 engine.write(open.batch, durable = true)
             }

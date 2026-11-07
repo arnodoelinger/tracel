@@ -34,6 +34,7 @@ internal class SegmentWriter(
         category: Int = 0,
         window: Long = SegmentMeta.NO_WINDOW,
         accept: ((Run) -> Boolean)? = null,
+        replace: ((Run) -> ByteArray?)? = null,
     ): SegmentReader {
         val path = Manifest.segmentPath(directory, id)
         runs.forEach { it.seek(EMPTY) }
@@ -63,7 +64,7 @@ internal class SegmentWriter(
                     if (!(dropTombstones && visible && run.isDeletion()) && (accept == null || accept(run))) {
                         writer.add(
                             run.keySegment.readBytes(run.keyOffset, run.keyLength),
-                            run.value()?.let { it.readBytes(0, it.byteSize().toInt()) },
+                            replace?.invoke(run) ?: run.value()?.let { it.readBytes(0, it.byteSize().toInt()) },
                         )
                     }
                 }

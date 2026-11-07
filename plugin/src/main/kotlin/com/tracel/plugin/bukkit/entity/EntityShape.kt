@@ -5,11 +5,15 @@ import com.tracel.model.world.BlockPos
 import com.tracel.model.world.OpaqueBytes
 import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.*
+import com.tracel.plugin.bukkit.entity.nbt.EntityEssence
 import com.tracel.plugin.listener.world.EntityKinds
 import com.tracel.plugin.util.runtime.Warnings
 import com.tracel.plugin.util.runtime.messageOrName
 import io.papermc.paper.entity.EntitySerializationFlag
 import org.bukkit.Bukkit
+import org.bukkit.NamespacedKey
+import org.bukkit.Registry
+import org.bukkit.attribute.Attributable
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import java.util.logging.Level
@@ -72,7 +76,8 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
             }
             return@runCatching null
         }
-        val nbt = Bukkit.getUnsafe().serializeEntity(entity, EntitySerializationFlag.FORCE)
+        val full = Bukkit.getUnsafe().serializeEntity(entity, EntitySerializationFlag.FORCE)
+        val nbt = EntityEssence.slim(full) { attributeDefault(entity, it) } ?: full
         val links = (if (leashed) OpaqueBytes.LINK_BYTES else 0) + if (riding) OpaqueBytes.LINK_BYTES else 0
         val room = OpaqueBytes.MAX_BYTES - links
         if (nbt.size > room) {
@@ -89,4 +94,10 @@ private fun snapshotOf(entity: Entity, leashed: Boolean, riding: Boolean): Entit
 }.getOrElse {
     logger.log(Level.FINE, "Could not capture entity ${entity.type} in full (${it.messageOrName()}).", it)
     null
+}
+
+/** What the attribute [id] is for this species, or `null` for an entity without it. */
+private fun attributeDefault(entity: Entity, id: String): Double? {
+    val attribute = NamespacedKey.fromString(id)?.let { Registry.ATTRIBUTE.get(it) } ?: return null
+    return (entity as? Attributable)?.getAttribute(attribute)?.defaultValue
 }

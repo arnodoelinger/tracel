@@ -16,6 +16,7 @@ import com.tracel.plugin.listener.material.recipe.CauldronListener
 import com.tracel.plugin.listener.material.recipe.CompostListener
 import com.tracel.plugin.listener.session.*
 import com.tracel.plugin.listener.world.cell.*
+import com.tracel.plugin.listener.world.chronicle.ChronicleListener
 import com.tracel.plugin.listener.world.entity.EntityLifecycleListener
 import com.tracel.plugin.listener.world.entity.ExplosionListener
 import com.tracel.plugin.listener.world.entity.RedstoneListener
@@ -26,6 +27,7 @@ internal fun listenersOf(services: TracelServices): List<TracelListener> {
     val logging = services.logging
     return buildList {
         if (logging.blocks) addAll(blockListeners(services))
+        if (logging.blocks) add(ChronicleListener(services, services.storage.chronicle))
         if (logging.entities) addAll(entityListeners(services))
         if (logging.items) addAll(itemListeners(services))
         if (logging.events) add(ActorEventListener(services))

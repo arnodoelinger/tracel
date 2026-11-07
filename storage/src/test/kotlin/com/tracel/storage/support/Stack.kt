@@ -12,7 +12,7 @@ import com.tracel.model.lot.Lot
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.CaptureGate
 import com.tracel.storage.capture.CaptureRing
-import com.tracel.storage.capture.Drainer
+import com.tracel.storage.capture.CaptureDrainer
 import com.tracel.storage.codec.History
 import com.tracel.storage.lsm.LsmConfig
 import com.tracel.storage.lsm.LsmEngine
@@ -57,7 +57,7 @@ class Stack(
     val capture: CaptureCoordinator = CaptureCoordinator(ledger, log, counters::nextTxnId, counters::nextSeq)
     val gate: CaptureGate = CaptureGate(storage.ring)
 
-    val drainer: Drainer = Drainer(
+    val drainer: CaptureDrainer = CaptureDrainer(
         storage = storage,
         ring = storage.ring,
         interning = storage.interning,

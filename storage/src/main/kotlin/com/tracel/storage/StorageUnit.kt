@@ -21,6 +21,9 @@ class StorageUnit(
     val batch: MutationBatch,
 ) : AutoCloseable {
     private var onCommit: ArrayList<() -> Unit>? = null
+    private var participants: ArrayList<UnitParticipant>? = null
+    private var participantKeys: HashMap<Any, UnitParticipant>? = null
+    private var savepoints: HashMap<Int, IntArray>? = null
     private var onAbort: ArrayList<() -> Unit>? = null
     private val hookLogger = Logger.getLogger(StorageUnit::class.java.name)
 
@@ -44,14 +47,48 @@ class StorageUnit(
         batch.putPinned(key, value)
     }
 
-    fun mark(): Int = batch.mark()
+    fun mark(): Int {
+        val mark = batch.mark()
+        val joined = participants ?: return mark
+        (savepoints ?: HashMap<Int, IntArray>().also { savepoints = it })[mark] = IntArray(joined.size) { joined[it].savepoint() }
+        return mark
+    }
 
     fun rollbackTo(mark: Int) {
         batch.rollbackTo(mark)
+        val joined = participants ?: return
+        val saved = savepoints?.get(mark)
+        for (i in joined.indices) joined[i].rollbackTo(saved?.getOrNull(i) ?: 0)
     }
 
     fun release(mark: Int) {
         batch.release(mark)
+        savepoints?.remove(mark)
+    }
+
+    /**
+     * The participant of this unit [key] names, made by [create] the first time it is asked for.
+     *
+     * A participant collects writes of its own and turns them into the batch just before it lands;
+     * marks roll it back with the batch.
+     */
+    fun <P : UnitParticipant> participant(key: Any, create: () -> P): P {
+        val byKey = participantKeys ?: HashMap<Any, UnitParticipant>().also { participantKeys = it }
+        @Suppress("UNCHECKED_CAST")
+        byKey[key]?.let { return it as P }
+        val made = create()
+        byKey[key] = made
+        (participants ?: ArrayList<UnitParticipant>().also { participants = it }) += made
+        return made
+    }
+
+    /**
+     * Lets every participant write what it collected.
+     *
+     * Whoever commits the unit calls this, once, right before.
+     */
+    internal fun prepareCommit() {
+        participants?.forEach { it.beforeCommit(this) }
     }
 
     /** Runs [action] once the batch has landed. A unit that throws never does. */
@@ -59,7 +96,11 @@ class StorageUnit(
         (onCommit ?: ArrayList<() -> Unit>().also { onCommit = it }) += action
     }
 
-    /** What [afterCommit] queued, for whoever just wrote the batch. A hook that throws is logged and skipped. */
+    /**
+     * What [afterCommit] queued, for whoever just wrote the batch.
+     *
+     * A hook that throws is logged and skipped.
+     */
     internal fun committed() {
         onCommit?.forEach { hook ->
             runCatching(hook).onFailure {
@@ -98,9 +139,6 @@ class StorageUnit(
         if (batch.isEmpty()) return snapshot.scan(prefix, from, to)
         return OverlayCursor(batch, snapshot.scan(prefix, from, to), prefix, from, to)
     }
-
-    fun splitKeys(prefix: ByteArray, from: ByteArray, to: ByteArray?, parts: Int): List<ByteArray> =
-        snapshot.splitKeys(prefix, from, to, parts)
 
     override fun close() {
         snapshot.close()

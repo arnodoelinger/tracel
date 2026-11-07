@@ -373,12 +373,6 @@ class TransactionLogTest {
             assertEquals(move(2, steve, chest, at = 200, cause = CauseKind.ROLLBACK), stack.log.find(TxnId(2)))
             assertEquals(move(3, chest, steve, at = 300, cause = CauseKind.INVOLUTION), stack.log.find(TxnId(3)))
 
-            val spatialKeys = stack.storage.read {
-                var n = 0
-                scan(Tag.SPATIAL.prefix).use { cursor -> while (cursor.next()) n++ }
-                n
-            }
-            assertEquals(1, spatialKeys, "a restore must not add spatial keys for the next query to walk")
 
             val region = LookupRegion(world, 0, 0, 0, 0)
             assertEquals(
