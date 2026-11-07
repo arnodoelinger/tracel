@@ -83,7 +83,15 @@ class Worldlike(
         millis += 50
     }
 
-    private fun change(capsule: RowsBuilder, cell: Int, next: Int, actor: Int, kind: Int, extras: ByteArray? = null, tick: Boolean = true) {
+    private fun change(
+        capsule: RowsBuilder,
+        cell: Int,
+        next: Int,
+        actor: Int,
+        kind: Int,
+        extras: ByteArray? = null,
+        tick: Boolean = true
+    ) {
         var before = stateAt(cell)
         var beforeExtras = this.extras[cell]
         if (breakRate > 0 && random.nextDouble() < breakRate && world.containsKey(cell)) {

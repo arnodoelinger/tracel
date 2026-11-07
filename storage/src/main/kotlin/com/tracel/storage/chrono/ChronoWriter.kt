@@ -18,19 +18,54 @@ internal class ChronoWriter(
 
     var highestSeq: Long = Long.MIN_VALUE; private set
 
-    fun add(tile: Tile, seq: Long, millis: Long, cell: Int, actor: Int, kind: Int, before: Int, after: Int, be: ByteArray?, ae: ByteArray?) {
+    fun add(
+        tile: Tile,
+        seq: Long,
+        millis: Long,
+        cell: Int,
+        actor: Int,
+        kind: Int,
+        before: Int,
+        after: Int,
+        be: ByteArray?,
+        ae: ByteArray?
+    ) {
         note(tile, seq)
         rows.add(seq, millis, cell, actor, kind, before, after, be, ae)
     }
 
-    fun addEntity(tile: Tile, seq: Long, millis: Long, cell: Int, actor: Int, kind: Int, type: Int, high: Long, low: Long, be: ByteArray?, ae: ByteArray?) {
+    fun addEntity(
+        tile: Tile,
+        seq: Long,
+        millis: Long,
+        cell: Int,
+        actor: Int,
+        kind: Int,
+        type: Int,
+        high: Long,
+        low: Long,
+        be: ByteArray?,
+        ae: ByteArray?
+    ) {
         note(tile, seq)
         rows.addEntity(seq, millis, cell, actor, kind, type, high, low, be, ae)
     }
 
     fun addFlow(
-        tile: Tile, seq: Long, millis: Long, cell: Int, causedBy: Int, kind: Int, item: Int, source: Int, destination: Int,
-        flowIndex: Int, quantity: Long, txn: Long, lots: ByteArray?, home: Tile,
+        tile: Tile,
+        seq: Long,
+        millis: Long,
+        cell: Int,
+        causedBy: Int,
+        kind: Int,
+        item: Int,
+        source: Int,
+        destination: Int,
+        flowIndex: Int,
+        quantity: Long,
+        txn: Long,
+        lots: ByteArray?,
+        home: Tile,
     ) {
         note(tile, seq)
         rows.addFlow(seq, millis, cell, causedBy, kind, item, source, destination, flowIndex, quantity, txn, lots, home)

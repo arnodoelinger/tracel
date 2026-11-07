@@ -7,8 +7,8 @@ import com.tracel.engine.world.Rewound
 import com.tracel.engine.world.Unlogged
 import com.tracel.model.log.Seq
 import com.tracel.model.world.WorldId
-import com.tracel.storage.TracelStorage
 import com.tracel.storage.Interning
+import com.tracel.storage.TracelStorage
 import java.util.concurrent.ConcurrentHashMap
 import com.tracel.storage.chrono.query.Rewound as RewoundTile
 
@@ -74,7 +74,11 @@ class ChronoLog(private val storage: TracelStorage, private val chrono: Chrono =
 
     private fun rewound(changes: Changes, found: List<RewoundTile>): List<Rewound> = found.flatMap { rw ->
         (0 until rw.size).map { i ->
-            Rewound(changes.pos(rw.tile, rw.cells[i]), changes.shape(rw.then[i], rw.thenExtras[i]), changes.shape(rw.now[i], rw.nowExtras[i]))
+            Rewound(
+                changes.pos(rw.tile, rw.cells[i]),
+                changes.shape(rw.then[i], rw.thenExtras[i]),
+                changes.shape(rw.now[i], rw.nowExtras[i])
+            )
         }
     }
 

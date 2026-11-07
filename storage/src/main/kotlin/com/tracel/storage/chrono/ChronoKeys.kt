@@ -15,11 +15,13 @@ import java.nio.ByteOrder
 internal object ChronoKeys {
     val NONE = ByteArray(0)
 
-    fun capsule(tile: Tile, lane: Lane, last: Long): ByteArray = Tag.CHRONO_CAPSULE[tile.world, tile.x, tile.z, lane.id, last]
+    fun capsule(tile: Tile, lane: Lane, last: Long): ByteArray =
+        Tag.CHRONO_CAPSULE[tile.world, tile.x, tile.z, lane.id, last]
 
     fun capsules(tile: Tile, lane: Lane): ByteArray = Tag.CHRONO_CAPSULE[tile.world, tile.x, tile.z, lane.id]
 
-    fun fragment(tile: Tile, lane: Lane, last: Long): ByteArray = Tag.CHRONO_FRAGMENT[tile.world, tile.x, tile.z, lane.id, last]
+    fun fragment(tile: Tile, lane: Lane, last: Long): ByteArray =
+        Tag.CHRONO_FRAGMENT[tile.world, tile.x, tile.z, lane.id, last]
 
     fun fragments(tile: Tile, lane: Lane): ByteArray = Tag.CHRONO_FRAGMENT[tile.world, tile.x, tile.z, lane.id]
 
@@ -29,11 +31,21 @@ internal object ChronoKeys {
     fun time(last: Long, tile: Tile, lane: Lane): ByteArray = Tag.CHRONO_TIME[last, tile.world, tile.x, tile.z, lane.id]
 
     fun timeValue(lane: Lane, firstSeq: Long, firstMillis: Long): ByteArray =
-        ByteBuffer.allocate(17).order(ByteOrder.LITTLE_ENDIAN).put(lane.id.toByte()).putLong(firstSeq).putLong(firstMillis).array()
+        ByteBuffer.allocate(17).order(ByteOrder.LITTLE_ENDIAN).put(lane.id.toByte()).putLong(firstSeq)
+            .putLong(firstMillis).array()
 
     fun trackValue(lane: Lane): ByteArray = byteArrayOf(lane.id.toByte())
 
-    inline fun filing(tile: Tile, lane: Lane, firstSeq: Long, lastSeq: Long, firstMillis: Long, actors: IntArray, bytes: ByteArray, put: (ByteArray, ByteArray) -> Unit) {
+    inline fun filing(
+        tile: Tile,
+        lane: Lane,
+        firstSeq: Long,
+        lastSeq: Long,
+        firstMillis: Long,
+        actors: IntArray,
+        bytes: ByteArray,
+        put: (ByteArray, ByteArray) -> Unit
+    ) {
         put(capsule(tile, lane, lastSeq), bytes)
         put(time(lastSeq, tile, lane), timeValue(lane, firstSeq, firstMillis))
         val tracked = trackValue(lane)

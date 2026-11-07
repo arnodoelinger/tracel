@@ -1,11 +1,7 @@
 package com.tracel.storage.chrono.query
 
-import com.tracel.storage.chrono.Cell
-import com.tracel.storage.chrono.Lane
-import com.tracel.storage.chrono.Rows
-import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.*
 import com.tracel.storage.chrono.hash.IntIndex
-import com.tracel.storage.chrono.sameExtras
 
 /** Every question chrono answers, asked of the capsules a [source] holds. */
 class ChronoReader(source: CapsuleSource, slackMillis: Long = SLACK_MILLIS) {
@@ -41,7 +37,8 @@ class ChronoReader(source: CapsuleSource, slackMillis: Long = SLACK_MILLIS) {
         val out = ArrayList<Found>()
         for (tile in tiles) {
             val parts = ArrayList<Rows>()
-            for (piece in gather.tile(tile, lane, sieve.since)) CapsuleScan.select(piece, tile, sieve)?.let { parts += it }
+            for (piece in gather.tile(tile, lane, sieve.since)) CapsuleScan.select(piece, tile, sieve)
+                ?.let { parts += it }
             if (parts.isNotEmpty()) out += Found(tile, Rows.concat(parts).sorted())
         }
         return out
@@ -126,7 +123,15 @@ class ChronoReader(source: CapsuleSource, slackMillis: Long = SLACK_MILLIS) {
     }
 
     private fun entityEnds(found: List<Found>): List<Found> {
-        class End(var oldSeq: Long, var oldTile: Int, var oldRow: Int, var newSeq: Long, var newTile: Int, var newRow: Int)
+        class End(
+            var oldSeq: Long,
+            var oldTile: Int,
+            var oldRow: Int,
+            var newSeq: Long,
+            var newTile: Int,
+            var newRow: Int
+        )
+
         val ends = HashMap<Pair<Long, Long>, End>()
         for ((t, f) in found.withIndex()) {
             val rows = f.rows
@@ -135,8 +140,12 @@ class ChronoReader(source: CapsuleSource, slackMillis: Long = SLACK_MILLIS) {
             for (r in 0 until rows.size) {
                 val seq = rows.seq[r]
                 val e = ends.getOrPut(high[r] to low[r]) { End(seq, t, r, seq, t, r) }
-                if (seq < e.oldSeq) { e.oldSeq = seq; e.oldTile = t; e.oldRow = r }
-                if (seq > e.newSeq) { e.newSeq = seq; e.newTile = t; e.newRow = r }
+                if (seq < e.oldSeq) {
+                    e.oldSeq = seq; e.oldTile = t; e.oldRow = r
+                }
+                if (seq > e.newSeq) {
+                    e.newSeq = seq; e.newTile = t; e.newRow = r
+                }
             }
         }
         val keep = found.map { BooleanArray(it.rows.size) }
@@ -174,7 +183,13 @@ class ChronoReader(source: CapsuleSource, slackMillis: Long = SLACK_MILLIS) {
                 if (rows.millis[r] < since) continue
                 if (!wholeBox && !box.contains(tile, Cell(rows.cell[r]))) continue
                 ledger.offer(
-                    rows.cell[r], rows.seq[r], rows.before[r], rows.beforeExtrasAt(r), rows.seq[r], rows.after[r], rows.afterExtrasAt(r),
+                    rows.cell[r],
+                    rows.seq[r],
+                    rows.before[r],
+                    rows.beforeExtrasAt(r),
+                    rows.seq[r],
+                    rows.after[r],
+                    rows.afterExtrasAt(r),
                 )
             }
         }
@@ -259,7 +274,15 @@ private class CellLedger {
     private var now = IntArray(256)
     private var nowExtras = arrayOfNulls<ByteArray>(256)
 
-    fun offer(cell: Int, beforeSeq: Long, before: Int, beforeX: ByteArray?, afterSeq: Long, after: Int, afterX: ByteArray?) {
+    fun offer(
+        cell: Int,
+        beforeSeq: Long,
+        before: Int,
+        beforeX: ByteArray?,
+        afterSeq: Long,
+        after: Int,
+        afterX: ByteArray?
+    ) {
         val known = cells.size
         val c = cells.add(cell)
         if (c == thenSeq.size) grow()

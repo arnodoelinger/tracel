@@ -7,9 +7,7 @@ import com.tracel.storage.chrono.RowsBuilder
 import com.tracel.storage.chrono.bits.ByteWriter
 import com.tracel.storage.chrono.bits.LittleEndian
 import com.tracel.storage.chrono.bits.SegmentReader
-import org.junit.jupiter.api.Assertions.assertArrayEquals
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.foreign.MemorySegment
 import kotlin.random.Random
@@ -58,15 +56,28 @@ class ShapesTest {
     }
 
     private fun read(blob: ByteArray): DoubleArray = doubleArrayOf(
-        Double.fromBits(LittleEndian.LONG.get(blob, 1) as Long), Double.fromBits(LittleEndian.LONG.get(blob, 9) as Long),
-        Double.fromBits(LittleEndian.LONG.get(blob, 17) as Long), Float.fromBits(LittleEndian.INT.get(blob, 25) as Int).toDouble(),
+        Double.fromBits(LittleEndian.LONG.get(blob, 1) as Long),
+        Double.fromBits(LittleEndian.LONG.get(blob, 9) as Long),
+        Double.fromBits(LittleEndian.LONG.get(blob, 17) as Long),
+        Float.fromBits(LittleEndian.INT.get(blob, 25) as Int).toDouble(),
         Float.fromBits(LittleEndian.INT.get(blob, 29) as Int).toDouble(),
     )
 
     private fun roundTrip(before: List<ByteArray?>, after: List<ByteArray?>): Rows {
         val b = RowsBuilder()
         for (i in before.indices) {
-            b.addEntity(100L + i, 1_000L + i, Cell.of(i % 16, 64, 3).packed, 0, 4, 700 + i % 2, 5L, i.toLong(), before[i], after[i])
+            b.addEntity(
+                100L + i,
+                1_000L + i,
+                Cell.of(i % 16, 64, 3).packed,
+                0,
+                4,
+                700 + i % 2,
+                5L,
+                i.toLong(),
+                before[i],
+                after[i]
+            )
         }
         val bytes = Lane.ENTITIES.encode(b.rows(), 1)
         return (Lane.ENTITIES.open(MemorySegment.ofArray(bytes)) as EntityCapsule).rows()
@@ -76,7 +87,13 @@ class ShapesTest {
     fun `a pose comes back within a millimetre and a hair of a degree`() {
         val random = Random(11)
         val poses = List(200) {
-            pose(random.nextDouble(-3e7, 3e7), random.nextDouble(-64.0, 320.0), random.nextDouble(-3e7, 3e7), random.nextFloat() * 360 - 180, random.nextFloat() * 180 - 90)
+            pose(
+                random.nextDouble(-3e7, 3e7),
+                random.nextDouble(-64.0, 320.0),
+                random.nextDouble(-3e7, 3e7),
+                random.nextFloat() * 360 - 180,
+                random.nextFloat() * 180 - 90
+            )
         }
         val rest = byteArrayOf(5, 1, 2, 3)
         val back = roundTrip(poses.map { it + rest }, List(poses.size) { null })
@@ -110,7 +127,22 @@ class ShapesTest {
         val template = ByteArray(700) { random.nextInt(256).toByte() }
         val mobs = List(60) { i -> template.copyOf().also { it[300] = i.toByte(); it[301] = (i * 3).toByte() } }
         val shared = Lane.ENTITIES.encode(
-            RowsBuilder().also { b -> mobs.forEachIndexed { i, m -> b.addEntity(10L + i, 5L + i, Cell.of(i % 16, 64, 0).packed, 0, 4, 701, 1L, i.toLong(), null, m) } }.rows(),
+            RowsBuilder().also { b ->
+                mobs.forEachIndexed { i, m ->
+                    b.addEntity(
+                        10L + i,
+                        5L + i,
+                        Cell.of(i % 16, 64, 0).packed,
+                        0,
+                        4,
+                        701,
+                        1L,
+                        i.toLong(),
+                        null,
+                        m
+                    )
+                }
+            }.rows(),
             1,
         )
         assertTrue(shared.size < 60 * 40 + 1_000, "sixty near-identical mobs took ${shared.size} bytes.")

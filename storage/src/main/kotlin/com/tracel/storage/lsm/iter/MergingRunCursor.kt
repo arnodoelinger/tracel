@@ -63,7 +63,13 @@ internal class MergingRunCursor(
         for (run in runs) {
             if (!run.valid) continue
             if (!SegmentCompare.startsWith(run.keySegment, run.keyOffset, run.userKeyLength, prefix)) continue
-            if (to != null && SegmentCompare.compare(run.keySegment, run.keyOffset, run.userKeyLength, to) >= 0) continue
+            if (to != null && SegmentCompare.compare(
+                    run.keySegment,
+                    run.keyOffset,
+                    run.userKeyLength,
+                    to
+                ) >= 0
+            ) continue
             runs[kept++] = run
         }
         if (kept != runs.size) runs = runs.copyOf(kept) as Array<AbstractRun>

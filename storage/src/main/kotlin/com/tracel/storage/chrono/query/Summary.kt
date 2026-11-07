@@ -44,11 +44,13 @@ internal class Summary(
                     entryX?.set(n, entryExtras?.get(i)); exitX?.set(n, exitExtras?.get(i))
                     i++
                 }
+
                 i >= size || b < a -> {
                     cells[n] = b; entry[n] = older.entry[j]; exit[n] = older.exit[j]
                     entryX?.set(n, older.entryExtras?.get(j)); exitX?.set(n, older.exitExtras?.get(j))
                     j++
                 }
+
                 else -> {
                     cells[n] = a; entry[n] = older.entry[j]; exit[n] = this.exit[i]
                     entryX?.set(n, older.entryExtras?.get(j)); exitX?.set(n, exitExtras?.get(i))

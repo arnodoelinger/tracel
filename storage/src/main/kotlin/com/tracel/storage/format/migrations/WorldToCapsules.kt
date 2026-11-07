@@ -6,38 +6,23 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.item.Quantity
 import com.tracel.model.lot.LotId
 import com.tracel.model.world.BlockPos
+import com.tracel.storage.Interning
 import com.tracel.storage.StorageUnit
-import com.tracel.storage.chrono.Cell
-import com.tracel.storage.chrono.Chrono
-import com.tracel.storage.chrono.ChronoKeys
-import com.tracel.storage.chrono.ChronoKinds
-import com.tracel.storage.chrono.ItemRows
-import com.tracel.storage.chrono.Lane
-import com.tracel.storage.chrono.RowsBuilder
-import com.tracel.storage.chrono.Tile
-import com.tracel.storage.chrono.TrackIds
+import com.tracel.storage.chrono.*
 import com.tracel.storage.chrono.bits.ByteWriter
 import com.tracel.storage.chrono.capsule.CapsuleView
-import com.tracel.storage.codec.BlockChange
-import com.tracel.storage.codec.ContainerSlot
-import com.tracel.storage.codec.EntityChange
-import com.tracel.storage.codec.Scalar
-import com.tracel.storage.codec.Section
-import com.tracel.storage.codec.Tag
-import com.tracel.storage.codec.Txn
-import com.tracel.storage.codec.Wchg
+import com.tracel.storage.codec.*
 import com.tracel.storage.ffm.Bytes.i32
 import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.ffm.Bytes.i8
 import com.tracel.storage.format.FormatVersion
 import com.tracel.storage.format.Migration
-import com.tracel.storage.Interning
 import com.tracel.storage.lsm.LsmOptions
 import com.tracel.storage.spi.KeyValueEngine
 import com.tracel.storage.spi.MutationBatch
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
-import java.util.UUID
+import java.util.*
 
 /**
  * 1.0 to 1.1.
@@ -57,7 +42,13 @@ internal object WorldToCapsules {
     private fun convert(engine: KeyValueEngine) {
         val done = engine.snapshot().use { it.get(Tag.META[CONVERTED]) != null }
         if (!done) {
-            for (tag in listOf(Tag.CHRONO_CAPSULE, Tag.CHRONO_FRAGMENT, Tag.CHRONO_TRACK, Tag.CHRONO_TIME, Tag.CHRONO_MARK)) {
+            for (tag in listOf(
+                Tag.CHRONO_CAPSULE,
+                Tag.CHRONO_FRAGMENT,
+                Tag.CHRONO_TRACK,
+                Tag.CHRONO_TIME,
+                Tag.CHRONO_MARK
+            )) {
                 deleteAll(engine, tag) { true }
             }
             capsules(engine)
@@ -68,9 +59,22 @@ internal object WorldToCapsules {
             engine.write(MutationBatch().apply { put(Tag.META[CONVERTED], byteArrayOf(1)) }, durable = true)
         }
         for (tag in listOf(Tag.WCHG, Tag.WCHG_AT, Tag.WCHG_AT_SECTION, Tag.WCHG_ENTITY)) deleteAll(engine, tag) { true }
-        for (tag in listOf(Tag.EVENT, Tag.EVENT_ACTOR, Tag.EVENT_TIME, Tag.EVENT_ENTITY)) deleteAll(engine, tag) { true }
-        for (tag in listOf(Tag.TXN, Tag.TXN_BY_ID, Tag.TXN_LOT, Tag.CONTAINER_SLOT, Tag.ACTOR_VISIT, Tag.ACTOR_MODE)) deleteAll(engine, tag) { true }
-        for (tag in listOf(Tag.ACTOR, Tag.ITEM, Tag.TIME, Tag.SPATIAL, Tag.INTERN_REVERSE)) deleteAll(engine, tag) { true }
+        for (tag in listOf(Tag.EVENT, Tag.EVENT_ACTOR, Tag.EVENT_TIME, Tag.EVENT_ENTITY)) deleteAll(
+            engine,
+            tag
+        ) { true }
+        for (tag in listOf(
+            Tag.TXN,
+            Tag.TXN_BY_ID,
+            Tag.TXN_LOT,
+            Tag.CONTAINER_SLOT,
+            Tag.ACTOR_VISIT,
+            Tag.ACTOR_MODE
+        )) deleteAll(engine, tag) { true }
+        for (tag in listOf(Tag.ACTOR, Tag.ITEM, Tag.TIME, Tag.SPATIAL, Tag.INTERN_REVERSE)) deleteAll(
+            engine,
+            tag
+        ) { true }
         engine.sync()
     }
 
@@ -110,9 +114,23 @@ internal object WorldToCapsules {
                     val tile = if (world == 0) Tile.of(0, 0, 0) else Tile.at(world, x, z)
                     val text = if (v.byteSize() > 29) v.asSlice(29).toArray(ValueLayout.JAVA_BYTE) else null
                     val uuid = entities[seq]
-                    builders.getOrPut(Triple(tile.packed, Lane.EVENTS, Math.floorDiv(millis, WINDOW_MILLIS))) { RowsBuilder(16) }.addEntity(
-                        seq, millis, if (world == 0) 0 else Cell.of(x, v.i32(13), z).packed, v.i32(1), v.i8(0).toInt(), 0,
-                        uuid?.mostSignificantBits ?: 0L, uuid?.leastSignificantBits ?: 0L, text, null,
+                    builders.getOrPut(
+                        Triple(
+                            tile.packed,
+                            Lane.EVENTS,
+                            Math.floorDiv(millis, WINDOW_MILLIS)
+                        )
+                    ) { RowsBuilder(16) }.addEntity(
+                        seq,
+                        millis,
+                        if (world == 0) 0 else Cell.of(x, v.i32(13), z).packed,
+                        v.i32(1),
+                        v.i8(0).toInt(),
+                        0,
+                        uuid?.mostSignificantBits ?: 0L,
+                        uuid?.leastSignificantBits ?: 0L,
+                        text,
+                        null,
                     )
                     if (++buffered >= FLUSH_ROWS) {
                         flush(engine, builders)
@@ -132,7 +150,11 @@ internal object WorldToCapsules {
             unit.scan(Tag.TXN_LOT.prefix).use { c ->
                 while (c.next()) {
                     lots.getOrPut(Tag.TXN_LOT.long(c, 0)) { ArrayList() } +=
-                        FlowLot(Tag.TXN_LOT.int(c, 1), LotId(Tag.TXN_LOT.long(c, 2)), Quantity(Scalar.asLong(c.value())))
+                        FlowLot(
+                            Tag.TXN_LOT.int(c, 1),
+                            LotId(Tag.TXN_LOT.long(c, 2)),
+                            Quantity(Scalar.asLong(c.value()))
+                        )
                 }
             }
             var buffered = 0
@@ -167,8 +189,19 @@ internal object WorldToCapsules {
                         val b = builders.getOrPut(Triple(tile, Lane.ITEMS, window)) { RowsBuilder(16) }
                         for (i in 0 until flows) {
                             b.addFlow(
-                                seq, millis, cell, Txn.causedBy[v], ItemRows.kindOf(Txn.cause[v], Txn.kind[v, i]), Txn.item[v, i],
-                                Txn.source[v, i], Txn.destination[v, i], i, Txn.quantity[v, i], Txn.id[v], blobs[i], home,
+                                seq,
+                                millis,
+                                cell,
+                                Txn.causedBy[v],
+                                ItemRows.kindOf(Txn.cause[v], Txn.kind[v, i]),
+                                Txn.item[v, i],
+                                Txn.source[v, i],
+                                Txn.destination[v, i],
+                                i,
+                                Txn.quantity[v, i],
+                                Txn.id[v],
+                                blobs[i],
+                                home,
                             )
                             buffered++
                         }
@@ -206,7 +239,13 @@ internal object WorldToCapsules {
                         is HolderId.PlacedBlock -> interning.findWorldId(unit, h.world)?.let { Tile.at(it, h.x, h.z) }
                         else -> null
                     } ?: Tile.of(0, 0, 0)
-                    builders.getOrPut(Triple(tile.packed, Lane.CONTAINERS, Math.floorDiv(millis, WINDOW_MILLIS))) { RowsBuilder(16) }
+                    builders.getOrPut(
+                        Triple(
+                            tile.packed,
+                            Lane.CONTAINERS,
+                            Math.floorDiv(millis, WINDOW_MILLIS)
+                        )
+                    ) { RowsBuilder(16) }
                         .addEntity(seq, millis, 0, holderId, 0, 0, 0L, 0L, sink.toByteArray(), null)
                 }
             }
@@ -225,10 +264,22 @@ internal object WorldToCapsules {
                     val holder = Tag.ACTOR_VISIT.int(c, 0)
                     val start = Tag.ACTOR_VISIT.long(c, 1)
                     val end = Scalar.asLong(c.value())
-                    val b = builders.getOrPut(Triple(global.packed, Lane.VISITS, Math.floorDiv(start, WINDOW_MILLIS))) { RowsBuilder(16) }
+                    val b = builders.getOrPut(
+                        Triple(
+                            global.packed,
+                            Lane.VISITS,
+                            Math.floorDiv(start, WINDOW_MILLIS)
+                        )
+                    ) { RowsBuilder(16) }
                     b.addEntity(seqOf(start), start, 0, holder, 0, 0, 0L, 0L, null, null)
                     if (end != VisitTimeline.OPEN) {
-                        builders.getOrPut(Triple(global.packed, Lane.VISITS, Math.floorDiv(end, WINDOW_MILLIS))) { RowsBuilder(16) }
+                        builders.getOrPut(
+                            Triple(
+                                global.packed,
+                                Lane.VISITS,
+                                Math.floorDiv(end, WINDOW_MILLIS)
+                            )
+                        ) { RowsBuilder(16) }
                             .addEntity(seqOf(end), end, 0, holder, 1, 0, 0L, 0L, null, null)
                     }
                 }
@@ -236,8 +287,25 @@ internal object WorldToCapsules {
             unit.scan(Tag.ACTOR_MODE.prefix).use { c ->
                 while (c.next()) {
                     val millis = Tag.ACTOR_MODE.long(c, 1)
-                    builders.getOrPut(Triple(global.packed, Lane.MODES, Math.floorDiv(millis, WINDOW_MILLIS))) { RowsBuilder(16) }
-                        .addEntity(seqOf(millis), millis, 0, Tag.ACTOR_MODE.int(c, 0), 0, Scalar.asInt(c.value()), 0L, 0L, null, null)
+                    builders.getOrPut(
+                        Triple(
+                            global.packed,
+                            Lane.MODES,
+                            Math.floorDiv(millis, WINDOW_MILLIS)
+                        )
+                    ) { RowsBuilder(16) }
+                        .addEntity(
+                            seqOf(millis),
+                            millis,
+                            0,
+                            Tag.ACTOR_MODE.int(c, 0),
+                            0,
+                            Scalar.asInt(c.value()),
+                            0L,
+                            0L,
+                            null,
+                            null
+                        )
                 }
             }
         }
@@ -272,7 +340,11 @@ internal object WorldToCapsules {
                     val e = extras?.get(index)
                     b.add(
                         base + index, millis,
-                        Cell.of(x + Section.positionX(packed), y + Section.positionY(packed), z + Section.positionZ(packed)).packed,
+                        Cell.of(
+                            x + Section.positionX(packed),
+                            y + Section.positionY(packed),
+                            z + Section.positionZ(packed)
+                        ).packed,
                         actor, kind, Section.before(v, index), Section.after(v, index), e?.before, e?.after,
                     )
                     n++
@@ -294,14 +366,20 @@ internal object WorldToCapsules {
         }
     }
 
-    private fun blob(slice: MemorySegment): ByteArray? = if (slice.byteSize() == 0L) null else slice.toArray(ValueLayout.JAVA_BYTE)
+    private fun blob(slice: MemorySegment): ByteArray? =
+        if (slice.byteSize() == 0L) null else slice.toArray(ValueLayout.JAVA_BYTE)
 
     private fun flush(engine: KeyValueEngine, builders: HashMap<Triple<Long, Lane, Long>, RowsBuilder>) {
         val interning = Interning()
         StorageUnit.open(engine).use { unit -> flushWith(engine, unit, interning, builders) }
     }
 
-    private fun flushWith(engine: KeyValueEngine, unit: StorageUnit, interning: Interning, builders: HashMap<Triple<Long, Lane, Long>, RowsBuilder>) {
+    private fun flushWith(
+        engine: KeyValueEngine,
+        unit: StorageUnit,
+        interning: Interning,
+        builders: HashMap<Triple<Long, Lane, Long>, RowsBuilder>
+    ) {
         var batch = MutationBatch()
         var rows = 0
         for ((key, builder) in builders) {
@@ -327,7 +405,14 @@ internal object WorldToCapsules {
         builders.clear()
     }
 
-    private fun file(batch: MutationBatch, tile: Tile, lane: Lane, view: CapsuleView, bytes: ByteArray, tracked: IntArray) {
+    private fun file(
+        batch: MutationBatch,
+        tile: Tile,
+        lane: Lane,
+        view: CapsuleView,
+        bytes: ByteArray,
+        tracked: IntArray
+    ) {
         ChronoKeys.filing(tile, lane, view.firstSeq, view.lastSeq, view.millis()[0], tracked, bytes, batch::put)
     }
 

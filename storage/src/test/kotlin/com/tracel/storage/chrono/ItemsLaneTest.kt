@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 import kotlin.random.Random
 
 class ItemsLaneTest {
@@ -44,20 +44,35 @@ class ItemsLaneTest {
             val from = if (random.nextBoolean()) steve else chests[random.nextInt(chests.size)]
             val to = if (random.nextBoolean()) alex else chests[random.nextInt(chests.size)]
             val flows = (0 until random.nextInt(1, 4)).map {
-                Flow(items[random.nextInt(items.size)], Quantity(random.nextLong(1, 64)), from, to, if (random.nextInt(5) == 0) FlowKind.MINT else FlowKind.MOVE)
+                Flow(
+                    items[random.nextInt(items.size)],
+                    Quantity(random.nextLong(1, 64)),
+                    from,
+                    to,
+                    if (random.nextInt(5) == 0) FlowKind.MINT else FlowKind.MOVE
+                )
             }
             val cause = if (random.nextInt(9) == 0) CauseKind.ROLLBACK else CauseKind.PLAYER_ACTION
             Transaction(
                 TxnId(i.toLong()), Seq(i.toLong()), millis, cause, if (random.nextInt(6) == 0) null else from, flows,
-                flows.indices.filter { random.nextBoolean() }.map { FlowLot(it, LotId(random.nextLong(1, 500)), Quantity(random.nextLong(1, 64))) },
-                at = if (random.nextInt(4) == 0) null else BlockPos(overworld, random.nextInt(-60, 60), 64, random.nextInt(-60, 60)),
+                flows.indices.filter { random.nextBoolean() }
+                    .map { FlowLot(it, LotId(random.nextLong(1, 500)), Quantity(random.nextLong(1, 64))) },
+                at = if (random.nextInt(4) == 0) null else BlockPos(
+                    overworld,
+                    random.nextInt(-60, 60),
+                    64,
+                    random.nextInt(-60, 60)
+                ),
             )
         }
     }
 
-    private fun touches(t: Transaction): List<HolderId?> = listOf(t.causedBy) + t.flows.flatMap { listOf(it.source, it.destination) }
+    private fun touches(t: Transaction): List<HolderId?> =
+        listOf(t.causedBy) + t.flows.flatMap { listOf(it.source, it.destination) }
 
-    private fun blocks(t: Transaction): List<BlockPos> = (listOfNotNull(t.at) + touches(t).filterIsInstance<HolderId.Block>().map { BlockPos(it.world, it.x, it.y, it.z) })
+    private fun blocks(t: Transaction): List<BlockPos> =
+        (listOfNotNull(t.at) + touches(t).filterIsInstance<HolderId.Block>()
+            .map { BlockPos(it.world, it.x, it.y, it.z) })
 
     private fun admits(f: LookupFilter, t: Transaction): Boolean {
         if (t.cause.isBookkeeping || !f.admitsTime(t.epochMillis)) return false
@@ -74,42 +89,65 @@ class ItemsLaneTest {
         val since = millis0 + (written.maxOf { it.epochMillis } - millis0) / 2
         val all = Int.MAX_VALUE
         val filters = listOf(
-            LookupFilter(limit = all), LookupFilter(limit = 40, offset = 9), LookupFilter(since = since, limit = all),
-            LookupFilter(holders = setOf(steve), limit = all), LookupFilter(holders = setOf(alex), since = since, limit = all),
+            LookupFilter(limit = all),
+            LookupFilter(limit = 40, offset = 9),
+            LookupFilter(since = since, limit = all),
+            LookupFilter(holders = setOf(steve), limit = all),
+            LookupFilter(holders = setOf(alex), since = since, limit = all),
             LookupFilter(excludedHolders = setOf(steve), limit = all),
-            LookupFilter(itemKeys = setOf(items[0]), limit = all), LookupFilter(causes = setOf(CauseKind.PLAYER_ACTION), limit = all),
+            LookupFilter(itemKeys = setOf(items[0]), limit = all),
+            LookupFilter(causes = setOf(CauseKind.PLAYER_ACTION), limit = all),
             LookupFilter(world = nether, limit = all),
             LookupFilter(holders = setOf(HolderId.Block(overworld, 40, 64, -35)), limit = all),
             LookupFilter(holders = setOf(HolderId.Block(overworld, 80, 64, -10), steve), since = since, limit = all),
             LookupFilter(region = LookupRegion(overworld, -1, 2, -4, 1), limit = all),
-            LookupFilter(region = LookupRegion(overworld, -4, 4, -4, 4), holders = setOf(steve), itemKeys = setOf(items[1]), limit = all),
+            LookupFilter(
+                region = LookupRegion(overworld, -4, 4, -4, 4),
+                holders = setOf(steve),
+                itemKeys = setOf(items[1]),
+                limit = all
+            ),
         )
         for ((i, f) in filters.withIndex()) {
-            val want = written.filter { admits(f, it) }.sortedByDescending { it.seq.raw }.drop(f.offset).take(f.limit).map { it.copy(lots = emptyList()) }
+            val want = written.filter { admits(f, it) }.sortedByDescending { it.seq.raw }.drop(f.offset).take(f.limit)
+                .map { it.copy(lots = emptyList()) }
             val got = stack.log.query(f).map { it.copy(lots = emptyList()) }
             assertEquals(want, got, "$label: query $i, $f")
         }
         for (t in written.shuffled(Random(2)).take(60)) {
             assertEquals(t, stack.log.find(t.id), "$label: find ${t.id}")
-            assertEquals(t.lots.sortedBy { it.flowIndex }, stack.log.lotsAt(t.seq).sortedBy { it.flowIndex }, "$label: lots of ${t.seq}")
+            assertEquals(
+                t.lots.sortedBy { it.flowIndex },
+                stack.log.lotsAt(t.seq).sortedBy { it.flowIndex },
+                "$label: lots of ${t.seq}"
+            )
         }
         assertNull(stack.log.find(TxnId(999_999)))
-        val together = stack.worldLog.queryTogether(stack.log, LookupFilter(since = since, limit = all), includeWorld = false).second
-        assertEquals(written.filter { admits(LookupFilter(since = since), it) }.sortedByDescending { it.seq.raw }, together, "$label: with lots")
+        val together = stack.worldLog.queryTogether(
+            stack.log,
+            LookupFilter(since = since, limit = all),
+            includeWorld = false
+        ).second
+        assertEquals(
+            written.filter { admits(LookupFilter(since = since), it) }.sortedByDescending { it.seq.raw },
+            together,
+            "$label: with lots"
+        )
     }
 
     @Test
-    fun `items answer every filter the way a list would, merged or not, and after a reopen`(@TempDir dir: Path) = runTest {
-        val written = transactions(900)
-        Stack(dir).use { stack ->
-            for (t in written.take(500)) stack.log.append(t)
-            assertItems(stack, written.take(500), "fragments")
-            Chrono.of(stack.storage).mergeAll()
-            for (t in written.drop(500)) stack.log.append(t)
-            assertItems(stack, written, "merged then more")
+    fun `items answer every filter the way a list would, merged or not, and after a reopen`(@TempDir dir: Path) =
+        runTest {
+            val written = transactions(900)
+            Stack(dir).use { stack ->
+                for (t in written.take(500)) stack.log.append(t)
+                assertItems(stack, written.take(500), "fragments")
+                Chrono.of(stack.storage).mergeAll()
+                for (t in written.drop(500)) stack.log.append(t)
+                assertItems(stack, written, "merged then more")
+            }
+            Stack(dir).use { assertItems(it, written, "reopened") }
         }
-        Stack(dir).use { assertItems(it, written, "reopened") }
-    }
 
     @Test
     fun `a container's layout is the newest recording at or before the moment`(@TempDir dir: Path) = runTest {
@@ -117,7 +155,11 @@ class ItemsLaneTest {
             val chest = HolderId.Block(overworld, 3, 64, 3)
             val barrel = HolderId.Block(nether, 1, 64, 1)
             stack.containerSlots.record(chest, 100, listOf(ContainerSlotEntry(0, items[0], 5)))
-            stack.containerSlots.record(chest, 200, listOf(ContainerSlotEntry(0, items[0], 5), ContainerSlotEntry(4, items[2], 64)))
+            stack.containerSlots.record(
+                chest,
+                200,
+                listOf(ContainerSlotEntry(0, items[0], 5), ContainerSlotEntry(4, items[2], 64))
+            )
             stack.containerSlots.record(barrel, 150, listOf(ContainerSlotEntry(2, items[1], 9)))
             stack.containerSlots.record(chest, 300, emptyList())
             Chrono.of(stack.storage).mergeAll()

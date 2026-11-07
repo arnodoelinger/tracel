@@ -1,19 +1,24 @@
 package com.tracel.storage.chrono.query
 
-import com.tracel.storage.chrono.Cell
-import com.tracel.storage.chrono.Rows
-import com.tracel.storage.chrono.Tile
-import com.tracel.storage.chrono.Worldlike
+import com.tracel.storage.chrono.*
 import com.tracel.storage.chrono.capsule.Capsule
 import com.tracel.storage.chrono.capsule.CapsuleEncoder
-import com.tracel.storage.chrono.RowsBuilder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import kotlin.random.Random
 
 class ReaderTest {
-    private class Row(val tile: Tile, val seq: Long, val millis: Long, val cell: Int, val actor: Int, val kind: Int, val before: Int, val after: Int)
+    private class Row(
+        val tile: Tile,
+        val seq: Long,
+        val millis: Long,
+        val cell: Int,
+        val actor: Int,
+        val kind: Int,
+        val before: Int,
+        val after: Int
+    )
 
     private class Fixture(val reader: ChronoReader, val rows: List<Row>, val tiles: List<Tile>, val injected: Int)
 
@@ -27,7 +32,16 @@ class ReaderTest {
             val rows = world.open(n = 1500 + random.nextInt(1500)).rows()
             injected += world.injectedBreaks
             for (r in 0 until rows.size) {
-                all += Row(tile, rows.seq[r], rows.millis[r], rows.cell[r], rows.actor[r], rows.kind[r], rows.before[r], rows.after[r])
+                all += Row(
+                    tile,
+                    rows.seq[r],
+                    rows.millis[r],
+                    rows.cell[r],
+                    rows.actor[r],
+                    rows.kind[r],
+                    rows.before[r],
+                    rows.after[r]
+                )
             }
         }
         val timeline = all.sortedWith(compareBy({ it.millis }, { it.tile.packed }, { it.seq }))
@@ -57,7 +71,8 @@ class ReaderTest {
         return Fixture(ChronoReader(source), all, tiles, injected)
     }
 
-    private fun Rows.list(tile: Tile): List<Row> = (0 until size).map { Row(tile, seq[it], millis[it], cell[it], actor[it], kind[it], before[it], after[it]) }
+    private fun Rows.list(tile: Tile): List<Row> =
+        (0 until size).map { Row(tile, seq[it], millis[it], cell[it], actor[it], kind[it], before[it], after[it]) }
 
     private fun key(r: Row) = listOf(r.tile, r.seq, r.millis, r.cell, r.actor, r.kind, r.before, r.after)
 
@@ -73,14 +88,20 @@ class ReaderTest {
                 Sieve(kinds = IdTest.none(listOf(8))),
                 Sieve(states = IdTest.of(listOf(7, 9))),
                 Sieve(box = Box(minX = 12 * 16 + 4, maxX = 12 * 16 + 9, minY = 63, maxY = 66)),
-                Sieve(since = since, until = since + 600_000, actors = IdTest.of(listOf(0, 42)), states = IdTest.of(listOf(100, 107))),
+                Sieve(
+                    since = since,
+                    until = since + 600_000,
+                    actors = IdTest.of(listOf(0, 42)),
+                    states = IdTest.of(listOf(100, 107))
+                ),
             )
             for ((i, sieve) in sieves.withIndex()) {
-                val got = f.reader.select(f.tiles, sieve).flatMap { it.rows.list(it.tile) }.map(::key).sortedBy { it.toString() }
+                val got = f.reader.select(f.tiles, sieve).flatMap { it.rows.list(it.tile) }.map(::key)
+                    .sortedBy { it.toString() }
                 val want = f.rows.filter { r ->
                     sieve.admitsTime(r.millis) && sieve.actors.admits(r.actor) && sieve.kinds.admits(r.kind) &&
-                        sieve.box.contains(r.tile, Cell(r.cell)) &&
-                        (sieve.states == null || sieve.states!!.admits(r.before) || sieve.states!!.admits(r.after))
+                            sieve.box.contains(r.tile, Cell(r.cell)) &&
+                            (sieve.states == null || sieve.states!!.admits(r.before) || sieve.states!!.admits(r.after))
                 }.map(::key).sortedBy { it.toString() }
                 assertEquals(want, got, "sieve $i, seed $seed")
             }
@@ -135,7 +156,8 @@ class ReaderTest {
                     (0 until rw.size).map { Triple(rw.tile to rw.cells[it], rw.then[it], rw.now[it]) }
                 }.toSet()
                 val want = f.rows.filter { it.millis >= since && box.contains(it.tile, Cell(it.cell)) }
-                    .groupBy { it.tile to it.cell }.map { (k, rs) -> Triple(k, rs.minBy { it.seq }.before, rs.maxBy { it.seq }.after) }
+                    .groupBy { it.tile to it.cell }
+                    .map { (k, rs) -> Triple(k, rs.minBy { it.seq }.before, rs.maxBy { it.seq }.after) }
                     .toSet()
                 assertEquals(want, got, "rewind to $q of ${f.rows.size}, shuffled $shuffle")
             }
@@ -163,6 +185,9 @@ class ReaderTest {
         val frames = f.reader.frames(f.tiles, moments)
         assertEquals(3, frames.size)
         val changed = frames.map { frame -> frame.sumOf { it.size } }
-        assertTrue(changed[0] >= changed[1] && changed[1] >= changed[2], "older moments see more changed cells: $changed")
+        assertTrue(
+            changed[0] >= changed[1] && changed[1] >= changed[2],
+            "older moments see more changed cells: $changed"
+        )
     }
 }

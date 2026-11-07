@@ -81,7 +81,10 @@ class StoredLeases(private val storage: TracelStorage) : Leases() {
         load()
         val threshold = nowMillis - maxAgeMillis
         val stale = Long2ObjectOpenHashMap<Held>()
-        for (entry in jobs.long2ObjectEntrySet()) if (entry.value.acquiredAt < threshold) stale.put(entry.longKey, entry.value)
+        for (entry in jobs.long2ObjectEntrySet()) if (entry.value.acquiredAt < threshold) stale.put(
+            entry.longKey,
+            entry.value
+        )
         for (entry in stale.long2ObjectEntrySet()) {
             forget(entry.longKey, entry.value)
             swap(entry.longKey, null)

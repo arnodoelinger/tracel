@@ -9,19 +9,12 @@ import com.tracel.model.log.Seq
 import com.tracel.model.world.BlockPos
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.chrono.Cell
-import com.tracel.storage.chrono.Chrono
-import com.tracel.storage.chrono.Lane
-import com.tracel.storage.chrono.Rows
-import com.tracel.storage.chrono.Tile
-import com.tracel.storage.chrono.query.Box
-import com.tracel.storage.chrono.query.Found
-import com.tracel.storage.chrono.query.IdTest
-import com.tracel.storage.chrono.query.Sieve
-import com.tracel.storage.chrono.query.and
+import com.tracel.storage.chrono.*
+import com.tracel.storage.chrono.query.*
 
 /** The event log: what was said, what was typed, who joined and disconnected. */
-class StoredEventLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) : AbstractChronoLog(storage, chrono), EventLog {
+class StoredEventLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) : AbstractChronoLog(storage, chrono),
+    EventLog {
     override suspend fun append(event: ActorEvent) {
         storage.write {
             val byId = event.by?.let { interning.internHolder(this, it) } ?: 0
@@ -63,16 +56,27 @@ class StoredEventLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
         when {
             worldId != null && region != null -> {
                 val tiles = ArrayList<Tile>()
-                for (x in region.minTileX..region.maxTileX) for (z in region.minTileZ..region.maxTileZ) tiles += Tile.of(worldId, x, z)
+                for (x in region.minTileX..region.maxTileX) for (z in region.minTileZ..region.maxTileZ) tiles += Tile.of(
+                    worldId,
+                    x,
+                    z
+                )
                 val boxed = Sieve(
                     sieve.since, sieve.until, sieve.actors, sieve.kinds, null,
                     Box(region.minX, region.maxX, region.minY, region.maxY, region.minZ, region.maxZ),
                 )
                 found += reader.select(tiles, boxed, Lane.EVENTS)
             }
+
             holderIds.isNotEmpty() && filter.holders.all { it is HolderId.Player } ->
                 for (id in holderIds) found += reader.selectAnywhere(id, sieve.onlyBy(id), Lane.EVENTS)
-            holderIds.isNotEmpty() -> found += reader.selectAnywhere(null, Sieve(sieve.since, sieve.until, sieve.actors and IdTest.of(holderIds), sieve.kinds), Lane.EVENTS)
+
+            holderIds.isNotEmpty() -> found += reader.selectAnywhere(
+                null,
+                Sieve(sieve.since, sieve.until, sieve.actors and IdTest.of(holderIds), sieve.kinds),
+                Lane.EVENTS
+            )
+
             else -> found += reader.selectAnywhere(null, sieve, Lane.EVENTS)
         }
         val keep = ArrayList<Pair<Found, Int>>()
@@ -96,7 +100,12 @@ class StoredEventLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
             kind = EventKind.entries[rows.kind[i]],
             by = if (actor == 0) null else interning.resolveHolder(unit, actor),
             epochMillis = rows.millis[i],
-            at = if (tile.world == 0) null else BlockPos(interning.resolveWorld(unit, tile.world), tile.originX + cell.x, cell.y, tile.originZ + cell.z),
+            at = if (tile.world == 0) null else BlockPos(
+                interning.resolveWorld(unit, tile.world),
+                tile.originX + cell.x,
+                cell.y,
+                tile.originZ + cell.z
+            ),
             text = rows.beforeExtrasAt(i)?.toString(Charsets.UTF_8),
         )
     }

@@ -1,14 +1,11 @@
 package com.tracel.storage.lsm.table
 
 import com.tracel.storage.lsm.iter.InternalKeys
-import com.tracel.storage.lsm.table.BlockPlaneCodec
-import com.tracel.storage.lsm.table.SegmentFileBuilder
-import com.tracel.storage.lsm.table.SegmentFileFormat
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.Arrays
+import java.util.*
 import kotlin.random.Random
 
 class BlockPlaneCodecTest {
@@ -42,7 +39,11 @@ class BlockPlaneCodecTest {
                 var at = 0L
                 while (at < reader.end()) {
                     val raw = reader.blockAt(at)
-                    assertArrayEquals(raw, BlockPlaneCodec.decode(BlockPlaneCodec.encode(raw, raw.size)), "round $round block $at")
+                    assertArrayEquals(
+                        raw,
+                        BlockPlaneCodec.decode(BlockPlaneCodec.encode(raw, raw.size)),
+                        "round $round block $at"
+                    )
                     at = reader.nextBlock(at)
                 }
             }

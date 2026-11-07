@@ -236,7 +236,8 @@ class SectionDeltaCodecTest {
         val record = ByteArray(lead + payload.size + 9)
         System.arraycopy(payload, 0, record, lead, payload.size)
 
-        val read = Extras.decodeShape(type, at, MemorySegment.ofArray(record).asSlice(lead.toLong(), payload.size.toLong()))
+        val read =
+            Extras.decodeShape(type, at, MemorySegment.ofArray(record).asSlice(lead.toLong(), payload.size.toLong()))
         assertEquals(shape, read)
         assertNull(Extras.decodeShape(type, at, MemorySegment.ofArray(record).asSlice(lead.toLong(), 0)))
         assertNull(Extras.decodeEntity(MemorySegment.ofArray(record).asSlice(lead.toLong(), 0)))

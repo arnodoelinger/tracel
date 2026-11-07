@@ -37,8 +37,10 @@ class BloomFilter internal constructor(
         const val LANES = 8
         const val BITS_PER_KEY = 12
 
-        private val LE_LONG: VarHandle = MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
-        private val LE_INT: VarHandle = MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
+        private val LE_LONG: VarHandle =
+            MethodHandles.byteArrayViewVarHandle(LongArray::class.java, ByteOrder.LITTLE_ENDIAN)
+        private val LE_INT: VarHandle =
+            MethodHandles.byteArrayViewVarHandle(IntArray::class.java, ByteOrder.LITTLE_ENDIAN)
 
         // Odd, but beautiful
         internal val SALT_0: Long = 0x9E3779B97F4A7C15uL.toLong()

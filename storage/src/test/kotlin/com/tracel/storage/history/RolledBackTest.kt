@@ -122,7 +122,14 @@ class RolledBackTest {
             val rolled = StoredRolledBack(storage)
             val asked = listOf(2_999L, 3_000L, 30_000L, 52_989L, 52_990L, 52_999L, 53_000L, 700_000L)
             assertEquals(
-                mapOf(3_000L to 100L, 30_000L to 100L, 52_989L to 100L, 52_990L to 200L, 52_999L to 200L, 700_000L to 200L),
+                mapOf(
+                    3_000L to 100L,
+                    30_000L to 100L,
+                    52_989L to 100L,
+                    52_990L to 200L,
+                    52_999L to 200L,
+                    700_000L to 200L
+                ),
                 rolled.of(asked),
             )
 

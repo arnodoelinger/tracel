@@ -1,12 +1,6 @@
 package com.tracel.storage.chrono
 
-import com.tracel.storage.chrono.capsule.Capsule
-import com.tracel.storage.chrono.capsule.CapsuleEncoder
-import com.tracel.storage.chrono.capsule.CapsuleView
-import com.tracel.storage.chrono.capsule.EntityCapsule
-import com.tracel.storage.chrono.capsule.EntityCapsuleEncoder
-import com.tracel.storage.chrono.capsule.ItemsCapsule
-import com.tracel.storage.chrono.capsule.ItemsCapsuleEncoder
+import com.tracel.storage.chrono.capsule.*
 import java.lang.foreign.MemorySegment
 
 /** A kind of history a tile keeps, each in capsules of its own format. */
@@ -34,7 +28,8 @@ enum class Lane(val id: Int, val magic: Int) {
     CONTAINERS(4, 0xCB) {
         override fun open(bytes: MemorySegment): CapsuleView = EntityCapsule(bytes, CONTAINERS)
         override fun encode(rows: Rows, window: Long, bounds: CapsuleView?): ByteArray =
-            containers.get().encode(rows, window, bounds?.lastSeq ?: Long.MIN_VALUE, bounds?.maxMillis ?: Long.MIN_VALUE)
+            containers.get()
+                .encode(rows, window, bounds?.lastSeq ?: Long.MIN_VALUE, bounds?.maxMillis ?: Long.MIN_VALUE)
     },
     VISITS(5, 0xCC) {
         override fun open(bytes: MemorySegment): CapsuleView = EntityCapsule(bytes, VISITS)

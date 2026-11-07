@@ -19,7 +19,8 @@ class Capsule(bytes: MemorySegment) : AbstractCapsule(bytes, Lane.BLOCKS, Capsul
     val layout: Layout by lazy { Layout() }
 
     /** The state every cell held before this capsule's first change to it, by cell index. */
-    fun entries(): IntArray = IntArray(cellCount).also { BitUnpack.mapped(bytes, layout.entryAt, layout.stateBits, cellCount, states, it) }
+    fun entries(): IntArray =
+        IntArray(cellCount).also { BitUnpack.mapped(bytes, layout.entryAt, layout.stateBits, cellCount, states, it) }
 
     /** The state every cell held after this capsule's last change to it, by cell index. */
     fun exits(): IntArray {
@@ -94,7 +95,13 @@ class Capsule(bytes: MemorySegment) : AbstractCapsule(bytes, Lane.BLOCKS, Capsul
     }
 
     private fun extrasOf(rowsToo: Boolean): Extras =
-        if (!hasExtras) Extras.NONE else ChainTail.readExtras(bytes, offset(CapsuleSection.TAIL), cellCount, rowCount, rowsToo)
+        if (!hasExtras) Extras.NONE else ChainTail.readExtras(
+            bytes,
+            offset(CapsuleSection.TAIL),
+            cellCount,
+            rowCount,
+            rowsToo
+        )
 
     inner class Layout internal constructor() {
         internal val timeline: Timeline

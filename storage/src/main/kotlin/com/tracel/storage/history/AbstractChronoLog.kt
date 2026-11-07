@@ -1,8 +1,8 @@
 package com.tracel.storage.history
 
+import com.tracel.storage.Interning
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.chrono.Chrono
-import com.tracel.storage.Interning
 
 /**
  * A history kept by place: its rows live in [Chrono]'s tile capsules,

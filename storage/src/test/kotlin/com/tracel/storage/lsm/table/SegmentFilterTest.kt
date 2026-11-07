@@ -14,13 +14,18 @@ class SegmentFilterTest {
     private val rows = 20_000
     private val index = 9
 
-    private fun key(tag: Int, i: Int): ByteArray = byteArrayOf(tag.toByte()) + ByteArray(8) { (i.toLong() ushr (56 - it * 8)).toByte() }
+    private fun key(tag: Int, i: Int): ByteArray =
+        byteArrayOf(tag.toByte()) + ByteArray(8) { (i.toLong() ushr (56 - it * 8)).toByte() }
+
     private fun value(i: Int): ByteArray = "v$i".toByteArray()
 
     private fun filled(dir: Path, pointRead: (Int) -> Boolean): LsmEngine {
         val engine = LsmEngine(dir, LsmOptions(sync = WalSyncPolicy.Never, pointRead = pointRead))
         for (i in 0 until rows) {
-            engine.write(MutationBatch().apply { put(key(7, i), value(i)); put(key(index, i), value(i)) }, durable = false)
+            engine.write(
+                MutationBatch().apply { put(key(7, i), value(i)); put(key(index, i), value(i)) },
+                durable = false
+            )
         }
         engine.flushNow()
         return engine

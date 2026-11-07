@@ -50,7 +50,8 @@ class StorageUnit(
     fun mark(): Int {
         val mark = batch.mark()
         val joined = participants ?: return mark
-        (savepoints ?: HashMap<Int, IntArray>().also { savepoints = it })[mark] = IntArray(joined.size) { joined[it].savepoint() }
+        (savepoints ?: HashMap<Int, IntArray>().also { savepoints = it })[mark] =
+            IntArray(joined.size) { joined[it].savepoint() }
         return mark
     }
 

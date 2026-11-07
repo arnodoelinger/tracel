@@ -5,7 +5,6 @@ import com.tracel.storage.lsm.io.Disk
 import com.tracel.storage.lsm.memtable.MemTable
 import com.tracel.storage.lsm.table.SegmentFileReader
 import it.unimi.dsi.fastutil.longs.Long2IntRBTreeMap
-import java.util.*
 
 /**
  * When a segment file may actually be unmapped and deleted, and when an old version of a key may

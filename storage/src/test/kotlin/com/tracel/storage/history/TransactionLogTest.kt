@@ -16,7 +16,6 @@ import com.tracel.model.lot.LotId
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.transaction.TxnId
 import com.tracel.model.world.WorldId
-import com.tracel.storage.codec.Tag
 import com.tracel.storage.support.Stack
 import com.tracel.tests.support.Fixtures.block
 import com.tracel.tests.support.Fixtures.diamond

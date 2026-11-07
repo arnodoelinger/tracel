@@ -15,7 +15,7 @@ import com.tracel.storage.table.ClaimQueue
 import com.tracel.storage.table.KeyCodec
 import com.tracel.storage.table.ValueCodec
 import java.lang.foreign.MemorySegment
-import java.util.UUID
+import java.util.*
 
 /**
  * Pending wear. One row per stack, under the player and an ID that only grows,
@@ -46,6 +46,6 @@ class StoredPendingWear(storage: TracelStorage, counters: StoredCounters) : Pend
 
         override fun read(storage: TracelStorage, unit: StorageUnit, value: MemorySegment): Pair<ItemKey, ByteArray> =
             storage.interning.resolveItemKey(unit, value.i32(0)) to
-                value.readBytes(KEY_ID.toLong(), value.byteSize().toInt() - KEY_ID)
+                    value.readBytes(KEY_ID.toLong(), value.byteSize().toInt() - KEY_ID)
     }
 }

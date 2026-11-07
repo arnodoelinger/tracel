@@ -7,7 +7,6 @@ import com.tracel.storage.codec.Tag
 import com.tracel.storage.util.eachRow
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
 import it.unimi.dsi.fastutil.longs.LongArrayList
-import kotlin.collections.iterator
 
 /**
  * Which log records a rollback took back, and when.

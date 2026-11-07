@@ -9,14 +9,16 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Arrays
+import java.util.*
 import kotlin.random.Random
 
 class SegmentBlocksTest {
     private val rows = 5_000
 
     private fun userKey(i: Int): ByteArray = byteArrayOf(7) + ByteArray(8) { ((i * 2L) ushr (56 - it * 8)).toByte() }
-    private fun between(i: Int): ByteArray = byteArrayOf(7) + ByteArray(8) { ((i * 2L + 1) ushr (56 - it * 8)).toByte() }
+    private fun between(i: Int): ByteArray =
+        byteArrayOf(7) + ByteArray(8) { ((i * 2L + 1) ushr (56 - it * 8)).toByte() }
+
     private fun value(i: Int): ByteArray = "value-$i".repeat(1 + i % 5).toByteArray()
 
     private fun internal(userKey: ByteArray): ByteArray {
@@ -24,7 +26,12 @@ class SegmentBlocksTest {
         return userKey + ByteArray(8) { (trailer ushr (56 - it * 8)).toByte() }
     }
 
-    private fun write(dir: Path, name: String, blockTarget: Int, version: Int = SegmentFileFormat.VERSION): SegmentFileReader {
+    private fun write(
+        dir: Path,
+        name: String,
+        blockTarget: Int,
+        version: Int = SegmentFileFormat.VERSION
+    ): SegmentFileReader {
         val path = dir.resolve(name)
         val meta = SegmentFileBuilder(path, rows, blockTarget = blockTarget, version = version).use { writer ->
             for (i in 0 until rows) writer.add(internal(userKey(i)), value(i))
@@ -112,7 +119,7 @@ class SegmentBlocksTest {
             val position = i / 7
             val seq = (i * 2_654_435_761L) and 0xFFFFFF
             return byteArrayOf(0x18, 0, 0, 0, 1) + ByteArray(12) { (position ushr ((11 - it) * 4)).toByte() } +
-                ByteArray(8) { ((Long.MAX_VALUE - seq) ushr (56 - it * 8)).toByte() }
+                    ByteArray(8) { ((Long.MAX_VALUE - seq) ushr (56 - it * 8)).toByte() }
         }
 
         val keys = (0 until rows).map(::indexKey).distinctBy { it.toList() }.sortedWith(Arrays::compareUnsigned)
@@ -127,7 +134,10 @@ class SegmentBlocksTest {
 
         written(SegmentFileFormat.PLANES_SINCE - 1).use { rows ->
             written(SegmentFileFormat.VERSION).use { planes ->
-                assertTrue(planes.meta.fileBytes < rows.meta.fileBytes, "${planes.meta.fileBytes} against ${rows.meta.fileBytes}")
+                assertTrue(
+                    planes.meta.fileBytes < rows.meta.fileBytes,
+                    "${planes.meta.fileBytes} against ${rows.meta.fileBytes}"
+                )
                 val bytes = Files.readAllBytes(dir.resolve("index-v${SegmentFileFormat.VERSION}.seg"))
                 val flags = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).getInt(4)
                 assertTrue(flags and SegmentFileFormat.FLAG_PLANES != 0, "first block is not planes")

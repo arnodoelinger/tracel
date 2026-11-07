@@ -10,11 +10,7 @@ import com.tracel.engine.world.edit.BlockEdits
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.log.Seq
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
-import com.tracel.model.world.WorldId
+import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.block.BlockShape
@@ -31,7 +27,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 import kotlin.random.Random
 
 class ChronoWorldLogTest {
@@ -41,7 +37,13 @@ class ChronoWorldLogTest {
     private val alex = player(2)
     private val notch = player(3)
     private val air = shape("minecraft:air")
-    private val shapes = listOf("minecraft:stone", "minecraft:oak_planks", "minecraft:glass", "minecraft:wheat[age=0]", "minecraft:wheat[age=7]").map(::shape)
+    private val shapes = listOf(
+        "minecraft:stone",
+        "minecraft:oak_planks",
+        "minecraft:glass",
+        "minecraft:wheat[age=0]",
+        "minecraft:wheat[age=7]"
+    ).map(::shape)
     private val millis0 = 1_700_000_000_000L
 
     private fun shape(data: String) = BlockShape(BlockDataKey(data))
@@ -90,14 +92,34 @@ class ChronoWorldLogTest {
             val after = if (before == air) shapes[random.nextInt(shapes.size)] else air
             val action = if (after == air) ActionKind.BLOCK_BREAK else ActionKind.BLOCK_PLACE
             val cause = if (random.nextInt(7) == 0) CauseKind.NATURAL else CauseKind.PLAYER_ACTION
-            put(WorldChange(stack.counters.nextSeq(), action, cause, who(), millis, at, ChangeSubject.Block(before, after)))
+            put(
+                WorldChange(
+                    stack.counters.nextSeq(),
+                    action,
+                    cause,
+                    who(),
+                    millis,
+                    at,
+                    ChangeSubject.Block(before, after)
+                )
+            )
             state[at] = after
         }
 
         private suspend fun rollbackOne() {
             val at = pos()
             val before = now(at)
-            put(WorldChange(stack.counters.nextSeq(), ActionKind.BLOCK_CHANGE, CauseKind.ROLLBACK, null, millis, at, ChangeSubject.Block(before, air)))
+            put(
+                WorldChange(
+                    stack.counters.nextSeq(),
+                    ActionKind.BLOCK_CHANGE,
+                    CauseKind.ROLLBACK,
+                    null,
+                    millis,
+                    at,
+                    ChangeSubject.Block(before, air)
+                )
+            )
             state[at] = air
         }
 
@@ -110,13 +132,29 @@ class ChronoWorldLogTest {
             }
             val by = who()
             var base = -1L
-            val written = stack.worldLog.appendAll(BlockEdits(ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, by, millis, edits)) { n ->
+            val written = stack.worldLog.appendAll(
+                BlockEdits(
+                    ActionKind.BLOCK_BREAK,
+                    CauseKind.EXPLOSION,
+                    by,
+                    millis,
+                    edits
+                )
+            ) { n ->
                 stack.counters.nextSeqRange(n).also { base = it.raw }
             }
             val real = edits.filter { it.before != it.after }
             assertEquals(real.size, written)
             for ((i, e) in real.withIndex()) {
-                this.written += WorldChange(Seq(base + i), ActionKind.BLOCK_BREAK, CauseKind.EXPLOSION, by, millis, e.at, ChangeSubject.Block(e.before, e.after))
+                this.written += WorldChange(
+                    Seq(base + i),
+                    ActionKind.BLOCK_BREAK,
+                    CauseKind.EXPLOSION,
+                    by,
+                    millis,
+                    e.at,
+                    ChangeSubject.Block(e.before, e.after)
+                )
                 state[e.at] = air
             }
         }
@@ -124,21 +162,47 @@ class ChronoWorldLogTest {
         private suspend fun sign() {
             val at = BlockPos(overworld, 3, 65, 3)
             val before = now(at)
-            val after = BlockShape(BlockDataKey("minecraft:oak_sign"), BlockExtras.Opaque("line ${random.nextInt(99)}".toByteArray()))
-            put(WorldChange(stack.counters.nextSeq(), ActionKind.SIGN_EDIT, CauseKind.PLAYER_ACTION, steve, millis, at, ChangeSubject.Block(before, after)))
+            val after = BlockShape(
+                BlockDataKey("minecraft:oak_sign"),
+                BlockExtras.Opaque("line ${random.nextInt(99)}".toByteArray())
+            )
+            put(
+                WorldChange(
+                    stack.counters.nextSeq(),
+                    ActionKind.SIGN_EDIT,
+                    CauseKind.PLAYER_ACTION,
+                    steve,
+                    millis,
+                    at,
+                    ChangeSubject.Block(before, after)
+                )
+            )
             state[at] = after
         }
 
         private suspend fun entity() {
             val at = pos()
             val type = EntityTypeKey(if (random.nextBoolean()) "minecraft:item" else "minecraft:zombie")
-            val shape = EntityShape(type, at.x + 0.25, at.y.toDouble(), at.z + 0.75, random.nextInt(360 * 128) / 128f, 0f, EntityExtras.Opaque(byteArrayOf(1, 2, random.nextInt(9).toByte())))
+            val shape = EntityShape(
+                type,
+                at.x + 0.25,
+                at.y.toDouble(),
+                at.z + 0.75,
+                random.nextInt(360 * 128) / 128f,
+                0f,
+                EntityExtras.Opaque(byteArrayOf(1, 2, random.nextInt(9).toByte()))
+            )
             val spawn = random.nextBoolean()
             put(
                 WorldChange(
                     stack.counters.nextSeq(), if (spawn) ActionKind.ENTITY_SPAWN else ActionKind.ENTITY_REMOVE,
                     if (spawn) CauseKind.NATURAL else CauseKind.PLAYER_ACTION, who(), millis, at,
-                    ChangeSubject.Entity(UUID(random.nextLong(), random.nextLong()), type, if (spawn) null else shape, if (spawn) shape else null),
+                    ChangeSubject.Entity(
+                        UUID(random.nextLong(), random.nextLong()),
+                        type,
+                        if (spawn) null else shape,
+                        if (spawn) shape else null
+                    ),
                 ),
             )
         }
@@ -171,11 +235,33 @@ class ChronoWorldLogTest {
             LookupFilter(excludedHolders = setOf(steve), limit = all),
             LookupFilter(causes = setOf(CauseKind.EXPLOSION), limit = all),
             LookupFilter(excludedCauses = setOf(CauseKind.NATURAL), limit = all),
-            LookupFilter(actions = setOf(ActionKind.BLOCK_PLACE, ActionKind.SIGN_EDIT, ActionKind.ENTITY_SPAWN), limit = all),
+            LookupFilter(
+                actions = setOf(ActionKind.BLOCK_PLACE, ActionKind.SIGN_EDIT, ActionKind.ENTITY_SPAWN),
+                limit = all
+            ),
             LookupFilter(world = nether, limit = all),
             LookupFilter(region = LookupRegion(overworld, -1, 1, -1, 1), limit = all),
-            LookupFilter(region = LookupRegion(overworld, -3, 2, -3, 2, minX = -10, maxX = 10, minY = 62, maxY = 66, minZ = -10, maxZ = 10), limit = all),
-            LookupFilter(region = LookupRegion(overworld, -3, 2, -3, 2), holders = setOf(alex), since = since, limit = all),
+            LookupFilter(
+                region = LookupRegion(
+                    overworld,
+                    -3,
+                    2,
+                    -3,
+                    2,
+                    minX = -10,
+                    maxX = 10,
+                    minY = 62,
+                    maxY = 66,
+                    minZ = -10,
+                    maxZ = 10
+                ), limit = all
+            ),
+            LookupFilter(
+                region = LookupRegion(overworld, -3, 2, -3, 2),
+                holders = setOf(alex),
+                since = since,
+                limit = all
+            ),
             LookupFilter(region = LookupRegion(nether, -3, 2, -3, 2), limit = 30, offset = 5),
         )
     }
@@ -194,7 +280,8 @@ class ChronoWorldLogTest {
             val want = newest.filter { admits(filter, it) }.drop(filter.offset).take(filter.limit)
             assertEquals(want, stack.worldLog.query(filter), "$label: query $i, $filter")
             if (filter.offset != 0 || filter.limit != Int.MAX_VALUE) continue
-            val got = stack.worldLog.queryTogether(stack.log, filter, structureEnds = true).first.map { it.seq.raw }.toSet()
+            val got =
+                stack.worldLog.queryTogether(stack.log, filter, structureEnds = true).first.map { it.seq.raw }.toSet()
             assertEquals(ends(newest.filter { admits(filter, it) }), got, "$label: ends of $filter")
         }
         for (pos in written.map { it.at }.distinct().shuffled(Random(1)).take(150)) {
@@ -267,7 +354,15 @@ class ChronoWorldLogTest {
     @Test
     fun `appending the same sequence twice is refused`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
-            val change = WorldChange(Seq(42), ActionKind.BLOCK_PLACE, CauseKind.PLAYER_ACTION, steve, millis0, BlockPos(overworld, 1, 64, 1), ChangeSubject.Block(air, shapes[0]))
+            val change = WorldChange(
+                Seq(42),
+                ActionKind.BLOCK_PLACE,
+                CauseKind.PLAYER_ACTION,
+                steve,
+                millis0,
+                BlockPos(overworld, 1, 64, 1),
+                ChangeSubject.Block(air, shapes[0])
+            )
             stack.worldLog.append(change)
             val refused = runCatching { stack.worldLog.append(change) }
             assertTrue(refused.isFailure, "a second append of seq 42 went through")

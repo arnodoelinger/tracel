@@ -151,7 +151,11 @@ class RowPad internal constructor(private val rows: Rows, private val off: Long,
     internal fun at(i: Int): Long = rows.at(i, off)
 }
 
-class RowEnum<E : Enum<E>> internal constructor(private val rows: Rows, private val off: Long, private val entries: List<E>) {
+class RowEnum<E : Enum<E>> internal constructor(
+    private val rows: Rows,
+    private val off: Long,
+    private val entries: List<E>
+) {
     internal fun at(i: Int): Long = rows.at(i, off)
     operator fun get(v: MemorySegment, i: Int): E = entries[v.i8(at(i)).toInt() and 0xFF]
 }

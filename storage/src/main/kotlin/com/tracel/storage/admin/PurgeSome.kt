@@ -185,7 +185,11 @@ private suspend fun analyze(
                 val lane = Lane.of(tag.u8(key, 3))
                 val rows = lane.open(cursor.value()).rows()
                 for (r in 0 until rows.size) {
-                    val counted = lane != Lane.ITEMS || (rows.aux!![1][r] == 0 && Tile.of(rows.aux[2][r], rows.aux[3][r], rows.aux[4][r]) == tile)
+                    val counted = lane != Lane.ITEMS || (rows.aux!![1][r] == 0 && Tile.of(
+                        rows.aux[2][r],
+                        rows.aux[3][r],
+                        rows.aux[4][r]
+                    ) == tile)
                     if (counted) analysis.total++
                     val world = if (lane == Lane.ITEMS) rows.aux!![2][r] else tile.world
                     val epoch = rows.millis[r]

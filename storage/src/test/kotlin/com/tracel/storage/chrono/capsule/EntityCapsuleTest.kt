@@ -24,9 +24,16 @@ class EntityCapsuleTest {
             val spawn = random.nextBoolean()
             val shape = if (random.nextInt(4) == 0) null else ByteArray(random.nextInt(1, 90)) { it.toByte() }
             b.addEntity(
-                seq, millis, Cell.of(random.nextInt(16), 60 + random.nextInt(8), random.nextInt(16)).packed,
-                if (random.nextInt(5) == 0) 0 else 41 + random.nextInt(3), random.nextInt(4) shl 4 or (if (spawn) 4 else 5),
-                700 + random.nextInt(6), high, low, if (spawn) null else shape, if (spawn) shape else null,
+                seq,
+                millis,
+                Cell.of(random.nextInt(16), 60 + random.nextInt(8), random.nextInt(16)).packed,
+                if (random.nextInt(5) == 0) 0 else 41 + random.nextInt(3),
+                random.nextInt(4) shl 4 or (if (spawn) 4 else 5),
+                700 + random.nextInt(6),
+                high,
+                low,
+                if (spawn) null else shape,
+                if (spawn) shape else null,
             )
         }
         return b.rows()

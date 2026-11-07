@@ -14,12 +14,7 @@ import com.tracel.model.transaction.TxnId
 import com.tracel.model.world.BlockPos
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.chrono.Cell
-import com.tracel.storage.chrono.Chrono
-import com.tracel.storage.chrono.ItemRows
-import com.tracel.storage.chrono.Lane
-import com.tracel.storage.chrono.Rows
-import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.*
 import com.tracel.storage.chrono.capsule.CapsuleView
 import com.tracel.storage.chrono.query.Found
 import com.tracel.storage.chrono.query.Sieve
@@ -30,7 +25,6 @@ import com.tracel.storage.codec.Tag
 import com.tracel.storage.util.eachRow
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import it.unimi.dsi.fastutil.ints.IntSet
-import kotlin.collections.iterator
 
 /**
  * The item log, kept by place: every flow of every transaction is a row in the capsules of the tiles the transaction
@@ -40,7 +34,8 @@ import kotlin.collections.iterator
  * tiles is filed in each of them, whole, and read back once. The only row of its own is [Tag.TXN_BY_ID], which says
  * which sequence an id has: the one thing a capsule cannot be asked.
  */
-class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) : AbstractChronoLog(storage, chrono), TransactionLog {
+class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) :
+    AbstractChronoLog(storage, chrono), TransactionLog {
     override suspend fun append(transaction: Transaction) {
         storage.write {
             val seq = transaction.seq.raw
@@ -77,8 +72,20 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
             for (tile in tiles) {
                 for ((i, flow) in flows.withIndex()) {
                     writer.addFlow(
-                        Tile(tile), seq, transaction.epochMillis, cell, causedById, ItemRows.kindOf(kindCause, flow.kind),
-                        ids[i][0], ids[i][1], ids[i][2], i, flow.quantity.raw, transaction.id.raw, lots[i], Tile(home),
+                        Tile(tile),
+                        seq,
+                        transaction.epochMillis,
+                        cell,
+                        causedById,
+                        ItemRows.kindOf(kindCause, flow.kind),
+                        ids[i][0],
+                        ids[i][1],
+                        ids[i][2],
+                        i,
+                        flow.quantity.raw,
+                        transaction.id.raw,
+                        lots[i],
+                        Tile(home),
                     )
                 }
             }
@@ -92,9 +99,21 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
      */
     override suspend fun find(id: TxnId): Transaction? = storage.read {
         val found = chrono.reader(this).selectAnywhere(null, Sieve.ALL, Lane.ITEMS)
-        val seq = found.firstNotNullOfOrNull { f -> f.rows.uuidLow?.let { ids -> (0 until f.rows.size).firstOrNull { ids[it] == id.raw }?.let { f.rows.seq[it] } } }
+        val seq = found.firstNotNullOfOrNull { f ->
+            f.rows.uuidLow?.let { ids ->
+                (0 until f.rows.size).firstOrNull { ids[it] == id.raw }?.let { f.rows.seq[it] }
+            }
+        }
             ?: return@read null
-        transactionsOf(this, found.map { it -> it.tile to it.rows.let { rows -> rows.pick(IntArray(rows.size) { i -> i }.filter { rows.seq[it] == seq }.toIntArray()) } }, withLots = true)[seq]
+        transactionsOf(
+            this,
+            found.map { it ->
+                it.tile to it.rows.let { rows ->
+                    rows.pick(IntArray(rows.size) { i -> i }.filter { rows.seq[it] == seq }.toIntArray())
+                }
+            },
+            withLots = true
+        )[seq]
     }
 
     override suspend fun lotsAt(seq: Seq): List<FlowLot> = lotsAtAll(listOf(seq))[seq].orEmpty()
@@ -115,7 +134,8 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
         return out
     }
 
-    override suspend fun query(filter: LookupFilter): List<Transaction> = storage.read { select(this, filter, withLots = false) }
+    override suspend fun query(filter: LookupFilter): List<Transaction> =
+        storage.read { select(this, filter, withLots = false) }
 
     /** [query] with the lots on every transaction, for a caller that reads them anyway. */
     @Suppress("DEPRECATION")
@@ -142,9 +162,14 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
             region != null -> {
                 val worldId = ids.regionWorld ?: return emptyList()
                 val tiles = ArrayList<Tile>()
-                for (x in region.minTileX..region.maxTileX) for (z in region.minTileZ..region.maxTileZ) tiles += Tile.of(worldId, x, z)
+                for (x in region.minTileX..region.maxTileX) for (z in region.minTileZ..region.maxTileZ) tiles += Tile.of(
+                    worldId,
+                    x,
+                    z
+                )
                 found += reader.select(tiles, sieve, Lane.ITEMS)
             }
+
             filter.holders.isNotEmpty() -> {
                 // A player or an entity is found by its track; a block is a place, and its transactions are in its tile.
                 val tiles = LinkedHashSet<Tile>()
@@ -153,7 +178,8 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
                     if (pos != null) {
                         interning.findWorldId(unit, pos.world)?.let { tiles += Tile.at(it, pos.x, pos.z) }
                     } else if (holder is HolderId.Player) {
-                        interning.findHolderId(unit, holder)?.let { found += reader.selectAnywhere(it, sieve, Lane.ITEMS) }
+                        interning.findHolderId(unit, holder)
+                            ?.let { found += reader.selectAnywhere(it, sieve, Lane.ITEMS) }
                     } else {
                         walkAll = true
                     }
@@ -162,6 +188,7 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
                 // Only players are tracked: any other holder is found by reading what there is, newest first.
                 if (walkAll) found += reader.selectAnywhere(null, sieve, Lane.ITEMS)
             }
+
             materialIds != null -> for (item in materialIds) found += reader.selectAnywhere(-item, sieve, Lane.ITEMS)
             else -> found += reader.selectAnywhere(null, sieve, Lane.ITEMS)
         }
@@ -181,7 +208,8 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
         val out = IntOpenHashSet()
         unit.eachRow(byteArrayOf(Tag.INTERN_FORWARD.byte, Keys.NS_ITEM_KEY)) { cursor ->
             val key = Packed.decodeItemKey(cursor.value())
-            val wanted = if (keys.isNotEmpty()) key in keys else material != null && key.material.namesMaterial(material)
+            val wanted =
+                if (keys.isNotEmpty()) key in keys else material != null && key.material.namesMaterial(material)
             if (wanted) out.add(KeyReader.u32(cursor.key(), 2))
         }
         return out
@@ -189,18 +217,31 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
 
     override suspend fun itemKeys(): List<ItemKey> = storage.read {
         val out = ArrayList<ItemKey>()
-        eachRow(byteArrayOf(Tag.INTERN_FORWARD.byte, Keys.NS_ITEM_KEY)) { cursor -> out += Packed.decodeItemKey(cursor.value()) }
+        eachRow(
+            byteArrayOf(
+                Tag.INTERN_FORWARD.byte,
+                Keys.NS_ITEM_KEY
+            )
+        ) { cursor -> out += Packed.decodeItemKey(cursor.value()) }
         out
     }
 
     // region rows to transactions
 
     @Suppress("SameParameterValue")
-    private fun transactionsOfViews(unit: StorageUnit, views: List<Pair<Tile, CapsuleView>>, withLots: Boolean): Map<Long, Transaction> =
+    private fun transactionsOfViews(
+        unit: StorageUnit,
+        views: List<Pair<Tile, CapsuleView>>,
+        withLots: Boolean
+    ): Map<Long, Transaction> =
         transactionsOf(unit, views.map { (tile, view) -> tile to view.rows() }, withLots)
 
     /** Every transaction in [parts], once, however many tiles it was filed in. Flows come back in index order. */
-    private fun transactionsOf(unit: StorageUnit, parts: List<Pair<Tile, Rows>>, withLots: Boolean): Map<Long, Transaction> {
+    private fun transactionsOf(
+        unit: StorageUnit,
+        parts: List<Pair<Tile, Rows>>,
+        withLots: Boolean
+    ): Map<Long, Transaction> {
         val seen = HashSet<Pair<Long, Int>>()
         val bySeq = LinkedHashMap<Long, ArrayList<Pair<Rows, Int>>>()
         for ((_, rows) in parts) {
@@ -222,8 +263,11 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
             for ((rows, r) in refs) {
                 val index = rows.aux!![1][r]
                 flows += Flow(
-                    items.getOrPut(rows.before[r]) { interning.resolveItemKey(unit, rows.before[r]) }, Quantity(rows.uuidHigh!![r]),
-                    holder(rows.after[r]), holder(rows.aux[0][r]), ItemRows.flowKindOf(rows.kind[r]),
+                    items.getOrPut(rows.before[r]) { interning.resolveItemKey(unit, rows.before[r]) },
+                    Quantity(rows.uuidHigh!![r]),
+                    holder(rows.after[r]),
+                    holder(rows.aux[0][r]),
+                    ItemRows.flowKindOf(rows.kind[r]),
                 )
                 if (withLots) rows.beforeExtrasAt(r)?.let { lots += ItemRows.readLots(index, it) }
             }
@@ -273,19 +317,29 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
         fun idOf(holder: HolderId?): Int = holder?.let { interning.findHolderId(unit, it) } ?: 0
         if (ids.holders.isNotEmpty() && touched.none { idOf(it) in ids.holders }) return false
         if (ids.excluded.isNotEmpty() && touched.any { idOf(it) in ids.excluded }) return false
-        if (materialIds != null && txn.flows.none { (interning.findItemKeyId(unit, it.itemKey) ?: -1) in materialIds }) return false
+        if (materialIds != null && txn.flows.none {
+                (interning.findItemKeyId(unit, it.itemKey) ?: -1) in materialIds
+            }) return false
         val at = txn.at
         fun placeOf(holder: HolderId?): HolderBlock? {
             val pos = holder?.let(::blockOf) ?: return null
             val world = interning.findWorldId(unit, pos.world) ?: return null
             return HolderBlock(world, pos.x, pos.y, pos.z)
         }
+
         val places = touched.map { placeOf(it) }
-        val happened = at?.let { pos -> interning.findWorldId(unit, pos.world)?.let { HolderBlock(it, pos.x, pos.y, pos.z) } }
+        val happened =
+            at?.let { pos -> interning.findWorldId(unit, pos.world)?.let { HolderBlock(it, pos.x, pos.y, pos.z) } }
         val spots = listOfNotNull(happened) + places.filterNotNull()
         if (ids.world != null && spots.none { it.worldId == ids.world }) return false
         val region = filter.region
-        return !(region != null && (ids.regionWorld == null || spots.none { it.worldId == ids.regionWorld && region.containsBlock(it.x, it.y, it.z) }))
+        return !(region != null && (ids.regionWorld == null || spots.none {
+            it.worldId == ids.regionWorld && region.containsBlock(
+                it.x,
+                it.y,
+                it.z
+            )
+        }))
     }
 
     private fun blockOf(holder: HolderId): BlockPos? = when (holder) {

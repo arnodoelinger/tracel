@@ -5,11 +5,7 @@ import java.lang.foreign.Arena
 import java.lang.foreign.MemorySegment
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
-import java.nio.file.Files
-import java.nio.file.NoSuchFileException
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
+import java.nio.file.*
 
 /** Local disk implementation of [Disk], using the filesystem and memory-mapped files. */
 object LocalDisk : Disk {
@@ -19,7 +15,8 @@ object LocalDisk : Disk {
     override fun read(path: Path): Disk.Source = Reader(FileChannel.open(path, StandardOpenOption.READ))
 
     override fun map(path: Path, arena: Arena): MemorySegment =
-        FileChannel.open(path, StandardOpenOption.READ).use { it.map(FileChannel.MapMode.READ_ONLY, 0, it.size(), arena) }
+        FileChannel.open(path, StandardOpenOption.READ)
+            .use { it.map(FileChannel.MapMode.READ_ONLY, 0, it.size(), arena) }
 
     override fun size(path: Path): Long = try {
         Files.size(path)

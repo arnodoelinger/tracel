@@ -7,7 +7,7 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.spi.EngineCursor
-import java.util.UUID
+import java.util.*
 
 /**
  * What a table's key holds, as the fields its [Tag] takes.
@@ -39,7 +39,8 @@ interface KeyCodec<K> {
 
             override fun find(storage: TracelStorage, unit: StorageUnit, key: UUID): Array<Any> = arrayOf(key)
 
-            override fun read(storage: TracelStorage, unit: StorageUnit, tag: Tag, cursor: EngineCursor): UUID = tag.uuid(cursor, 0)
+            override fun read(storage: TracelStorage, unit: StorageUnit, tag: Tag, cursor: EngineCursor): UUID =
+                tag.uuid(cursor, 0)
         }
 
         val blockPos: KeyCodec<BlockPos> = object : KeyCodec<BlockPos> {
@@ -49,18 +50,21 @@ interface KeyCodec<K> {
             override fun find(storage: TracelStorage, unit: StorageUnit, key: BlockPos): Array<Any>? =
                 storage.interning.findWorldId(unit, key.world)?.let { arrayOf(it, key.x, key.y, key.z) }
 
-            override fun read(storage: TracelStorage, unit: StorageUnit, tag: Tag, cursor: EngineCursor): BlockPos = BlockPos(
-                storage.interning.resolveWorld(unit, tag.int(cursor, 0)),
-                tag.int(cursor, 1),
-                tag.int(cursor, 2),
-                tag.int(cursor, 3),
-            )
+            override fun read(storage: TracelStorage, unit: StorageUnit, tag: Tag, cursor: EngineCursor): BlockPos =
+                BlockPos(
+                    storage.interning.resolveWorld(unit, tag.int(cursor, 0)),
+                    tag.int(cursor, 1),
+                    tag.int(cursor, 2),
+                    tag.int(cursor, 3),
+                )
         }
 
         val hash: KeyCodec<ContentHash> = object : KeyCodec<ContentHash> {
-            override fun intern(storage: TracelStorage, unit: StorageUnit, key: ContentHash): Array<Any> = arrayOf(digest(key))
+            override fun intern(storage: TracelStorage, unit: StorageUnit, key: ContentHash): Array<Any> =
+                arrayOf(digest(key))
 
-            override fun find(storage: TracelStorage, unit: StorageUnit, key: ContentHash): Array<Any> = arrayOf(digest(key))
+            override fun find(storage: TracelStorage, unit: StorageUnit, key: ContentHash): Array<Any> =
+                arrayOf(digest(key))
 
             override fun read(storage: TracelStorage, unit: StorageUnit, tag: Tag, cursor: EngineCursor): ContentHash =
                 ContentHash(tag.raw(cursor.key(), 0).joinToString("") { "%02x".format(it) })

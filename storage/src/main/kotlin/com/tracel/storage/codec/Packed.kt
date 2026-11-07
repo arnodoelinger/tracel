@@ -113,7 +113,8 @@ object Packed {
         }
     }
 
-    private fun length(v: MemorySegment, at: Long): Int = ((v.i8(at).toInt() and 0xFF) shl 8) or (v.i8(at + 1).toInt() and 0xFF)
+    private fun length(v: MemorySegment, at: Long): Int =
+        ((v.i8(at).toInt() and 0xFF) shl 8) or (v.i8(at + 1).toInt() and 0xFF)
 
     private fun text(v: MemorySegment, at: Long): String = String(v.readBytes(at + 2, length(v, at)), Charsets.UTF_8)
 }

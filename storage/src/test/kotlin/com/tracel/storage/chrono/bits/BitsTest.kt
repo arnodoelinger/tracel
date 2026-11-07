@@ -21,7 +21,11 @@ class BitsTest {
                 BitPack.longs(sink, values, n, bits)
                 assertEquals(lead + packedBytes(n, bits), sink.size, "size for $bits bits")
                 val seg = segmentOf(sink)
-                for (i in 0 until n) assertEquals(values[i], BitUnpack.get(seg, lead.toLong(), bits, i), "value $i of $bits bits")
+                for (i in 0 until n) assertEquals(
+                    values[i],
+                    BitUnpack.get(seg, lead.toLong(), bits, i),
+                    "value $i of $bits bits"
+                )
             }
         }
     }

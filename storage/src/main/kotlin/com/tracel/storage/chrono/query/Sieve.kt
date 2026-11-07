@@ -44,7 +44,7 @@ class Box(
     /** Whether the whole of [tile] lies inside, at every height: then no cell needs testing at all. */
     fun coversColumns(tile: Tile): Boolean =
         minY == Int.MIN_VALUE && maxY == Int.MAX_VALUE &&
-            tile.originX >= minX && tile.originX + 15 <= maxX && tile.originZ >= minZ && tile.originZ + 15 <= maxZ
+                tile.originX >= minX && tile.originX + 15 <= maxX && tile.originZ >= minZ && tile.originZ + 15 <= maxZ
 
     companion object {
         val EVERYWHERE: Box = Box()

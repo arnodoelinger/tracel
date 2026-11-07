@@ -36,10 +36,10 @@ internal object CapsuleScan {
         var kept = 0
         for (i in 0 until rows.size) {
             val ok = sieve.admitsTime(rows.millis[i]) &&
-                sieve.actors.admits(rows.actor[i]) &&
-                sieve.kinds.admits(rows.kind[i]) &&
-                (wholeBox || box.contains(tile, Cell(rows.cell[i]))) &&
-                (states == null || states.admits(rows.before[i]) || states.admits(rows.after[i]))
+                    sieve.actors.admits(rows.actor[i]) &&
+                    sieve.kinds.admits(rows.kind[i]) &&
+                    (wholeBox || box.contains(tile, Cell(rows.cell[i]))) &&
+                    (states == null || states.admits(rows.before[i]) || states.admits(rows.after[i]))
             selection[kept] = i
             kept += if (ok) 1 else 0
         }
@@ -117,14 +117,22 @@ internal object CapsuleScan {
                 kept = 0
                 for (i in 0 until n) {
                     selection[kept] = i
-                    kept += if (stateMask.admits(states, rows.before[i]) || stateMask.admits(states, rows.after[i])) 1 else 0
+                    kept += if (stateMask.admits(states, rows.before[i]) || stateMask.admits(
+                            states,
+                            rows.after[i]
+                        )
+                    ) 1 else 0
                 }
             } else {
                 var out = 0
                 for (j in 0 until kept) {
                     val i = selection[j]
                     selection[out] = i
-                    out += if (stateMask.admits(states, rows.before[i]) || stateMask.admits(states, rows.after[i])) 1 else 0
+                    out += if (stateMask.admits(states, rows.before[i]) || stateMask.admits(
+                            states,
+                            rows.after[i]
+                        )
+                    ) 1 else 0
                 }
                 kept = out
             }

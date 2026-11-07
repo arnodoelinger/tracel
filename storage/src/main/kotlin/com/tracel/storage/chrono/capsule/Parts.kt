@@ -1,13 +1,6 @@
 package com.tracel.storage.chrono.capsule
 
-import com.tracel.storage.chrono.bits.BitPack
-import com.tracel.storage.chrono.bits.BitUnpack
-import com.tracel.storage.chrono.bits.ByteWriter
-import com.tracel.storage.chrono.bits.SegmentReader
-import com.tracel.storage.chrono.bits.packedBytes
-import com.tracel.storage.chrono.bits.widthOf
-import com.tracel.storage.chrono.bits.unzigzag
-import com.tracel.storage.chrono.bits.zigzag
+import com.tracel.storage.chrono.bits.*
 import java.lang.foreign.MemorySegment
 
 /** The pieces both lanes' capsules are built from. */
@@ -17,7 +10,14 @@ object Parts {
     private const val RUNS = 1
 
     /** A [writeColumn] column: where its packed bits start, and the patches that put the wide values back. */
-    class Gaps(val floor: Long, val bits: Int, val at: Long, val end: Long, private val patchAt: IntArray, private val patchHigh: LongArray) {
+    class Gaps(
+        val floor: Long,
+        val bits: Int,
+        val at: Long,
+        val end: Long,
+        private val patchAt: IntArray,
+        private val patchHigh: LongArray
+    ) {
         fun values(seg: MemorySegment, n: Int): LongArray {
             val out = LongArray(n)
             for (i in 0 until n) out[i] = BitUnpack.get(seg, at, bits, i) + floor
@@ -39,7 +39,14 @@ object Parts {
     }
 
     /** A [writeIndexes] column. */
-    class Indexes(private val mode: Int, private val at: Long, private val bits: Int, private val runValue: IntArray, private val runLength: IntArray, val end: Long) {
+    class Indexes(
+        private val mode: Int,
+        private val at: Long,
+        private val bits: Int,
+        private val runValue: IntArray,
+        private val runLength: IntArray,
+        val end: Long
+    ) {
         fun decode(seg: MemorySegment, n: Int): IntArray {
             val out = IntArray(n)
             if (mode == PACKED) {
@@ -75,7 +82,11 @@ object Parts {
     fun writeCells(sink: ByteWriter, sorted: IntArray, floorKey: Int) {
         val keys = IntArray(sorted.size) { sorted[it] - floorKey }
         sink.varint(keys[0].toLong())
-        writeColumn(sink, LongArray(maxOf(keys.size - 1, 0)) { (keys[it + 1] - keys[it] - 1).toLong() }, maxOf(keys.size - 1, 0))
+        writeColumn(
+            sink,
+            LongArray(maxOf(keys.size - 1, 0)) { (keys[it + 1] - keys[it] - 1).toLong() },
+            maxOf(keys.size - 1, 0)
+        )
     }
 
     fun readCells(seg: MemorySegment, at: Long, count: Int, floorKey: Int): Pair<IntArray, Long> {

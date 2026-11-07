@@ -21,8 +21,15 @@ object History {
     /** The kind of history a row with this [tag] and this first byte of value is, or [SegmentClassifier.STATE]. */
     fun categoryOf(tag: Int, valueFirst: Int): Int = when (tag.toByte()) {
         Tag.WCHG.byte, Tag.WCHG_AT.byte, Tag.WCHG_AT_SECTION.byte, Tag.WCHG_ENTITY.byte -> BLOCKS
-        Tag.CHRONO_CAPSULE.byte, Tag.CHRONO_FRAGMENT.byte -> Lane.ofMagic(valueFirst).let { if (it == null) BLOCKS else categoryOf(it) }
-        Tag.CHRONO_TRACK.byte, Tag.CHRONO_TIME.byte -> if (valueFirst in 0 until Lane.entries.size) categoryOf(Lane.of(valueFirst)) else BLOCKS
+        Tag.CHRONO_CAPSULE.byte, Tag.CHRONO_FRAGMENT.byte -> Lane.ofMagic(valueFirst)
+            .let { if (it == null) BLOCKS else categoryOf(it) }
+
+        Tag.CHRONO_TRACK.byte, Tag.CHRONO_TIME.byte -> if (valueFirst in 0 until Lane.entries.size) categoryOf(
+            Lane.of(
+                valueFirst
+            )
+        ) else BLOCKS
+
         Tag.TXN.byte, Tag.TXN_BY_ID.byte, Tag.ITEM.byte, Tag.TXN_LOT.byte -> ITEMS
         Tag.CONTAINER_SLOT.byte, Tag.ACTOR_VISIT.byte -> CONTAINERS
         Tag.EVENT.byte, Tag.EVENT_ACTOR.byte, Tag.EVENT_TIME.byte, Tag.EVENT_ENTITY.byte -> EVENTS

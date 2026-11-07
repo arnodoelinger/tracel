@@ -14,4 +14,9 @@ import com.tracel.storage.table.ValueCodec
  * final position so a rollback can drop it back in the right place.
  */
 class StoredGroundPositions(storage: TracelStorage) :
-    StoredKeyedTable<HolderId.ItemEntity, HolderId.Block>(storage, Tag.GROUND_AT, KeyCodec.holder(), ValueCodec.holder())
+    StoredKeyedTable<HolderId.ItemEntity, HolderId.Block>(
+        storage,
+        Tag.GROUND_AT,
+        KeyCodec.holder(),
+        ValueCodec.holder()
+    )

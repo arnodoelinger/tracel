@@ -53,7 +53,8 @@ class RowsBuilder(initial: Int = 64) {
 
     /** Copies row [i] of [rows] in, whichever kind of row it is. */
     fun add(rows: Rows, i: Int) {
-        val at = row(rows.seq[i], rows.millis[i], rows.cell[i], rows.actor[i], rows.kind[i], rows.before[i], rows.after[i])
+        val at =
+            row(rows.seq[i], rows.millis[i], rows.cell[i], rows.actor[i], rows.kind[i], rows.before[i], rows.after[i])
         extras(at, rows.beforeExtrasAt(i), rows.afterExtrasAt(i))
         rows.uuidHigh?.let { longs(at, it[i], rows.uuidLow?.get(i) ?: 0L) }
         rows.aux?.let { cols -> ints(at, *IntArray(cols.size) { cols[it][i] }) }
@@ -71,7 +72,8 @@ class RowsBuilder(initial: Int = 64) {
     fun clear(): Unit = truncate(0)
 
     /** The rows so far, sharing the builder's arrays: read them before adding more. */
-    fun rows(): Rows = Rows(size, seq, millis, cell, actor, kind, before, after, beforeExtras, afterExtras, uuidHigh, uuidLow, aux)
+    fun rows(): Rows =
+        Rows(size, seq, millis, cell, actor, kind, before, after, beforeExtras, afterExtras, uuidHigh, uuidLow, aux)
 
     private fun row(seq: Long, millis: Long, cell: Int, actor: Int, kind: Int, before: Int, after: Int): Int {
         if (size == this.seq.size) grow(maxOf(size shl 1, 4))

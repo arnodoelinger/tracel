@@ -1,6 +1,5 @@
 package com.tracel.storage.capture
 
-import com.tracel.platform.io.reason
 import com.tracel.engine.balance.InventoryDelta
 import com.tracel.engine.capture.PlacedDeltas
 import com.tracel.engine.world.edit.BlockEdit
@@ -10,9 +9,10 @@ import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.block.BlockShape
+import com.tracel.platform.io.reason
+import com.tracel.storage.Interning
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
-import com.tracel.storage.Interning
 import com.tracel.storage.spi.WritesStopped
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.*

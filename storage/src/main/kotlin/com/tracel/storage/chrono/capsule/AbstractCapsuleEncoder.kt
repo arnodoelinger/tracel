@@ -20,7 +20,12 @@ abstract class AbstractCapsuleEncoder(private val kind: CapsuleKind, private val
     }
 
     /** Encodes [rows], which may come in any order, as one capsule of [window]. */
-    fun encode(rows: Rows, window: Long, lastSeqAtLeast: Long = Long.MIN_VALUE, maxMillisAtLeast: Long = Long.MIN_VALUE): ByteArray {
+    fun encode(
+        rows: Rows,
+        window: Long,
+        lastSeqAtLeast: Long = Long.MIN_VALUE,
+        maxMillisAtLeast: Long = Long.MIN_VALUE
+    ): ByteArray {
         require(rows.size > 0) { "a capsule of nothing says nothing." }
         this.window = window
         this.lastSeqAtLeast = lastSeqAtLeast
@@ -42,7 +47,14 @@ abstract class AbstractCapsuleEncoder(private val kind: CapsuleKind, private val
     protected abstract fun write(rows: Rows, order: IntArray, extent: Extent)
 
     /** The prelude, with the offsets left to [encode], then the header; [counts] follow the cell count. */
-    protected fun writeHeader(flags: Int, rows: Rows, order: IntArray, extent: Extent, cellCount: Int, vararg counts: Int) {
+    protected fun writeHeader(
+        flags: Int,
+        rows: Rows,
+        order: IntArray,
+        extent: Extent,
+        cellCount: Int,
+        vararg counts: Int
+    ) {
         sink.u8(magic)
         sink.u8(kind.version)
         sink.u8(flags)

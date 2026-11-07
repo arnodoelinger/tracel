@@ -1,9 +1,9 @@
 package com.tracel.storage.chrono
 
+import com.tracel.storage.Interning
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.chrono.capsule.CapsuleView
 import com.tracel.storage.codec.Tag
-import com.tracel.storage.Interning
 import java.lang.foreign.MemorySegment
 import java.util.concurrent.ConcurrentHashMap
 
@@ -24,12 +24,24 @@ internal class ChronoMerger(private val settings: ChronoSettings, private val in
      * or is old enough.
      */
     fun dirty(tile: Tile, lane: Lane) {
-        dirty.merge(tile.packed to lane, Dirty(settings.clock(), 1, false)) { old, _ -> Dirty(old.since, old.fragments + 1, old.urgent) }
+        dirty.merge(tile.packed to lane, Dirty(settings.clock(), 1, false)) { old, _ ->
+            Dirty(
+                old.since,
+                old.fragments + 1,
+                old.urgent
+            )
+        }
     }
 
     /** Marks [tile]'s fragments for the next pass, however young: the tile went quiet. */
     fun urgent(tile: Tile) {
-        for (lane in Lane.entries) dirty.computeIfPresent(tile.packed to lane) { _, d -> Dirty(d.since, d.fragments, true) }
+        for (lane in Lane.entries) dirty.computeIfPresent(tile.packed to lane) { _, d ->
+            Dirty(
+                d.since,
+                d.fragments,
+                true
+            )
+        }
     }
 
     /** Tiles waiting, and how many fragments they hold, as far as this merger knows. */
@@ -39,7 +51,11 @@ internal class ChronoMerger(private val settings: ChronoSettings, private val in
     fun discover(unit: StorageUnit) {
         unit.scan(Tag.CHRONO_FRAGMENT.prefix).use { cursor ->
             while (cursor.next()) {
-                val tile = Tile.of(Tag.CHRONO_FRAGMENT.int(cursor, 0), Tag.CHRONO_FRAGMENT.int(cursor, 1), Tag.CHRONO_FRAGMENT.int(cursor, 2))
+                val tile = Tile.of(
+                    Tag.CHRONO_FRAGMENT.int(cursor, 0),
+                    Tag.CHRONO_FRAGMENT.int(cursor, 1),
+                    Tag.CHRONO_FRAGMENT.int(cursor, 2)
+                )
                 dirty(tile, Lane.of(Tag.CHRONO_FRAGMENT.u8(cursor, 3)))
             }
         }
@@ -63,7 +79,8 @@ internal class ChronoMerger(private val settings: ChronoSettings, private val in
      */
     fun merge(unit: StorageUnit, tile: Tile, lane: Lane): Int {
         val fragments = ArrayList<Pair<ByteArray, CapsuleView>>()
-        unit.scan(ChronoKeys.fragments(tile, lane)).use { c -> while (c.next()) fragments += c.key() to lane.open(c.value()) }
+        unit.scan(ChronoKeys.fragments(tile, lane))
+            .use { c -> while (c.next()) fragments += c.key() to lane.open(c.value()) }
         val key = tile.packed to lane
         val seen = dirty[key]
         if (fragments.isEmpty()) {
@@ -106,7 +123,16 @@ internal class ChronoMerger(private val settings: ChronoSettings, private val in
 
     /** Puts a capsule and every row that finds it. */
     fun file(unit: StorageUnit, tile: Tile, lane: Lane, view: CapsuleView, bytes: ByteArray) {
-        ChronoKeys.filing(tile, lane, view.firstSeq, view.lastSeq, view.millis()[0], TrackIds.of(interning, unit, lane, view), bytes, unit::put)
+        ChronoKeys.filing(
+            tile,
+            lane,
+            view.firstSeq,
+            view.lastSeq,
+            view.millis()[0],
+            TrackIds.of(interning, unit, lane, view),
+            bytes,
+            unit::put
+        )
     }
 
     /** Deletes a capsule and every row that finds it. The key says which rows: a purge may have trimmed the header. */
@@ -114,7 +140,14 @@ internal class ChronoMerger(private val settings: ChronoSettings, private val in
         val last = Tag.CHRONO_CAPSULE.long(key, 4)
         unit.delete(key)
         unit.delete(ChronoKeys.time(last, tile, lane))
-        for (id in TrackIds.of(interning, unit, lane, view)) if (id != 0) unit.delete(ChronoKeys.track(id, last, tile, lane))
+        for (id in TrackIds.of(interning, unit, lane, view)) if (id != 0) unit.delete(
+            ChronoKeys.track(
+                id,
+                last,
+                tile,
+                lane
+            )
+        )
     }
 
 }

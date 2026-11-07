@@ -68,14 +68,15 @@ object CaptureSlot {
 
     // Field by field, no writer: the region thread allocates nothing
 
-    fun writeHeader(slots: MemorySegment, at: Long, cause: Int, deltas: Int, causedBy: Int, millis: Long) = with(Header) {
-        type[slots, at] = HEADER
-        this.cause[slots, at] = cause.toByte()
-        deltaCount[slots, at] = deltas
-        this.causedBy[slots, at] = causedBy
-        epochMillis[slots, at] = millis
-        gap.clear(slots, at)
-    }
+    fun writeHeader(slots: MemorySegment, at: Long, cause: Int, deltas: Int, causedBy: Int, millis: Long) =
+        with(Header) {
+            type[slots, at] = HEADER
+            this.cause[slots, at] = cause.toByte()
+            deltaCount[slots, at] = deltas
+            this.causedBy[slots, at] = causedBy
+            epochMillis[slots, at] = millis
+            gap.clear(slots, at)
+        }
 
     fun writeDelta(slots: MemorySegment, at: Long, holder: Int, itemKey: Int, amount: Long) = with(Delta) {
         type[slots, at] = DELTA
@@ -111,13 +112,14 @@ object CaptureSlot {
         gap2.clear(slots, at)
     }
 
-    fun writeWorldBlock(slots: MemorySegment, at: Long, x: Int, y: Int, z: Int, before: Int, after: Int) = with(WorldBlock) {
-        type[slots, at] = WORLD_BLOCK
-        gap.clear(slots, at)
-        this.x[slots, at] = x
-        this.y[slots, at] = y
-        this.z[slots, at] = z
-        this.before[slots, at] = before
-        this.after[slots, at] = after
-    }
+    fun writeWorldBlock(slots: MemorySegment, at: Long, x: Int, y: Int, z: Int, before: Int, after: Int) =
+        with(WorldBlock) {
+            type[slots, at] = WORLD_BLOCK
+            gap.clear(slots, at)
+            this.x[slots, at] = x
+            this.y[slots, at] = y
+            this.z[slots, at] = z
+            this.before[slots, at] = before
+            this.after[slots, at] = after
+        }
 }

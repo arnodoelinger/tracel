@@ -168,16 +168,25 @@ object Extras {
     fun decodeShape(type: EntityTypeKey, at: BlockPos, bytes: ByteArray): EntityShape? =
         decodeShape(type, at, MemorySegment.ofArray(bytes))
 
-    fun decodeShape(type: EntityTypeKey, at: BlockPos, v: MemorySegment): EntityShape? = when (if (v.byteSize() == 0L) null else v.i8(0)) {
-        null -> null
-        POSED -> {
-            check(v.byteSize() >= Pose.size) { "posed extras truncated at ${v.byteSize()} bytes." }
-            EntityShape(type, Pose.x[v], Pose.y[v], Pose.z[v], Pose.yaw[v], Pose.pitch[v], decodeEntity(v.asSlice(Pose.size)))
-        }
+    fun decodeShape(type: EntityTypeKey, at: BlockPos, v: MemorySegment): EntityShape? =
+        when (if (v.byteSize() == 0L) null else v.i8(0)) {
+            null -> null
+            POSED -> {
+                check(v.byteSize() >= Pose.size) { "posed extras truncated at ${v.byteSize()} bytes." }
+                EntityShape(
+                    type,
+                    Pose.x[v],
+                    Pose.y[v],
+                    Pose.z[v],
+                    Pose.yaw[v],
+                    Pose.pitch[v],
+                    decodeEntity(v.asSlice(Pose.size))
+                )
+            }
 
-        OPAQUE, INFLATED -> EntityShape(type, at.x + 0.5, at.y.toDouble(), at.z + 0.5, extras = decodeEntity(v))
-        else -> error("unrecognized entity extras tag: ${v.i8(0)}.")
-    }
+            OPAQUE, INFLATED -> EntityShape(type, at.x + 0.5, at.y.toDouble(), at.z + 0.5, extras = decodeEntity(v))
+            else -> error("unrecognized entity extras tag: ${v.i8(0)}.")
+        }
 
     fun check(before: ByteArray, after: ByteArray) = require(before.size <= MAX_BYTES && after.size <= MAX_BYTES) {
         "extras of ${before.size} / ${after.size} bytes do not fit a u16 length prefix."
@@ -279,11 +288,15 @@ object Section {
     fun isBitmap(v: MemorySegment, tail: Long = WORLD_TAIL): Boolean = Tail.flags[v, tail].toInt() and FLAG_BITMAP != 0
     fun positionsAt(v: MemorySegment, tail: Long = WORLD_TAIL): Long = Tail.positionsAt[v, tail].toLong()
 
-    fun paletteAt(v: MemorySegment, slot: Int, tail: Long = WORLD_TAIL): Int = v.i32(Tail.paletteAt[v, tail] + slot * 4L)
-    fun palette(v: MemorySegment, tail: Long = WORLD_TAIL): IntArray = IntArray(paletteSize(v, tail)) { paletteAt(v, it, tail) }
+    fun paletteAt(v: MemorySegment, slot: Int, tail: Long = WORLD_TAIL): Int =
+        v.i32(Tail.paletteAt[v, tail] + slot * 4L)
+
+    fun palette(v: MemorySegment, tail: Long = WORLD_TAIL): IntArray =
+        IntArray(paletteSize(v, tail)) { paletteAt(v, it, tail) }
 
     fun before(v: MemorySegment, index: Int, tail: Long = WORLD_TAIL): Int = paletteAt(v, slot(v, index, tail), tail)
-    fun after(v: MemorySegment, index: Int, tail: Long = WORLD_TAIL): Int = paletteAt(v, slot(v, count(v, tail) + index, tail), tail)
+    fun after(v: MemorySegment, index: Int, tail: Long = WORLD_TAIL): Int =
+        paletteAt(v, slot(v, count(v, tail) + index, tail), tail)
 
     /** Every before index, then every after index. */
     fun slots(v: MemorySegment, tail: Long = WORLD_TAIL): IntArray = IntArray(count(v, tail) * 2) { slot(v, it, tail) }
@@ -358,7 +371,11 @@ object Section {
         head: Writer.() -> Unit,
     ): ByteArray {
         require(count > 0) { "a packed section with no positions says nothing." }
-        val palette = IntLinkedOpenHashSet().apply { for (i in 0 until count) { add(before[i]); add(after[i]) } }.toIntArray()
+        val palette = IntLinkedOpenHashSet().apply {
+            for (i in 0 until count) {
+                add(before[i]); add(after[i])
+            }
+        }.toIntArray()
         val wide = palette.size > 256
         val bitmap = count >= BITMAP_FROM
         val positionsAt = tail + Tail.size
@@ -379,12 +396,20 @@ object Section {
 
         for (i in 0 until count) {
             val p = positions[i]
-            if (bitmap) out[(positionsAt + (p shr 3)).toInt()] = (out[(positionsAt + (p shr 3)).toInt()].toInt() or (1 shl (p and 7))).toByte()
+            if (bitmap) out[(positionsAt + (p shr 3)).toInt()] =
+                (out[(positionsAt + (p shr 3)).toInt()].toInt() or (1 shl (p and 7))).toByte()
             else v.putI16(positionsAt + i * 2L, p.toShort())
         }
         for (i in palette.indices) v.putI32(paletteAt + i * 4L, palette[i])
 
-        val slot = Int2IntOpenHashMap(palette.size).apply { defaultReturnValue(-1); palette.forEachIndexed { i, s -> put(s, i) } }
+        val slot = Int2IntOpenHashMap(palette.size).apply {
+            defaultReturnValue(-1); palette.forEachIndexed { i, s ->
+            put(
+                s,
+                i
+            )
+        }
+        }
         for (i in 0 until count) {
             val b = slot.get(before[i])
             val a = slot.get(after[i])
@@ -420,7 +445,8 @@ object Section {
         }
     }
 
-    private fun read(v: MemorySegment, at: Long) = SectionExtras(Extra.index[v, at], Extra.before[v, at], Extra.after[v, at])
+    private fun read(v: MemorySegment, at: Long) =
+        SectionExtras(Extra.index[v, at], Extra.before[v, at], Extra.after[v, at])
 }
 
 // endregion
@@ -544,7 +570,15 @@ object Rollback {
             entity(kind, step.at, step.entity, step.shape, expected, worldId, entityTypeId)
         }
 
-        is StructureStep.RemoveEntity -> entity(REMOVE_ENTITY, step.at, step.entity, step.shape, null, worldId, entityTypeId)
+        is StructureStep.RemoveEntity -> entity(
+            REMOVE_ENTITY,
+            step.at,
+            step.entity,
+            step.shape,
+            null,
+            worldId,
+            entityTypeId
+        )
     }
 
     /** Decodes [v] into the steps it holds, one or a whole section of them, onto [out]. */
@@ -567,8 +601,16 @@ object Rollback {
         Section.forEachPosition(v, tail) { index, packed ->
             val extras = Section.extras(v, index, tail)
             out += StructureStep.SetBlock(
-                BlockPos(at, x + Section.positionX(packed), y + Section.positionY(packed), z + Section.positionZ(packed)),
-                BlockShape(blockData(Section.before(v, index, tail)), Extras.decodeBlock(extras?.before ?: EMPTY_BYTES)),
+                BlockPos(
+                    at,
+                    x + Section.positionX(packed),
+                    y + Section.positionY(packed),
+                    z + Section.positionZ(packed)
+                ),
+                BlockShape(
+                    blockData(Section.before(v, index, tail)),
+                    Extras.decodeBlock(extras?.before ?: EMPTY_BYTES)
+                ),
                 BlockShape(blockData(Section.after(v, index, tail)), Extras.decodeBlock(extras?.after ?: EMPTY_BYTES)),
             )
         }
@@ -589,7 +631,13 @@ object Rollback {
             )
 
             SPAWN_ENTITY -> StructureStep.SpawnEntity(at, Entity.uuid[v], shape(v, entityType))
-            CHANGE_ENTITY -> StructureStep.SpawnEntity(at, Entity.uuid[v], shape(v, entityType), expected(v, entityType))
+            CHANGE_ENTITY -> StructureStep.SpawnEntity(
+                at,
+                Entity.uuid[v],
+                shape(v, entityType),
+                expected(v, entityType)
+            )
+
             REMOVE_ENTITY -> StructureStep.RemoveEntity(at, Entity.uuid[v], shape(v, entityType))
             else -> error("unrecognized structure step kind: $kind.")
         }
@@ -632,7 +680,11 @@ object Rollback {
                     UnmakeMany.holder(holderId(step.holder))
                     UnmakeMany.outputs(step.outputs.size); UnmakeMany.inputs(step.inputs.size)
                     step.outputs.forEachIndexed { i, o ->
-                        Output.write(v, UnmakeMany.size + Output.size * i) { Output.lot(o.lotId.raw); Output.holder(holderId(o.holder)) }
+                        Output.write(v, UnmakeMany.size + Output.size * i) {
+                            Output.lot(o.lotId.raw); Output.holder(
+                            holderId(o.holder)
+                        )
+                        }
                     }
                     inputs(v, inputsAt, step.inputs)
                 }

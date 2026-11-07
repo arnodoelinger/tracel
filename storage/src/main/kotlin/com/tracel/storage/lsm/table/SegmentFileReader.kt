@@ -32,7 +32,8 @@ class SegmentFileReader internal constructor(
     val restarts: Boolean,
     private val checksums: Boolean,
 ) : AutoCloseable {
-    private val firstUserKey: ByteArray = meta.firstKey.copyOf(maxOf(0, meta.firstKey.size - InternalKeys.TRAILER_BYTES))
+    private val firstUserKey: ByteArray =
+        meta.firstKey.copyOf(maxOf(0, meta.firstKey.size - InternalKeys.TRAILER_BYTES))
     private val lastUserKey: ByteArray = meta.lastKey.copyOf(maxOf(0, meta.lastKey.size - InternalKeys.TRAILER_BYTES))
 
     val segment: MemorySegment get() = mapped.segment

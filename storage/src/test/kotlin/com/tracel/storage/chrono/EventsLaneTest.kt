@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 import kotlin.random.Random
 
 class EventsLaneTest {
@@ -37,8 +37,16 @@ class EventsLaneTest {
             millis += random.nextLong(0, 4000)
             val placed = random.nextInt(3) != 0
             ActorEvent(
-                Seq(i.toLong()), kinds[random.nextInt(kinds.size)], if (random.nextInt(6) == 0) null else if (random.nextBoolean()) steve else alex,
-                millis, if (placed) BlockPos(if (random.nextInt(5) == 0) nether else overworld, random.nextInt(-40, 40), 64, random.nextInt(-40, 40)) else null,
+                Seq(i.toLong()),
+                kinds[random.nextInt(kinds.size)],
+                if (random.nextInt(6) == 0) null else if (random.nextBoolean()) steve else alex,
+                millis,
+                if (placed) BlockPos(
+                    if (random.nextInt(5) == 0) nether else overworld,
+                    random.nextInt(-40, 40),
+                    64,
+                    random.nextInt(-40, 40)
+                ) else null,
                 if (random.nextBoolean()) "message $i" else null,
             )
         }
@@ -57,34 +65,57 @@ class EventsLaneTest {
         val since = millis0 + (written.maxOf { it.epochMillis } - millis0) / 2
         val kinds = EventKind.entries.toSet()
         val filters = listOf(
-            LookupFilter(limit = Int.MAX_VALUE), LookupFilter(limit = 40, offset = 7), LookupFilter(since = since, limit = Int.MAX_VALUE),
-            LookupFilter(holders = setOf(steve), limit = Int.MAX_VALUE), LookupFilter(excludedHolders = setOf(steve), limit = Int.MAX_VALUE),
+            LookupFilter(limit = Int.MAX_VALUE),
+            LookupFilter(limit = 40, offset = 7),
+            LookupFilter(since = since, limit = Int.MAX_VALUE),
+            LookupFilter(holders = setOf(steve), limit = Int.MAX_VALUE),
+            LookupFilter(excludedHolders = setOf(steve), limit = Int.MAX_VALUE),
             LookupFilter(world = nether, limit = Int.MAX_VALUE),
             LookupFilter(region = LookupRegion(overworld, -1, 1, -1, 1), limit = Int.MAX_VALUE),
-            LookupFilter(region = LookupRegion(overworld, -3, 2, -3, 2, minX = -10, maxX = 10, minY = 0, maxY = 100, minZ = -10, maxZ = 10), since = since, limit = Int.MAX_VALUE),
+            LookupFilter(
+                region = LookupRegion(
+                    overworld,
+                    -3,
+                    2,
+                    -3,
+                    2,
+                    minX = -10,
+                    maxX = 10,
+                    minY = 0,
+                    maxY = 100,
+                    minZ = -10,
+                    maxZ = 10
+                ), since = since, limit = Int.MAX_VALUE
+            ),
         )
         for ((i, f) in filters.withIndex()) {
-            val want = written.filter { admits(f, kinds, it) }.sortedWith(compareByDescending<ActorEvent> { it.epochMillis }.thenByDescending { it.seq.raw })
+            val want = written.filter { admits(f, kinds, it) }
+                .sortedWith(compareByDescending<ActorEvent> { it.epochMillis }.thenByDescending { it.seq.raw })
                 .drop(f.offset).take(f.limit).map { it.copy(entity = null) }
             assertEquals(want, log.query(f, kinds), "$label: filter $i")
         }
         val one = setOf(written.first().kind)
-        assertEquals(written.count { it.kind in one }, log.query(LookupFilter(limit = Int.MAX_VALUE), one).size, "$label: one kind")
+        assertEquals(
+            written.count { it.kind in one },
+            log.query(LookupFilter(limit = Int.MAX_VALUE), one).size,
+            "$label: one kind"
+        )
     }
 
     @Test
-    fun `events answer every filter the way a list would, merged or not, and after a reopen`(@TempDir dir: Path) = runTest {
-        val written = events(1200)
-        Stack(dir).use { stack ->
-            val log = StoredEventLog(stack.storage)
-            for (e in written.take(700)) log.append(e)
-            assertAll(log, written.take(700), "fragments")
-            Chrono.of(stack.storage).mergeAll()
-            for (e in written.drop(700)) log.append(e)
-            assertAll(log, written, "merged then more")
+    fun `events answer every filter the way a list would, merged or not, and after a reopen`(@TempDir dir: Path) =
+        runTest {
+            val written = events(1200)
+            Stack(dir).use { stack ->
+                val log = StoredEventLog(stack.storage)
+                for (e in written.take(700)) log.append(e)
+                assertAll(log, written.take(700), "fragments")
+                Chrono.of(stack.storage).mergeAll()
+                for (e in written.drop(700)) log.append(e)
+                assertAll(log, written, "merged then more")
+            }
+            Stack(dir).use { stack -> assertAll(StoredEventLog(stack.storage), written, "reopened") }
         }
-        Stack(dir).use { stack -> assertAll(StoredEventLog(stack.storage), written, "reopened") }
-    }
 
     @Test
     fun `a purge of events takes events and leaves the world's changes alone`(@TempDir dir: Path) = runTest {
@@ -93,7 +124,8 @@ class EventsLaneTest {
             val log = StoredEventLog(stack.storage)
             for (e in written) log.append(e)
             Chrono.of(stack.storage).mergeAll()
-            val report = purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.EVENTS), PurgeFilter(player = steve.uuid)))
+            val report =
+                purgeSome(stack.storage, PurgeSpec(setOf(PurgeCategory.EVENTS), PurgeFilter(player = steve.uuid)))
             assertEquals(written.count { it.by == steve }.toLong(), report.matched)
             assertAll(log, written.filter { it.by != steve }, "after purging steve")
         }

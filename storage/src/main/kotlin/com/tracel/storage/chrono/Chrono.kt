@@ -7,19 +7,13 @@ import com.tracel.storage.chrono.capsule.CapsuleView
 import com.tracel.storage.chrono.query.ChronoReader
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.lsm.LsmOptions
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.lang.foreign.ValueLayout
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.WeakHashMap
+import java.util.*
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
@@ -73,6 +67,7 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
                     held = true
                     false
                 }
+
                 else -> true
             }
         }
@@ -143,7 +138,11 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
                 if (last < seq) break
                 val v = ByteBuffer.wrap(cursor.value().toArray(ValueLayout.JAVA_BYTE)).order(ByteOrder.LITTLE_ENDIAN)
                 val first = v.getLong(1)
-                val tile = Tile.of(Tag.CHRONO_TIME.int(cursor, 1), Tag.CHRONO_TIME.int(cursor, 2), Tag.CHRONO_TIME.int(cursor, 3))
+                val tile = Tile.of(
+                    Tag.CHRONO_TIME.int(cursor, 1),
+                    Tag.CHRONO_TIME.int(cursor, 2),
+                    Tag.CHRONO_TIME.int(cursor, 3)
+                )
                 val lane = Lane.of(Tag.CHRONO_TIME.u8(cursor, 4))
                 if (lane !in lanes) continue
                 val stored = unit.get(ChronoKeys.capsule(tile, lane, last)) ?: continue
@@ -154,7 +153,9 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
                 val view = lane.open(stored)
                 val seqs = view.seqs()
                 val millis = view.millis()
-                for (i in seqs.indices) if (seqs[i] >= seq) { offer(seqs[i], millis[i]); break }
+                for (i in seqs.indices) if (seqs[i] >= seq) {
+                    offer(seqs[i], millis[i]); break
+                }
             }
         }
         for (lane in lanes) {
@@ -162,7 +163,9 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
                 if (view.lastSeq < seq) continue
                 val seqs = view.seqs()
                 val millis = view.millis()
-                for (i in seqs.indices) if (seqs[i] >= seq) { offer(seqs[i], millis[i]); break }
+                for (i in seqs.indices) if (seqs[i] >= seq) {
+                    offer(seqs[i], millis[i]); break
+                }
             }
         }
         return bestMillis
@@ -178,19 +181,30 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
             val at = sorted.binarySearch(first).let { if (it < 0) -it - 1 else it }
             return at < sorted.size && sorted[at] <= last
         }
+
         val out = ArrayList<Pair<Tile, CapsuleView>>()
         unit.scan(Tag.CHRONO_TIME.prefix).use { cursor ->
             while (cursor.next()) {
                 val last = Tag.CHRONO_TIME.long(cursor, 0)
                 if (last < lowest) break
                 if (Tag.CHRONO_TIME.u8(cursor, 4) != lane.id) continue
-                val first = ByteBuffer.wrap(cursor.value().toArray(ValueLayout.JAVA_BYTE)).order(ByteOrder.LITTLE_ENDIAN).getLong(1)
+                val first =
+                    ByteBuffer.wrap(cursor.value().toArray(ValueLayout.JAVA_BYTE)).order(ByteOrder.LITTLE_ENDIAN)
+                        .getLong(1)
                 if (first > highest || !holdsAny(first, last)) continue
-                val tile = Tile.of(Tag.CHRONO_TIME.int(cursor, 1), Tag.CHRONO_TIME.int(cursor, 2), Tag.CHRONO_TIME.int(cursor, 3))
+                val tile = Tile.of(
+                    Tag.CHRONO_TIME.int(cursor, 1),
+                    Tag.CHRONO_TIME.int(cursor, 2),
+                    Tag.CHRONO_TIME.int(cursor, 3)
+                )
                 out += tile to lane.open(unit.get(ChronoKeys.capsule(tile, lane, last)) ?: continue)
             }
         }
-        for ((tile, view) in StoredCapsules(unit).allFragments(lane)) if (holdsAny(view.firstSeq, view.lastSeq)) out += tile to view
+        for ((tile, view) in StoredCapsules(unit).allFragments(lane)) if (holdsAny(
+                view.firstSeq,
+                view.lastSeq
+            )
+        ) out += tile to view
         return out
     }
 
@@ -203,7 +217,15 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
             while (isActive) {
                 delay(settings.passMillis.milliseconds)
                 val due = merger.due(settings.clock(), all = false, limit = settings.tilesPerPass)
-                if (due.isNotEmpty()) mergeLock.withLock { storage.write { for ((tile, lane) in due) merger.merge(this, tile, lane) } }
+                if (due.isNotEmpty()) mergeLock.withLock {
+                    storage.write {
+                        for ((tile, lane) in due) merger.merge(
+                            this,
+                            tile,
+                            lane
+                        )
+                    }
+                }
             }
         }
         storage.whenClosing { scope.cancel() }

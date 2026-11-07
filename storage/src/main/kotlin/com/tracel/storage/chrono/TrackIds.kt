@@ -1,9 +1,9 @@
 package com.tracel.storage.chrono
 
 import com.tracel.model.holder.HolderId
+import com.tracel.storage.Interning
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.chrono.capsule.CapsuleView
-import com.tracel.storage.Interning
 
 /**
  * The IDs a capsule is filed under in the track index: the players in it,

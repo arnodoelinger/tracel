@@ -3,17 +3,12 @@ package com.tracel.storage.chrono
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.model.holder.HolderId
+import com.tracel.storage.Interning
 import com.tracel.storage.StorageUnit
-import com.tracel.storage.chrono.query.Box
-import com.tracel.storage.chrono.query.ChronoReader
-import com.tracel.storage.chrono.query.Found
-import com.tracel.storage.chrono.query.IdTest
-import com.tracel.storage.chrono.query.Sieve
-import com.tracel.storage.chrono.query.and
+import com.tracel.storage.chrono.query.*
 import com.tracel.storage.history.WorldFilter
 import com.tracel.storage.history.idsFor
-import com.tracel.storage.Interning
-import java.util.UUID
+import java.util.*
 
 /**
  * A [LookupFilter] in chrono's terms: the sieve, and where to look — the tiles of a region, the capsules of some
@@ -75,9 +70,9 @@ internal class LookupPlan private constructor(
             val kinds = IdTest { kind ->
                 val cause = ChronoKinds.cause(kind)
                 !cause.isBookkeeping &&
-                    (causes.isEmpty() || cause in causes) &&
-                    (filter.excludedCauses.isEmpty() || cause !in filter.excludedCauses) &&
-                    (filter.actions.isEmpty() || ChronoKinds.action(kind) in filter.actions)
+                        (causes.isEmpty() || cause in causes) &&
+                        (filter.excludedCauses.isEmpty() || cause !in filter.excludedCauses) &&
+                        (filter.actions.isEmpty() || ChronoKinds.action(kind) in filter.actions)
             }
             var actors = if (ids.holders.isNotEmpty()) IdTest.of(ids.holders) else IdTest.ANY
             if (ids.excluded.isNotEmpty()) actors = actors and IdTest.none(ids.excluded)
@@ -85,7 +80,13 @@ internal class LookupPlan private constructor(
             val states = if (material == null) null else {
                 val memo = HashMap<Int, Boolean>()
                 IdTest { id ->
-                    memo.getOrPut(id) { WorldFilter.matches(interning.resolveBlockData(unit, id).value, material, filter.blockMaterials) }
+                    memo.getOrPut(id) {
+                        WorldFilter.matches(
+                            interning.resolveBlockData(unit, id).value,
+                            material,
+                            filter.blockMaterials
+                        )
+                    }
                 }
             }
             val region = filter.region
@@ -111,7 +112,11 @@ internal class LookupPlan private constructor(
         fun placeOf(unit: StorageUnit, interning: Interning, region: LookupRegion): Pair<List<Tile>, Box>? {
             val world = interning.findWorldId(unit, region.world) ?: return null
             val tiles = ArrayList<Tile>()
-            for (x in region.minTileX..region.maxTileX) for (z in region.minTileZ..region.maxTileZ) tiles += Tile.of(world, x, z)
+            for (x in region.minTileX..region.maxTileX) for (z in region.minTileZ..region.maxTileZ) tiles += Tile.of(
+                world,
+                x,
+                z
+            )
             return tiles to Box(region.minX, region.maxX, region.minY, region.maxY, region.minZ, region.maxZ)
         }
     }

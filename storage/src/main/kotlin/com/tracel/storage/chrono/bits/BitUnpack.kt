@@ -38,7 +38,8 @@ object BitUnpack {
                 val mask = lowMask(bits)
                 var bit = 0L
                 for (i in 0 until n) {
-                    out[into + i] = ((seg.get(LittleEndian.SEG_LONG, at + (bit ushr 3)) ushr (bit and 7).toInt()) and mask).toInt()
+                    out[into + i] =
+                        ((seg.get(LittleEndian.SEG_LONG, at + (bit ushr 3)) ushr (bit and 7).toInt()) and mask).toInt()
                     bit += bits
                 }
             }
@@ -58,7 +59,8 @@ object BitUnpack {
         val mask = lowMask(bits)
         var bit = 0L
         for (i in 0 until n) {
-            out[into + i] = palette[((seg.get(LittleEndian.SEG_LONG, at + (bit ushr 3)) ushr (bit and 7).toInt()) and mask).toInt()]
+            out[into + i] =
+                palette[((seg.get(LittleEndian.SEG_LONG, at + (bit ushr 3)) ushr (bit and 7).toInt()) and mask).toInt()]
             bit += bits
         }
     }
@@ -69,7 +71,16 @@ object BitUnpack {
      *
      * Unpacking and the prefix sum are one loop, so the deltas are never written down.
      */
-    fun deltas(seg: MemorySegment, at: Long, bits: Int, n: Int, start: Long, floor: Long, out: LongArray, into: Int = 0) {
+    fun deltas(
+        seg: MemorySegment,
+        at: Long,
+        bits: Int,
+        n: Int,
+        start: Long,
+        floor: Long,
+        out: LongArray,
+        into: Int = 0
+    ) {
         var acc = start
         if (bits == 0) {
             for (i in 0 until n) {
@@ -98,7 +109,16 @@ object BitUnpack {
      * [deltas] whose deltas went through [zigzag] before they were framed:
      * a column that mostly climbs but may step back now and then, like wall-clock time.
      */
-    fun zigzagDeltas(seg: MemorySegment, at: Long, bits: Int, n: Int, start: Long, floor: Long, out: LongArray, into: Int = 0) {
+    fun zigzagDeltas(
+        seg: MemorySegment,
+        at: Long,
+        bits: Int,
+        n: Int,
+        start: Long,
+        floor: Long,
+        out: LongArray,
+        into: Int = 0
+    ) {
         var acc = start
         for (i in 0 until n) {
             acc += unzigzag(floor + get(seg, at, bits, i))

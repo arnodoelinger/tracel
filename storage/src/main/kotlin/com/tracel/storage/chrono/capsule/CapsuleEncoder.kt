@@ -104,9 +104,22 @@ class CapsuleEncoder : AbstractCapsuleEncoder(CapsuleKind.BLOCKS, Lane.BLOCKS.ma
             sink.varint(0)
         } else {
             val entries = ArrayList<ChainTail.Extra>()
-            for (p in 0 until cellCount) entryExtras[bySorted[p]]?.let { entries += ChainTail.Extra(ExtraSide.ENTRY, p, it) }
-            for (p in 0 until cellCount) curExtras[bySorted[p]]?.let { entries += ChainTail.Extra(ExtraSide.EXIT, p, it) }
-            for (k in 0 until n) rows.afterExtrasAt(order[k])?.let { entries += ChainTail.Extra(ExtraSide.AFTER, k, it) }
+            for (p in 0 until cellCount) entryExtras[bySorted[p]]?.let {
+                entries += ChainTail.Extra(
+                    ExtraSide.ENTRY,
+                    p,
+                    it
+                )
+            }
+            for (p in 0 until cellCount) curExtras[bySorted[p]]?.let {
+                entries += ChainTail.Extra(
+                    ExtraSide.EXIT,
+                    p,
+                    it
+                )
+            }
+            for (k in 0 until n) rows.afterExtrasAt(order[k])
+                ?.let { entries += ChainTail.Extra(ExtraSide.AFTER, k, it) }
             for (b in 0 until breaks) breakExtras[b]?.let { entries += ChainTail.Extra(ExtraSide.BREAK, b, it) }
             ChainTail.writeExtras(sink, entries)
         }

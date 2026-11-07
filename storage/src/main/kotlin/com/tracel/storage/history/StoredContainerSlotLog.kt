@@ -35,7 +35,8 @@ class StoredContainerSlotLog(
                 sink.varint(quantity)
             }
             val tile = tileOf(this, holder)
-            chrono.writer(this, Lane.CONTAINERS).addEntity(tile, seq, epochMillis, 0, holderId, 0, 0, 0L, 0L, sink.toByteArray(), null)
+            chrono.writer(this, Lane.CONTAINERS)
+                .addEntity(tile, seq, epochMillis, 0, holderId, 0, 0, 0L, 0L, sink.toByteArray(), null)
         }
     }
 
@@ -48,7 +49,10 @@ class StoredContainerSlotLog(
             val newest = ArrayList<Pair<Rows, Int>>()
             for (f in found) for (r in 0 until f.rows.size) if (f.rows.actor[r] == holderId) newest += f.rows to r
             newest.sortByDescending { (rows, r) -> rows.seq[r] }
-            for ((rows, r) in newest.take(limit)) if (rows.millis[r] <= asOfMillis) return@read decode(this, rows.beforeExtrasAt(r))
+            for ((rows, r) in newest.take(limit)) if (rows.millis[r] <= asOfMillis) return@read decode(
+                this,
+                rows.beforeExtrasAt(r)
+            )
             null
         }
     }

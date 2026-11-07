@@ -8,7 +8,6 @@ import com.tracel.storage.ffm.Bytes.i64
 import com.tracel.storage.format.FormatVersion
 import com.tracel.storage.format.Migration
 import com.tracel.storage.spi.KeyValueEngine
-import kotlin.collections.iterator
 
 /**
  * 1.0 to 1.1.

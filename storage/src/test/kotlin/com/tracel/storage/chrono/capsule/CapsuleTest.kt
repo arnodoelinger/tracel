@@ -1,14 +1,8 @@
 package com.tracel.storage.chrono.capsule
 
-import com.tracel.storage.chrono.Cell
-import com.tracel.storage.chrono.Rows
-import com.tracel.storage.chrono.Tile
-import com.tracel.storage.chrono.Worldlike
+import com.tracel.storage.chrono.*
 import com.tracel.storage.chrono.bits.BitUnpack
-import com.tracel.storage.chrono.RowsBuilder
-import org.junit.jupiter.api.Assertions.assertArrayEquals
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import kotlin.random.Random
 
@@ -125,7 +119,12 @@ class CapsuleTest {
 
     @Test
     fun `tiles and cells pack and unpack`() {
-        for ((w, x, z) in listOf(Triple(0, 0, 0), Triple(5, -1, -1), Triple(1 shl 19, 2_000_000, -2_000_000), Triple(77, -1875000, 1875000))) {
+        for ((w, x, z) in listOf(
+            Triple(0, 0, 0),
+            Triple(5, -1, -1),
+            Triple(1 shl 19, 2_000_000, -2_000_000),
+            Triple(77, -1875000, 1875000)
+        )) {
             val tile = Tile.of(w, x, z)
             assertEquals(w, tile.world)
             assertEquals(x, tile.x)

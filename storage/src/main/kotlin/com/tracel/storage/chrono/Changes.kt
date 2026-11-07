@@ -2,21 +2,17 @@ package com.tracel.storage.chrono
 
 import com.tracel.model.holder.HolderId
 import com.tracel.model.log.Seq
-import com.tracel.model.world.ActionKind
-import com.tracel.model.world.BlockPos
-import com.tracel.model.world.ChangeSubject
-import com.tracel.model.world.WorldChange
-import com.tracel.model.world.WorldId
+import com.tracel.model.world.*
 import com.tracel.model.world.block.BlockDataKey
 import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.storage.Interning
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.chrono.bits.RadixSort
 import com.tracel.storage.chrono.query.Found
 import com.tracel.storage.codec.Extras
-import com.tracel.storage.Interning
-import java.util.UUID
+import java.util.*
 
 /** Rows back into the model, every ID resolved once per unit. */
 internal class Changes(private val interning: Interning, private val unit: StorageUnit) {
@@ -56,15 +52,30 @@ internal class Changes(private val interning: Interning, private val unit: Stora
         val action = ChronoKinds.action(kind)
         val at = pos(tile, rows.cell[r])
         val subject = when (lane) {
-            Lane.BLOCKS -> ChangeSubject.Block(shape(rows.before[r], rows.beforeExtrasAt(r)), shape(rows.after[r], rows.afterExtrasAt(r)))
+            Lane.BLOCKS -> ChangeSubject.Block(
+                shape(rows.before[r], rows.beforeExtrasAt(r)),
+                shape(rows.after[r], rows.afterExtrasAt(r))
+            )
+
             Lane.ENTITIES -> {
                 val type = types.getOrPut(rows.after[r]) { interning.resolveEntityType(unit, rows.after[r]) }
                 val before = rows.beforeExtrasAt(r)?.let { Extras.decodeShape(type, at, it) }
-                    ?: if (action == ActionKind.ENTITY_SPAWN) null else EntityShape(type, at.x + 0.5, at.y.toDouble(), at.z + 0.5)
+                    ?: if (action == ActionKind.ENTITY_SPAWN) null else EntityShape(
+                        type,
+                        at.x + 0.5,
+                        at.y.toDouble(),
+                        at.z + 0.5
+                    )
                 val after = rows.afterExtrasAt(r)?.let { Extras.decodeShape(type, at, it) }
-                    ?: if (action == ActionKind.ENTITY_REMOVE) null else EntityShape(type, at.x + 0.5, at.y.toDouble(), at.z + 0.5)
+                    ?: if (action == ActionKind.ENTITY_REMOVE) null else EntityShape(
+                        type,
+                        at.x + 0.5,
+                        at.y.toDouble(),
+                        at.z + 0.5
+                    )
                 ChangeSubject.Entity(UUID(rows.uuidHigh?.get(r) ?: 0L, rows.uuidLow?.get(r) ?: 0L), type, before, after)
             }
+
             else -> error("a row of the ${lane.name.lowercase()} lane is not a world change.")
         }
         val actor = rows.actor[r]
@@ -77,7 +88,12 @@ internal class Changes(private val interning: Interning, private val unit: Stora
 
     fun pos(tile: Tile, cell: Int): BlockPos {
         val c = Cell(cell)
-        return BlockPos(worlds.getOrPut(tile.world) { interning.resolveWorld(unit, tile.world) }, tile.originX + c.x, c.y, tile.originZ + c.z)
+        return BlockPos(
+            worlds.getOrPut(tile.world) { interning.resolveWorld(unit, tile.world) },
+            tile.originX + c.x,
+            c.y,
+            tile.originZ + c.z
+        )
     }
 
     fun shape(id: Int, extras: ByteArray?): BlockShape {

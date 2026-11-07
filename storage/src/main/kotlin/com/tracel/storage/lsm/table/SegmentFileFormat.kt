@@ -48,7 +48,8 @@ object SegmentFileFormat {
     const val COMPACTION_ZSTD_LEVEL = 19
 
     /** Opens a segment for reading. The file is not modified, and the caller must close the reader. */
-    fun open(path: Path, meta: SegmentMetadata, disk: Disk = LocalDisk): SegmentFileReader = open(path, meta, BlockCache(), disk)
+    fun open(path: Path, meta: SegmentMetadata, disk: Disk = LocalDisk): SegmentFileReader =
+        open(path, meta, BlockCache(), disk)
 
     internal fun open(path: Path, meta: SegmentMetadata, cache: BlockCache, disk: Disk): SegmentFileReader {
         val mapped = MappedFile.openRead(path, disk)

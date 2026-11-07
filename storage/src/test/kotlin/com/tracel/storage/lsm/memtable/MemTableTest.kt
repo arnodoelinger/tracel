@@ -124,7 +124,12 @@ class MemTableTest {
         repeat(3000) { round ->
             MemTable(1024L + random.nextInt(2048)).use { table ->
                 var sequence = 1L
-                while (table.put(byteArrayOf(1, random.nextInt(256).toByte()), ByteArray(random.nextInt(40)), sequence)) {
+                while (table.put(
+                        byteArrayOf(1, random.nextInt(256).toByte()),
+                        ByteArray(random.nextInt(40)),
+                        sequence
+                    )
+                ) {
                     sequence++
                     if (table.capacity - table.bytesUsed < 300) break
                 }
@@ -139,7 +144,13 @@ class MemTableTest {
                     batch += key to value
                 }
                 for ((key, value) in batch) {
-                    assertTrue(table.put(key, value, sequence++)) { "round $round: ${batch.size} entries were promised room" }
+                    assertTrue(
+                        table.put(
+                            key,
+                            value,
+                            sequence++
+                        )
+                    ) { "round $round: ${batch.size} entries were promised room" }
                 }
             }
         }

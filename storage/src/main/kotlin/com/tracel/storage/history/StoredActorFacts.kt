@@ -14,18 +14,19 @@ import com.tracel.storage.chrono.Tile
 import com.tracel.storage.chrono.query.Sieve
 import com.tracel.storage.codec.Scalar
 import com.tracel.storage.codec.Tag
-import java.util.TreeMap
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.atomic.AtomicLong
 
 /** What the log cannot say about who did a thing: a mob's type and a player's game mode. */
-class StoredActorFacts(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) : AbstractChronoLog(storage, chrono), ActorFacts {
+class StoredActorFacts(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) :
+    AbstractChronoLog(storage, chrono), ActorFacts {
     override suspend fun noteMode(player: UUID, mode: Int, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
             val latest = rowsOf(this, Lane.MODES, holder).lastOrNull()
             if (latest?.type != mode) {
-                chrono.writer(this, Lane.MODES).addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, 0, mode, 0L, 0L, null, null)
+                chrono.writer(this, Lane.MODES)
+                    .addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, 0, mode, 0L, 0L, null, null)
             }
         }
     }
@@ -33,7 +34,8 @@ class StoredActorFacts(storage: TracelStorage, chrono: Chrono = Chrono.of(storag
     override suspend fun openVisit(player: UUID, millis: Long) {
         storage.write {
             val holder = storage.interning.internHolder(this, HolderId.Player(player))
-            chrono.writer(this, Lane.VISITS).addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, OPEN, 0, 0L, 0L, null, null)
+            chrono.writer(this, Lane.VISITS)
+                .addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, OPEN, 0, 0L, 0L, null, null)
         }
     }
 
@@ -42,7 +44,8 @@ class StoredActorFacts(storage: TracelStorage, chrono: Chrono = Chrono.of(storag
             val holder = storage.interning.findHolderId(this, HolderId.Player(player)) ?: return@write
             val latest = rowsOf(this, Lane.VISITS, holder).lastOrNull() ?: return@write
             if (latest.kind == OPEN) {
-                chrono.writer(this, Lane.VISITS).addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, CLOSE, 0, 0L, 0L, null, null)
+                chrono.writer(this, Lane.VISITS)
+                    .addEntity(GLOBAL, nextSeq(millis), millis, 0, holder, CLOSE, 0, 0L, 0L, null, null)
             }
         }
     }
@@ -103,13 +106,19 @@ class StoredActorFacts(storage: TracelStorage, chrono: Chrono = Chrono.of(storag
         val out = ArrayList<Row>()
         for (found in chrono.reader(unit).selectAnywhere(holder, Sieve.ALL, lane)) {
             val rows: Rows = found.rows
-            for (r in 0 until rows.size) if (rows.actor[r] == holder) out += Row(rows.seq[r], rows.millis[r], rows.kind[r], rows.after[r])
+            for (r in 0 until rows.size) if (rows.actor[r] == holder) out += Row(
+                rows.seq[r],
+                rows.millis[r],
+                rows.kind[r],
+                rows.after[r]
+            )
         }
         out.sortBy { it.seq }
         return out
     }
 
-    private fun nextSeq(millis: Long): Long = (millis shl SEQ_BITS) or (counter.incrementAndGet() and ((1L shl SEQ_BITS) - 1))
+    private fun nextSeq(millis: Long): Long =
+        (millis shl SEQ_BITS) or (counter.incrementAndGet() and ((1L shl SEQ_BITS) - 1))
 
     private companion object {
         val GLOBAL = Tile.of(0, 0, 0)

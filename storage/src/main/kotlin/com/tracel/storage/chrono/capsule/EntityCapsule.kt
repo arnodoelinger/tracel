@@ -61,7 +61,12 @@ class EntityCapsule(bytes: MemorySegment, lane: Lane = Lane.ENTITIES) :
             kindAt = actorAt + packedBytes(rowCount, indexWidth(actors.size))
             typeAt = kindAt + packedBytes(rowCount, indexWidth(kinds.size))
             uuidAt = typeAt + packedBytes(rowCount, indexWidth(types.size))
-            check(uuidAt + packedBytes(rowCount, indexWidth(uuidCount)) == tail) { "entity capsule rows end past the tail at $tail." }
+            check(
+                uuidAt + packedBytes(
+                    rowCount,
+                    indexWidth(uuidCount)
+                ) == tail
+            ) { "entity capsule rows end past the tail at $tail." }
         }
     }
 

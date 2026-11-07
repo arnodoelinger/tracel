@@ -25,7 +25,8 @@ internal object BlockPlaneCodec {
         while (at < end) {
             val shared = VarintCodec.read(raw, at).also { at += VarintCodec.sizeOf(it) }.let(VarintCodec::valueOf)
             val unshared = VarintCodec.read(raw, at).also { at += VarintCodec.sizeOf(it) }.let(VarintCodec::valueOf)
-            val valueLength = VarintCodec.read(raw, at).also { at += VarintCodec.sizeOf(it) }.let(VarintCodec::valueOf) - 1
+            val valueLength =
+                VarintCodec.read(raw, at).also { at += VarintCodec.sizeOf(it) }.let(VarintCodec::valueOf) - 1
             val key = last.copyOf(shared + unshared)
             System.arraycopy(raw, at, key, shared, unshared)
             at += unshared
@@ -54,7 +55,8 @@ internal object BlockPlaneCodec {
         val valueLengths = IntArray(rows)
         for (i in 0 until rows) {
             keyLengths[i] = VarintCodec.read(planes, at).also { at += VarintCodec.sizeOf(it) }.let(VarintCodec::valueOf)
-            valueLengths[i] = VarintCodec.read(planes, at).also { at += VarintCodec.sizeOf(it) }.let(VarintCodec::valueOf) - 1
+            valueLengths[i] =
+                VarintCodec.read(planes, at).also { at += VarintCodec.sizeOf(it) }.let(VarintCodec::valueOf) - 1
         }
         val keys = Array(rows) { ByteArray(keyLengths[it]) }
         val values = Array(rows) { ByteArray(maxOf(0, valueLengths[it])) }

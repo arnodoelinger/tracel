@@ -19,12 +19,19 @@ class WritesStoppedTest {
     private fun value(i: Int): ByteArray = "value-$i".toByteArray()
 
     private fun engine(dir: Path, memtable: Long = 64 * 1024, frozen: Int = 3) =
-        LsmEngine(dir, LsmOptions(memtableBytes = memtable, maxFrozenMemtables = frozen, sync = WalSyncPolicy.EveryBatch))
+        LsmEngine(
+            dir,
+            LsmOptions(memtableBytes = memtable, maxFrozenMemtables = frozen, sync = WalSyncPolicy.EveryBatch)
+        )
 
     private fun LsmEngine.put(i: Int) = write(MutationBatch().apply { put(key(i), value(i)) }, durable = true)
 
     private fun LsmEngine.assertHas(range: IntRange) = snapshot().use { snapshot ->
-        for (i in range) assertArrayEquals(value(i), snapshot.get(key(i))?.let { it.readBytes(0, it.byteSize().toInt()) }, "lost $i")
+        for (i in range) assertArrayEquals(
+            value(i),
+            snapshot.get(key(i))?.let { it.readBytes(0, it.byteSize().toInt()) },
+            "lost $i"
+        )
     }
 
     private fun awaitHealed(engine: LsmEngine) {

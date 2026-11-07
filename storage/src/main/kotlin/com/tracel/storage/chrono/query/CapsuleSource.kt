@@ -3,7 +3,7 @@ package com.tracel.storage.chrono.query
 import com.tracel.storage.chrono.Lane
 import com.tracel.storage.chrono.Tile
 import com.tracel.storage.chrono.capsule.CapsuleView
-import java.util.TreeMap
+import java.util.*
 
 /** Where capsules live, as a reader sees them: by tile, by actor, by recency, one lane at a time. */
 interface CapsuleSource {

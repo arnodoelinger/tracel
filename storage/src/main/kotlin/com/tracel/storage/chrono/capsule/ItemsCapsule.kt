@@ -37,7 +37,21 @@ class ItemsCapsule(bytes: MemorySegment) : AbstractCapsule(bytes, Lane.ITEMS, Ca
         val lengths = IntArray(n) { c.varintInt() }
         val lots = arrayOfNulls<ByteArray>(n)
         for (k in 0 until n) if (lengths[k] > 0) lots[k] = c.bytes(lengths[k])
-        return Rows(n, seqs(), millis(), cell, actor, kind, item, source, lots, null, quantity, txn, arrayOf(destination, flow, homes[0], homes[1], homes[2]))
+        return Rows(
+            n,
+            seqs(),
+            millis(),
+            cell,
+            actor,
+            kind,
+            item,
+            source,
+            lots,
+            null,
+            quantity,
+            txn,
+            arrayOf(destination, flow, homes[0], homes[1], homes[2])
+        )
     }
 
     private inner class Layout {
@@ -70,7 +84,13 @@ class ItemsCapsule(bytes: MemorySegment) : AbstractCapsule(bytes, Lane.ITEMS, Ca
             quantity = Parts.readFramed(r, rowCount)
             txn = Parts.readFramed(r, rowCount)
             home = Array(3) { Parts.readFramed(r, rowCount) }
-            check(home[2].end == offset(CapsuleSection.TAIL)) { "items capsule rows end at ${home[2].end}, the tail starts at ${offset(CapsuleSection.TAIL)}." }
+            check(home[2].end == offset(CapsuleSection.TAIL)) {
+                "items capsule rows end at ${home[2].end}, the tail starts at ${
+                    offset(
+                        CapsuleSection.TAIL
+                    )
+                }."
+            }
         }
     }
 

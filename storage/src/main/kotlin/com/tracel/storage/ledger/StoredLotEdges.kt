@@ -6,6 +6,7 @@ import com.tracel.model.lot.LotEdge
 import com.tracel.model.lot.LotId
 import com.tracel.model.rollback.RollbackJobId
 import com.tracel.model.transaction.TxnId
+import com.tracel.storage.Interning
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.codec.EdgeRecord
@@ -13,7 +14,6 @@ import com.tracel.storage.codec.KeyReader
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.history.QueryProbe
 import com.tracel.storage.history.walkWanted
-import com.tracel.storage.Interning
 import com.tracel.storage.util.eachRow
 import java.lang.foreign.MemorySegment
 

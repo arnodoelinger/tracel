@@ -23,7 +23,8 @@ class BloomFilterBuilder(expectedEntries: Int) {
      */
     fun writeTo(out: OutputStream): Long {
         if (count == 0) return 0L
-        blocks = ((count.toLong() * BloomFilter.BITS_PER_KEY + 511) / 512).coerceIn(1L, (Int.MAX_VALUE shr 3).toLong()).toInt()
+        blocks = ((count.toLong() * BloomFilter.BITS_PER_KEY + 511) / 512).coerceIn(1L, (Int.MAX_VALUE shr 3).toLong())
+            .toInt()
         words = LongArray(blocks shl 3)
         for (i in 0 until count) set(hashes[i])
         val buffer = ByteBuffer.allocate(8 + words.size * 8).order(ByteOrder.LITTLE_ENDIAN)

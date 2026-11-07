@@ -13,7 +13,7 @@ import com.tracel.storage.table.ClaimQueue
 import com.tracel.storage.table.KeyCodec
 import com.tracel.storage.table.ValueCodec
 import java.lang.foreign.MemorySegment
-import java.util.UUID
+import java.util.*
 
 /** A durable queue of [PendingDelivery]s, keyed by the player who is owed. */
 class StoredPendingDeliveryRepository(storage: TracelStorage, counters: StoredCounters) : PendingDeliveryRepository {
@@ -30,7 +30,13 @@ class StoredPendingDeliveryRepository(storage: TracelStorage, counters: StoredCo
     override suspend fun claimFor(player: UUID): List<PendingDelivery> =
         queue.claim(player).map { (id, e) -> PendingDelivery(id, e.itemKey, e.delta, e.job, e.stash) }
 
-    private class Entry(val itemKey: ItemKey, val delta: Long, val job: RollbackJobId, val millis: Long, val stash: Boolean)
+    private class Entry(
+        val itemKey: ItemKey,
+        val delta: Long,
+        val job: RollbackJobId,
+        val millis: Long,
+        val stash: Boolean
+    )
 
     private object Owed : ValueCodec<Entry> {
         override fun write(storage: TracelStorage, unit: StorageUnit, value: Entry): ByteArray = Pending.of(

@@ -12,13 +12,7 @@ import com.tracel.model.world.WorldChange
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.RawBlockEdits
-import com.tracel.storage.chrono.Cell
-import com.tracel.storage.chrono.Changes
-import com.tracel.storage.chrono.Chrono
-import com.tracel.storage.chrono.ChronoKinds
-import com.tracel.storage.chrono.Lane
-import com.tracel.storage.chrono.LookupPlan
-import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.*
 import com.tracel.storage.chrono.query.Found
 import com.tracel.storage.codec.Extras
 
@@ -26,7 +20,8 @@ import com.tracel.storage.codec.Extras
  * The world-change log, kept by place: every block and entity change goes into its tile's history, as [Chrono]
  * keeps it, and every lookup is answered from there.
  */
-class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) : AbstractChronoLog(storage, chrono), WorldLog {
+class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) : AbstractChronoLog(storage, chrono),
+    WorldLog {
     override suspend fun append(change: WorldChange) {
         storage.write {
             val worldId = interning.internWorld(this, change.at.world)
@@ -41,9 +36,16 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
                     val writer = chrono.writer(this, Lane.BLOCKS)
                     refuseTwice(this, writer.holds(seq), tile, Lane.BLOCKS, change.seq)
                     writer.add(
-                        tile, seq, change.epochMillis, cell, actor, kind,
-                        interning.internBlockData(this, subject.before.data), interning.internBlockData(this, subject.after.data),
-                        Extras.block(subject.before.extras), Extras.block(subject.after.extras),
+                        tile,
+                        seq,
+                        change.epochMillis,
+                        cell,
+                        actor,
+                        kind,
+                        interning.internBlockData(this, subject.before.data),
+                        interning.internBlockData(this, subject.after.data),
+                        Extras.block(subject.before.extras),
+                        Extras.block(subject.after.extras),
                     )
                 }
 
@@ -51,9 +53,17 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
                     val writer = chrono.writer(this, Lane.ENTITIES)
                     refuseTwice(this, writer.holds(seq), tile, Lane.ENTITIES, change.seq)
                     writer.addEntity(
-                        tile, seq, change.epochMillis, cell, actor, kind, interning.internEntityType(this, subject.type),
-                        subject.entity.mostSignificantBits, subject.entity.leastSignificantBits,
-                        Extras.shape(subject.before), Extras.shape(subject.after),
+                        tile,
+                        seq,
+                        change.epochMillis,
+                        cell,
+                        actor,
+                        kind,
+                        interning.internEntityType(this, subject.type),
+                        subject.entity.mostSignificantBits,
+                        subject.entity.leastSignificantBits,
+                        Extras.shape(subject.before),
+                        Extras.shape(subject.after),
                     )
                 }
             }
@@ -71,9 +81,16 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
             for ((i, edit) in real.withIndex()) {
                 val (world, x, y, z) = edit.at
                 writer.add(
-                    Tile.at(interning.internWorld(this, world), x, z), base + i, edits.epochMillis, Cell.of(x, y, z).packed, actor, kind,
-                    interning.internBlockData(this, edit.before.data), interning.internBlockData(this, edit.after.data),
-                    Extras.block(edit.before.extras), Extras.block(edit.after.extras),
+                    Tile.at(interning.internWorld(this, world), x, z),
+                    base + i,
+                    edits.epochMillis,
+                    Cell.of(x, y, z).packed,
+                    actor,
+                    kind,
+                    interning.internBlockData(this, edit.before.data),
+                    interning.internBlockData(this, edit.after.data),
+                    Extras.block(edit.before.extras),
+                    Extras.block(edit.after.extras),
                 )
             }
         }
@@ -93,8 +110,16 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
                 val y = c[i * 3 + 1]
                 val z = c[i * 3 + 2]
                 writer.add(
-                    Tile.at(raw.worldId, x, z), base + i, raw.epochMillis, Cell.of(x, y, z).packed, raw.causedById, kind,
-                    raw.befores[i], raw.afters[i], null, null,
+                    Tile.at(raw.worldId, x, z),
+                    base + i,
+                    raw.epochMillis,
+                    Cell.of(x, y, z).packed,
+                    raw.causedById,
+                    kind,
+                    raw.befores[i],
+                    raw.afters[i],
+                    null,
+                    null,
                 )
             }
         }
@@ -110,7 +135,8 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
         Changes(interning, this).newestFirst(found, 0, limit)
     }
 
-    override suspend fun query(filter: LookupFilter): List<WorldChange> = storage.read { select(this, filter, ends = false) }
+    override suspend fun query(filter: LookupFilter): List<WorldChange> =
+        storage.read { select(this, filter, ends = false) }
 
     override suspend fun queryTogether(
         transactions: TransactionLog,
@@ -124,7 +150,14 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
     }
 
     private fun refuseTwice(unit: StorageUnit, pending: Boolean, tile: Tile, lane: Lane, seq: Seq) {
-        check(!pending && !chrono.holds(unit, tile, lane, seq.raw)) { "world change at $seq already appended; the log is append-only." }
+        check(
+            !pending && !chrono.holds(
+                unit,
+                tile,
+                lane,
+                seq.raw
+            )
+        ) { "world change at $seq already appended; the log is append-only." }
     }
 
     private fun select(unit: StorageUnit, filter: LookupFilter, ends: Boolean): List<WorldChange> {

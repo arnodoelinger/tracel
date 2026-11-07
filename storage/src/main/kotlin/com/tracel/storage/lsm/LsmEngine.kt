@@ -5,17 +5,8 @@ import com.tracel.platform.io.reason
 import com.tracel.storage.lsm.io.Disk
 import com.tracel.storage.lsm.io.LocalDisk
 import com.tracel.storage.lsm.memtable.MemTable
-import com.tracel.storage.lsm.table.BlockCache
-import com.tracel.storage.lsm.table.SegmentClassifier
-import com.tracel.storage.lsm.table.SegmentFileFormat
-import com.tracel.storage.lsm.table.SegmentFileReader
-import com.tracel.storage.lsm.table.SegmentMergeWriter
-import com.tracel.storage.lsm.table.SegmentRun
-import com.tracel.storage.lsm.version.CompactionPlan
-import com.tracel.storage.lsm.version.Manifest
-import com.tracel.storage.lsm.version.SegmentRetirement
-import com.tracel.storage.lsm.version.VersionSnapshot
-import com.tracel.storage.lsm.version.planCompaction
+import com.tracel.storage.lsm.table.*
+import com.tracel.storage.lsm.version.*
 import com.tracel.storage.lsm.wal.WalSegmentSet
 import com.tracel.storage.lsm.wal.WalSyncPolicy
 import com.tracel.storage.lsm.wal.replayWals
@@ -382,7 +373,11 @@ class LsmEngine(
             try {
                 logs.close()
             } catch (e: Throwable) {
-                logger.log(Level.WARNING, "Write-ahead log failed to sync on shutdown (${e.reason()}). Sealing still saves what is in memory.", e)
+                logger.log(
+                    Level.WARNING,
+                    "Write-ahead log failed to sync on shutdown (${e.reason()}). Sealing still saves what is in memory.",
+                    e
+                )
             }
         }
         syncer.shutdownNow()
@@ -394,7 +389,8 @@ class LsmEngine(
             if (seal) try {
                 sealOnShutdown()
             } catch (e: Throwable) {
-                val what = if (logs.broken) "It is lost, the write-ahead log is broken too." else "It is replayed from the write-ahead log on the next start."
+                val what =
+                    if (logs.broken) "It is lost, the write-ahead log is broken too." else "It is replayed from the write-ahead log on the next start."
                 logger.log(Level.SEVERE, "Could not save what was in memory on shutdown (${e.reason()}). $what", e)
             }
             open.forEach { it.closeQuietly() }
@@ -500,7 +496,11 @@ class LsmEngine(
             // The write-ahead log still holds every one of these writes, so a failed flush costs
             // memory and a longer recovery, not data, as long as it is tried again rather than dropped.
             if (flushFailure == null) {
-                logger.log(Level.SEVERE, "Flush failed (${e.reason()}). Data is safe in the write-ahead log. Retrying.", e)
+                logger.log(
+                    Level.SEVERE,
+                    "Flush failed (${e.reason()}). Data is safe in the write-ahead log. Retrying.",
+                    e
+                )
             } else {
                 logger.log(Level.FINE, "Flush failed again (${e.reason()}).", e)
             }
@@ -554,7 +554,10 @@ class LsmEngine(
                 open += reader
                 open.removeAll(plan.inputs.toSet())
                 writing -= id
-                install(version.compacted(plan.inputs, listOf(reader), generation.incrementAndGet()), segments = plan.inputs)
+                install(
+                    version.compacted(plan.inputs, listOf(reader), generation.incrementAndGet()),
+                    segments = plan.inputs
+                )
             }
             compactionCount.incrementAndGet()
             return true
@@ -646,7 +649,14 @@ class LsmEngine(
                 open += written
                 val last = current.lastSequence
                 install(
-                    VersionSnapshot(fresh, emptyList(), current.segments + written, last, last, generation.incrementAndGet()),
+                    VersionSnapshot(
+                        fresh,
+                        emptyList(),
+                        current.segments + written,
+                        last,
+                        last,
+                        generation.incrementAndGet()
+                    ),
                     tables = tables,
                 )
                 failure = null
@@ -754,7 +764,10 @@ class LsmEngine(
             replacement?.let { open += it }
             open.remove(old)
             replacement?.let { writing -= it.meta.id }
-            install(version.compacted(listOf(old), listOfNotNull(replacement), generation.incrementAndGet()), segments = listOf(old))
+            install(
+                version.compacted(listOf(old), listOfNotNull(replacement), generation.incrementAndGet()),
+                segments = listOf(old)
+            )
         }
         return Rewritten(removed, old.meta.fileBytes - (replacement?.meta?.fileBytes ?: 0))
     }

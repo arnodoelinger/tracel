@@ -48,7 +48,8 @@ class Rows(
     }
 
     companion object {
-        val EMPTY: Rows = Rows(0, LongArray(0), LongArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
+        val EMPTY: Rows =
+            Rows(0, LongArray(0), LongArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
 
         fun concat(parts: List<Rows>): Rows {
             if (parts.isEmpty()) return EMPTY

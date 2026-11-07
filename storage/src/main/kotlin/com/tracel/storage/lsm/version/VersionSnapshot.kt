@@ -53,7 +53,11 @@ class VersionSnapshot internal constructor(
     }
 
     /** Several segments became [produced]. Identity comparison: two segments can carry equal metadata. */
-    internal fun compacted(inputs: List<SegmentFileReader>, produced: List<SegmentFileReader>, at: Long): VersionSnapshot =
+    internal fun compacted(
+        inputs: List<SegmentFileReader>,
+        produced: List<SegmentFileReader>,
+        at: Long
+    ): VersionSnapshot =
         VersionSnapshot(
             active,
             frozen,

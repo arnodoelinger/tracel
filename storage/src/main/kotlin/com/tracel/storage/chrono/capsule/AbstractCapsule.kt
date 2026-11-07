@@ -60,7 +60,14 @@ abstract class AbstractCapsule(
     override val cells: IntArray get() = cellTable.first
 
     /** The cells, and where the table ends. */
-    protected val cellTable: Pair<IntArray, Long> by lazy { Parts.readCells(bytes, offset(CapsuleSection.CELLS), cellCount, yFloor shl 8) }
+    protected val cellTable: Pair<IntArray, Long> by lazy {
+        Parts.readCells(
+            bytes,
+            offset(CapsuleSection.CELLS),
+            cellCount,
+            yFloor shl 8
+        )
+    }
 
     /** The sequence and clock columns, wherever the lane put them. */
     internal abstract val timeline: Timeline

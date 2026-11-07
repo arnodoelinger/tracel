@@ -26,13 +26,15 @@ interface ValueCodec<V> {
         val int: ValueCodec<Int> = object : ValueCodec<Int> {
             override fun write(storage: TracelStorage, unit: StorageUnit, value: Int): ByteArray = Scalar.int(value)
 
-            override fun read(storage: TracelStorage, unit: StorageUnit, value: MemorySegment): Int = Scalar.asInt(value)
+            override fun read(storage: TracelStorage, unit: StorageUnit, value: MemorySegment): Int =
+                Scalar.asInt(value)
         }
 
         val bytes: ValueCodec<ByteArray> = object : ValueCodec<ByteArray> {
             override fun write(storage: TracelStorage, unit: StorageUnit, value: ByteArray): ByteArray = value
 
-            override fun read(storage: TracelStorage, unit: StorageUnit, value: MemorySegment): ByteArray = value.toArray(JAVA_BYTE)
+            override fun read(storage: TracelStorage, unit: StorageUnit, value: MemorySegment): ByteArray =
+                value.toArray(JAVA_BYTE)
         }
 
         inline fun <reified H : HolderId> holder(): ValueCodec<H> = object : ValueCodec<H> {

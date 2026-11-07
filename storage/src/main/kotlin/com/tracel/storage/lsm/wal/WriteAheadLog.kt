@@ -139,7 +139,12 @@ class WriteAheadLog private constructor(
          *
          * @return the highest sequence applied, and the damage if the log did not end cleanly.
          */
-        fun replay(path: Path, disk: Disk, afterSequence: Long, apply: (Long, ByteArray, ByteArray?) -> Unit): WalReplay {
+        fun replay(
+            path: Path,
+            disk: Disk,
+            afterSequence: Long,
+            apply: (Long, ByteArray, ByteArray?) -> Unit
+        ): WalReplay {
             if (!disk.exists(path)) return WalReplay(afterSequence, null)
             var highest = afterSequence
             var damage: WalDamage? = null

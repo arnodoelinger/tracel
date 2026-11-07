@@ -185,7 +185,15 @@ object RbJob : Record() {
     private val hasTarget = flag()
     private val executed = i64()
 
-    fun of(restore: Int, steps: Int, create: Int, destroy: Int, targetMillis: Long, targeted: Boolean, executedMillis: Long) =
+    fun of(
+        restore: Int,
+        steps: Int,
+        create: Int,
+        destroy: Int,
+        targetMillis: Long,
+        targeted: Boolean,
+        executedMillis: Long
+    ) =
         build {
             restoreTo(restore); stepCount(steps); createCount(create); destroyCount(destroy)
             target(targetMillis); hasTarget(targeted); executed(executedMillis)
@@ -229,7 +237,12 @@ object Txn : Record() {
     }
 
     fun writeFlow(into: MemorySegment, i: Int, itemKey: Int, from: Int, to: Int, flowKind: FlowKind, qty: Long) =
-        write(into) { item(i, itemKey); source(i, from); destination(i, to); kind(i, flowKind); gap(i); quantity(i, qty) }
+        write(into) {
+            item(i, itemKey); source(i, from); destination(i, to); kind(i, flowKind); gap(i); quantity(
+            i,
+            qty
+        )
+        }
 }
 
 object Index {

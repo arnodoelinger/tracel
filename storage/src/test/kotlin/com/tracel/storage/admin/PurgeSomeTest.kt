@@ -113,7 +113,11 @@ class PurgeSomeTest {
                     val rows = lane.open(c.value()).rows()
                     for (r in 0 until rows.size) {
                         // A transaction is filed in several tiles and counts once, in the one it happened in.
-                        val once = lane != Lane.ITEMS || (rows.aux!![1][r] == 0 && Tile.of(rows.aux[2][r], rows.aux[3][r], rows.aux[4][r]) == tile)
+                        val once = lane != Lane.ITEMS || (rows.aux!![1][r] == 0 && Tile.of(
+                            rows.aux[2][r],
+                            rows.aux[3][r],
+                            rows.aux[4][r]
+                        ) == tile)
                         out += Triple(lane, rows.seq[r], once)
                     }
                 }

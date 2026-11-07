@@ -7,9 +7,7 @@ import com.tracel.storage.lsm.version.Manifest
 import com.tracel.storage.lsm.wal.WalSyncPolicy
 import com.tracel.storage.lsm.wal.WriteAheadLog
 import com.tracel.storage.spi.MutationBatch
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.channels.FileChannel
@@ -20,7 +18,8 @@ import java.nio.file.StandardOpenOption
 class CorruptionTest {
     private fun key(i: Int) = byteArrayOf(1) + ByteArray(8) { (i.toLong() ushr (56 - it * 8)).toByte() }
 
-    private fun engine(dir: Path) = LsmEngine(dir, LsmOptions(memtableBytes = 1 shl 20, sync = WalSyncPolicy.EveryBatch))
+    private fun engine(dir: Path) =
+        LsmEngine(dir, LsmOptions(memtableBytes = 1 shl 20, sync = WalSyncPolicy.EveryBatch))
 
     @Test
     fun `a torn write-ahead log frame truncates the log rather than poisoning it`(@TempDir dir: Path) {

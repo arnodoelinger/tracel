@@ -6,7 +6,8 @@ internal object WorldFilter {
      * Whether [blockData] is [material] or one of its [aliases]:
      * a bare name matches every state of it.
      */
-    fun matches(blockData: String, material: String, aliases: Set<String>): Boolean = blockData.matchesAny(material, aliases)
+    fun matches(blockData: String, material: String, aliases: Set<String>): Boolean =
+        blockData.matchesAny(material, aliases)
 
     private fun String.matchesAny(material: String, aliases: Set<String>): Boolean =
         materialEquals(material) || aliases.any { materialEquals(it) }

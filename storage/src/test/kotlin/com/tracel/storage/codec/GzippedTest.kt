@@ -2,18 +2,17 @@ package com.tracel.storage.codec
 
 import com.tracel.model.world.block.BlockExtras
 import com.tracel.model.world.entity.EntityExtras
-import org.junit.jupiter.api.Assertions.assertArrayEquals
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
-import java.util.UUID
+import java.util.*
 import java.util.zip.Deflater
 import java.util.zip.GZIPOutputStream
 
 class GzippedTest {
-    private val nbt = ("{id:\"minecraft:chest\",Items:[" + (0 until 27).joinToString { "{Slot:${it}b,id:\"minecraft:stone\",count:64}" } + "]}")
-        .toByteArray()
+    private val nbt =
+        ("{id:\"minecraft:chest\",Items:[" + (0 until 27).joinToString { "{Slot:${it}b,id:\"minecraft:stone\",count:64}" } + "]}")
+            .toByteArray()
 
     private fun gzip(plain: ByteArray, level: Int = Deflater.DEFAULT_COMPRESSION): ByteArray {
         val out = ByteArrayOutputStream()
