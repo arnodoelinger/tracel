@@ -4,6 +4,10 @@ import com.tracel.platform.io.reason
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.chrono.capsule.CapsuleView
+import com.tracel.storage.chrono.diagenesis.Diagenesis
+import com.tracel.storage.chrono.diagenesis.DiagenesisSettings
+import com.tracel.storage.chrono.diagenesis.DiagenesisStats
+import com.tracel.storage.chrono.diagenesis.Hint
 import com.tracel.storage.chrono.query.ChronoReader
 import com.tracel.storage.codec.Tag
 import com.tracel.storage.lsm.LsmOptions
@@ -21,10 +25,8 @@ import kotlin.time.Duration.Companion.milliseconds
 /** How chrono files the world's history. */
 data class ChronoSettings(
     val windowMillis: Long = LsmOptions.DAY_MILLIS,
-    val mergeAfterMillis: Long = 30_000L,
-    val mergeFragments: Int = 16,
     val passMillis: Long = 5_000L,
-    val tilesPerPass: Int = 256,
+    val diagenesis: DiagenesisSettings = DiagenesisSettings(),
     val capsuleRows: Int = Chrono.CAPSULE_ROWS,
     val slackMillis: Long = ChronoReader.SLACK_MILLIS,
     val clock: () -> Long = System::currentTimeMillis,
@@ -35,7 +37,7 @@ data class ChronoSettings(
  * in capsules of one tile for one window.
  */
 class Chrono private constructor(private val storage: TracelStorage, val settings: ChronoSettings) {
-    internal val merger = ChronoMerger(settings, storage.interning)
+    internal val diagenesis = Diagenesis(settings.diagenesis, settings.windowMillis, settings.capsuleRows, storage.interning)
     private val logger = Logger.getLogger(Chrono::class.java.name)
     private val scope = CoroutineScope(
         SupervisorJob() + storage.dispatcher + CoroutineExceptionHandler { _, failure ->
@@ -47,10 +49,10 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
 
     /** The writer of [lane] for [unit]: one per unit, joined to its savepoints and its commit. */
     internal fun writer(unit: StorageUnit, lane: Lane): ChronoWriter =
-        unit.participant(writerKeys[lane.id]) { ChronoWriter(lane, settings.windowMillis, merger::dirty) }
+        unit.participant(writerKeys[lane.id]) { ChronoWriter(lane, settings.windowMillis) { tile, l, bytes -> diagenesis.note(tile, l, bytes, settings.clock()) } }
 
     /** A reader over what [unit]'s snapshot holds. */
-    fun reader(unit: StorageUnit): ChronoReader = ChronoReader(StoredCapsules(unit), settings.slackMillis)
+    fun reader(unit: StorageUnit): ChronoReader = ChronoReader(StoredCapsules(unit, diagenesis::read), settings.slackMillis)
 
     /**
      * Whether [tile]'s history on [lane] already has sequence [seq].
@@ -79,7 +81,16 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
      * nothing will change there for a while.
      */
     fun quiet(tile: Tile) {
-        merger.urgent(tile)
+        hint(Hint.Quiet(tile))
+    }
+
+    /**
+     * Takes the game side's advice on how to settle history.
+     *
+     * It only ever changes when, never what.
+     */
+    fun hint(hint: Hint) {
+        diagenesis.hint(hint, settings.clock())
     }
 
     /**
@@ -95,9 +106,9 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
      */
     suspend fun mergeAll() {
         while (true) {
-            val due = merger.due(settings.clock(), all = true, limit = settings.tilesPerPass)
+            val due = diagenesis.due(settings.clock(), all = true, limit = settings.diagenesis.tilesPerPass)
             if (due.isEmpty()) return
-            mergeLock.withLock { storage.write { for ((tile, lane) in due) merger.merge(this, tile, lane) } }
+            mergeLock.withLock { storage.write { for ((tile, lane) in due) diagenesis.silt(this, tile, lane) } }
         }
     }
 
@@ -208,24 +219,32 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
         return out
     }
 
+    /**
+     * One pass at the settings' clock: the tiles worth merging are silted,
+     * then a slice of the shelf is looked over for pressing.
+     *
+     * The background loop's step, and the simulations'.
+     */
+    internal suspend fun pass() {
+        val now = settings.clock()
+        val due = diagenesis.due(now, all = false, limit = settings.diagenesis.tilesPerPass)
+        if (due.isNotEmpty()) mergeLock.withLock {
+            storage.write { for ((tile, lane) in due) diagenesis.silt(this, tile, lane) }
+        }
+        if (diagenesis.sweeping(now)) mergeLock.withLock { storage.write { diagenesis.sweep(this, now) } }
+    }
+
     /** Where chrono stands. */
-    fun stats(): ChronoStats = ChronoStats(merger.backlog(), merger.merges, merger.mergedBytes)
+    fun stats(): ChronoStats = diagenesis.stats().let { d ->
+        ChronoStats(d.waitingFragments, d.runs, d.bytes, d)
+    }
 
     private fun start() {
-        StorageUnit.open(storage.engine).use(merger::discover)
+        StorageUnit.open(storage.engine).use { diagenesis.discover(it, settings.clock()) }
         scope.launch {
             while (isActive) {
                 delay(settings.passMillis.milliseconds)
-                val due = merger.due(settings.clock(), all = false, limit = settings.tilesPerPass)
-                if (due.isNotEmpty()) mergeLock.withLock {
-                    storage.write {
-                        for ((tile, lane) in due) merger.merge(
-                            this,
-                            tile,
-                            lane
-                        )
-                    }
-                }
+                pass()
             }
         }
         storage.whenClosing { scope.cancel() }
@@ -248,4 +267,9 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
  * What chrono is doing: fragments waiting, merges done and the bytes they wrote,
  * since it started.
  */
-data class ChronoStats(val waitingFragments: Int, val merges: Long, val mergedBytes: Long)
+data class ChronoStats(
+    val waitingFragments: Int,
+    val merges: Long,
+    val mergedBytes: Long,
+    val diagenesis: DiagenesisStats,
+)

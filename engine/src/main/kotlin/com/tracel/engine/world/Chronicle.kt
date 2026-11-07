@@ -29,6 +29,9 @@ public interface Chronicle {
     /** Files away what [world]'s tile at [tileX], [tileZ] has: nothing will change there for a while. */
     public suspend fun quiet(world: WorldId, tileX: Int, tileZ: Int)
 
+    /** [world] is going away for now: its history can be sealed and frozen, once. */
+    public suspend fun retire(world: WorldId)
+
     /** Pulls the history of [world]'s tile at [tileX], [tileZ] close: somebody is about to look. */
     public suspend fun warm(world: WorldId, tileX: Int, tileZ: Int)
 

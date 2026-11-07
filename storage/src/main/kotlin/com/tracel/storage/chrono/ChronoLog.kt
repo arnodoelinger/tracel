@@ -9,6 +9,7 @@ import com.tracel.model.log.Seq
 import com.tracel.model.world.WorldId
 import com.tracel.storage.Interning
 import com.tracel.storage.TracelStorage
+import com.tracel.storage.chrono.diagenesis.Hint
 import java.util.concurrent.ConcurrentHashMap
 import com.tracel.storage.chrono.query.Rewound as RewoundTile
 
@@ -49,6 +50,11 @@ class ChronoLog(private val storage: TracelStorage, private val chrono: Chrono =
     override suspend fun quiet(world: WorldId, tileX: Int, tileZ: Int) {
         val id = worldIdOf(world) ?: return
         chrono.quiet(Tile.of(id, tileX, tileZ))
+    }
+
+    override suspend fun retire(world: WorldId) {
+        val id = worldIdOf(world) ?: return
+        chrono.hint(Hint.Retire(id))
     }
 
     override suspend fun warm(world: WorldId, tileX: Int, tileZ: Int) {

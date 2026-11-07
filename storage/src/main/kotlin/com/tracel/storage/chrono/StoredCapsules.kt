@@ -6,8 +6,12 @@ import com.tracel.storage.chrono.query.CapsuleSource
 import com.tracel.storage.codec.Tag
 
 /** Capsules as the store keeps them, merged and not yet merged, read through one unit's snapshot. */
-internal class StoredCapsules(private val unit: StorageUnit) : CapsuleSource {
+internal class StoredCapsules(
+    private val unit: StorageUnit,
+    private val onRead: (Tile) -> Unit = {},
+) : CapsuleSource {
     override fun tile(tile: Tile, lane: Lane, visit: (CapsuleView) -> Boolean) {
+        onRead(tile)
         unit.scan(ChronoKeys.fragments(tile, lane)).use { fragments ->
             unit.scan(ChronoKeys.capsules(tile, lane)).use { capsules ->
                 var haveFragment = fragments.next()

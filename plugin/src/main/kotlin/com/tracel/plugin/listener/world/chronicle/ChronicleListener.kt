@@ -8,6 +8,7 @@ import com.tracel.plugin.services.TracelServices
 import kotlinx.coroutines.launch
 import org.bukkit.event.world.ChunkLoadEvent
 import org.bukkit.event.world.ChunkUnloadEvent
+import org.bukkit.event.world.WorldUnloadEvent
 
 /**
  * The server's own working set, handed to the chronicle: a chunk that unloads will not change until
@@ -24,6 +25,12 @@ internal class ChronicleListener(services: TracelServices, private val chronicle
         val x = chunk.x
         val z = chunk.z
         services.scope.launch { chronicle.quiet(world, x, z) }
+    }
+
+    @Observes
+    fun onWorldUnload(event: WorldUnloadEvent) {
+        val world = WorldId(event.world.uid)
+        services.scope.launch { chronicle.retire(world) }
     }
 
     @Observes

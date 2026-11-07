@@ -11,7 +11,7 @@ import com.tracel.storage.chrono.bits.RadixSort
 internal class ChronoWriter(
     private val lane: Lane,
     private val windowMillis: Long,
-    private val dirty: (Tile, Lane) -> Unit,
+    private val note: (Tile, Lane, Int) -> Unit,
 ) : UnitParticipant {
     private val rows = RowsBuilder(256)
     private var tiles = LongArray(256)
@@ -97,7 +97,7 @@ internal class ChronoWriter(
         val all = rows.rows()
         val keys = LongArray(n) { tiles[it] }
         val order = RadixSort.ascending(keys, n)
-        val touched = LinkedHashSet<Long>()
+        val touched = LinkedHashMap<Long, Int>()
         var from = 0
         while (from < n) {
             val tile = keys[order[from]]
@@ -110,10 +110,10 @@ internal class ChronoWriter(
                 val sorted = picked.sorted()
                 val bytes = lane.encode(sorted, window)
                 unit.put(ChronoKeys.fragment(Tile(tile), lane, sorted.seq[sorted.size - 1]), bytes)
+                touched.merge(tile, bytes.size, Int::plus)
             }
-            touched += tile
             from = until
         }
-        unit.afterCommit { for (tile in touched) dirty(Tile(tile), lane) }
+        unit.afterCommit { for ((tile, bytes) in touched) note(Tile(tile), lane, bytes) }
     }
 }
