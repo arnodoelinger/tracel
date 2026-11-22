@@ -1,14 +1,26 @@
 package com.tracel.storage.chrono
 
 import com.tracel.storage.chrono.capsule.*
+import com.tracel.storage.chrono.lith.Bursts
 import java.lang.foreign.MemorySegment
 
 /** A kind of history a tile keeps, each in capsules of its own format. */
 enum class Lane(val id: Int, val magic: Int) {
     BLOCKS(0, 0xC7) {
-        override fun open(bytes: MemorySegment): CapsuleView = Capsule(bytes)
+        override fun open(bytes: MemorySegment): CapsuleView =
+            if (LithCapsule.isOne(bytes)) LithCapsule(bytes) else Capsule(bytes)
+
         override fun encode(rows: Rows, window: Long, bounds: CapsuleView?): ByteArray =
             blocks.get().encode(rows, window, bounds?.lastSeq ?: Long.MIN_VALUE, bounds?.maxMillis ?: Long.MIN_VALUE)
+
+        override fun encodeCold(rows: Rows, window: Long, bounds: CapsuleView?, tile: Tile?, bursts: Bursts): ByteArray =
+            LithCapsule.encode(
+                rows, window, bounds?.lastSeq ?: Long.MIN_VALUE, bounds?.maxMillis ?: Long.MIN_VALUE, tile, bursts,
+            )
+
+        override fun isCold(view: CapsuleView): Boolean = view is LithCapsule
+
+        override val coldFormat: Boolean get() = true
     },
     ENTITIES(1, 0xC8) {
         override fun open(bytes: MemorySegment): CapsuleView = EntityCapsule(bytes, ENTITIES)
@@ -47,6 +59,32 @@ enum class Lane(val id: Int, val magic: Int) {
 
     /** Encodes [rows], all of this lane and all of [window], as one capsule. */
     abstract fun encode(rows: Rows, window: Long, bounds: CapsuleView? = null): ByteArray
+
+    /**
+     * [encode] for history nobody writes to any more: as small as this lane knows how,
+     * whatever reading it costs.
+     *
+     * [tile] and [bursts] say where changes spread from, for a lane that can use it.
+     *
+     * Lanes with no cold format write their usual one.
+     */
+    open fun encodeCold(
+        rows: Rows,
+        window: Long,
+        bounds: CapsuleView? = null,
+        tile: Tile? = null,
+        bursts: Bursts = Bursts.NONE,
+    ): ByteArray = encode(rows, window, bounds)
+
+    /** Whether this lane has a cold format of its own. */
+    open val coldFormat: Boolean get() = false
+
+    /** Whether [view] is already in this lane's cold format. */
+    open fun isCold(view: CapsuleView): Boolean = true
+
+    /** [encode] or [encodeCold], whichever [like] was written in. */
+    fun encodeLike(like: CapsuleView, rows: Rows, window: Long, bounds: CapsuleView? = null): ByteArray =
+        if (isCold(like)) encodeCold(rows, window, bounds) else encode(rows, window, bounds)
 
     companion object {
         private val blocks = ThreadLocal.withInitial { CapsuleEncoder() }

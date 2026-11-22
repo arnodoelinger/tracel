@@ -166,28 +166,26 @@ internal object WorldToCapsules {
                     val world = Txn.world[v]
                     val millis = Txn.epochMillis[v]
                     val home = if (world == 0) Tile.of(0, 0, 0) else Tile.at(world, Txn.x[v], Txn.z[v])
-                    val tiles = LinkedHashSet<Long>().apply { add(home.packed) }
-                    fun touch(id: Int) {
-                        if (id == 0) return
+                    fun tileOf(id: Int): Long? {
+                        if (id == 0) return null
                         val pos = when (val h = runCatching { interning.resolveHolder(unit, id) }.getOrNull()) {
                             is HolderId.Block -> BlockPos(h.world, h.x, h.y, h.z)
                             is HolderId.PlacedBlock -> BlockPos(h.world, h.x, h.y, h.z)
                             else -> null
-                        } ?: return
-                        val w = interning.findWorldId(unit, pos.world) ?: return
-                        tiles += Tile.at(w, pos.x, pos.z).packed
+                        } ?: return null
+                        val w = interning.findWorldId(unit, pos.world) ?: return null
+                        return Tile.at(w, pos.x, pos.z).packed
                     }
-                    touch(Txn.causedBy[v])
-                    for (i in 0 until flows) {
-                        touch(Txn.source[v, i])
-                        touch(Txn.destination[v, i])
-                    }
+                    val filing = ItemRows.filing(
+                        home.packed, flows, tileOf(Txn.causedBy[v]),
+                        { tileOf(Txn.source[v, it]) }, { tileOf(Txn.destination[v, it]) },
+                    )
                     val blobs = ItemRows.lotsByFlow(lots[seq].orEmpty(), flows)
                     val cell = if (world == 0) 0 else Cell.of(Txn.x[v], Txn.y[v], Txn.z[v]).packed
                     val window = Math.floorDiv(millis, WINDOW_MILLIS)
-                    for (tile in tiles) {
+                    for ((tile, indexes) in filing) {
                         val b = builders.getOrPut(Triple(tile, Lane.ITEMS, window)) { RowsBuilder(16) }
-                        for (i in 0 until flows) {
+                        for (i in indexes) {
                             b.addFlow(
                                 seq,
                                 millis,

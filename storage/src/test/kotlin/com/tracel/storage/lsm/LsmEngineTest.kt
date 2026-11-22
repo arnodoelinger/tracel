@@ -2,6 +2,7 @@ package com.tracel.storage.lsm
 
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.ffm.Bytes.readBytes
+import com.tracel.storage.lsm.table.SegmentClassifier
 import com.tracel.storage.lsm.version.Manifest
 import com.tracel.storage.lsm.wal.WalSyncPolicy
 import com.tracel.storage.spi.MutationBatch
@@ -338,6 +339,30 @@ class LsmEngineTest {
                     while (cursor.next()) rest += cursor.keyU64(1).toInt()
                     assertEquals((350 until 400).toList(), rest)
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `a delete in a later window beats the rows a compaction moved to a newer file`(@TempDir dir: Path) {
+        var now = 0L
+        val history = SegmentClassifier { tag, _ -> if (tag == 1) 1 else 0 }
+        val options = LsmOptions(classifier = history, windowMillis = 1_000L, clock = { now })
+        val gone = key(1)
+        LsmEngine(dir, options).use { engine ->
+            fun write(block: MutationBatch.() -> Unit) = engine.write(MutationBatch().apply(block), durable = false)
+            write { put(gone, value(1)) }
+            engine.flushNow()
+            write { put(key(2), value(2)) }
+            engine.flushNow()
+            now = 1_000L
+            write { delete(gone) }
+            engine.flushNow()
+            engine.snapshot().use { snapshot ->
+                assertNull(snapshot.get(gone), "a point read saw the deleted row")
+                val seen = ArrayList<Int>()
+                snapshot.scan(byteArrayOf(1)).use { cursor -> while (cursor.next()) seen += cursor.keyU64(1).toInt() }
+                assertEquals(listOf(2), seen, "a scan saw the deleted row")
             }
         }
     }

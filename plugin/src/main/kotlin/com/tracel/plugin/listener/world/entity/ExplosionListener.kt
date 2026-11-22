@@ -17,6 +17,7 @@ import com.tracel.plugin.bukkit.entity.explosionActor
 import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.bukkit.block.AIR
 import org.bukkit.ExplosionResult
+import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
@@ -41,7 +42,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
         val causedBy = services.explosionActor(event.entity)
             ?: (event.entity as? LivingEntity)?.let { HolderId.Entity(it.uniqueId) }
         if (causedBy != null) services.listeners.redstoneTriggers.recordExplosion(event.location, causedBy)
-        capture(event.blockList(), causedBy)
+        capture(event.blockList(), causedBy, event.location)
     }
 
     @Observes
@@ -62,7 +63,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
             )
         }
         if (by != null) services.listeners.redstoneTriggers.recordExplosion(exploded.location, by)
-        capture(event.blockList(), causedBy = by)
+        capture(event.blockList(), causedBy = by, from = exploded.location)
     }
 
     private fun explodedCells(state: BlockState): List<BlockEdit> {
@@ -77,9 +78,13 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
         return out
     }
 
-    private fun capture(blocks: List<Block>, causedBy: HolderId?) {
+    private fun capture(blocks: List<Block>, causedBy: HolderId?, from: Location) {
         if (blocks.isEmpty()) return
         val epochMillis = System.currentTimeMillis()
+
+        // The blast's own rays cross every block it broke: knowing where they started,
+        // history keeps the crater small
+        shape.burst(WorldId(blocks.first().world.uid), epochMillis, from)
 
         // TNT in the crater primes, unless a plugin cancels the prime and it stays: read it a tick later
         val (tnt, broken) = blocks.partition { it.type == Material.TNT }

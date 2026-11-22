@@ -9,6 +9,7 @@ import com.tracel.model.world.ActionKind
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
+import com.tracel.model.world.WorldId
 import com.tracel.model.world.entity.EntityShape
 import java.util.*
 
@@ -26,6 +27,11 @@ public class WorldCaptureCoordinator(
     public suspend fun record(edits: BlockEdits): Int {
         val n = log.appendAll(edits, nextSeqRange)
         return n
+    }
+
+    /** Passes a burst point on to the log, as [WorldLog.noteBurst] has it. */
+    public suspend fun recordBurst(world: WorldId, epochMillis: Long, x: Double, y: Double, z: Double) {
+        log.noteBurst(world, epochMillis, x, y, z)
     }
 
     /**
