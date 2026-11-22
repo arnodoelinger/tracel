@@ -99,17 +99,21 @@ internal class MergingRunCursor(
             var found = false
             var deletion = false
             var value: MemorySegment? = null
+            var newest = Long.MIN_VALUE
 
             for (index in runs.indices) {
                 val run = runs[index]
                 while (run.valid && sameUserKey(run, userKey, userKeyLength)) {
-                    if (!found && run.sequence() <= snapshotSequence) {
-                        found = true
-                        deletion = run.isDeletion()
-                        value = run.value()
+                    val sequence = run.sequence()
+                    if (sequence <= snapshotSequence) {
+                        if (!found || sequence > newest) {
+                            found = true
+                            newest = sequence
+                            deletion = run.isDeletion()
+                            value = run.value()
+                        }
                         break
                     }
-                    if (run.sequence() <= snapshotSequence) break
                     run.next()
                 }
 
