@@ -9,10 +9,13 @@ import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
+import com.tracel.model.world.WorldId
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
 import com.tracel.storage.capture.RawBlockEdits
 import com.tracel.storage.chrono.*
+import com.tracel.storage.chrono.lith.Burst
+import com.tracel.storage.chrono.lith.Bursts
 import com.tracel.storage.chrono.query.Found
 import com.tracel.storage.codec.Extras
 
@@ -78,7 +81,9 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
             val writer = chrono.writer(this, Lane.BLOCKS)
             val actor = edits.causedBy?.let { interning.internHolder(this, it) } ?: 0
             val kind = ChronoKinds.of(edits.cause, edits.action)
-            for ((i, edit) in real.withIndex()) {
+            val order = PlaceOrder.of(real.size, { real[it].at.x }, { real[it].at.y }, { real[it].at.z })
+            for ((i, at) in order.withIndex()) {
+                val edit = real[at]
                 val (world, x, y, z) = edit.at
                 writer.add(
                     Tile.at(interning.internWorld(this, world), x, z),
@@ -105,10 +110,11 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
             val writer = chrono.writer(this, Lane.BLOCKS)
             val kind = ChronoKinds.of(raw.cause, raw.action)
             val c = raw.coordinates
-            for (i in 0 until n) {
-                val x = c[i * 3]
-                val y = c[i * 3 + 1]
-                val z = c[i * 3 + 2]
+            val order = PlaceOrder.of(n, { c[it * 3] }, { c[it * 3 + 1] }, { c[it * 3 + 2] })
+            for ((i, at) in order.withIndex()) {
+                val x = c[at * 3]
+                val y = c[at * 3 + 1]
+                val z = c[at * 3 + 2]
                 writer.add(
                     Tile.at(raw.worldId, x, z),
                     base + i,
@@ -116,14 +122,21 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
                     Cell.of(x, y, z).packed,
                     raw.causedById,
                     kind,
-                    raw.befores[i],
-                    raw.afters[i],
+                    raw.befores[at],
+                    raw.afters[at],
                     null,
                     null,
                 )
             }
         }
         return n
+    }
+
+    override suspend fun noteBurst(world: WorldId, epochMillis: Long, x: Double, y: Double, z: Double) {
+        storage.write {
+            val burst = Burst(x, y, z)
+            put(Bursts.key(interning.internWorld(this, world), epochMillis, burst), Bursts.value(burst))
+        }
     }
 
     override suspend fun at(pos: BlockPos, limit: Int): List<WorldChange> = storage.read {

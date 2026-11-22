@@ -30,9 +30,9 @@ import it.unimi.dsi.fastutil.ints.IntSet
  * The item log, kept by place: every flow of every transaction is a row in the capsules of the tiles the transaction
  * happened in, or touched through a block it moved items to or from.
  *
- * A transaction that happened nowhere in particular goes to tile zero of world zero. One that touches blocks in other
- * tiles is filed in each of them, whole, and read back once. The only row of its own is [Tag.TXN_BY_ID], which says
- * which sequence an id has: the one thing a capsule cannot be asked.
+ * A transaction that happened nowhere in particular goes to tile zero of world zero. Its home tile keeps it whole; a
+ * tile it touches through a block keeps only the flows of that block ([ItemRows.filing]). A transaction found away
+ * from home is finished from home before anyone sees it.
  */
 class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) :
     AbstractChronoLog(storage, chrono), TransactionLog {
@@ -46,31 +46,31 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
             val kindCause = transaction.cause
             val writer = chrono.writer(this, Lane.ITEMS)
 
-            val tiles = LinkedHashSet<Long>()
             val home = (if (at == null) Tile.of(0, 0, 0) else Tile.at(atWorldId, at.x, at.z)).packed
-            tiles += home
-            fun touch(holder: HolderId?) {
-                val pos = holder?.let(::blockOf) ?: return
-                tiles += Tile.at(interning.internWorld(this, pos.world), pos.x, pos.z).packed
+            fun tileOf(holder: HolderId?): Long? {
+                val pos = holder?.let(::blockOf) ?: return null
+                return Tile.at(interning.internWorld(this, pos.world), pos.x, pos.z).packed
             }
-            touch(transaction.causedBy)
 
             val flows = transaction.flows
             val ids = Array(flows.size) { i ->
                 val flow = flows[i]
-                touch(flow.source)
-                touch(flow.destination)
                 intArrayOf(
                     interning.internItemKey(this, flow.itemKey), interning.internHolder(this, flow.source),
                     interning.internHolder(this, flow.destination),
                 )
             }
+            val filing = ItemRows.filing(
+                home, flows.size, tileOf(transaction.causedBy),
+                { tileOf(flows[it].source) }, { tileOf(flows[it].destination) },
+            )
             val lots = ItemRows.lotsByFlow(transaction.lots, flows.size)
-            check(!writer.holds(seq) && tiles.none { chrono.holds(this, Tile(it), Lane.ITEMS, seq) }) {
+            check(!writer.holds(seq) && filing.keys.none { chrono.holds(this, Tile(it), Lane.ITEMS, seq) }) {
                 "transaction ${transaction.id} already appended — the log is append-only"
             }
-            for (tile in tiles) {
-                for ((i, flow) in flows.withIndex()) {
+            for ((tile, indexes) in filing) {
+                for (i in indexes) {
+                    val flow = flows[i]
                     writer.addFlow(
                         Tile(tile),
                         seq,
@@ -236,7 +236,11 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
     ): Map<Long, Transaction> =
         transactionsOf(unit, views.map { (tile, view) -> tile to view.rows() }, withLots)
 
-    /** Every transaction in [parts], once, however many tiles it was filed in. Flows come back in index order. */
+    /**
+     * Every transaction in [parts], once, however many tiles it was filed in. Flows come back in index order.
+     *
+     * One seen only away from home is read again at home, where it is whole.
+     */
     private fun transactionsOf(
         unit: StorageUnit,
         parts: List<Pair<Tile, Rows>>,
@@ -244,11 +248,33 @@ class StoredTransactionLog(storage: TracelStorage, chrono: Chrono = Chrono.of(st
     ): Map<Long, Transaction> {
         val seen = HashSet<Pair<Long, Int>>()
         val bySeq = LinkedHashMap<Long, ArrayList<Pair<Rows, Int>>>()
-        for ((_, rows) in parts) {
-            val flow = rows.aux?.get(1) ?: continue
+        val atHome = HashSet<Long>()
+        val away = HashMap<Long, MutableList<Long>>()
+        fun take(tile: Tile?, rows: Rows) {
+            val aux = rows.aux ?: return
             for (r in 0 until rows.size) {
-                if (!seen.add(rows.seq[r] to flow[r])) continue
-                bySeq.getOrPut(rows.seq[r]) { ArrayList() } += rows to r
+                val seq = rows.seq[r]
+                if (tile != null && seq !in atHome) {
+                    val home = Tile.of(aux[2][r], aux[3][r], aux[4][r])
+                    if (home == tile) atHome += seq else away.getOrPut(home.packed) { ArrayList() } += seq
+                }
+                if (!seen.add(seq to aux[1][r])) continue
+                bySeq.getOrPut(seq) { ArrayList() } += rows to r
+            }
+        }
+        for ((tile, rows) in parts) take(tile, rows)
+        for ((home, seqs) in away) {
+            val wanted = seqs.filterTo(HashSet()) { it !in atHome }
+            if (wanted.isEmpty()) continue
+            val lowest = wanted.min()
+            StoredCapsules(unit).tile(Tile(home), Lane.ITEMS) { view ->
+                if (view.lastSeq < lowest) return@tile false
+                if (view.firstSeq <= wanted.max()) {
+                    val rows = view.rows()
+                    val keep = (0 until rows.size).filter { rows.seq[it] in wanted }.toIntArray()
+                    if (keep.isNotEmpty()) take(null, rows.pick(keep))
+                }
+                true
             }
         }
         val holders = HashMap<Int, HolderId>()

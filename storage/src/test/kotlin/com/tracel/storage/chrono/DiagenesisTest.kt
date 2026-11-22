@@ -2,6 +2,9 @@ package com.tracel.storage.chrono
 
 import com.tracel.storage.StorageUnit
 import com.tracel.storage.TracelStorage
+import com.tracel.storage.chrono.capsule.LithCapsule
+import com.tracel.storage.chrono.lith.Burst
+import com.tracel.storage.chrono.lith.Bursts
 import com.tracel.storage.chrono.diagenesis.DiagenesisSettings
 import com.tracel.storage.chrono.diagenesis.Hint
 import com.tracel.storage.codec.History
@@ -47,6 +50,14 @@ class DiagenesisTest {
             unit.scan(ChronoKeys.capsules(tile, Lane.BLOCKS)).use { c -> var n = 0; while (c.next()) n++; n }
         }
 
+        fun coldOf(tile: Tile): Int = StorageUnit.open(storage.engine).use { unit ->
+            unit.scan(ChronoKeys.capsules(tile, Lane.BLOCKS)).use { c ->
+                var n = 0
+                while (c.next()) if (Lane.BLOCKS.open(c.value()) is LithCapsule) n++
+                n
+            }
+        }
+
         fun assertAnswers(label: String) = runBlocking {
             storage.read {
                 val reader = chrono.reader(this)
@@ -57,9 +68,14 @@ class DiagenesisTest {
         }
     }
 
-    private fun rig(dir: Path, diagenesis: DiagenesisSettings = DiagenesisSettings(), block: Rig.(setClock: (Long) -> Unit) -> Unit) {
+    private fun rig(
+        dir: Path,
+        diagenesis: DiagenesisSettings = DiagenesisSettings(),
+        engine: (clock: () -> Long) -> LsmOptions = { LsmOptions() },
+        block: Rig.(setClock: (Long) -> Unit) -> Unit,
+    ) {
         var now = start
-        TracelStorage.open(dir) { LsmEngine(it, History.configured(LsmOptions())) }.use { storage ->
+        TracelStorage.open(dir) { LsmEngine(it, History.configured(engine { now })) }.use { storage ->
             val chrono = Chrono.of(
                 storage,
                 ChronoSettings(passMillis = 1_000_000_000_000L, clock = { now }, diagenesis = diagenesis),
@@ -81,6 +97,7 @@ class DiagenesisTest {
         repeat(6) { pass() }
         assertEquals(0, count(Tag.CHRONO_FRAGMENT))
         assertEquals(1, capsulesOf(tile), "400 commits of one window fit one capsule once it is closed")
+        assertEquals(1, coldOf(tile), "a closed window is lithified")
         assertAnswers("stratum")
     }
 
@@ -101,6 +118,24 @@ class DiagenesisTest {
     }
 
     @Test
+    fun `a merge survives the engine compacting the window it was read from`(@TempDir dir: Path) =
+        rig(dir, engine = { clock -> LsmOptions(clock = clock) }) { clock ->
+            val tile = Tile.of(1, 7, 7)
+            val lsm = storage.engine as LsmEngine
+            clock(start)
+            commit(tile, start, 3)
+            lsm.flushNow()
+            commit(tile, start + 1_000, 3)
+            lsm.flushNow()
+            clock(start + day)
+            runBlocking { chrono.mergeAll() }
+            lsm.flushNow()
+            assertEquals(0, count(Tag.CHRONO_FRAGMENT), "the merged fragments are gone")
+            assertEquals(1, capsulesOf(tile))
+            assertAnswers("compacted under the merge")
+        }
+
+    @Test
     fun `a pinned tile stays out of the glacier`(@TempDir dir: Path) = rig(dir) { clock ->
         val pinned = Tile.of(1, 1, 1)
         val free = Tile.of(1, 2, 2)
@@ -115,6 +150,61 @@ class DiagenesisTest {
         repeat(4) { pass() }
         assertAnswers("pinned")
         assertTrue(capsulesOf(free) < capsulesOf(pinned), "free ${capsulesOf(free)}, pinned ${capsulesOf(pinned)}")
+        assertEquals(0, coldOf(pinned), "a pinned tile is read a lot and stays warm")
+        assertEquals(capsulesOf(free), coldOf(free))
+    }
+
+    @Test
+    fun `a full capsule of a closed day is lithified alone, and answers the same`(@TempDir dir: Path) = rig(dir) { clock ->
+        val tile = Tile.of(1, 6, 6)
+        clock(start)
+        commit(tile, start, Chrono.CAPSULE_ROWS)
+        runBlocking { chrono.mergeAll() }
+        assertEquals(1, capsulesOf(tile))
+        assertEquals(0, coldOf(tile), "the day is still open")
+        clock(start + day)
+        repeat(3) { pass() }
+        assertEquals(1, coldOf(tile))
+        assertAnswers("cold alone")
+    }
+
+    @Test
+    fun `a closed day uses the burst points stored beside it`(@TempDir dir: Path) = rig(dir) { clock ->
+        val tile = Tile.of(1, 0, 0)
+        val cx = 8.5; val cy = 64.5; val cz = 8.5
+        val cells = ArrayList<Triple<Int, Int, Int>>()
+        for (x in 0..15) for (y in 56..72) for (z in 0..15) {
+            val d = (x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) + (z + 0.5 - cz) * (z + 0.5 - cz)
+            if (d <= 36.0 && ((x * 31 + y * 17 + z * 7) % 5 != 0)) cells += Triple(x, y, z)
+        }
+        val order = PlaceOrder.of(cells.size, { cells[it].first }, { cells[it].second }, { cells[it].third })
+        clock(start)
+        runBlocking {
+            storage.write {
+                val burst = Burst(cx, cy, cz)
+                put(Bursts.key(tile.world, start, burst), Bursts.value(burst))
+                val writer = chrono.writer(this, Lane.BLOCKS)
+                for (at in order) {
+                    val (x, y, z) = cells[at]
+                    seq++
+                    writer.add(tile, seq, start, Cell.of(x, y, z).packed, 41, 0x11, 3, 0, null, null)
+                    oracle.merge(tile to Cell.of(x, y, z).packed, 1, Int::plus)
+                }
+            }
+            chrono.mergeAll()
+        }
+        clock(start + day)
+        repeat(3) { pass() }
+        assertEquals(1, coldOf(tile))
+        assertAnswers("rayed")
+        val stored = StorageUnit.open(storage.engine).use { unit ->
+            unit.scan(ChronoKeys.capsules(tile, Lane.BLOCKS)).use { c -> c.next(); c.value().byteSize() }
+        }
+        val rows = StorageUnit.open(storage.engine).use { unit ->
+            unit.scan(ChronoKeys.capsules(tile, Lane.BLOCKS)).use { c -> c.next(); Lane.BLOCKS.open(c.value()).rows() }
+        }
+        val blind = LithCapsule.encode(rows, 0).size
+        assertTrue(stored < blind, "with its point the crater took $stored B, without $blind B")
     }
 
     @Test

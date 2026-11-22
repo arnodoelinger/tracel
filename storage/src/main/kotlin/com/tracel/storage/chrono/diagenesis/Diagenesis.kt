@@ -2,7 +2,6 @@ package com.tracel.storage.chrono.diagenesis
 
 import com.tracel.storage.Interning
 import com.tracel.storage.StorageUnit
-import com.tracel.storage.chrono.ChronoKeys
 import com.tracel.storage.chrono.Lane
 import com.tracel.storage.chrono.Tile
 import com.tracel.storage.codec.Tag
@@ -121,7 +120,7 @@ internal class Diagenesis(
             sealing = retired.toSet()
         }
         if (sweepDone) return 0L
-        val groups = ArrayList<Pair<Tile, Lane>>()
+        val groups = LinkedHashSet<Pair<Tile, Lane>>()
         var last: Pair<Tile, Lane>? = null
         var counted = 0
         var seen = 0
@@ -147,6 +146,10 @@ internal class Diagenesis(
                 }
                 last = group
                 counted = 1
+                if (lane.coldFormat) {
+                    val view = lane.open(cursor.value())
+                    if (!lane.isCold(view) && (view.window < current || tile.world in sealing)) groups += group
+                }
             }
         }
         val resume = last

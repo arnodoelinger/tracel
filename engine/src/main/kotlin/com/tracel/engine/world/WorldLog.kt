@@ -8,6 +8,7 @@ import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
 import com.tracel.model.world.ChangeSubject
 import com.tracel.model.world.WorldChange
+import com.tracel.model.world.WorldId
 
 /**
  * The append-only record of the world's shape changing: every block and entity change ever made, with who made it and
@@ -37,6 +38,9 @@ public interface WorldLog {
         }
         return written
     }
+
+    /** Notes that the changes of one moment in [world] spread out from the point [x], [y], [z]. */
+    public suspend fun noteBurst(world: WorldId, epochMillis: Long, x: Double, y: Double, z: Double) {}
 
     /** What happened at [pos], newest first, at most [limit] of it. */
     public suspend fun at(pos: BlockPos, limit: Int = 100): List<WorldChange>

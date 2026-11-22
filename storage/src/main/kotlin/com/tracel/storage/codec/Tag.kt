@@ -90,7 +90,8 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
     CHRONO_TRACK(0x3B, U32, INV64, U32, ORD32, ORD32, U8),
     CHRONO_TIME(0x3C, INV64, U32, ORD32, ORD32, U8),
     CHRONO_MARK(0x3D), // Retired
-    CHRONO_FRAGMENT(0x3E, U32, ORD32, ORD32, U8, INV64);
+    CHRONO_FRAGMENT(0x3E, U32, ORD32, ORD32, U8, INV64),
+    CHRONO_BURST(0x3F, U32, U64, U64);
 
     val label: String = name.lowercase().split('_')
         .mapIndexed { i, word -> if (i == 0) word else word.replaceFirstChar(Char::uppercase) }.joinToString("")
@@ -137,6 +138,7 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
 
     fun raw(key: ByteArray, field: Int): ByteArray = key.copyOfRange(offsets[field], key.size)
 
+    @Suppress("CanBeVal")
     private val offsets = IntArray(fields.size).also { offsets ->
         var at = 1
         for (i in fields.indices) {

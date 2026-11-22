@@ -36,7 +36,12 @@ internal class LsmSnapshot(
 
         val target = InternalKeys.seekTarget(key)
         val filtered = engine.config.pointRead(if (key.isEmpty()) -1 else key[0].toInt() and 0xFF)
+        var found = false
+        var newest = Long.MIN_VALUE
+        var answer: MemorySegment? = null
+        var settled = false
         for (segment in pinned.orderedSegments) {
+            if (settled && !segment.meta.isHistory) continue
             if (!segment.inRange(key) || (filtered && !segment.mightContain(key))) continue
             val run = SegmentRun(segment)
             run.seek(target, target.size)
@@ -45,11 +50,20 @@ internal class LsmSnapshot(
             while (run.valid && run.userKeyLength == key.size &&
                 SegmentCompare.compare(run.keySegment, run.keyOffset, key.size, key) == 0
             ) {
-                if (run.sequence() <= at) return if (run.isDeletion()) null else run.value()
+                val sequence = run.sequence()
+                if (sequence <= at) {
+                    if (!found || sequence > newest) {
+                        found = true
+                        newest = sequence
+                        answer = if (run.isDeletion()) null else run.value()
+                    }
+                    if (!segment.meta.isHistory) settled = true
+                    break
+                }
                 run.next()
             }
         }
-        return null
+        return answer
     }
 
     override fun scan(prefix: ByteArray, from: ByteArray, to: ByteArray?): EngineCursor {

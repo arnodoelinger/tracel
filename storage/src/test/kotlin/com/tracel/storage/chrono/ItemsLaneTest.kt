@@ -150,6 +150,39 @@ class ItemsLaneTest {
         }
 
     @Test
+    fun `a blast's drop is filed once per flow, and found whole from any tile it touched`(@TempDir dir: Path) =
+        runTest {
+            val flows = (0 until 140).map { i ->
+                val tile = i % 100
+                Flow(
+                    items[i % items.size], Quantity(1),
+                    HolderId.Block(overworld, (tile % 10) * 16 + 3, 60, (tile / 10) * 16 + 5),
+                    HolderId.ItemEntity(UUID(7L, i.toLong())),
+                    FlowKind.MOVE,
+                )
+            }
+            val blast = Transaction(
+                TxnId(1), Seq(1), millis0, CauseKind.EXPLOSION, steve, flows, emptyList(),
+                at = BlockPos(overworld, 80, 60, 80),
+            )
+            Stack(dir).use { stack ->
+                stack.log.append(blast)
+                Chrono.of(stack.storage).mergeAll()
+                val rows = stack.storage.read {
+                    var n = 0
+                    StoredCapsules(this).recent(Lane.ITEMS) { _, view -> n += view.rowCount; true }
+                    n
+                }
+                assertEquals(140 + 139, rows)
+                val far = LookupFilter(region = LookupRegion(overworld, 0, 0, 0, 0), limit = Int.MAX_VALUE)
+                assertEquals(listOf(blast.copy(lots = emptyList())), stack.log.query(far).map { it.copy(lots = emptyList()) })
+                val chest = LookupFilter(holders = setOf(flows[99].source), limit = Int.MAX_VALUE)
+                assertEquals(140, stack.log.query(chest).single().flows.size)
+                assertEquals(blast, stack.log.find(blast.id))
+            }
+        }
+
+    @Test
     fun `a container's layout is the newest recording at or before the moment`(@TempDir dir: Path) = runTest {
         Stack(dir).use { stack ->
             val chest = HolderId.Block(overworld, 3, 64, 3)

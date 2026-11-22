@@ -160,7 +160,7 @@ private fun edit(analysis: Analysis, key: ByteArray, value: MemorySegment?): Seg
     return when (kept) {
         rows.size -> SegmentEdit.Keep
         0 -> SegmentEdit.Drop
-        else -> SegmentEdit.Replace(lane.encode(rows.pick(keep, kept), view.window, view))
+        else -> SegmentEdit.Replace(lane.encodeLike(view, rows.pick(keep, kept), view.window, view))
     }
 }
 

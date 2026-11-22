@@ -145,7 +145,8 @@ class ChronoWorldLogTest {
             }
             val real = edits.filter { it.before != it.after }
             assertEquals(real.size, written)
-            for ((i, e) in real.withIndex()) {
+            val order = PlaceOrder.of(real.size, { real[it].at.x }, { real[it].at.y }, { real[it].at.z })
+            for ((i, e) in order.map { real[it] }.withIndex()) {
                 this.written += WorldChange(
                     Seq(base + i),
                     ActionKind.BLOCK_BREAK,

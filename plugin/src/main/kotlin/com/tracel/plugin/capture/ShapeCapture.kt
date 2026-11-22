@@ -17,6 +17,7 @@ import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.geometry.regionKey
 import kotlinx.coroutines.launch
 import org.bukkit.Bukkit
+import org.bukkit.Location
 import org.bukkit.block.Block
 import org.bukkit.block.BlockState
 import java.util.concurrent.ConcurrentHashMap
@@ -67,6 +68,18 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         val ticket = services.capturing.pendingCaptures.owed()
         services.scope.launch {
             services.atomically { services.capturing.worldCapture.record(batch) }
+        }.invokeOnCompletion { services.capturing.pendingCaptures.done(ticket) }
+    }
+
+    /**
+     * Where the edits of [epochMillis] in [world] spread from: an explosion's centre. History keeps the edits;
+     * this lets it keep them smaller.
+     */
+    fun burst(world: WorldId, epochMillis: Long, at: Location) {
+        if (restoring) return
+        val ticket = services.capturing.pendingCaptures.owed()
+        services.scope.launch {
+            services.atomically { services.capturing.worldCapture.recordBurst(world, epochMillis, at.x, at.y, at.z) }
         }.invokeOnCompletion { services.capturing.pendingCaptures.done(ticket) }
     }
 
