@@ -187,7 +187,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
     @Observes
     fun onSpawn(event: EntitySpawnEvent) {
         val entity = event.entity
-        if (entity !is Item && entity !is Player && !entity.logsWorldShape()) noteUnlogged(entity)
+        if (entity !is Item && entity !is Player && entity !is FallingBlock && !entity.logsWorldShape()) noteUnlogged(entity)
         if (runCatching { entity.entitySpawnReason }.getOrNull() == CreatureSpawnEvent.SpawnReason.COMMAND ||
             (event as? CreatureSpawnEvent)?.spawnReason == CreatureSpawnEvent.SpawnReason.COMMAND
         ) {
@@ -217,7 +217,6 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
         val uuid = entity.uniqueId
         val loc = entity.location.clone()
         val at = entity.toBlockPos()
-        val falling = entity as? FallingBlock
         val spawned = entity.toShape()
         if (transformed != null || reason.kind() == SpawnKind.Immediate) {
             val by = transformed?.who
@@ -233,8 +232,7 @@ class EntityLifecycleListener(services: TracelServices) : TracelListener(service
             val placed = placedBy.remove(uuid)
             if (uuid in recordedSpawn) return@later
             val by = placed?.who
-                ?: summoner[loc.world.uid]?.takeIf { falling == null }
-                ?: falling?.let { ColumnCell.playerWhoDisturbed(it)?.let(HolderId::Player) }
+                ?: summoner[loc.world.uid]
                 ?: ColumnCell.playerAt(loc.block)?.let(HolderId::Player)
                 ?: usedNear(loc)
             record(ActionKind.ENTITY_SPAWN, uuid, spawned, at, by, after = true)

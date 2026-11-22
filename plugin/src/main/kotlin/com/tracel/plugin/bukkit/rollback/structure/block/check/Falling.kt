@@ -9,7 +9,12 @@ import com.tracel.plugin.util.geometry.chunkKeyZ
 import org.bukkit.World
 import org.bukkit.entity.FallingBlock
 
-/** Falling block. */
+private const val RETURNS = 2
+
+/**
+ * Falling blocks the steps would collide with, and the ones still in flight below a block
+ * the steps put back: the log keeps no flight, so the column is how they are found.
+ */
 @Unstable
 internal fun overlappingFalling(world: World, blocks: List<StructureStep.SetBlock>): List<FallingBlock> {
     if (blocks.isEmpty()) return emptyList()
@@ -19,9 +24,10 @@ internal fun overlappingFalling(world: World, blocks: List<StructureStep.SetBloc
     for ((at, target, expected) in blocks) {
         if (!target.hasGravity() && !expected.hasGravity()) continue
         val column = packPair(at.x, at.z)
-        val span = spans.getOrPut(column) { intArrayOf(at.y, at.y) }
+        val span = spans.getOrPut(column) { intArrayOf(at.y, at.y, Int.MIN_VALUE) }
         if (at.y < span[0]) span[0] = at.y
         if (at.y > span[1]) span[1] = at.y
+        if (target.hasGravity() && !expected.hasGravity() && at.y > span[RETURNS]) span[RETURNS] = at.y
         chunks += chunkKey(at.x, at.z)
     }
     val out = ArrayList<FallingBlock>()
@@ -40,7 +46,8 @@ internal fun overlappingFalling(world: World, blocks: List<StructureStep.SetBloc
             val loc = entity.location
             val column = packPair(loc.blockX, loc.blockZ)
             val span = spans[column] ?: continue
-            if (loc.blockY >= span[0] - 1 && loc.blockY <= span[1] + 1) out += entity // +
+            val overlaps = loc.blockY >= span[0] - 1 && loc.blockY <= span[1] + 1
+            if (overlaps || loc.blockY < span[RETURNS]) out += entity
         }
     }
     return out

@@ -308,24 +308,25 @@ class BlockChangeListener(services: TracelServices) : TracelListener(services) {
     @Observes
     fun onEntityChangeBlock(event: EntityChangeBlockEvent) {
         val entity = event.entity
-        val player = entity as? Player
-        val fallingBy = (entity as? FallingBlock)?.let { ColumnCell.playerWhoDisturbed(it) }
-        val by = player?.uniqueId ?: fallingBy
+        val falling = entity is FallingBlock
+        val by = (entity as? Player)?.uniqueId ?: if (falling) ColumnCell.playerWhoDisturbed(entity) else null
+        val cause = causeOr(by, if (falling) CauseKind.NATURAL else CauseKind.ENTITY_ACTION)
+        val causedBy = by?.let { HolderId.Player(it) } ?: if (falling) null else HolderId.Entity(entity.uniqueId)
         shape.edit(
             block = event.block,
             before = event.block.toShape(),
             after = BlockShape(BlockDataKey(event.blockData.asString)),
             action = ActionKind.BLOCK_CHANGE,
-            cause = causeOr(by, CauseKind.ENTITY_ACTION),
-            causedBy = by?.let { HolderId.Player(it) } ?: HolderId.Entity(entity.uniqueId),
+            cause = cause,
+            causedBy = causedBy,
         )
         if (event.block.type == Material.FARMLAND) {
             val above = event.block.getRelative(BlockFace.UP)
             if (!above.type.isAir) {
                 shape.reread(
                     action = ActionKind.BLOCK_CHANGE,
-                    cause = causeOr(by, CauseKind.ENTITY_ACTION),
-                    causedBy = by?.let { HolderId.Player(it) } ?: HolderId.Entity(entity.uniqueId),
+                    cause = cause,
+                    causedBy = causedBy,
                     blocks = listOf(above),
                 ) { it.before != it.after }
             }

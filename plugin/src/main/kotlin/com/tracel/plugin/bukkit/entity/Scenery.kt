@@ -12,7 +12,7 @@ internal object Scenery {
         HullMatch { it is Boat },
         HullMatch { it is Minecart },
         HullMatch { it is EnderCrystal },
-        HullMatch { it is FallingBlock },
+        // HullMatch { it is FallingBlock },
         HullMatch { it is Display },
         HullMatch { it is Interaction },
         HullMatch { it is TNTPrimed },

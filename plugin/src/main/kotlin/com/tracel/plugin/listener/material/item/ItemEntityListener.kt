@@ -32,6 +32,7 @@ import com.tracel.plugin.util.concurrent.ExpiringMap
 import com.tracel.plugin.util.concurrent.ExpiringSet
 import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.Item
 import org.bukkit.entity.ItemFrame
 import org.bukkit.entity.Player
@@ -362,6 +363,7 @@ class ItemEntityListener(services: TracelServices) : TracelListener(services) {
         }
         if (entity.dropsManagedCargo()) return
         if (entity.uniqueId in sheared) return
+        if (entity is FallingBlock) return
         pendingDrops.put(event.itemDrop.uniqueId, HolderId.Entity(event.entity.uniqueId))
     }
 
