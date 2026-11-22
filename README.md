@@ -47,9 +47,9 @@ Read more how rollback works [in the wiki](https://github.com/arnodoelinger/trac
 
 |                                       |                                                                                                       |
 |---------------------------------------|-------------------------------------------------------------------------------------------------------|
-| **Database size**                     | **6–8× smaller** than CoreProtect. Same history: 367 MB vs 45 MB — and Tracel even logs a bit more    |
-| **Against CoreProtect on ClickHouse** | **Tracel is still ~25% smaller** — and ClickHouse is one of the most efficient databases in the world |
-| **Rollback speed**                    | **1.5–7× faster**, depending on what blew up and how much                                             |
+| **Database size**                     | **20× smaller** than CoreProtect. Same history: 36 GB vs 1.9 GB — and Tracel even logs a bit more    |
+| **Against CoreProtect on DuckDB**     | **Tracel is still 2.5× smaller** — and DuckDB is one of the most efficient databases in the world |
+| **Rollback speed**                    | **2–7× faster**, depending on what blew up and how much                                             |
 | **Server crashed mid-rollback**       | **Zero duplicated items**, it picks up where it stopped on the next start                             |
 | **Cleaning up old history**           | Deleting old history makes the database *smaller*, not [wider](https://youtube.com/link)              |
 
