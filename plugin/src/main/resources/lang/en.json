@@ -712,7 +712,18 @@
     "placed_entity": "placed entity <uuid>",
     "plugin": "<name> (plugin)"
   },
+  "developer": {
+    "pressed": "Pressed.",
+    "compacted": "Compacted.",
+    "settled": "Settled.",
+    "busy": "Busy.",
+    "failed": "Failed: <reason>."
+  },
   "command": {
+    "developer": "Measure and settle the store",
+    "developer_press": "Merge and press every window as if today were over",
+    "developer_compact": "Write memory out and compact every file",
+    "developer_settle": "Press and compact: the state to measure",
     "lookup": "Browse world history",
     "status": "Show how the plugin is doing",
     "inspect": "Toggle the inspector",

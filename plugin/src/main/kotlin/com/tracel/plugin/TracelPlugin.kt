@@ -10,6 +10,7 @@ import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.services.monitoring.CriticalDiskSpace
 import com.tracel.plugin.services.monitoring.Telemetry
 import com.tracel.plugin.services.monitoring.TracelMetrics
+import com.tracel.plugin.services.startup.DeveloperFlagMissing
 import com.tracel.plugin.services.startup.TracelRuntime
 import com.tracel.plugin.services.startup.enableTracel
 import com.tracel.plugin.util.runtime.messageOrName
@@ -31,7 +32,7 @@ class TracelPlugin : JavaPlugin() {
         val enabled = try {
             enableTracel(this)
         } catch (failure: Throwable) {
-            if (failure is CriticalDiskSpace || failure is StoreFormatException || failure is ImportInterrupted) logger.severe(
+            if (failure is CriticalDiskSpace || failure is StoreFormatException || failure is ImportInterrupted || failure is DeveloperFlagMissing) logger.severe(
                 failure.message
             )
             else logger.log(Level.SEVERE, "Tracel failed to enable (${failure.messageOrName()}). The server cannot run without a ledger.", failure)

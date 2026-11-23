@@ -26,4 +26,5 @@ internal class CommandActions(val services: TracelServices) {
     }.also { Presets.store = it }
     val presets = PresetAction(store, nothing)
     val player = PlayerAction(services)
+    val developer = DeveloperAction(services)
 }

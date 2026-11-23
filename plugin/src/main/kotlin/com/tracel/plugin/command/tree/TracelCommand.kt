@@ -5,6 +5,7 @@ import com.tracel.plugin.command.brigadier.executesCommand
 import com.tracel.plugin.command.brigadier.literal
 import com.tracel.plugin.command.tree.branch.*
 import com.tracel.plugin.services.TracelServices
+import com.tracel.plugin.services.startup.Developer
 import io.papermc.paper.command.brigadier.Commands
 
 /** `Tracel` commands. */
@@ -27,6 +28,7 @@ object TracelCommand {
             statusBranch(actions)
             inspectBranch(actions)
             dataBranch(actions)
+            if (Developer.enabled) developerBranch(actions)
         }
 
         registrar.register(root.build(), "Tracel commands.", listOf("tr"))

@@ -1,4 +1,5 @@
 import io.papermc.hangarpublishplugin.model.Platforms
+import xyz.jpenilla.runtask.task.AbstractRun
 
 plugins {
     id("tracel.kotlin-conventions")
@@ -57,6 +58,10 @@ tasks {
         filesMatching("paper-plugin.yml") {
             expand(props)
         }
+    }
+
+    withType<AbstractRun>().configureEach {
+        jvmArgs("-Dtracel.developer=true")
     }
 
     runServer {

@@ -35,6 +35,9 @@ permissions:
   tracel.data:
     description: Export, import, migrate and purge history.
     default: op
+  tracel.developer:
+    description: Developer mode tools.
+    default: op
 dependencies:
   server:
     WorldEdit:

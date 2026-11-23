@@ -22,6 +22,9 @@ public interface StoreAdmin {
     /** Why the store refuses writes after an I / O error; `null` while it takes them. */
     public val writesStopped: WritesStop? get() = null
 
+    /** Tools for settling the store, or `null` where the store has none. */
+    public val workbench: StoreWorkbench? get() = null
+
     /** Counts what a purge of [spec] would take, and touches nothing. */
     public suspend fun previewPurge(spec: PurgeSpec): PurgeReport
 
@@ -90,3 +93,12 @@ public interface CaptureHealth {
 
 /** The store stopped taking writes. */
 public data class WritesStop(public val since: Long, public val fatal: Boolean, public val reason: String)
+
+/** What a developer needs to make the store pack now. */
+public interface StoreWorkbench {
+    /** Merges what waits and presses every window to the end of today as if it were over. */
+    public suspend fun press()
+
+    /** Writes what memory holds and compacts every file there is. */
+    public suspend fun compact()
+}

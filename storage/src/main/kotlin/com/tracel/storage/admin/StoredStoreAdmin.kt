@@ -2,6 +2,7 @@ package com.tracel.storage.admin
 
 import com.tracel.engine.store.*
 import com.tracel.storage.TracelStorage
+import com.tracel.storage.chrono.Chrono
 import com.tracel.storage.codec.History
 import com.tracel.storage.format.StoreFormat
 import java.nio.file.Path
@@ -10,7 +11,12 @@ import java.nio.file.Path
  * What an operator can do to the stored history besides reading and appending it: look at it, shrink it,
  * move it in and out, and shut it down.
  */
-class StoredStoreAdmin(private val storage: TracelStorage) : StoreAdmin {
+class StoredStoreAdmin(
+    private val storage: TracelStorage,
+    private val chrono: Chrono = Chrono.of(storage),
+) : StoreAdmin {
+    override val workbench: StoreWorkbench by lazy { StoredWorkbench(storage, chrono) }
+
     override val capture: CaptureHealth = object : CaptureHealth {
         override val dropped: Long get() = storage.ring.dropped
         override val ringFull: Long get() = storage.ring.ringFull

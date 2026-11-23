@@ -86,6 +86,17 @@ class DiagenesisTest {
     }
 
     @Test
+    fun `settling presses today as if it were over`(@TempDir dir: Path) = rig(dir) { _ ->
+        val tile = Tile.of(1, 0, 0)
+        repeat(40) { commit(tile, start + 1_000L * it, 25) }
+        pass()
+        assertEquals(0, coldOf(tile), "the day is still open")
+        runBlocking { chrono.settle() }
+        assertEquals(capsulesOf(tile), coldOf(tile), "every capsule of the open day is cold now")
+        assertTrue(count(Tag.CHRONO_FRAGMENT) == 0, "nothing waits as a fragment")
+    }
+
+    @Test
     fun `a closed window is pressed into one capsule and answers the same`(@TempDir dir: Path) = rig(dir) { clock ->
         val tile = Tile.of(1, 3, 4)
         for (i in 0 until 400) {

@@ -113,6 +113,20 @@ class Chrono private constructor(private val storage: TracelStorage, val setting
     }
 
     /**
+     * Merges everything that waits, then presses every window up to and including the current one as
+     * if it had closed.
+     *
+     * A developer's tool.
+     */
+    suspend fun settle() {
+        mergeAll()
+        val window = settings.windowMillis
+        val closed = (Math.floorDiv(settings.clock(), window) + 1) * window
+        while (diagenesis.sweeping(closed)) mergeLock.withLock { storage.write { diagenesis.sweep(this, closed) } }
+        mergeAll()
+    }
+
+    /**
      * Reads the newest capsules of [tile] once,
      * so the blocks under them are in the cache before anyone asks.
      */

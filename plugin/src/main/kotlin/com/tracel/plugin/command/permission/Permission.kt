@@ -13,6 +13,7 @@ enum class Permission(val node: String) {
     ROLLBACK("tracel.rollback"),
     STATUS("tracel.status"),
     DATA("tracel.data"),
+    DEVELOPER("tracel.developer"),
 }
 
 /** Whether this sender holds [permission]. */

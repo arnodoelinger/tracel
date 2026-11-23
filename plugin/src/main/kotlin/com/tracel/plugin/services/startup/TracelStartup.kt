@@ -97,6 +97,9 @@ internal class TracelRuntime(
 
 /** Run startup sequence. */
 internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
+    // A development build runs only in developer mode
+    Developer.require(plugin.pluginMeta.version)
+
     // Check supported Minecraft versions
     val forwardCompatible = MinecraftVersion.check(plugin.server.minecraftVersion, plugin)
 
@@ -145,7 +148,7 @@ internal fun enableTracel(plugin: TracelPlugin): TracelRuntime {
     val wear = StoredWearLog(storage, counters)
     val actors = StoredActorFacts(storage)
     val events = StoredEventLog(storage)
-    val admin = StoredStoreAdmin(storage)
+    val admin = StoredStoreAdmin(storage, chrono)
     val leases = StoredLeases(storage)
     val jobs = StoredRollbackJobRepository(storage)
     val pendingDeliveries = StoredPendingDeliveryRepository(storage, counters)
