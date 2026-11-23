@@ -5,6 +5,7 @@ import com.tracel.storage.TracelStorage
 import com.tracel.storage.chrono.capsule.LithCapsule
 import com.tracel.storage.chrono.lith.Burst
 import com.tracel.storage.chrono.lith.Bursts
+import com.tracel.storage.chrono.lith.Voids
 import com.tracel.storage.chrono.diagenesis.DiagenesisSettings
 import com.tracel.storage.chrono.diagenesis.Hint
 import com.tracel.storage.codec.History
@@ -183,6 +184,17 @@ class DiagenesisTest {
             storage.write {
                 val burst = Burst(cx, cy, cz)
                 put(Bursts.key(tile.world, start, burst), Bursts.value(burst))
+                val broken = cells.toHashSet()
+                for (cubeY in 3..4) {
+                    val bits = LongArray(64)
+                    for (i in 0 until 4096) {
+                        val x = i and 15; val z = (i shr 4) and 15; val y = cubeY * 16 + (i shr 8)
+                        val d = (x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) + (z + 0.5 - cz) * (z + 0.5 - cz)
+                        val empty = y > 72 || (d <= 36.0 && Triple(x, y, z) !in broken)
+                        if (empty) bits[i ushr 6] = bits[i ushr 6] or (1L shl (i and 63))
+                    }
+                    put(Voids.key(tile, start, cubeY), Voids.value(bits))
+                }
                 val writer = chrono.writer(this, Lane.BLOCKS)
                 for (at in order) {
                     val (x, y, z) = cells[at]
@@ -196,6 +208,7 @@ class DiagenesisTest {
         clock(start + day)
         repeat(3) { pass() }
         assertEquals(1, coldOf(tile))
+        assertEquals(0, count(Tag.CHRONO_VOID), "a pressed capsule carries its maps; the store's copies go")
         assertAnswers("rayed")
         val stored = StorageUnit.open(storage.engine).use { unit ->
             unit.scan(ChronoKeys.capsules(tile, Lane.BLOCKS)).use { c -> c.next(); c.value().byteSize() }

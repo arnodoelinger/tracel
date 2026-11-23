@@ -2,6 +2,7 @@ package com.tracel.engine.capture.world
 
 import com.tracel.engine.world.WorldLog
 import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.engine.world.edit.EmptyCells
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.log.Seq
@@ -32,6 +33,15 @@ public class WorldCaptureCoordinator(
     /** Passes a burst point on to the log, as [WorldLog.noteBurst] has it. */
     public suspend fun recordBurst(world: WorldId, epochMillis: Long, x: Double, y: Double, z: Double) {
         log.noteBurst(world, epochMillis, x, y, z)
+    }
+
+    /** Whether the log still wants the cube at ([x], [y], [z]), as [WorldLog.wantsEmpty] has it. */
+    public fun wantsEmpty(world: WorldId, epochMillis: Long, x: Int, y: Int, z: Int): Boolean =
+        log.wantsEmpty(world, epochMillis, x, y, z)
+
+    /** Passes which cells were empty on to the log, as [WorldLog.noteEmpty] has it. */
+    public suspend fun recordEmpty(world: WorldId, epochMillis: Long, cubes: List<EmptyCells>) {
+        if (cubes.isNotEmpty()) log.noteEmpty(world, epochMillis, cubes)
     }
 
     /**

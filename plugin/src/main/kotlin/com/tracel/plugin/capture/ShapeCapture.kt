@@ -4,6 +4,7 @@ import com.tracel.annotations.Unstable
 import com.tracel.engine.capture.world.EntityChange
 import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.engine.world.edit.EmptyCells
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.holder.HolderId
 import com.tracel.model.world.ActionKind
@@ -17,6 +18,7 @@ import com.tracel.plugin.services.TracelServices
 import com.tracel.plugin.util.geometry.regionKey
 import kotlinx.coroutines.launch
 import org.bukkit.Bukkit
+import org.bukkit.ChunkSnapshot
 import org.bukkit.Location
 import org.bukkit.block.Block
 import org.bukkit.block.BlockState
@@ -80,6 +82,49 @@ class ShapeCapture internal constructor(private val services: TracelServices) {
         val ticket = services.capturing.pendingCaptures.owed()
         services.scope.launch {
             services.atomically { services.capturing.worldCapture.recordBurst(world, epochMillis, at.x, at.y, at.z) }
+        }.invokeOnCompletion { services.capturing.pendingCaptures.done(ticket) }
+    }
+
+    /**
+     * Which cells of the 16-cubes around [blocks] were empty just before the edits of [epochMillis]: a blast's rays
+     * cross them breaking nothing, and history knowing so keeps the crater smaller.
+     *
+     * Reads chunk snapshots now, while the blocks still stand, and only of chunks this region owns; the bits are
+     * worked out off the region thread.
+     */
+    fun emptyAround(world: WorldId, epochMillis: Long, blocks: List<Block>) {
+        if (restoring || blocks.isEmpty()) return
+        val bukkitWorld = blocks.first().world
+        val cubes = HashSet<Triple<Int, Int, Int>>()
+        val capture = services.capturing.worldCapture
+        for (b in blocks) cubes += Triple(b.x shr 4, b.y shr 4, b.z shr 4)
+        cubes.removeIf { (cx, cy, cz) -> !capture.wantsEmpty(world, epochMillis, cx shl 4, cy shl 4, cz shl 4) }
+        if (cubes.isEmpty()) return
+        val snapshots = HashMap<Pair<Int, Int>, ChunkSnapshot>()
+        for ((cx, _, cz) in cubes) {
+            val key = cx to cz
+            if (key in snapshots) continue
+            if (!Bukkit.isOwnedByCurrentRegion(bukkitWorld, cx, cz) || !bukkitWorld.isChunkLoaded(cx, cz)) continue
+            runCatching { bukkitWorld.getChunkAt(cx, cz).getChunkSnapshot(false, false, false) }.getOrNull()
+                ?.let { snapshots[key] = it }
+        }
+        if (snapshots.isEmpty()) return
+        val minY = bukkitWorld.minHeight
+        val maxY = bukkitWorld.maxHeight
+        val ticket = services.capturing.pendingCaptures.owed()
+        services.scope.launch {
+            val out = ArrayList<EmptyCells>(cubes.size)
+            for ((cx, cy, cz) in cubes) {
+                val snapshot = snapshots[cx to cz] ?: continue
+                val bits = LongArray(EmptyCells.CELLS / 64)
+                for (i in 0 until EmptyCells.CELLS) {
+                    val y = (cy shl 4) + (i shr 8)
+                    val empty = y !in minY..<maxY || snapshot.getBlockType(i and 15, y, (i shr 4) and 15).isAir
+                    if (empty) bits[i ushr 6] = bits[i ushr 6] or (1L shl (i and 63))
+                }
+                out += EmptyCells(cx shl 4, cy shl 4, cz shl 4, bits)
+            }
+            services.atomically { services.capturing.worldCapture.recordEmpty(world, epochMillis, out) }
         }.invokeOnCompletion { services.capturing.pendingCaptures.done(ticket) }
     }
 

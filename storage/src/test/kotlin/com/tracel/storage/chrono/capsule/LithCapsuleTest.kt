@@ -3,6 +3,8 @@ package com.tracel.storage.chrono.capsule
 import com.tracel.storage.chrono.*
 import com.tracel.storage.chrono.lith.Burst
 import com.tracel.storage.chrono.lith.Bursts
+import com.tracel.storage.chrono.lith.VoidMap
+import com.tracel.storage.chrono.lith.Voids
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.foreign.MemorySegment
@@ -150,14 +152,35 @@ class LithCapsuleTest {
         assertEquals(Long.MAX_VALUE / 4, view.maxMillis)
     }
 
-    /** A blast the way the game does one: rays off a 16-lattice, weakening with distance and with what they cross. */
+    private fun solid(x: Int, y: Int, z: Int): Boolean {
+        if (y > 62 + ((x * 7 + z * 13) and 3)) return false
+        val cx = Math.floorDiv(x, 12) * 12 + 6
+        val cy = Math.floorDiv(y, 12) * 12 + 6
+        val cz = Math.floorDiv(z, 12) * 12 + 6
+        val h = (cx * 73856093) xor (cy * 19349663) xor (cz * 83492791)
+        val r = 2 + (h ushr 3 and 3)
+        val dx = x - cx; val dy = y - cy; val dz = z - cz
+        return (h and 1) == 0 || dx * dx + dy * dy + dz * dz > r * r
+    }
+
+    private fun voidsOf(tile: Tile, rows: Rows, millis: Long, flip: Int = 0): Voids {
+        val cubes = (0 until rows.size).map { Math.floorDiv(Cell(rows.cell[it]).y, 16) }.toSortedSet()
+        return Voids(cubes.map { cy ->
+            val bits = LongArray(64)
+            for (i in 0 until 4096) {
+                val x = tile.originX + (i and 15)
+                val z = tile.originZ + ((i shr 4) and 15)
+                val y = cy * 16 + (i shr 8)
+                var empty = !solid(x, y, z)
+                if (flip > 0 && i % flip == 0) empty = !empty
+                if (empty) bits[i ushr 6] = bits[i ushr 6] or (1L shl (i and 63))
+            }
+            VoidMap(millis, cy, bits)
+        })
+    }
+
     private fun blast(seed: Int, cx: Double, cy: Double, cz: Double, power: Float): Map<Tile, Rows> {
         val random = Random(seed)
-        fun solid(x: Int, y: Int, z: Int): Boolean {
-            if (y > 62 + ((x * 7 + z * 13) and 3)) return false
-            val h = (x * 73856093) xor (y * 19349663) xor (z * 83492791)
-            return (h and 15) != 0
-        }
         val broken = LinkedHashSet<Triple<Int, Int, Int>>()
         for (i in 0..15) for (j in 0..15) for (k in 0..15) {
             if (i != 0 && i != 15 && j != 0 && j != 15 && k != 0 && k != 15) continue
@@ -208,5 +231,33 @@ class LithCapsuleTest {
             println("power $power: $blocks blocks in ${tiles.size} tiles, walked $plain B, rayed $rayed B")
             if (power >= 12f) assertTrue(rayed * 10 < plain * 8, "power $power: rays $rayed B against $plain B")
         }
+    }
+
+    @Test
+    fun `void maps let rays skip what was empty, come back exactly, and a wrong map only costs bytes`() {
+        val cx = 9.3; val cy = 58.6; val cz = -3.7
+        val tiles = blast(2, cx, cy, cz, 30f)
+        val bursts = Bursts { if (it == 5_000L) listOf(Burst(cx, cy, cz)) else emptyList() }
+        var rayed = 0L
+        var mapped = 0L
+        var wrong = 0L
+        for ((tile, rows) in tiles) {
+            val plain = LithCapsule.encode(rows, 0, tile = tile, bursts = bursts)
+            val right = voidsOf(tile, rows, 5_000L)
+            val withMaps = LithCapsule.encode(rows, 0, tile = tile, bursts = bursts, voids = right)
+            val withWrong = LithCapsule.encode(rows, 0, tile = tile, bursts = bursts, voids = voidsOf(tile, rows, 5_000L, flip = 7))
+            for (bytes in listOf(withMaps, withWrong)) {
+                assertSameRows(rows.sorted(), LithCapsule(MemorySegment.ofArray(bytes)).rows(), "$tile")
+            }
+            val carried = LithCapsule(MemorySegment.ofArray(withMaps)).voids
+            for (map in carried.maps) {
+                val want = right.maps.single { it.cubeY == map.cubeY }
+                assertArrayEquals(want.bits, map.bits, "cube ${map.cubeY} of $tile")
+            }
+            assertTrue(withMaps.size <= plain.size, "maps are only kept when they pay")
+            rayed += plain.size; mapped += withMaps.size; wrong += withWrong.size
+        }
+        println("voids: rayed $rayed B, with maps $mapped B, with a wrong map $wrong B")
+        assertTrue(mapped < rayed, "maps $mapped B against $rayed B without")
     }
 }

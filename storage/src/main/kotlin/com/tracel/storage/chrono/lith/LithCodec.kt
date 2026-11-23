@@ -75,20 +75,23 @@ internal object LithCodec {
         }
     }
 
-    fun encode(rows: Rows, yFloor: Int, ySpan: Int, rays: Boolean = false, hints: RayHints? = null): ByteArray {
+    fun encode(
+        rows: Rows, yFloor: Int, ySpan: Int, rays: Boolean = false, hints: RayHints? = null, voids: Voids = Voids.NONE,
+    ): ByteArray {
         val coder = Encoder(SLOTS)
         val n = rows.size
         val keys = IntArray(n) { rows.cell[it] - (yFloor shl 8) }
-        Walk(coder, ySpan, n, rows.seq[0], rows.millis[0], rays, hints, yFloor).run(rows, keys)
+        Walk(coder, ySpan, n, rows.seq[0], rows.millis[0], rays, hints, yFloor, voids).run(rows, keys)
         return coder.finish()
     }
 
     fun decode(
         seg: MemorySegment, at: Long, end: Long, n: Int, yFloor: Int, ySpan: Int, firstSeq: Long, firstMillis: Long,
         rays: Boolean = false,
+        voids: Voids = Voids.NONE,
     ): Rows {
         val out = Rows(n, LongArray(n), LongArray(n), IntArray(n), IntArray(n), IntArray(n), IntArray(n), IntArray(n))
-        Walk(Decoder(SLOTS, seg, at, end), ySpan, n, firstSeq, firstMillis, rays, null, yFloor).run(out, null)
+        Walk(Decoder(SLOTS, seg, at, end), ySpan, n, firstSeq, firstMillis, rays, null, yFloor, voids).run(out, null)
         for (i in 0 until n) out.cell[i] += yFloor shl 8
         return out
     }
@@ -133,6 +136,7 @@ internal object LithCodec {
         private val rays: Boolean,
         private val hints: RayHints?,
         private val yFloor: Int,
+        private val voids: Voids,
     ) {
         private var prevSeq = firstSeq
         private var prevMillis = firstMillis
@@ -161,6 +165,7 @@ internal object LithCodec {
         private var sorted = IntArray(64)
         private var lastPoint = LongArray(3)
         private var hadPoint = false
+        private var emptyState = BooleanArray(64)
 
         fun run(rows: Rows, keys: IntArray?) {
             val decoding = keys == null
@@ -207,7 +212,7 @@ internal object LithCodec {
                 }
                 val point = if (rays && len >= RAY_MIN) point(len, millis) else null
                 if (point != null) rays(len, point) else walk(len, actor)
-                states(len, kindIdx, rows, decoding)
+                states(len, kindIdx, rows, decoding, point != null)
 
                 if (decoding) {
                     trav.copyInto(sorted, 0, 0, len)
@@ -341,6 +346,17 @@ internal object LithCodec {
             return dx * dx + dz * dz <= RAY_REACH * RAY_REACH
         }
 
+        private fun learnEmpty(idx: Int) {
+            if (idx >= emptyState.size) emptyState = emptyState.copyOf(maxOf(idx + 1, emptyState.size * 2))
+            emptyState[idx] = true
+        }
+
+        private fun emptyBefore(key: Int): Boolean {
+            val held = s.cur[key]
+            if (held >= 0) return held < emptyState.size && emptyState[held]
+            return voids.empty(yFloor + (key shr 8), (key shr 4) and 15, key and 15)
+        }
+
         private fun rays(len: Int, p: LongArray) {
             val decoding = c.decoding
             var t = 0
@@ -361,6 +377,11 @@ internal object LithCodec {
                     val hit = s.mark[key] == stamp
                     prev = if (hit) 1 else 0
                     run = if (hit) 0 else run + 1
+                    return@traceWithRays true
+                }
+                if (!voids.isEmpty && emptyBefore(key)) {
+                    prev = 0
+                    run++
                     return@traceWithRays true
                 }
                 s.visited[key] = stamp
@@ -515,7 +536,7 @@ internal object LithCodec {
             return if (s.mark[cand] == stamp && s.visited[cand] != stamp) cand else -1
         }
 
-        private fun states(len: Int, kindIdx: Int, rows: Rows, decoding: Boolean) {
+        private fun states(len: Int, kindIdx: Int, rows: Rows, decoding: Boolean, burst: Boolean) {
             for (t in 0 until len) {
                 val key = trav[t]
                 val row = if (decoding) 0 else s.rowAt[key]
@@ -552,6 +573,10 @@ internal object LithCodec {
                     val slot = turnKeys.add((kindIdx shl 20) or bIdx)
                     if (slot >= turnTo.size) turnTo = turnTo.copyOf(turnTo.size * 2)
                     turnTo[slot] = aIdx
+                }
+                if (!voids.isEmpty) {
+                    if (held < 0 && voids.empty(yFloor + (key shr 8), (key shr 4) and 15, key and 15)) learnEmpty(bIdx)
+                    if (burst) learnEmpty(aIdx)
                 }
                 s.cur[key] = aIdx
                 if (decoding) {

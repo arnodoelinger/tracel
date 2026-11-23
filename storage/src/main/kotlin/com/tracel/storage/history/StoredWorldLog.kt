@@ -4,6 +4,7 @@ import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.world.WorldLog
 import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.engine.world.edit.EmptyCells
 import com.tracel.model.log.Seq
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
@@ -16,6 +17,7 @@ import com.tracel.storage.capture.RawBlockEdits
 import com.tracel.storage.chrono.*
 import com.tracel.storage.chrono.lith.Burst
 import com.tracel.storage.chrono.lith.Bursts
+import com.tracel.storage.chrono.lith.Voids
 import com.tracel.storage.chrono.query.Found
 import com.tracel.storage.codec.Extras
 
@@ -25,6 +27,11 @@ import com.tracel.storage.codec.Extras
  */
 class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)) : AbstractChronoLog(storage, chrono),
     WorldLog {
+    private data class CubeKey(val world: WorldId, val x: Int, val cubeY: Int, val z: Int)
+
+    private val mapped = HashSet<CubeKey>()
+    private var mappedWindow = Long.MIN_VALUE
+
     override suspend fun append(change: WorldChange) {
         storage.write {
             val worldId = interning.internWorld(this, change.at.world)
@@ -139,6 +146,30 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
         }
     }
 
+    override fun wantsEmpty(world: WorldId, epochMillis: Long, x: Int, y: Int, z: Int): Boolean =
+        synchronized(mapped) {
+            windowOf(epochMillis) != mappedWindow || CubeKey(world, x, Math.floorDiv(y, 16), z) !in mapped
+        }
+
+    override suspend fun noteEmpty(world: WorldId, epochMillis: Long, cubes: List<EmptyCells>) {
+        val window = windowOf(epochMillis)
+        storage.write {
+            val worldId = interning.internWorld(this, world)
+            synchronized(mapped) {
+                if (window != mappedWindow) {
+                    mapped.clear()
+                    mappedWindow = window
+                }
+                for (cube in cubes) {
+                    val cubeY = Math.floorDiv(cube.y, 16)
+                    if (mapped.add(CubeKey(world, cube.x, cubeY, cube.z))) {
+                        put(Voids.key(Tile.at(worldId, cube.x, cube.z), epochMillis, cubeY), Voids.value(cube.bits))
+                    }
+                }
+            }
+        }
+    }
+
     override suspend fun at(pos: BlockPos, limit: Int): List<WorldChange> = storage.read {
         val worldId = interning.findWorldId(this, pos.world) ?: return@read emptyList()
         val tile = Tile.at(worldId, pos.x, pos.z)
@@ -161,6 +192,8 @@ class StoredWorldLog(storage: TracelStorage, chrono: Chrono = Chrono.of(storage)
         val log = transactions as? StoredTransactionLog ?: return world to transactions.query(filter)
         return world to storage.read { log.select(this, filter, withLots = true) }
     }
+
+    private fun windowOf(epochMillis: Long): Long = Math.floorDiv(epochMillis, chrono.settings.windowMillis)
 
     private fun refuseTwice(unit: StorageUnit, pending: Boolean, tile: Tile, lane: Lane, seq: Seq) {
         check(

@@ -4,6 +4,8 @@ import com.tracel.storage.StorageUnit
 import com.tracel.storage.chrono.Lane
 import com.tracel.storage.chrono.RowsBuilder
 import com.tracel.storage.chrono.Tile
+import com.tracel.storage.chrono.capsule.LithCapsule
+import com.tracel.storage.chrono.lith.Voids
 
 /** Silt into stratum, stratum into glacier, glacier into permafrost. */
 internal class Lithify(
@@ -60,7 +62,9 @@ internal class Lithify(
                 merged += held
             }
             val window = members.minOf { it.view.window }
-            val bytes = filer.lay(unit, tile, lane, window, builder.rows().sorted(), capsuleRows, cold)
+            var carried = Voids.NONE
+            for (held in members) (held.view as? LithCapsule)?.let { carried += it.voids }
+            val bytes = filer.lay(unit, tile, lane, window, builder.rows().sorted(), capsuleRows, cold, carried)
             tally.wrote(id.first, bytes)
             written += bytes
         }

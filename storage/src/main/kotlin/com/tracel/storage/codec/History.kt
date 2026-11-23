@@ -30,7 +30,7 @@ object History {
             )
         ) else BLOCKS
 
-        Tag.CHRONO_BURST.byte -> BLOCKS
+        Tag.CHRONO_BURST.byte, Tag.CHRONO_VOID.byte -> BLOCKS
         Tag.TXN.byte, Tag.TXN_BY_ID.byte, Tag.ITEM.byte, Tag.TXN_LOT.byte -> ITEMS
         Tag.CONTAINER_SLOT.byte, Tag.ACTOR_VISIT.byte -> CONTAINERS
         Tag.EVENT.byte, Tag.EVENT_ACTOR.byte, Tag.EVENT_TIME.byte, Tag.EVENT_ENTITY.byte -> EVENTS
@@ -73,6 +73,7 @@ object History {
         Tag.WCHG_AT.byte, Tag.WCHG_AT_SECTION.byte, Tag.WCHG_ENTITY.byte,
         Tag.EVENT_ACTOR.byte, Tag.EVENT_TIME.byte, Tag.EVENT_ENTITY.byte, Tag.ROLLED_JOB.byte, Tag.ROLLED_SET_JOB.byte,
         Tag.CHRONO_TRACK.byte, Tag.CHRONO_TIME.byte, Tag.CHRONO_FRAGMENT.byte, Tag.CHRONO_BURST.byte,
+        Tag.CHRONO_VOID.byte,
             -> false
 
         else -> true

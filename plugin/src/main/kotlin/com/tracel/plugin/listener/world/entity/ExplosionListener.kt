@@ -85,6 +85,7 @@ class ExplosionListener(services: TracelServices) : TracelListener(services) {
         // The blast's own rays cross every block it broke: knowing where they started,
         // history keeps the crater small
         shape.burst(WorldId(blocks.first().world.uid), epochMillis, from)
+        shape.emptyAround(WorldId(blocks.first().world.uid), epochMillis, blocks)
 
         // TNT in the crater primes, unless a plugin cancels the prime and it stays: read it a tick later
         val (tnt, broken) = blocks.partition { it.type == Material.TNT }

@@ -3,6 +3,7 @@ package com.tracel.engine.world
 import com.tracel.engine.log.TransactionLog
 import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.engine.world.edit.EmptyCells
 import com.tracel.model.log.Seq
 import com.tracel.model.transaction.Transaction
 import com.tracel.model.world.BlockPos
@@ -41,6 +42,19 @@ public interface WorldLog {
 
     /** Notes that the changes of one moment in [world] spread out from the point [x], [y], [z]. */
     public suspend fun noteBurst(world: WorldId, epochMillis: Long, x: Double, y: Double, z: Double) {}
+
+    /**
+     * Notes which cells of [cubes] in [world] held nothing just before the changes of [epochMillis]:
+     * a hint, like [noteBurst], a log may use to keep those changes smaller.
+     */
+    public suspend fun noteEmpty(world: WorldId, epochMillis: Long, cubes: List<EmptyCells>) {}
+
+    /**
+     * Whether [noteEmpty] would still keep the cube whose lowest corner is ([x], [y], [z]) at [epochMillis].
+     *
+     * Asked before the cube is read, so a log that keeps one map a day is not handed a hundred.
+     */
+    public fun wantsEmpty(world: WorldId, epochMillis: Long, x: Int, y: Int, z: Int): Boolean = true
 
     /** What happened at [pos], newest first, at most [limit] of it. */
     public suspend fun at(pos: BlockPos, limit: Int = 100): List<WorldChange>

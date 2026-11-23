@@ -91,7 +91,8 @@ enum class Tag(val byte: Byte, private vararg val fields: Field) {
     CHRONO_TIME(0x3C, INV64, U32, ORD32, ORD32, U8),
     CHRONO_MARK(0x3D), // Retired
     CHRONO_FRAGMENT(0x3E, U32, ORD32, ORD32, U8, INV64),
-    CHRONO_BURST(0x3F, U32, U64, U64);
+    CHRONO_BURST(0x3F, U32, U64, U64),
+    CHRONO_VOID(0x40, U32, ORD32, ORD32, U64, ORD32);
 
     val label: String = name.lowercase().split('_')
         .mapIndexed { i, word -> if (i == 0) word else word.replaceFirstChar(Char::uppercase) }.joinToString("")

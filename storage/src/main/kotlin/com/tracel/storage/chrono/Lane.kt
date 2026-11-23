@@ -2,6 +2,7 @@ package com.tracel.storage.chrono
 
 import com.tracel.storage.chrono.capsule.*
 import com.tracel.storage.chrono.lith.Bursts
+import com.tracel.storage.chrono.lith.Voids
 import java.lang.foreign.MemorySegment
 
 /** A kind of history a tile keeps, each in capsules of its own format. */
@@ -13,10 +14,11 @@ enum class Lane(val id: Int, val magic: Int) {
         override fun encode(rows: Rows, window: Long, bounds: CapsuleView?): ByteArray =
             blocks.get().encode(rows, window, bounds?.lastSeq ?: Long.MIN_VALUE, bounds?.maxMillis ?: Long.MIN_VALUE)
 
-        override fun encodeCold(rows: Rows, window: Long, bounds: CapsuleView?, tile: Tile?, bursts: Bursts): ByteArray =
-            LithCapsule.encode(
-                rows, window, bounds?.lastSeq ?: Long.MIN_VALUE, bounds?.maxMillis ?: Long.MIN_VALUE, tile, bursts,
-            )
+        override fun encodeCold(
+            rows: Rows, window: Long, bounds: CapsuleView?, tile: Tile?, bursts: Bursts, voids: Voids,
+        ): ByteArray = LithCapsule.encode(
+            rows, window, bounds?.lastSeq ?: Long.MIN_VALUE, bounds?.maxMillis ?: Long.MIN_VALUE, tile, bursts, voids,
+        )
 
         override fun isCold(view: CapsuleView): Boolean = view is LithCapsule
 
@@ -74,6 +76,7 @@ enum class Lane(val id: Int, val magic: Int) {
         bounds: CapsuleView? = null,
         tile: Tile? = null,
         bursts: Bursts = Bursts.NONE,
+        voids: Voids = Voids.NONE,
     ): ByteArray = encode(rows, window, bounds)
 
     /** Whether this lane has a cold format of its own. */
@@ -84,7 +87,8 @@ enum class Lane(val id: Int, val magic: Int) {
 
     /** [encode] or [encodeCold], whichever [like] was written in. */
     fun encodeLike(like: CapsuleView, rows: Rows, window: Long, bounds: CapsuleView? = null): ByteArray =
-        if (isCold(like)) encodeCold(rows, window, bounds) else encode(rows, window, bounds)
+        if (isCold(like)) encodeCold(rows, window, bounds, voids = (like as? LithCapsule)?.voids ?: Voids.NONE)
+        else encode(rows, window, bounds)
 
     companion object {
         private val blocks = ThreadLocal.withInitial { CapsuleEncoder() }

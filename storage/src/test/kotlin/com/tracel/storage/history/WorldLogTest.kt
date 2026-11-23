@@ -4,6 +4,7 @@ import com.tracel.engine.log.lookup.LookupFilter
 import com.tracel.engine.log.lookup.LookupRegion
 import com.tracel.engine.world.edit.BlockEdit
 import com.tracel.engine.world.edit.BlockEdits
+import com.tracel.engine.world.edit.EmptyCells
 import com.tracel.model.cause.CauseKind
 import com.tracel.model.flow.Flow
 import com.tracel.model.flow.FlowKind
@@ -19,6 +20,7 @@ import com.tracel.model.world.block.BlockShape
 import com.tracel.model.world.entity.EntityExtras
 import com.tracel.model.world.entity.EntityShape
 import com.tracel.model.world.entity.EntityTypeKey
+import com.tracel.storage.StorageUnit
 import com.tracel.storage.admin.purgeAll
 import com.tracel.storage.codec.Keys
 import com.tracel.storage.codec.Tag
@@ -55,6 +57,28 @@ class WorldLogTest {
         pos,
         ChangeSubject.Block(before, TestShapes.AIR),
     )
+
+    @Test
+    fun `a cube keeps only its first empty map of a day`(@TempDir dir: Path) = runTest {
+        Stack(dir).use { stack ->
+            fun maps(): Int = StorageUnit.open(stack.storage.engine).use { unit ->
+                unit.scan(Tag.CHRONO_VOID.prefix).use { c -> var n = 0; while (c.next()) n++; n }
+            }
+
+            fun cube(x: Int, y: Int) = EmptyCells(x, y, 0, LongArray(64))
+
+            val day = 86_400_000L
+            stack.worldLog.noteEmpty(world, 1_000L, listOf(cube(0, 0), cube(0, 16)))
+            stack.worldLog.noteEmpty(world, 5_000L, listOf(cube(0, 0), cube(16, 0)))
+            assertEquals(3, maps(), "the second blast adds only the cube it had not mapped")
+            assertTrue(!stack.worldLog.wantsEmpty(world, 9_000L, 0, 0, 0), "a mapped cube is not asked for again")
+            assertTrue(stack.worldLog.wantsEmpty(world, 9_000L, 32, 0, 0), "an unmapped one is")
+            assertTrue(stack.worldLog.wantsEmpty(world, day + 1L, 0, 0, 0), "a new day asks again")
+
+            stack.worldLog.noteEmpty(world, day + 1_000L, listOf(cube(0, 0)))
+            assertEquals(4, maps(), "a new day maps its cubes again")
+        }
+    }
 
     @Test
     fun `a block change round-trips every field`(@TempDir dir: Path) = runTest {

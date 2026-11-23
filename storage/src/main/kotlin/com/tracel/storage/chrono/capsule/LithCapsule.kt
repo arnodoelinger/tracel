@@ -8,6 +8,8 @@ import com.tracel.storage.chrono.bits.ByteWriter
 import com.tracel.storage.chrono.bits.SegmentReader
 import com.tracel.storage.chrono.lith.Bursts
 import com.tracel.storage.chrono.lith.LithCodec
+import com.tracel.storage.chrono.lith.VoidCodec
+import com.tracel.storage.chrono.lith.Voids
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
 
@@ -33,6 +35,8 @@ class LithCapsule(override val bytes: MemorySegment) : CapsuleView {
     private val yFloor: Int
     private val ySpan: Int
     private val firstMillis: Long
+    private val voidsAt: Long
+    private val voidsEnd: Long
     private val bodyAt: Long
     private val bodyEnd: Long
 
@@ -55,13 +59,28 @@ class LithCapsule(override val bytes: MemorySegment) : CapsuleView {
         firstMillis = minMillis + c.varint()
         actors = readPalette(c)
         kinds = readPalette(c)
+        if (flags and FLAG_VOIDS != 0) {
+            val voidsLength = c.varint()
+            voidsAt = c.at
+            voidsEnd = voidsAt + voidsLength
+            c.at = voidsEnd
+        } else {
+            voidsAt = 0
+            voidsEnd = 0
+        }
         val length = c.varint()
         bodyAt = c.at
         bodyEnd = bodyAt + length
     }
 
+    val voids: Voids by lazy {
+        if (flags and FLAG_VOIDS == 0) Voids.NONE else VoidCodec.decode(bytes, voidsAt, voidsEnd, minMillis)
+    }
+
     private val decoded: Rows by lazy {
-        val rows = LithCodec.decode(bytes, bodyAt, bodyEnd, rowCount, yFloor, ySpan, firstSeq, firstMillis, flags and FLAG_RAYS != 0)
+        val rows = LithCodec.decode(
+            bytes, bodyAt, bodyEnd, rowCount, yFloor, ySpan, firstSeq, firstMillis, flags and FLAG_RAYS != 0, voids,
+        )
         if (flags and FLAG_EXTRAS == 0) rows else withExtras(rows)
     }
 
@@ -112,6 +131,7 @@ class LithCapsule(override val bytes: MemorySegment) : CapsuleView {
         const val VERSION: Int = 0x81
         private const val FLAG_EXTRAS = 1
         private const val FLAG_RAYS = 2
+        private const val FLAG_VOIDS = 4
         private const val BEFORE = 1
         private const val AFTER = 2
         private const val BOTH_SAME = 3
@@ -127,6 +147,7 @@ class LithCapsule(override val bytes: MemorySegment) : CapsuleView {
             maxMillisAtLeast: Long = Long.MIN_VALUE,
             tile: Tile? = null,
             bursts: Bursts = Bursts.NONE,
+            voids: Voids = Voids.NONE,
         ): ByteArray {
             require(rows.size > 0) { "a capsule of nothing says... nothing." }
             val sorted = rows.sorted()
@@ -146,7 +167,21 @@ class LithCapsule(override val bytes: MemorySegment) : CapsuleView {
                 if (blob(sorted.beforeExtrasAt(i)) != null || blob(sorted.afterExtrasAt(i)) != null) extras++
             }
             val hints = tile?.let { LithCodec.RayHints(it.originX, it.originZ, bursts) }
-            val body = LithCodec.encode(sorted, yLo, yHi - yLo + 1, rays = true, hints = hints)
+            val plain = LithCodec.encode(sorted, yLo, yHi - yLo + 1, rays = true, hints = hints)
+
+            var body = plain
+            var voidBytes: ByteArray? = null
+            if (!voids.isEmpty) {
+                val kept = voids.only(minMillis, maxMillis, Math.floorDiv(yLo, 16), Math.floorDiv(yHi, 16))
+                if (!kept.isEmpty) {
+                    val withVoids = LithCodec.encode(sorted, yLo, yHi - yLo + 1, rays = true, hints = hints, voids = kept)
+                    val maps = VoidCodec.encode(kept, minMillis)
+                    if (withVoids.size + maps.size + 4 < plain.size) {
+                        body = withVoids
+                        voidBytes = maps
+                    }
+                }
+            }
             val cells = sorted.cell.copyOf(n).also { it.sort() }
             var cellCount = 0
             for (i in cells.indices) if (i == 0 || cells[i] != cells[i - 1]) cellCount++
@@ -154,7 +189,7 @@ class LithCapsule(override val bytes: MemorySegment) : CapsuleView {
             val out = ByteWriter(body.size + 64)
             out.u8(Lane.BLOCKS.magic)
             out.u8(VERSION)
-            out.u8((if (extras > 0) FLAG_EXTRAS else 0) or FLAG_RAYS)
+            out.u8((if (extras > 0) FLAG_EXTRAS else 0) or FLAG_RAYS or (if (voidBytes != null) FLAG_VOIDS else 0))
             out.varint(n.toLong())
             out.varint(cellCount.toLong())
             val first = sorted.seq[0]
@@ -168,6 +203,10 @@ class LithCapsule(override val bytes: MemorySegment) : CapsuleView {
             out.varint(sorted.millis[0] - minMillis)
             writePalette(out, sorted.actor, n)
             writePalette(out, sorted.kind, n)
+            if (voidBytes != null) {
+                out.varint(voidBytes.size.toLong())
+                out.bytes(voidBytes)
+            }
             out.varint(body.size.toLong())
             out.bytes(body)
             if (extras > 0) {
